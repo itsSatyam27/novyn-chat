@@ -920,7 +920,6 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
     final colors = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
     final selectedFriend = _selectedFriendModel;
-    final onlineCount = _friends.where((friend) => _presence(friend) == 'Online').length;
     final filtered = _filteredFriends;
 
     return Container(
@@ -973,14 +972,6 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
                   ),
                 ),
               ),
-              if (!_loadingFriends && !_friendsLoadFailed)
-                Text(
-                  '$onlineCount of ${_friends.length} online',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: colors.onSurfaceVariant,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
             ],
           ),
           const SizedBox(height: 18),

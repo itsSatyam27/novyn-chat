@@ -95,16 +95,26 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
         ? widget.opponentDisplayName!
         : (game?['opponent']?.toString() ?? widget.peerUsername);
 
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
+      backgroundColor: isDark ? const Color(0xFF141026) : const Color(0xFFF4F2FA),
       appBar: AppBar(
         titleSpacing: 4,
+        backgroundColor: isDark ? const Color(0xFF141026) : const Color(0xFFF4F2FA),
+        elevation: 0,
+        scrolledUnderElevation: 0,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-            )),
+            Text(
+              title,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                fontSize: 18,
+              ),
+            ),
+            const SizedBox(height: 1),
             Text(
               widget.randomSessionId == null
                   ? 'Playing with $opponent'
@@ -113,10 +123,47 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colors.onSurfaceVariant,
+                fontSize: 12,
               ),
             ),
           ],
         ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF282046) : const Color(0xFFEEE9FA),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF5E44F3),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    const Text(
+                      'Live',
+                      style: TextStyle(
+                        color: Color(0xFF5E44F3),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
       body: SafeArea(
         top: false,
@@ -132,66 +179,8 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
                 ),
               )
             : ListView(
-                padding: const EdgeInsets.fromLTRB(18, 14, 18, 32),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(17),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          colors.primaryContainer.withValues(alpha: .9),
-                          colors.surfaceContainerLow,
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(23),
-                      border: Border.all(
-                        color: colors.primary.withValues(alpha: .13),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 54,
-                          height: 54,
-                          decoration: BoxDecoration(
-                            color: colors.surface.withValues(alpha: .8),
-                            borderRadius: BorderRadius.circular(17),
-                          ),
-                          child: Icon(
-                            Icons.sports_esports_rounded,
-                            color: colors.primary,
-                            size: 29,
-                          ),
-                        ),
-                        const SizedBox(width: 13),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                game['state']?.toString() == 'finished'
-                                    ? 'Game completed'
-                                    : 'Game in progress',
-                                style: theme.textTheme.titleSmall?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Moves sync live with everyone in this match.',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: colors.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 18),
                   GameMessageCard(
                     messageId: widget.messageId ??
                         'random:${widget.randomSessionId ?? ''}',
@@ -205,10 +194,10 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
                     compact: false,
                     randomSessionId: widget.randomSessionId,
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 16),
                   Text(
                     widget.randomSessionId == null
-                        ? 'Stay on this screen while you play. Your game result will also be saved in chat.'
+                        ? 'Stay on this screen while you play. Your result is saved in chat.'
                         : 'Stay on this screen while you play. Your random match is synced live with your opponent.',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodySmall?.copyWith(

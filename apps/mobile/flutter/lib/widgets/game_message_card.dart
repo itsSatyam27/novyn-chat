@@ -411,68 +411,306 @@ class _GameMessageCardState extends State<GameMessageCard> {
   }
 }
 
+void _showGameOverModal(
+  BuildContext context, {
+  required String emoji,
+  required String title,
+  required String subtitle,
+  required String score,
+  required Future<void> Function() onPlayAgain,
+  required VoidCallback onClose,
+}) {
+  showModalBottomSheet<void>(
+    context: context,
+    isDismissible: true,
+    enableDrag: true,
+    backgroundColor: Colors.transparent,
+    builder: (sheetContext) {
+      final isDark = Theme.of(sheetContext).brightness == Brightness.dark;
+      bool startingRematch = false;
+      return StatefulBuilder(
+        builder: (context, setModalState) {
+          return Container(
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF201B36) : Colors.white,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.15),
+                  blurRadius: 20,
+                  offset: const Offset(0, -4),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  emoji,
+                  style: const TextStyle(fontSize: 48),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    color: isDark ? Colors.white : const Color(0xFF1E1A33),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  subtitle,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: isDark ? Colors.white70 : const Color(0xFF7E7A9C),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF2C2649) : const Color(0xFFF3F0FA),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    score,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      color: isDark ? Colors.white : const Color(0xFF1E1A33),
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                FilledButton(
+                  onPressed: startingRematch
+                      ? null
+                      : () async {
+                          setModalState(() => startingRematch = true);
+                          try {
+                            Navigator.of(sheetContext).pop();
+                            await onPlayAgain();
+                          } catch (_) {
+                            if (sheetContext.mounted) {
+                              setModalState(() => startingRematch = false);
+                            }
+                          }
+                        },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF5E44F3),
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(double.infinity, 52),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: startingRematch
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text(
+                          'Play again',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                ),
+                const SizedBox(height: 12),
+                FilledButton(
+                  onPressed: () {
+                    Navigator.of(sheetContext).pop();
+                    onClose();
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: isDark ? const Color(0xFF2C2649) : const Color(0xFFF3F0FA),
+                    foregroundColor: const Color(0xFFD81E5B),
+                    minimumSize: const Size(double.infinity, 52),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: const Text(
+                    'Close room',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFFD81E5B),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
 class _RpsPlayerCard extends StatelessWidget {
-  const _RpsPlayerCard({required this.name, required this.username, required this.mark, required this.accent, required this.status, required this.active});
+  const _RpsPlayerCard({
+    required this.name,
+    required this.username,
+    required this.mark,
+    required this.accent,
+    required this.status,
+    required this.active,
+    this.isSolidPill = false,
+  });
+
   final String name;
   final String username;
   final String mark;
   final Color accent;
   final String status;
   final bool active;
+  final bool isSolidPill;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
-      padding: const EdgeInsets.fromLTRB(6, 8, 6, 7),
-      decoration: BoxDecoration(color: active ? scheme.surface : scheme.surfaceContainerLow, borderRadius: BorderRadius.circular(18), border: Border.all(color: accent.withValues(alpha: active ? .95 : .3), width: active ? 1.4 : 1)),
-      child: Column(children: [
-        Container(width: 38, height: 38, alignment: Alignment.center, decoration: BoxDecoration(gradient: LinearGradient(colors: [accent.withValues(alpha: .7), accent]), shape: BoxShape.circle), child: Text(mark, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 17))),
-        const SizedBox(height: 3),
-        Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
-        Text(username, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 7, color: scheme.onSurfaceVariant)),
-        const SizedBox(height: 5),
-        Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 5), alignment: Alignment.center, decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(13)), child: _RpsPlayerTag(status: status)),
-      ]),
+      padding: const EdgeInsets.fromLTRB(10, 14, 10, 12),
+      decoration: BoxDecoration(
+        color: dark ? const Color(0xFF201B36) : Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: active ? accent : (dark ? const Color(0xFF382F57) : const Color(0xFFEAE6F8)),
+          width: active ? 2.0 : 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: active ? accent.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: accent,
+              shape: BoxShape.circle,
+            ),
+            child: Text(
+              mark,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 20,
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: dark ? Colors.white : const Color(0xFF1E1A33),
+            ),
+          ),
+          const SizedBox(height: 1),
+          Text(
+            username,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11,
+              color: dark ? Colors.white60 : const Color(0xFF7E7A9C),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: isSolidPill ? accent : (dark ? const Color(0xFF2C2649) : const Color(0xFFF3F0FA)),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Text(
+              status,
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: isSolidPill ? Colors.white : (dark ? Colors.white70 : const Color(0xFF7E7A9C)),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
-}
-
-class _RpsPlayerTag extends StatelessWidget {
-  const _RpsPlayerTag({required this.status});
-  final String status;
-  @override
-  Widget build(BuildContext context) {
-    if (status != 'THINKING') return Text(status, maxLines: 1, overflow: TextOverflow.clip, style: const TextStyle(color: Colors.white, fontSize: 7, letterSpacing: .1, fontWeight: FontWeight.w900));
-    return const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text('THINKING', style: TextStyle(color: Colors.white, fontSize: 7, letterSpacing: .1, fontWeight: FontWeight.w900)), SizedBox(width: 3), _RpsBlinkDots()]);
-  }
-}
-
-class _RpsBlinkDots extends StatefulWidget {
-  const _RpsBlinkDots();
-  @override
-  State<_RpsBlinkDots> createState() => _RpsBlinkDotsState();
-}
-
-class _RpsBlinkDotsState extends State<_RpsBlinkDots> with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  @override
-  void initState() { super.initState(); _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 800))..repeat(); }
-  @override
-  void dispose() { _controller.dispose(); super.dispose(); }
-  @override
-  Widget build(BuildContext context) => AnimatedBuilder(animation: _controller, builder: (context, _) => Opacity(opacity: .25 + .75 * (1 - (_controller.value - .5).abs() * 2), child: const Text('•••', style: TextStyle(color: Colors.white, fontSize: 7, fontWeight: FontWeight.w900))));
 }
 
 class _RpsVsBadge extends StatelessWidget {
   const _RpsVsBadge();
   @override
-  Widget build(BuildContext context) => Container(width: 26, height: 26, alignment: Alignment.center, decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, shape: BoxShape.circle, border: Border.all(color: const Color(0xFFE4DEF7))), child: Text('VS', style: TextStyle(fontSize: 7, fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.onSurfaceVariant)));
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      width: 32,
+      height: 32,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: dark ? const Color(0xFF282046) : Colors.white,
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: dark ? const Color(0xFF382F57) : const Color(0xFFEAE6F8),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Text(
+        'VS',
+        style: TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.w900,
+          color: dark ? Colors.white70 : const Color(0xFF7E7A9C),
+        ),
+      ),
+    );
+  }
 }
 
 class _RpsPad extends StatelessWidget {
-  const _RpsPad({required this.move, required this.accent, required this.shake, required this.pop, required this.winner, required this.loser, required this.animation});
+  const _RpsPad({
+    required this.move,
+    required this.accent,
+    required this.shake,
+    required this.pop,
+    required this.winner,
+    required this.loser,
+    required this.animation,
+  });
+
   final String? move;
   final Color accent;
   final bool shake;
@@ -486,28 +724,140 @@ class _RpsPad extends StatelessWidget {
     final dark = Theme.of(context).brightness == Brightness.dark;
     Widget pad = AnimatedContainer(
       duration: const Duration(milliseconds: 240),
-      constraints: const BoxConstraints(maxHeight: 150),
-      decoration: BoxDecoration(color: dark ? const Color(0xFF2A2244) : Colors.white, borderRadius: BorderRadius.circular(23), border: Border.all(color: winner ? accent : (dark ? const Color(0xFF493D70) : const Color(0xFFE4DEF7)), width: winner ? 2 : 1), boxShadow: [BoxShadow(color: dark ? const Color(0xFF17122B) : const Color(0xFFB9ACF0), offset: const Offset(0, 5), blurRadius: 0), if (winner) BoxShadow(color: accent.withValues(alpha: .32), blurRadius: 17, spreadRadius: 2)]),
-      child: AnimatedOpacity(opacity: loser ? .52 : 1, duration: const Duration(milliseconds: 250), child: Padding(padding: const EdgeInsets.all(18), child: move == null ? const FittedBox(child: Text('?', style: TextStyle(fontSize: 43, fontWeight: FontWeight.w800, color: Color(0xFFB9ACF0)))) : _RpsMoveIcon(move: move!, size: 66))),
+      decoration: BoxDecoration(
+        color: dark ? const Color(0xFF201B36) : Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: winner ? accent : (dark ? const Color(0xFF382F57) : const Color(0xFFEAE6F8)),
+          width: winner ? 2.5 : 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: winner
+                ? accent.withValues(alpha: 0.22)
+                : Colors.black.withValues(alpha: 0.03),
+            blurRadius: winner ? 14 : 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: AnimatedOpacity(
+        opacity: loser ? .48 : 1.0,
+        duration: const Duration(milliseconds: 250),
+        child: Padding(
+          padding: const EdgeInsets.all(22),
+          child: move == null
+              ? const FittedBox(
+                  child: Text(
+                    '?',
+                    style: TextStyle(
+                      fontSize: 48,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFFB9ACF0),
+                    ),
+                  ),
+                )
+              : _RpsMoveIcon(move: move!, size: 66),
+        ),
+      ),
     );
     pad = AspectRatio(aspectRatio: 1, child: pad);
-    if (pop && move != null) pad = TweenAnimationBuilder<double>(tween: Tween(begin: .65, end: 1), duration: const Duration(milliseconds: 400), builder: (context, scale, child) => Transform.rotate(angle: (1 - scale) * -.18, child: Transform.scale(scale: scale, child: child)), child: pad);
-    if (shake) pad = AnimatedBuilder(animation: animation, child: pad, builder: (context, child) { final phase = animation.value * math.pi * 2; return Transform.translate(offset: Offset(0, math.sin(phase) * 8), child: Transform.rotate(angle: math.sin(phase) * .025, child: child)); });
+    if (pop && move != null) {
+      pad = TweenAnimationBuilder<double>(
+        tween: Tween(begin: .65, end: 1),
+        duration: const Duration(milliseconds: 400),
+        builder: (context, scale, child) => Transform.rotate(
+          angle: (1 - scale) * -.18,
+          child: Transform.scale(scale: scale, child: child),
+        ),
+        child: pad,
+      );
+    }
+    if (shake) {
+      pad = AnimatedBuilder(
+        animation: animation,
+        child: pad,
+        builder: (context, child) {
+          final phase = animation.value * math.pi * 2;
+          return Transform.translate(
+            offset: Offset(0, math.sin(phase) * 8),
+            child: Transform.rotate(angle: math.sin(phase) * .025, child: child),
+          );
+        },
+      );
+    }
     return pad;
   }
 }
 
 class _RpsMoveTile extends StatelessWidget {
-  const _RpsMoveTile({required this.move, required this.selected, required this.enabled, required this.onTap});
+  const _RpsMoveTile({
+    required this.move,
+    required this.selected,
+    required this.enabled,
+    required this.onTap,
+  });
+
   final String move;
   final bool selected;
   final bool enabled;
   final VoidCallback onTap;
+
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final label = switch (move) {'rock' => 'Rock', 'paper' => 'Paper', _ => 'Scissors'};
-    return Opacity(opacity: enabled || selected ? 1 : .58, child: Material(color: Colors.transparent, child: InkWell(onTap: enabled ? onTap : null, borderRadius: BorderRadius.circular(16), child: AnimatedContainer(duration: const Duration(milliseconds: 150), padding: const EdgeInsets.fromLTRB(4, 8, 4, 6), decoration: BoxDecoration(color: dark ? const Color(0xFF2A2244) : Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: selected ? const Color(0xFF6C4DF6) : (dark ? const Color(0xFF493D70) : const Color(0xFFE4DEF7)), width: selected ? 2 : 1), boxShadow: [BoxShadow(color: dark ? const Color(0xFF17122B) : const Color(0xFFB9ACF0), offset: const Offset(0, 3), blurRadius: 0)]), child: Column(children: [_RpsMoveIcon(move: move, size: 34), const SizedBox(height: 3), Text(label, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w700))])))));
+    final label = switch (move) {
+      'rock' => 'Rock',
+      'paper' => 'Paper',
+      _ => 'Scissors',
+    };
+    return Opacity(
+      opacity: enabled || selected ? 1 : .55,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: enabled ? onTap : null,
+          borderRadius: BorderRadius.circular(18),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+            decoration: BoxDecoration(
+              color: dark ? const Color(0xFF201B36) : Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: selected
+                    ? const Color(0xFF5E44F3)
+                    : (dark ? const Color(0xFF382F57) : const Color(0xFFEAE6F8)),
+                width: selected ? 2.2 : 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: selected
+                      ? const Color(0xFF5E44F3).withValues(alpha: 0.15)
+                      : Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                _RpsMoveIcon(move: move, size: 38),
+                const SizedBox(height: 6),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: dark ? Colors.white : const Color(0xFF1E1A33),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -593,6 +943,7 @@ class _TicTacToeMatchPanel extends StatefulWidget {
 class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
   List<dynamic>? _optimisticBoard;
   String? _error;
+  bool _gameOverModalShown = false;
 
   Map<String, dynamic> get _data => widget.game['data'] is Map
       ? Map<String, dynamic>.from(widget.game['data'] as Map)
@@ -601,12 +952,60 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
   bool get _finished => widget.game['state']?.toString() == 'finished';
 
   @override
+  void initState() {
+    super.initState();
+    if (_finished) {
+      _gameOverModalShown = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showGameOver();
+      });
+    }
+  }
+
+  @override
   void didUpdateWidget(covariant _TicTacToeMatchPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.game['data'] != widget.game['data']) {
       _optimisticBoard = null;
       _error = null;
     }
+    if (oldWidget.game['state'] != widget.game['state']) {
+      if (_finished && !_gameOverModalShown) {
+        _gameOverModalShown = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _showGameOver();
+        });
+      } else if (!_finished) {
+        _gameOverModalShown = false;
+      }
+    }
+  }
+
+  void _showGameOver() {
+    final winner = widget.game['winner']?.toString() ?? '';
+    final meWon = winner.toLowerCase() == widget.currentUsername.toLowerCase();
+    final tie = winner == 'draw';
+    final opponentName = widget.opponentName.trim().isEmpty ? widget.opponentUsername : widget.opponentName.trim();
+    final data = _data;
+    final playerX = data['playerX']?.toString() ?? widget.game['createdBy']?.toString() ?? '';
+    final playerO = data['playerO']?.toString() ?? widget.game['opponent']?.toString() ?? widget.opponentUsername;
+    final isPlayerX = widget.currentUsername.toLowerCase() == playerX.toLowerCase();
+    final winsX = (data['p1Score'] as num?)?.toInt() ?? (_finished && winner.toLowerCase() == playerX.toLowerCase() ? 1 : 0);
+    final winsO = (data['p2Score'] as num?)?.toInt() ?? (_finished && winner.toLowerCase() == playerO.toLowerCase() ? 1 : 0);
+    final myScore = isPlayerX ? winsX : winsO;
+    final opponentScore = isPlayerX ? winsO : winsX;
+
+    _showGameOverModal(
+      context,
+      emoji: tie ? '🤝' : (meWon ? '🏆' : '⚡'),
+      title: tie ? 'It’s a draw' : (meWon ? 'You won!' : '$opponentName wins!'),
+      subtitle: tie
+          ? 'Evenly matched. Play again?'
+          : (meWon ? 'Great match! Play again?' : 'So close. Want a rematch?'),
+      score: '$myScore : $opponentScore',
+      onPlayAgain: widget.onPlayAgain,
+      onClose: () => Navigator.of(context).maybePop(),
+    );
   }
 
   Future<void> _tapCell(int index, List<dynamic> board, String playerX, String playerO, String symbol) async {
@@ -629,6 +1028,7 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
     final playerO = data['playerO']?.toString() ?? widget.game['opponent']?.toString() ?? widget.opponentUsername;
     final isPlayerX = widget.currentUsername.toLowerCase() == playerX.toLowerCase();
     final mySymbol = isPlayerX ? 'X' : 'O';
+    final opponentSymbol = isPlayerX ? 'O' : 'X';
     final canJoin = widget.canJoinGroup;
     final board = _optimisticBoard ?? (data['board'] is List ? List<dynamic>.from(data['board'] as List) : List<dynamic>.filled(9, null));
     final winningCells = data['winningLine'] is List
@@ -642,52 +1042,101 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
     final winsO = (data['p2Score'] as num?)?.toInt() ?? (_finished && winner.toLowerCase() == playerO.toLowerCase() ? 1 : 0);
     final myScore = isPlayerX ? winsX : winsO;
     final opponentScore = isPlayerX ? winsO : winsX;
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final dark = theme.brightness == Brightness.dark;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     final opponentName = widget.opponentName.trim().isEmpty ? widget.opponentUsername : widget.opponentName.trim();
-    final status = _error ?? (_finished
-        ? tie ? 'It’s a draw' : meWon ? 'You win!' : '$opponentName wins!'
-        : isMyTurn ? 'Your turn' : '$opponentName is thinking…');
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 18),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [dark ? const Color(0xFF17132A) : const Color(0xFFF0EBFF), dark ? const Color(0xFF241A3C) : const Color(0xFFE7DFFF)]),
-        borderRadius: BorderRadius.circular(26),
-      ),
-      child: Column(children: [
-        Align(alignment: Alignment.centerLeft, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Tic-Tac-Toe', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-          Text('Playing with $opponentName', maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant, fontSize: 11)),
-        ])),
-        const SizedBox(height: 12),
-        Row(children: [
-          Expanded(child: _TttPlayerCard(name: 'You', username: '@${widget.currentUsername}', mark: mySymbol, accent: const Color(0xFF6C4DF6), active: !_finished && isMyTurn, winner: _finished && meWon)),
-          SizedBox(width: 48, child: Column(children: [
-            Text('$myScore : $opponentScore', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900, color: const Color(0xFF1E1A33))),
-            Text('WINS', style: theme.textTheme.labelSmall?.copyWith(fontSize: 8, letterSpacing: .6, color: scheme.onSurfaceVariant)),
-          ])),
-          Expanded(child: _TttPlayerCard(name: opponentName, username: '@${widget.opponentUsername}', mark: isPlayerX ? 'O' : 'X', accent: const Color(0xFFE8458B), active: !_finished && !isMyTurn, winner: _finished && !meWon && !tie)),
-        ]),
-        const SizedBox(height: 14),
-        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Flexible(child: Text(status, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w800))),
-          if (_finished) ...[const SizedBox(width: 8), _smallReplayButton(widget.startingRematch, widget.onPlayAgain)],
-        ]),
-        const SizedBox(height: 13),
+    final myStatus = _finished
+        ? (meWon ? 'Winner' : (tie ? 'Draw' : 'Waiting'))
+        : (isMyTurn ? 'Your turn' : 'Waiting');
+    final myPillSolid = _finished ? meWon : isMyTurn;
+
+    final opponentStatus = _finished
+        ? (!meWon && !tie ? 'Winner' : (tie ? 'Draw' : 'Waiting'))
+        : (!isMyTurn ? 'Thinking...' : 'Waiting');
+    final opponentPillSolid = _finished ? (!meWon && !tie) : !isMyTurn;
+
+    final statusText = _error ?? (_finished
+        ? (tie ? 'It’s a draw' : (meWon ? 'You win!' : '$opponentName wins!'))
+        : (isMyTurn ? 'Your move' : '$opponentName is thinking…'));
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _TttPlayerCard(
+                name: 'You',
+                username: '@${widget.currentUsername}',
+                mark: mySymbol,
+                accent: const Color(0xFF5E44F3),
+                active: !_finished && isMyTurn,
+                status: myStatus,
+                isSolidPill: myPillSolid,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: Column(
+                children: [
+                  Text(
+                    '$myScore : $opponentScore',
+                    style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w900,
+                      color: dark ? Colors.white : const Color(0xFF1E1A33),
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Wins',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: dark ? Colors.white60 : const Color(0xFF7E7A9C),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: _TttPlayerCard(
+                name: opponentName,
+                username: '@${widget.opponentUsername}',
+                mark: opponentSymbol,
+                accent: const Color(0xFFD81E5B),
+                active: !_finished && !isMyTurn,
+                status: opponentStatus,
+                isSolidPill: opponentPillSolid,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        Text(
+          statusText,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w800,
+            color: dark ? Colors.white : const Color(0xFF1E1A33),
+          ),
+        ),
+        const SizedBox(height: 18),
         AspectRatio(
           aspectRatio: 1,
           child: GridView.builder(
             physics: const NeverScrollableScrollPhysics(),
             itemCount: 9,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, crossAxisSpacing: 8, mainAxisSpacing: 8),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+            ),
             itemBuilder: (context, index) {
               final value = board[index]?.toString();
               final winning = winningCells.contains(index);
               final canTap = !_finished && !widget.sendingMove && isMyTurn && value == null;
-              final markColor = value == 'X' ? const Color(0xFF6847F5) : const Color(0xFFE8458B);
               return Semantics(
                 button: canTap,
                 label: value == null ? 'Empty cell' : '$value${winning ? ', winning tile' : ''}',
@@ -695,26 +1144,57 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
                   color: Colors.transparent,
                   child: InkWell(
                     onTap: canTap ? () => _tapCell(index, board, playerX, playerO, mySymbol) : null,
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(22),
                     child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 240),
+                      duration: const Duration(milliseconds: 200),
                       decoration: BoxDecoration(
-                        color: dark ? const Color(0xFF2D2549) : Colors.white,
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: winning ? const Color(0xFF6C4DF6) : (dark ? const Color(0xFF493D70) : const Color(0xFFE4DEF7)), width: winning ? 2 : 1.3),
+                        color: dark ? const Color(0xFF201B36) : Colors.white,
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(
+                          color: winning
+                              ? const Color(0xFF5E44F3)
+                              : (dark ? const Color(0xFF382F57) : const Color(0xFFEAE6F8)),
+                          width: winning ? 2.5 : 1.2,
+                        ),
                         boxShadow: [
-                          BoxShadow(color: dark ? const Color(0xFF100D1C) : const Color(0xFFB9ACF0), offset: const Offset(0, 4), blurRadius: 0),
-                          if (winning) BoxShadow(color: const Color(0xFF6C4DF6).withValues(alpha: .35), blurRadius: 17, spreadRadius: 2),
+                          BoxShadow(
+                            color: winning
+                                ? const Color(0xFF5E44F3).withValues(alpha: 0.25)
+                                : Colors.black.withValues(alpha: 0.03),
+                            blurRadius: winning ? 14 : 8,
+                            offset: const Offset(0, 4),
+                          ),
                         ],
                       ),
                       alignment: Alignment.center,
                       child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 240),
-                        transitionBuilder: (child, animation) => ScaleTransition(scale: animation, child: RotationTransition(turns: Tween<double>(begin: -.04, end: 0).animate(animation), child: child)),
+                        duration: const Duration(milliseconds: 200),
+                        transitionBuilder: (child, animation) => ScaleTransition(
+                          scale: animation,
+                          child: child,
+                        ),
                         child: value == 'X'
-                            ? Icon(Icons.close_rounded, key: const ValueKey('x'), size: 56, color: markColor)
+                            ? const Text(
+                                'X',
+                                key: ValueKey('x'),
+                                style: TextStyle(
+                                  fontFamily: 'PlusJakartaSans',
+                                  fontSize: 52,
+                                  fontWeight: FontWeight.w900,
+                                  color: Color(0xFF5E44F3),
+                                ),
+                              )
                             : value == 'O'
-                                ? Icon(Icons.circle_outlined, key: const ValueKey('o'), size: 48, color: markColor)
+                                ? const Text(
+                                    'O',
+                                    key: ValueKey('o'),
+                                    style: TextStyle(
+                                      fontFamily: 'PlusJakartaSans',
+                                      fontSize: 48,
+                                      fontWeight: FontWeight.w900,
+                                      color: Color(0xFFD81E5B),
+                                    ),
+                                  )
                                 : const SizedBox.expand(key: ValueKey('empty')),
                       ),
                     ),
@@ -724,48 +1204,167 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
             },
           ),
         ),
-        if (widget.sendingMove) ...[const SizedBox(height: 9), const LinearProgressIndicator(minHeight: 2)],
-      ]),
+        if (widget.sendingMove) ...[
+          const SizedBox(height: 10),
+          const LinearProgressIndicator(minHeight: 2),
+        ],
+        if (_finished) ...[
+          const SizedBox(height: 14),
+          TextButton.icon(
+            onPressed: _showGameOver,
+            icon: const Icon(Icons.analytics_outlined, size: 18),
+            label: const Text('View match results'),
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFF5E44F3),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
 
 class _TttPlayerCard extends StatelessWidget {
-  const _TttPlayerCard({required this.name, required this.username, required this.mark, required this.accent, required this.active, required this.winner});
+  const _TttPlayerCard({
+    required this.name,
+    required this.username,
+    required this.mark,
+    required this.accent,
+    required this.active,
+    required this.status,
+    required this.isSolidPill,
+  });
+
   final String name;
   final String username;
   final String mark;
   final Color accent;
   final bool active;
-  final bool winner;
+  final String status;
+  final bool isSolidPill;
+
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final dark = Theme.of(context).brightness == Brightness.dark;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
-      padding: const EdgeInsets.fromLTRB(6, 9, 6, 8),
-      decoration: BoxDecoration(color: dark ? const Color(0xFF241E3B) : Colors.white.withValues(alpha: .85), borderRadius: BorderRadius.circular(18), border: Border.all(color: active || winner ? accent : (dark ? const Color(0xFF3A3258) : const Color(0xFFE4DEF7)), width: active || winner ? 1.7 : 1), boxShadow: active || winner ? [BoxShadow(color: accent.withValues(alpha: .13), blurRadius: 10, offset: const Offset(0, 3))] : null),
-      child: Column(children: [
-        Stack(clipBehavior: Clip.none, children: [
-          Container(width: 42, height: 42, decoration: BoxDecoration(color: accent, shape: BoxShape.circle), alignment: Alignment.center, child: Text(name.trim().isEmpty ? '?' : name.trim().characters.first.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w800))),
-          Positioned(right: -5, bottom: -2, child: Container(width: 19, height: 19, decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: accent.withValues(alpha: .3))), alignment: Alignment.center, child: Text(mark, style: TextStyle(color: accent, fontSize: 13, fontWeight: FontWeight.w900)))),
-        ]),
-        const SizedBox(height: 4),
-        Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
-        Text(username, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 8, color: scheme.onSurfaceVariant)),
-        const SizedBox(height: 6),
-        Container(width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 5), decoration: BoxDecoration(color: active || winner ? accent : accent.withValues(alpha: .12), borderRadius: BorderRadius.circular(14)), alignment: Alignment.center, child: Text(winner ? 'WINNER' : active ? 'YOUR TURN' : 'WAITING', maxLines: 1, style: TextStyle(fontSize: 8, letterSpacing: .2, fontWeight: FontWeight.w800, color: active || winner ? Colors.white : scheme.onSurfaceVariant))),
-      ]),
+      padding: const EdgeInsets.fromLTRB(10, 14, 10, 12),
+      decoration: BoxDecoration(
+        color: dark ? const Color(0xFF201B36) : Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: active ? accent : (dark ? const Color(0xFF382F57) : const Color(0xFFEAE6F8)),
+          width: active ? 2.0 : 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: active ? accent.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: accent,
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  name.trim().isEmpty ? '?' : name.trim().characters.first.toUpperCase(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              Positioned(
+                right: -4,
+                bottom: -2,
+                child: Container(
+                  width: 20,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: dark ? const Color(0xFF201B36) : const Color(0xFFEAE6F8),
+                      width: 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    mark,
+                    style: TextStyle(
+                      color: accent,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: dark ? Colors.white : const Color(0xFF1E1A33),
+            ),
+          ),
+          const SizedBox(height: 1),
+          Text(
+            username,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11,
+              color: dark ? Colors.white60 : const Color(0xFF7E7A9C),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            decoration: BoxDecoration(
+              color: isSolidPill ? accent : (dark ? const Color(0xFF2C2649) : const Color(0xFFF3F0FA)),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              status,
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: isSolidPill ? Colors.white : (dark ? Colors.white70 : const Color(0xFF7E7A9C)),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
-
-Widget _smallReplayButton(bool loading, Future<void> Function() onPressed) => FilledButton(
-      onPressed: loading ? null : onPressed,
-      style: FilledButton.styleFrom(backgroundColor: const Color(0xFF6C4DF6), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 12), minimumSize: const Size(0, 32), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-      child: loading ? const SizedBox(width: 13, height: 13, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Play again', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
-    );
 
 class _RockPaperScissorsPanel extends StatefulWidget {
   const _RockPaperScissorsPanel({
@@ -807,12 +1406,17 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
   bool _isCountingDown = false;
   bool _revealed = false;
   bool _roundTransitioning = false;
+  bool _gameOverModalShown = false;
   String _leftShuffle = 'rock';
   String _rightShuffle = 'paper';
   String _status = 'Pick your move';
   int _statusIndex = 0;
   int _lastRound = 0;
-  int? _roundOverride;
+
+  // Delayed scores and round: updated only when reveal finishes!
+  int _displayedP1Score = 0;
+  int _displayedP2Score = 0;
+  int _displayedRound = 1;
 
   Map<String, dynamic> get _data => widget.game['data'] is Map
       ? Map<String, dynamic>.from(widget.game['data'] as Map)
@@ -832,7 +1436,12 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
       vsync: this,
       duration: const Duration(milliseconds: 420),
     );
-    _lastRound = (_data['round'] as num?)?.toInt() ?? 1;
+    final data = _data;
+    _lastRound = (data['round'] as num?)?.toInt() ?? 1;
+    _displayedP1Score = (data['p1Score'] as num?)?.toInt() ?? 0;
+    _displayedP2Score = (data['p2Score'] as num?)?.toInt() ?? 0;
+    _displayedRound = _lastRound;
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _syncGame();
     });
@@ -870,13 +1479,15 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
       _revealKey = null;
       setState(() {
         _roundTransitioning = false;
-        _roundOverride = null;
         _revealed = false;
         _isCountingDown = false;
         _selectedMove = null;
         _error = null;
         _status = 'Pick your move';
       });
+    }
+    if (!_finished) {
+      _gameOverModalShown = false;
     }
     final p1Move = data['p1Move']?.toString();
     final p2Move = data['p2Move']?.toString();
@@ -903,9 +1514,9 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
         .clamp(0, 1740);
     _statusIndex = (elapsed ~/ 420).clamp(0, 3);
     _shakeController.repeat();
+    // Do NOT update displayed scores yet during shuffle/countdown!
     setState(() {
       _roundTransitioning = false;
-      _roundOverride = null;
       _isCountingDown = true;
       _revealed = false;
       _status = _countdownWords[_statusIndex];
@@ -943,27 +1554,39 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
         widget.game['winner']?.toString() ?? 'draw';
     final isTie = p1Move == p2Move || winner == 'draw';
     final iWon = winner.toLowerCase() == widget.currentUsername.toLowerCase();
-    final player1 = data['player1']?.toString() ?? '';
-    final winningMove = winner.toLowerCase() == player1.toLowerCase()
-        ? p1Move
-        : p2Move;
-    final losingMove = winningMove == p1Move ? p2Move : p1Move;
-    final result = isTie
+    final roundResult = isTie
         ? 'It’s a tie'
-        : '${_cap(_labels[winningMove] ?? winningMove)} beats ${_cap(_labels[losingMove] ?? losingMove)} · ${iWon ? 'You win' : _opponentLabel} wins the round';
+        : iWon
+            ? 'You take the round!'
+            : '$_opponentLabel takes the round!';
+
+    // Update displayed scores and round exactly when cards reveal!
     setState(() {
+      _displayedP1Score = (data['p1Score'] as num?)?.toInt() ?? 0;
+      _displayedP2Score = (data['p2Score'] as num?)?.toInt() ?? 0;
+      _displayedRound = round;
       _isCountingDown = false;
       _revealed = true;
       _status = _finished
           ? (iWon ? 'You win the match!' : '$_opponentLabel wins the match!')
-          : result;
+          : roundResult;
     });
-    if (_finished) return;
+
+    if (_finished) {
+      if (!_gameOverModalShown) {
+        _gameOverModalShown = true;
+        Future.delayed(const Duration(milliseconds: 800), () {
+          if (mounted) _showGameOver();
+        });
+      }
+      return;
+    }
+
     _nextRoundTimer = Timer(const Duration(seconds: 2), () {
       if (!mounted) return;
       setState(() {
         _roundTransitioning = true;
-        _roundOverride = round + 1;
+        _displayedRound = (data['round'] as num?)?.toInt() ?? (round + 1);
         _revealed = false;
         _selectedMove = null;
         _error = null;
@@ -972,9 +1595,25 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
     });
   }
 
-  String _cap(String value) => value.isEmpty
-      ? value
-      : '${value[0].toUpperCase()}${value.substring(1)}';
+  void _showGameOver() {
+    final winner = widget.game['winner']?.toString() ?? '';
+    final iWon = winner.toLowerCase() == widget.currentUsername.toLowerCase();
+    final tie = winner == 'draw';
+    final myScore = _isPlayer1 ? _displayedP1Score : _displayedP2Score;
+    final otherScore = _isPlayer1 ? _displayedP2Score : _displayedP1Score;
+
+    _showGameOverModal(
+      context,
+      emoji: tie ? '🤝' : (iWon ? '🏆' : '⚡'),
+      title: tie ? 'It’s a draw' : (iWon ? 'You won!' : '$_opponentFullName wins!'),
+      subtitle: tie
+          ? 'Evenly matched. Play again?'
+          : (iWon ? 'Great match! Play again?' : 'So close. Want a rematch?'),
+      score: '$myScore : $otherScore',
+      onPlayAgain: widget.onPlayAgain,
+      onClose: () => Navigator.of(context).maybePop(),
+    );
+  }
 
   Future<void> _pickMove(String move) async {
     if (!_canPick || widget.sendingMove) return;
@@ -1018,16 +1657,14 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
     if (_roundTransitioning) return 'Pick your move';
     if (bothLocked) return 'Revealing moves…';
     if (myMove != null) return 'Waiting for $_opponentLabel…';
-    if (opponentLocked) return '$_opponentLabel is ready · pick your move';
+    if (opponentLocked) return '$_opponentFullName is ready. Pick your move.';
     return 'Pick your move';
   }
 
   @override
   Widget build(BuildContext context) {
     final data = _data;
-    final theme = Theme.of(context);
-    final dark = theme.brightness == Brightness.dark;
-    final scheme = theme.colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     final myMove = _myMove;
     final opponentLocked = !_roundTransitioning &&
         !_isCountingDown &&
@@ -1036,13 +1673,32 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
         _opponentServerMove != null;
     final bothLocked = !_roundTransitioning &&
         (_isCountingDown || _revealed || data['roundResolved'] == true);
-    final displayRound = _roundOverride ?? (data['round'] as num?)?.toInt() ?? 1;
-    final p1Score = (data['p1Score'] as num?)?.toInt() ?? 0;
-    final p2Score = (data['p2Score'] as num?)?.toInt() ?? 0;
-    final myScore = _isPlayer1 ? p1Score : p2Score;
-    final otherScore = _isPlayer1 ? p2Score : p1Score;
-    final myTag = _finished ? 'FINAL' : _revealed ? 'ROUND OVER' : (myMove != null || bothLocked) ? 'LOCKED IN' : 'THINKING';
-    final otherTag = _finished ? 'FINAL' : _revealed ? 'ROUND OVER' : (opponentLocked || bothLocked) ? 'LOCKED IN' : 'THINKING';
+
+    final myScore = _isPlayer1 ? _displayedP1Score : _displayedP2Score;
+    final otherScore = _isPlayer1 ? _displayedP2Score : _displayedP1Score;
+
+    final myTag = _finished
+        ? (_winnerIsMe ? 'Winner' : 'Waiting')
+        : (_revealed
+            ? 'Locked in'
+            : (myMove != null || bothLocked)
+                ? 'Locked in'
+                : 'Thinking...');
+    final myPillSolid = _finished
+        ? _winnerIsMe
+        : (myMove != null && !_revealed || bothLocked && !_revealed);
+
+    final otherTag = _finished
+        ? (!_winnerIsMe && widget.game['winner'] != 'draw' ? 'Winner' : 'Waiting')
+        : (_revealed
+            ? 'Locked in'
+            : (opponentLocked || bothLocked)
+                ? 'Locked in'
+                : 'Thinking...');
+    final otherPillSolid = _finished
+        ? (!_winnerIsMe && widget.game['winner'] != 'draw')
+        : (opponentLocked || bothLocked || !_revealed);
+
     final showMoves = _revealed;
     final leftMove = _isCountingDown ? _leftShuffle : showMoves ? data['p1Move']?.toString() : null;
     final rightMove = _isCountingDown ? _rightShuffle : showMoves ? data['p2Move']?.toString() : null;
@@ -1051,51 +1707,134 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
     final rightWin = showMoves && roundWinner.toLowerCase() == (data['player2']?.toString() ?? widget.opponentUsername).toLowerCase();
     final tied = showMoves && roundWinner == 'draw';
     final status = _error ?? (_revealed && _finished
-        ? (_winnerIsMe ? 'You win the match!' : '$_opponentLabel wins the match!')
+        ? (_winnerIsMe ? 'You win the match!' : '$_opponentFullName wins the match!')
         : _statusFor(opponentLocked, myMove, bothLocked));
     final enabled = _canPick && !widget.sendingMove;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 18),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [dark ? const Color(0xFF17132A) : const Color(0xFFF0EBFF), dark ? const Color(0xFF241A3C) : const Color(0xFFE7DFFF)]),
-        borderRadius: BorderRadius.circular(26),
-      ),
-      child: Column(children: [
-        Align(alignment: Alignment.centerLeft, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Rock Paper Scissors', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-          Text('Playing with $_opponentFullName', maxLines: 1, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant, fontSize: 11)),
-        ])),
-        const SizedBox(height: 11),
-        Row(children: [
-          Expanded(child: _RpsPlayerCard(name: 'You', username: '@${widget.currentUsername}', mark: _initial(widget.currentUsername), accent: const Color(0xFF6C4DF6), status: myTag, active: !_finished)),
-          SizedBox(width: 48, child: Column(children: [
-            Text('$myScore : $otherScore', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
-            Text(_finished ? 'FINAL' : 'ROUND $displayRound', textAlign: TextAlign.center, style: theme.textTheme.labelSmall?.copyWith(fontSize: 7, letterSpacing: .3, color: scheme.onSurfaceVariant)),
-          ])),
-          Expanded(child: _RpsPlayerCard(name: _opponentFullName, username: '@${widget.opponentUsername}', mark: _initial(_opponentFullName), accent: const Color(0xFFC42A72), status: otherTag, active: !_finished)),
-        ]),
-        const SizedBox(height: 12),
-        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Flexible(child: Text(status, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700))),
-          if (_finished) ...[const SizedBox(width: 7), _smallReplayButton(widget.startingRematch, widget.onPlayAgain)],
-        ]),
-        const SizedBox(height: 15),
-        Row(children: [
-          Expanded(child: _RpsPad(move: leftMove, accent: const Color(0xFF6C4DF6), shake: _isCountingDown, pop: _revealed, winner: leftWin, loser: showMoves && !leftWin && !tied, animation: _shakeController)),
-          const Padding(padding: EdgeInsets.symmetric(horizontal: 6), child: _RpsVsBadge()),
-          Expanded(child: _RpsPad(move: rightMove, accent: const Color(0xFFC42A72), shake: _isCountingDown, pop: _revealed, winner: rightWin, loser: showMoves && !rightWin && !tied, animation: _shakeController)),
-        ]),
-        const SizedBox(height: 13),
-        Align(alignment: Alignment.centerLeft, child: Text('CHOOSE YOUR MOVE', style: theme.textTheme.labelSmall?.copyWith(color: scheme.primary, fontWeight: FontWeight.w800, letterSpacing: 1.1, fontSize: 9))),
-        const SizedBox(height: 8),
-        Row(children: _moves.map((move) => Expanded(child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 3),
-          child: _RpsMoveTile(move: move, selected: myMove == move, enabled: enabled, onTap: () => _pickMove(move)),
-        ))).toList()),
-        if (widget.sendingMove) ...[const SizedBox(height: 7), const LinearProgressIndicator(minHeight: 2)],
-      ]),
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _RpsPlayerCard(
+                name: 'You',
+                username: '@${widget.currentUsername}',
+                mark: _initial(widget.currentUsername),
+                accent: const Color(0xFF5E44F3),
+                status: myTag,
+                active: !_finished && myMove == null,
+                isSolidPill: myPillSolid,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: Column(
+                children: [
+                  Text(
+                    '$myScore : $otherScore',
+                    style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w900,
+                      color: dark ? Colors.white : const Color(0xFF1E1A33),
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _finished ? 'Final' : 'Round $_displayedRound',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: dark ? Colors.white60 : const Color(0xFF7E7A9C),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: _RpsPlayerCard(
+                name: _opponentFullName,
+                username: '@${widget.opponentUsername}',
+                mark: _initial(_opponentFullName),
+                accent: const Color(0xFFD81E5B),
+                status: otherTag,
+                active: !_finished && opponentLocked,
+                isSolidPill: otherPillSolid,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        Text(
+          status,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w800,
+            color: dark ? Colors.white : const Color(0xFF1E1A33),
+          ),
+        ),
+        const SizedBox(height: 18),
+        Row(
+          children: [
+            Expanded(
+              child: _RpsPad(
+                move: leftMove,
+                accent: const Color(0xFF5E44F3),
+                shake: _isCountingDown,
+                pop: _revealed,
+                winner: leftWin,
+                loser: showMoves && !leftWin && !tied,
+                animation: _shakeController,
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 10),
+              child: _RpsVsBadge(),
+            ),
+            Expanded(
+              child: _RpsPad(
+                move: rightMove,
+                accent: const Color(0xFFD81E5B),
+                shake: _isCountingDown,
+                pop: _revealed,
+                winner: rightWin,
+                loser: showMoves && !rightWin && !tied,
+                animation: _shakeController,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        Row(
+          children: _moves.map((move) => Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: _RpsMoveTile(
+                move: move,
+                selected: myMove == move,
+                enabled: enabled,
+                onTap: () => _pickMove(move),
+              ),
+            ),
+          )).toList(),
+        ),
+        if (widget.sendingMove) ...[
+          const SizedBox(height: 10),
+          const LinearProgressIndicator(minHeight: 2),
+        ],
+        if (_finished) ...[
+          const SizedBox(height: 14),
+          TextButton.icon(
+            onPressed: _showGameOver,
+            icon: const Icon(Icons.analytics_outlined, size: 18),
+            label: const Text('View match results'),
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFF5E44F3),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
