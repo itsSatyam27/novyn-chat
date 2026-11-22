@@ -792,7 +792,7 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
                     ),
                     Switch.adaptive(
                       value: _isPassAndPlay,
-                      activeColor: const Color(0xFF5E44F3),
+                      activeTrackColor: const Color(0xFF5E44F3),
                       onChanged: (val) {
                         setState(() {
                           _isPassAndPlay = val;

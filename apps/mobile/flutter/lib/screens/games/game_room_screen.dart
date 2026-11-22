@@ -65,7 +65,7 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
     if (s == null || !s.isConnected) return;
     final rId = widget.randomSessionId;
     if (rId != null && rId.isNotEmpty) {
-      s.sendRandomGameMove(rId, const {'action': 'leave_room'});
+      s.moveRandomGame(rId, const {'action': 'leave_room'});
       return;
     }
     final mId = widget.messageId;

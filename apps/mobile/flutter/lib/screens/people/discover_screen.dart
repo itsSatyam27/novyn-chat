@@ -1004,22 +1004,24 @@ class _DiscoverResultRow extends StatelessWidget {
   final VoidCallback onAdd;
   final VoidCallback onOpen;
 
-  TextSpan _highlight(String text, Color normal, Color accent) {
+  TextSpan _highlight(String text, Color normal, Color accent, {TextStyle? baseStyle}) {
     final lower = text.toLowerCase();
     final needle = query.toLowerCase();
     final index = needle.isEmpty ? -1 : lower.indexOf(needle);
-    if (index < 0) return TextSpan(text: text, style: TextStyle(color: normal));
+    final normalStyle = (baseStyle ?? const TextStyle()).copyWith(color: normal);
+    final accentStyle = (baseStyle ?? const TextStyle()).copyWith(color: accent);
+    if (index < 0) return TextSpan(text: text, style: normalStyle);
     return TextSpan(children: [
       if (index > 0)
         TextSpan(
-            text: text.substring(0, index), style: TextStyle(color: normal)),
+            text: text.substring(0, index), style: normalStyle),
       TextSpan(
           text: text.substring(index, index + needle.length),
-          style: TextStyle(color: accent)),
+          style: accentStyle),
       if (index + needle.length < text.length)
         TextSpan(
             text: text.substring(index + needle.length),
-            style: TextStyle(color: normal)),
+            style: normalStyle),
     ]);
   }
 
@@ -1063,11 +1065,15 @@ class _DiscoverResultRow extends StatelessWidget {
               RichText(
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                text: _highlight(entry.user.name, normal, accent).copyWith(
-                  style: TextStyle(
-                      fontSize: 15.5,
-                      fontWeight: FontWeight.w700,
-                      color: normal),
+                text: _highlight(
+                  entry.user.name,
+                  normal,
+                  accent,
+                  baseStyle: TextStyle(
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w700,
+                    color: normal,
+                  ),
                 ),
               ),
               const SizedBox(height: 3),

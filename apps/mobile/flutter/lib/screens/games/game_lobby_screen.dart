@@ -919,7 +919,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
   }
 
   void _playWithAiBot() {
-    final account = _account;
+    final account = _account ?? '';
     final initialGame = <String, dynamic>{
       'type': widget.gameType,
       'title': widget.title,
