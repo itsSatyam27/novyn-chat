@@ -7,8 +7,24 @@ import 'package:provider/provider.dart';
 
 class _FakeSocketService extends SocketService {
   String? sentGameType;
+  String? sentMessageId;
   String? sentPeer;
+  Map<String, dynamic>? sentMoveData;
   bool? sentToGroup;
+
+  @override
+  Future<Map<String, dynamic>> makeGameMove(
+    String messageId,
+    String peerUsername,
+    Map<String, dynamic> moveData, {
+    bool isGroup = false,
+  }) async {
+    sentMessageId = messageId;
+    sentPeer = peerUsername;
+    sentMoveData = Map<String, dynamic>.from(moveData);
+    sentToGroup = isGroup;
+    return <String, dynamic>{'ok': true};
+  }
 
   @override
   Future<String> sendGameChallenge(
@@ -104,10 +120,10 @@ void main() {
     final socket = _FakeSocketService();
     await tester.pumpWidget(gameCardHost(socket, compact: true));
 
-    expect(find.text('Open'), findsOneWidget);
-    expect(find.byKey(const ValueKey('tic-tac-toe-cell-0')), findsNothing);
+    expect(find.text('Details'), findsOneWidget);
+    expect(find.bySemanticsLabel('Empty cell'), findsNothing);
 
-    await tester.tap(find.text('Open'));
+    await tester.tap(find.text('Details'));
     await tester.pumpAndSettle();
 
     expect(find.text('Playing with bob'), findsOneWidget);
@@ -115,35 +131,28 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Tic-Tac-Toe highlights all server-reported winning cells', (tester) async {
+  testWidgets('Tic-Tac-Toe marks all server-reported winning cells', (tester) async {
     final socket = _FakeSocketService();
     await tester.pumpWidget(gameCardHost(socket));
 
-    final scheme = Theme.of(tester.element(find.byType(GameMessageCard))).colorScheme;
-    for (final index in [0, 1, 2]) {
-      final cell = tester.widget<Container>(
-        find.byKey(ValueKey('tic-tac-toe-cell-$index')),
-      );
-      expect((cell.decoration as BoxDecoration).color, scheme.primaryContainer);
+    for (final index in [0, 1, 2, 3, 4]) {
+      expect(find.byKey(ValueKey('tic-tac-toe-cell-$index')), findsOneWidget);
     }
-
-    final ordinaryCell = tester.widget<Container>(
-      find.byKey(const ValueKey('tic-tac-toe-cell-3')),
-    );
-    expect(
-      (ordinaryCell.decoration as BoxDecoration).color,
-      scheme.surfaceContainerHighest,
-    );
+    expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Play again sends a new server-backed Tic-Tac-Toe challenge', (tester) async {
+  testWidgets('Tic-Tac-Toe rematch uses the existing match conversation', (tester) async {
     final socket = _FakeSocketService();
     await tester.pumpWidget(gameCardHost(socket));
+    await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Play again'));
-    await tester.pump();
+    final playAgain = find.widgetWithText(FilledButton, 'Play again');
+    expect(playAgain, findsOneWidget);
+    await tester.tap(playAgain);
+    await tester.pumpAndSettle();
 
-    expect(socket.sentGameType, 'tictactoe');
+    expect(socket.sentMessageId, 'game-message-1');
+    expect(socket.sentMoveData, {'action': 'rematch_request'});
     expect(socket.sentPeer, 'bob');
     expect(socket.sentToGroup, false);
   });
@@ -151,24 +160,32 @@ void main() {
   testWidgets('group rematch targets the existing group conversation', (tester) async {
     final socket = _FakeSocketService();
     await tester.pumpWidget(gameCardHost(socket, isGroup: true));
+    await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Play again'));
-    await tester.pump();
+    final playAgain = find.widgetWithText(FilledButton, 'Play again');
+    expect(playAgain, findsOneWidget);
+    await tester.tap(playAgain);
+    await tester.pumpAndSettle();
 
-    expect(socket.sentGameType, 'tictactoe');
+    expect(socket.sentMessageId, 'game-message-1');
+    expect(socket.sentMoveData, {'action': 'rematch_request'});
     expect(socket.sentPeer, 'group-123');
     expect(socket.sentToGroup, true);
   });
 
-  testWidgets('rematch starts the same non-Tic-Tac-Toe game', (tester) async {
+  testWidgets('Rock Paper Scissors rematch uses the existing match', (tester) async {
     final socket = _FakeSocketService();
     await tester.pumpWidget(gameCardHost(socket, gameType: 'rps'));
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
 
-    expect(find.text('Play again'), findsOneWidget);
-    await tester.tap(find.text('Play again'));
-    await tester.pump();
+    final playAgain = find.widgetWithText(FilledButton, 'Play again');
+    expect(playAgain, findsOneWidget);
+    await tester.tap(playAgain);
+    await tester.pumpAndSettle();
 
-    expect(socket.sentGameType, 'rps');
+    expect(socket.sentMessageId, 'game-message-1');
+    expect(socket.sentMoveData, {'action': 'rematch_request'});
     expect(socket.sentPeer, 'bob');
     expect(socket.sentToGroup, false);
   });

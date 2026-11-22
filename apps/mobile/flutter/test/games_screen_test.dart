@@ -18,16 +18,18 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Games'), findsOneWidget);
-    expect(find.text('Pick a game'), findsOneWidget);
+    expect(find.text('2 Player'), findsOneWidget);
+    expect(find.text('3 P / 4 P'), findsOneWidget);
     expect(find.text('Tic-Tac-Toe'), findsOneWidget);
-    expect(find.text('Rock Paper Scissors'), findsOneWidget);
+    expect(find.text('Rock Paper'), findsOneWidget);
+    expect(find.text('Raja Mantri'), findsOneWidget);
     expect(find.text('Connect 4'), findsNothing);
     expect(find.text('Doodle Duel'), findsNothing);
     expect(find.text('Number Clash'), findsNothing);
     expect(find.text('Up or Down'), findsNothing);
-    expect(find.text('MATCHES'), findsOneWidget);
-    expect(find.text('WINS'), findsOneWidget);
-    expect(find.text('LOSSES'), findsOneWidget);
+    expect(find.text('Matches'), findsOneWidget);
+    expect(find.text('Wins'), findsOneWidget);
+    expect(find.text('Losses'), findsOneWidget);
     expect(find.byTooltip('View match history'), findsOneWidget);
     expect(find.text('Play with Random'), findsNothing);
     expect(tester.takeException(), isNull);
@@ -43,7 +45,8 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: GamesScreen()));
     await tester.pumpAndSettle();
 
-    expect(find.text('Last played'), findsOneWidget);
+    expect(find.text('Tic-Tac-Toe'), findsOneWidget);
+    expect(find.text('Rock Paper'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
