@@ -27,18 +27,18 @@ test("group Tic-Tac-Toe lets the first opponent join after the creator's opening
   assert.equal(second.game.turn, "alice");
 });
 
-test("group Connect 4 lets the first opponent join after the opening chip", () => {
-  const created = groupGame("connect4");
-  const board1 = Array(42).fill(null);
-  board1[35] = "R";
-  const first = applyGameMove(created, "alice", { board: board1 });
-  assert.equal(first.ok, true);
-  const board2 = [...board1];
-  board2[36] = "Y";
-  const second = applyGameMove(first.game, "bob", { board: board2 });
-  assert.equal(second.ok, true);
-  assert.equal(second.game.data.player2, "bob");
-  assert.equal(second.game.turn, "alice");
+test("removed group game types are rejected", () => {
+  for (const gameType of ["connect4", "doodle", "numberclash", "updown"]) {
+    const result = createGameChallenge({
+      userKey: "alice",
+      userDisplayName: "alice",
+      to: "group-123",
+      toType: "group",
+      game: { gameType },
+    });
+    assert.equal(result.ok, false);
+    assert.match(result.reason, /unsupported/i);
+  }
 });
 
 test("group Rock Paper Scissors assigns the first challenger as player two", () => {
