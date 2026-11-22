@@ -724,9 +724,12 @@ class _GameOverModalContentState extends State<_GameOverModalContent> {
     setState(() => _loading = true);
     try {
       if (widget.onRematchAction != null) {
+        // The rematch action already starts the accepted rematch. Calling
+        // onPlayAgain as well would send a duplicate rematch_accept event.
         await widget.onRematchAction!('rematch_accept');
+      } else {
+        await widget.onPlayAgain();
       }
-      await widget.onPlayAgain();
       if (mounted) Navigator.of(context).pop();
     } catch (_) {
       if (mounted) {
@@ -782,8 +785,10 @@ class _GameOverModalContentState extends State<_GameOverModalContent> {
           ),
         ],
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+      child: SingleChildScrollView(
+        physics: const ClampingScrollPhysics(),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             _opponentWantsRematch ? '🤝' : (_rematchRequested ? '⏱' : widget.emoji),
@@ -978,7 +983,8 @@ class _GameOverModalContentState extends State<_GameOverModalContent> {
               ),
             ),
           ],
-        ],
+          ],
+        ),
       ),
     );
   }
