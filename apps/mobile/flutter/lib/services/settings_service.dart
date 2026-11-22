@@ -203,7 +203,7 @@ class SettingsService extends ChangeNotifier {
   String _photoQuality = 'high'; // 'high', 'medium', 'low'
   String _language = 'en'; // Language code
   String _timeFormat = '12h'; // '12h' or '24h'
-  double _fontSize = 0.95; // Default accessibility scale (95%)
+  double _fontSize = 0.85; // Default accessibility scale (85%)
   double _chatMessageTextSize = 1.0;
   double _chatLabelSize = 1.0;
   int _accentColorValue = 0xFF6D5DFC;
@@ -712,7 +712,7 @@ class SettingsService extends ChangeNotifier {
     _language = _prefs.getString(_kLanguage) ?? 'en';
     final savedTimeFormat = _prefs.getString(_kTimeFormat) ?? '12h';
     _timeFormat = savedTimeFormat == '24h' ? '24h' : '12h';
-    _fontSize = (_prefs.getDouble(_kFontSize) ?? 0.95).clamp(0.85, 1.35).toDouble();
+    _fontSize = (_prefs.getDouble(_kFontSize) ?? 0.85).clamp(0.85, 1.35).toDouble();
     _chatMessageTextSize = (_prefs.getDouble(_kChatMessageTextSize) ?? 1.0).clamp(0.85, 1.25).toDouble();
     _chatLabelSize = (_prefs.getDouble(_kChatLabelSize) ?? 1.0).clamp(0.8, 1.4).toDouble();
     _accentColorValue = _prefs.getInt(_kAccentColor) ?? 0xFF6D5DFC;
@@ -1657,7 +1657,7 @@ class SettingsService extends ChangeNotifier {
     _photoQuality = 'high';
     _language = _detectDeviceLanguage();
     _timeFormat = '12h';
-    _fontSize = 0.95;
+    _fontSize = 0.85;
     _chatMessageTextSize = 1.0;
     _chatLabelSize = 1.0;
     _accentColorValue = 0xFF6D5DFC;
