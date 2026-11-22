@@ -496,10 +496,8 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
                 _buildSearchEndedNotice(theme),
                 const SizedBox(height: 18),
               ],
-              _buildSectionHeader('Play with random'),
               _buildRandomCard(theme, connectionReady),
-              const SizedBox(height: 28),
-              _buildSectionHeader('Play with a friend'),
+              const SizedBox(height: 16),
               _buildFriendCard(theme, connectionReady),
             ],
           ),
@@ -549,21 +547,6 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
           )),
         ]),
       );
-
-  Widget _buildSectionHeader(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 4, bottom: 12),
-      child: Text(
-        title.toUpperCase(),
-        style: const TextStyle(
-          color: Color(0xFF5E44F3),
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 1.1,
-        ),
-      ),
-    );
-  }
 
   Widget _buildRandomCard(ThemeData theme, bool connectionReady) {
     final colors = theme.colorScheme;
@@ -787,20 +770,16 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
                   ),
                 ),
               ),
+              if (!_loadingFriends && !_friendsLoadFailed)
+                Text(
+                  '$onlineCount of ${_friends.length} online',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: colors.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
             ],
           ),
-          if (!_loadingFriends && _friends.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Padding(
-              padding: const EdgeInsets.only(left: 59),
-              child: Text(
-                '$onlineCount of ${_friends.length} friends online',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colors.onSurfaceVariant,
-                ),
-              ),
-            ),
-          ],
           const SizedBox(height: 18),
           TextField(
             controller: _searchController,
@@ -1123,32 +1102,6 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
             painter: _TicTacToeBadgePainter(),
           ),
         );
-      case 'connect4':
-        return SizedBox(
-          width: 68,
-          height: 56,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: List.generate(3, (col) {
-              return Column(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: List.generate(3, (row) {
-                  final isPrimary = (col + row) % 2 == 0;
-                  return Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isPrimary
-                          ? const Color(0xFF5E44F3)
-                          : const Color(0xFFDDD6FE),
-                    ),
-                  );
-                }),
-              );
-            }),
-          ),
-        );
       case 'rps':
         return Container(
           padding: const EdgeInsets.all(10),
@@ -1163,71 +1116,6 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
               SizedBox(width: 4),
               Icon(Icons.content_cut_rounded, size: 18, color: Color(0xFF8B70F8)),
             ],
-          ),
-        );
-      case 'doodle':
-        return Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF3F0FF),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: const Icon(
-            Icons.draw_rounded,
-            size: 32,
-            color: Color(0xFF5E44F3),
-          ),
-        );
-      case 'numberclash':
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF3F0FF),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '1',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFF5E44F3),
-                ),
-              ),
-              SizedBox(width: 4),
-              Text(
-                '2',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFF8B70F8),
-                ),
-              ),
-              SizedBox(width: 4),
-              Text(
-                '3',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFFC4B5FD),
-                ),
-              ),
-            ],
-          ),
-        );
-      case 'updown':
-        return Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF3F0FF),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: const Icon(
-            Icons.trending_up_rounded,
-            size: 32,
-            color: Color(0xFF5E44F3),
           ),
         );
       default:

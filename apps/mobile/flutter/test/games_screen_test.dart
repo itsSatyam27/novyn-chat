@@ -18,19 +18,23 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Games'), findsOneWidget);
-    expect(find.text('Choose a game'), findsOneWidget);
+    expect(find.text('Pick a game'), findsOneWidget);
     expect(find.text('Tic-Tac-Toe'), findsOneWidget);
     expect(find.text('Rock Paper Scissors'), findsOneWidget);
-    expect(find.text('Connect 4'), findsOneWidget);
-    expect(find.text('Doodle Duel'), findsOneWidget);
-    expect(find.text('Number Clash'), findsOneWidget);
-    expect(find.text('Up or Down'), findsOneWidget);
+    expect(find.text('Connect 4'), findsNothing);
+    expect(find.text('Doodle Duel'), findsNothing);
+    expect(find.text('Number Clash'), findsNothing);
+    expect(find.text('Up or Down'), findsNothing);
+    expect(find.text('MATCHES'), findsOneWidget);
+    expect(find.text('WINS'), findsOneWidget);
+    expect(find.text('LOSSES'), findsOneWidget);
+    expect(find.byTooltip('View match history'), findsOneWidget);
     expect(find.text('Play with Random'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('games hub offers a quick return to the last selected game', (tester) async {
-    SharedPreferences.setMockInitialValues({'games_last_played_v1': 'connect4'});
+  testWidgets('games hub highlights the last selected featured game', (tester) async {
+    SharedPreferences.setMockInitialValues({'games_last_played_v1': 'rps'});
     tester.view.physicalSize = const Size(900, 1200);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -39,8 +43,7 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: GamesScreen()));
     await tester.pumpAndSettle();
 
-    expect(find.text('Last played: Connect 4'), findsOneWidget);
-    expect(find.text('Choose Connect 4 opponent'), findsOneWidget);
+    expect(find.text('Last played'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

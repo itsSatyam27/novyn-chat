@@ -2610,10 +2610,6 @@ class SocketService extends ChangeNotifier {
     const titles = {
       'tictactoe': 'Tic-Tac-Toe',
       'rps': 'Rock • Paper • Scissors',
-      'connect4': 'Connect 4',
-      'doodle': 'Doodle Duel',
-      'numberclash': 'Number Clash',
-      'updown': 'Up or Down',
     };
     return titles[type] ?? 'Game';
   }

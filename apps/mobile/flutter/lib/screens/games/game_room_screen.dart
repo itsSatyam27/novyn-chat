@@ -65,10 +65,6 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
     const names = <String, String>{
       'tictactoe': 'Tic-Tac-Toe',
       'rps': 'Rock Paper Scissors',
-      'connect4': 'Connect 4',
-      'doodle': 'Doodle Duel',
-      'numberclash': 'Number Clash',
-      'updown': 'Up or Down',
     };
     return names[game['gameType']?.toString()] ?? 'Novyn Game';
   }

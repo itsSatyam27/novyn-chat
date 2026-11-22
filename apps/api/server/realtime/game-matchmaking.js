@@ -9,7 +9,7 @@ class PublicGameMatchmaking {
     const user = String(userKey || "").trim().toLowerCase();
     const socket = String(socketId || "").trim();
     const type = String(gameType || "").trim().toLowerCase();
-    if (!user || !socket || !["tictactoe", "rps", "connect4", "doodle", "numberclash", "updown"].includes(type)) return { ok: false, message: "Invalid matchmaking request." };
+    if (!user || !socket || !["tictactoe", "rps"].includes(type)) return { ok: false, message: "Invalid matchmaking request." };
     this.cancel(user);
     const excluded = new Set(
       (Array.isArray(excludedUsers) ? excludedUsers : [])

@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../models/chat_models.dart';
 import 'novyn_alert.dart';
 import 'package:provider/provider.dart';
 import '../services/socket_service.dart';
+import '../services/game_history_service.dart';
 import '../screens/games/game_room_screen.dart';
 
 class GameMessageCard extends StatefulWidget {
@@ -30,12 +33,16 @@ class GameMessageCard extends StatefulWidget {
 }
 
 class _GameMessageCardState extends State<GameMessageCard> {
-  final TextEditingController _number = TextEditingController();
-  final TextEditingController _guess = TextEditingController();
-  List<Map<String, dynamic>> _strokes = [];
   Map<String, dynamic>? _optimisticData;
   bool _sendingMove = false;
   bool _startingRematch = false;
+  bool _recordedFinishedGame = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _recordFinishedGame(widget.game);
+  }
 
   @override
   void didUpdateWidget(covariant GameMessageCard oldWidget) {
@@ -43,17 +50,39 @@ class _GameMessageCardState extends State<GameMessageCard> {
     if (oldWidget.game['data'] != widget.game['data']) {
       _optimisticData = null;
     }
-    final oldStrokes = oldWidget.game['data'] is Map ? (oldWidget.game['data'] as Map)['strokes'] : null;
-    final newStrokes = widget.game['data'] is Map ? (widget.game['data'] as Map)['strokes'] : null;
-    if (oldStrokes != newStrokes && newStrokes is List) {
-      _strokes = newStrokes.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
-    }
+    _recordFinishedGame(widget.game);
+  }
+
+  void _recordFinishedGame(Map<String, dynamic> game) {
+    if (_recordedFinishedGame || game['state']?.toString() != 'finished') return;
+    final username = widget.currentUsername.trim();
+    final matchId = game['id']?.toString().trim().isNotEmpty == true
+        ? game['id'].toString()
+        : widget.messageId.trim();
+    if (username.isEmpty || matchId.isEmpty) return;
+    _recordedFinishedGame = true;
+    final winner = game['winner']?.toString().trim().toLowerCase() ?? '';
+    final result = winner.isEmpty || winner == 'draw'
+        ? 'draw'
+        : winner == username.toLowerCase()
+            ? 'win'
+            : 'loss';
+    final rawUpdatedAt = game['updatedAt'];
+    final playedAt = rawUpdatedAt is num
+        ? DateTime.fromMillisecondsSinceEpoch(rawUpdatedAt.toInt())
+        : DateTime.tryParse(rawUpdatedAt?.toString() ?? '') ?? DateTime.now();
+    unawaited(GameHistoryService.recordFinishedMatch(
+      username: username,
+      matchId: matchId,
+      gameType: game['gameType']?.toString() ?? 'unknown',
+      opponent: widget.peerUsername,
+      result: result,
+      playedAt: playedAt,
+    ));
   }
 
   @override
   void dispose() {
-    _number.dispose();
-    _guess.dispose();
     super.dispose();
   }
 
@@ -246,11 +275,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
           ),
           const SizedBox(height: 10),
           if (_type == 'tictactoe') _ticTacToe(),
-          if (_type == 'connect4') _connect4(),
           if (_type == 'rps') _rockPaperScissors(),
-          if (_type == 'numberclash') _numberClash(),
-          if (_type == 'updown') _upDown(),
-          if (_type == 'doodle') _doodle(),
           if (_finished &&
               widget.randomSessionId == null &&
               widget.peerUsername.trim().isNotEmpty) ...[
@@ -300,22 +325,27 @@ class _GameMessageCardState extends State<GameMessageCard> {
 
     return Column(
       children: [
-        Text(
-          '@$playerX  ✕     @$playerO  ◯',
-          style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10),
-          textAlign: TextAlign.center,
+        Row(
+          children: [
+            Expanded(child: _gamePlayerCard('@$playerX', 'X', colors.primary, _myTurn && !_finished)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Text('VS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: colors.onSurfaceVariant)),
+            ),
+            Expanded(child: _gamePlayerCard('@$playerO', 'O', colors.tertiary, !_myTurn && !_finished && !_canJoinGroup)),
+          ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 16),
         SizedBox(
-          width: 204,
-          height: 204,
+          width: 300,
+          height: 300,
           child: GridView.builder(
             physics: const NeverScrollableScrollPhysics(),
             itemCount: 9,
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 3,
-              crossAxisSpacing: 5,
-              mainAxisSpacing: 5,
+              crossAxisSpacing: 8,
+              mainAxisSpacing: 8,
             ),
             itemBuilder: (context, index) {
               final isWinningCell = winningCells.contains(index);
@@ -346,23 +376,30 @@ class _GameMessageCardState extends State<GameMessageCard> {
                   child: Container(
                     key: ValueKey('tic-tac-toe-cell-$index'),
                     decoration: BoxDecoration(
-                      color: isWinningCell
-                          ? colors.primaryContainer
-                          : colors.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(9),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: isWinningCell
+                            ? [colors.primaryContainer, colors.primaryContainer.withValues(alpha: .72)]
+                            : [colors.surface, colors.surfaceContainerHighest],
+                      ),
+                      borderRadius: BorderRadius.circular(20),
                       border: Border.all(
                         color: isWinningCell
                             ? colors.primary
-                            : colors.outlineVariant.withValues(alpha: .35),
-                        width: isWinningCell ? 1.6 : .7,
+                            : colors.outlineVariant.withValues(alpha: .55),
+                        width: isWinningCell ? 2 : 1,
                       ),
+                      boxShadow: [
+                        BoxShadow(color: colors.shadow.withValues(alpha: .09), blurRadius: 7, offset: const Offset(0, 4)),
+                      ],
                     ),
                     alignment: Alignment.center,
                     child: Text(
-                      value == 'X' ? '✕' : value == 'O' ? '◯' : '',
+                      value == 'X' ? '×' : value == 'O' ? '○' : '',
                       style: TextStyle(
-                        fontSize: 30,
-                        fontWeight: FontWeight.w800,
+                        fontSize: 58,
+                        fontWeight: FontWeight.w900,
                         color: value == 'X' ? colors.primary : colors.tertiary,
                       ),
                     ),
@@ -373,6 +410,41 @@ class _GameMessageCardState extends State<GameMessageCard> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _gamePlayerCard(String name, String mark, Color accent, bool active) {
+    final scheme = Theme.of(context).colorScheme;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      decoration: BoxDecoration(
+        color: active ? accent.withValues(alpha: .10) : scheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: active ? accent.withValues(alpha: .8) : scheme.outlineVariant.withValues(alpha: .5), width: active ? 1.6 : 1),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(color: accent.withValues(alpha: .14), shape: BoxShape.circle),
+            child: Text(mark, style: TextStyle(color: accent, fontSize: 27, fontWeight: FontWeight.w900)),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 2),
+                Text(active ? 'YOUR TURN' : 'PLAYER', style: TextStyle(fontSize: 9, letterSpacing: .6, color: active ? accent : scheme.onSurfaceVariant, fontWeight: FontWeight.w800)),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -429,205 +501,99 @@ class _GameMessageCardState extends State<GameMessageCard> {
     }
   }
 
-  Widget _connect4() {
-    final board = _data['board'] is List ? List<dynamic>.from(_data['board']) : List<dynamic>.filled(42, null);
-    final player1 = _data['player1']?.toString() ?? _creator;
-    final player2 = _data['player2']?.toString() ?? (widget.isGroup ? 'Waiting for player' : _opponent);
-    final canJoin = widget.isGroup && player2 == 'Waiting for player' && board.any((cell) => cell != null) && widget.currentUsername.toLowerCase() != player1.toLowerCase();
-    final chip = widget.currentUsername.toLowerCase() == player1.toLowerCase() ? 'R' : 'Y';
-    return Column(
-      children: [
-        Text('@$player1   VS   $player2', style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 10)),
-        const SizedBox(height: 8),
-        Row(
-          children: List.generate(7, (column) => Expanded(
-            child: TextButton(
-              onPressed: !_finished && !_sendingMove && (_myTurn || canJoin) ? () {
-                final next = List<dynamic>.from(board);
-                for (var row = 5; row >= 0; row--) {
-                  final index = row * 7 + column;
-                  if (next[index] == null) {
-                    next[index] = chip;
-                    _move({'board': next});
-                    break;
-                  }
-                }
-              } : null,
-              style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 25)),
-              child: const Icon(Icons.arrow_downward_rounded, size: 13),
-            ),
-          )),
-        ),
-        Container(
-          padding: const EdgeInsets.all(5),
-          decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(10)),
-          child: GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: 42,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 7, crossAxisSpacing: 3, mainAxisSpacing: 3),
-            itemBuilder: (context, index) => Container(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: board[index] == 'R' ? Theme.of(context).colorScheme.primary : board[index] == 'Y' ? Theme.of(context).colorScheme.tertiary : Theme.of(context).colorScheme.surface,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _rockPaperScissors() {
     final player1 = _data['player1']?.toString() ?? _creator;
     final isP1 = widget.currentUsername.toLowerCase() == player1.toLowerCase();
     final myMove = isP1 ? _data['p1Move'] : _data['p2Move'];
     final p1Move = _data['p1Move']?.toString();
     final p2Move = _data['p2Move']?.toString();
-    const choices = {'rock': '🪨', 'paper': '📄', 'scissors': '✂️'};
-    if (_finished || (p1Move != null && p2Move != null)) {
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          Text(choices[p1Move] ?? '…', style: const TextStyle(fontSize: 28)),
-          const Text('VS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
-          Text(choices[p2Move] ?? '…', style: const TextStyle(fontSize: 28)),
-        ],
-      );
-    }
-    if (myMove != null) return const Center(child: Text('Your move is locked. Waiting…', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11)));
     final isP2 = _opponent.toLowerCase() == widget.currentUsername.toLowerCase();
-    if (!isP1 && !isP2 && !_canJoinGroup) return const Text('This game already has two players.', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11));
-    return Wrap(
-      alignment: WrapAlignment.center,
-      spacing: 8,
-      children: choices.entries.map((entry) => OutlinedButton(
-        onPressed: _sendingMove ? null : () => _move({'move': entry.key}),
-        child: Text(entry.value, style: const TextStyle(fontSize: 20)),
-      )).toList(),
-    );
-  }
-
-  Widget _numberClash() {
-    final player1 = _data['player1']?.toString() ?? _creator;
-    final isP1 = widget.currentUsername.toLowerCase() == player1.toLowerCase();
-    final isP2 = _opponent.toLowerCase() == widget.currentUsername.toLowerCase();
-    final myNumber = isP1 ? _data['p1Number'] : _data['p2Number'];
-    final p1 = _data['p1Number'];
-    final p2 = _data['p2Number'];
-    if (!isP1 && !isP2 && !_canJoinGroup) return const Text('This game already has two players.', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11));
-    if (myNumber != null) {
-      return Text(p1 != null && p2 != null ? '$p1  VS  $p2  •  Target ${_data['target']}' : 'Your number is locked. Waiting…',
-        style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12, fontWeight: FontWeight.w700));
-    }
-    return Row(
-      children: [
-        Expanded(child: TextField(controller: _number, enabled: !_sendingMove, keyboardType: TextInputType.number, decoration: const InputDecoration(hintText: 'Pick 1–100', isDense: true))),
-        const SizedBox(width: 7),
-        IconButton(
-          onPressed: _sendingMove ? null : () {
-            final number = int.tryParse(_number.text.trim());
-            if (number != null && number >= 1 && number <= 100) _move({'number': number});
-          },
-          icon: const Icon(Icons.send_rounded),
-        ),
-      ],
-    );
-  }
-
-  Widget _upDown() {
-    final player1 = _data['player1']?.toString() ?? _creator;
-    final isP1 = widget.currentUsername.toLowerCase() == player1.toLowerCase();
-    final isP2 = _opponent.toLowerCase() == widget.currentUsername.toLowerCase();
-    final myPrediction = isP1 ? _data['p1Prediction'] : _data['p2Prediction'];
-    if (!isP1 && !isP2 && !_canJoinGroup) return const Text('This game already has two players.', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11));
-    if (myPrediction != null) {
-      return Text('Prediction locked • ${_data['currentCard']} → ${_data['nextCard']}',
-        style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12));
-    }
-    return Row(
-      children: [
-        Expanded(child: OutlinedButton.icon(onPressed: _sendingMove ? null : () => _move({'prediction': 'higher'}), icon: const Icon(Icons.arrow_upward_rounded), label: const Text('Higher'))),
-        const SizedBox(width: 7),
-        Expanded(child: OutlinedButton.icon(onPressed: _sendingMove ? null : () => _move({'prediction': 'lower'}), icon: const Icon(Icons.arrow_downward_rounded), label: const Text('Lower'))),
-      ],
-    );
-  }
-
-  Widget _doodle() {
-    final player1 = _data['player1']?.toString() ?? _creator;
-    final isDrawer = widget.currentUsername.toLowerCase() == player1.toLowerCase();
-    final player2 = _data['player2']?.toString() ?? _opponent;
-    final isGuesser = player2.toLowerCase() == widget.currentUsername.toLowerCase();
-    final canJoin = widget.isGroup && player2 == 'Waiting for player' && !isDrawer;
-    if (!isDrawer && !isGuesser && !canJoin) return const Text('Doodle Duel is already joined by two players.', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11));
-    if (!isDrawer) {
-      return Column(
-        children: [
-          const Text('Guess the drawing', style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12, fontWeight: FontWeight.w700)),
-          TextField(
-            controller: _guess,
-            decoration: const InputDecoration(hintText: 'Your guess', isDense: true),
-            onSubmitted: (value) => _move({'action': 'guess', 'guess': value}),
-          ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(onPressed: () => _move({'action': 'guess', 'guess': _guess.text}), child: const Text('Submit guess')),
-          ),
-        ],
-      );
-    }
-    final raw = _data['strokes'];
-    if (_strokes.isEmpty && raw is List) {
-      _strokes = raw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
-    }
-    final strokes = _strokes;
+    const moves = <String, (IconData, String)> {
+      'rock': (Icons.pan_tool_rounded, 'Rock'),
+      'paper': (Icons.back_hand_rounded, 'Paper'),
+      'scissors': (Icons.content_cut_rounded, 'Scissors'),
+    };
+    final canChoose = !_finished && myMove == null && (isP1 || isP2 || _canJoinGroup);
+    final accent = Theme.of(context).colorScheme.primary;
     return Column(
       children: [
-        Text('Draw: ${_data['word'] ?? 'secret word'}', style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 11, fontWeight: FontWeight.w700)),
-        GestureDetector(
-          onPanStart: (details) => setState(() => _strokes = [..._strokes, {'x1': details.localPosition.dx / 200, 'y1': details.localPosition.dy / 150, 'x2': details.localPosition.dx / 200, 'y2': details.localPosition.dy / 150}]),
-          onPanUpdate: (details) {
-            if (_strokes.isEmpty) return;
-            final last = Map<String, dynamic>.from(_strokes.last);
-            last['x2'] = details.localPosition.dx / 200;
-            last['y2'] = details.localPosition.dy / 150;
-            setState(() => _strokes = [..._strokes.sublist(0, _strokes.length - 1), last]);
-          },
-          onPanEnd: (_) => _move({'action': 'draw', 'strokes': _strokes}),
-          child: CustomPaint(
-            size: const Size(200, 150),
-            painter: _DoodlePainter(strokes, Theme.of(context).colorScheme.primary),
-            child: Container(
-              width: 200,
-              height: 150,
-              decoration: BoxDecoration(border: Border.all(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.2)), borderRadius: BorderRadius.circular(8)),
+        Row(
+          children: [
+            Expanded(child: _gamePlayerCard('@$player1', 'P1', accent, isP1 && myMove == null && !_finished)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Text('VS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.onSurfaceVariant)),
             ),
-          ),
+            Expanded(child: _gamePlayerCard('@$_opponent', 'P2', const Color(0xFFE8458B), isP2 && myMove == null && !_finished)),
+          ],
         ),
+        const SizedBox(height: 18),
+        if (p1Move != null && p2Move != null)
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 14),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(colors: [accent.withValues(alpha: .12), const Color(0xFFE8458B).withValues(alpha: .10)]),
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _moveReveal(moves[p1Move]!.$1, moves[p1Move]!.$2, accent),
+                Text('VS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                _moveReveal(moves[p2Move]!.$1, moves[p2Move]!.$2, const Color(0xFFE8458B)),
+              ],
+            ),
+          )
+        else if (myMove != null)
+          const Padding(
+            padding: EdgeInsets.all(18),
+            child: Text('Move locked · waiting for the other player', textAlign: TextAlign.center),
+          )
+        else if (!canChoose)
+          const Padding(
+            padding: EdgeInsets.all(12),
+            child: Text('This game already has two players.', textAlign: TextAlign.center),
+          )
+        else
+          Row(
+            children: moves.entries.map((entry) => Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: _moveChoice(entry.key, entry.value.$1, entry.value.$2, accent),
+              ),
+            )).toList(),
+          ),
       ],
     );
   }
-}
 
-class _DoodlePainter extends CustomPainter {
-  final List<Map<String, dynamic>> strokes;
-  final Color strokeColor;
-  _DoodlePainter(this.strokes, this.strokeColor);
+  Widget _moveReveal(IconData icon, String label, Color accent) => Column(
+        children: [
+          Container(
+            width: 68,
+            height: 68,
+            decoration: BoxDecoration(color: accent.withValues(alpha: .14), shape: BoxShape.circle),
+            child: Icon(icon, color: accent, size: 34),
+          ),
+          const SizedBox(height: 7),
+          Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
+        ],
+      );
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = strokeColor..strokeWidth = 3..strokeCap = StrokeCap.round;
-    for (final stroke in strokes) {
-      final x1 = (stroke['x1'] as num?)?.toDouble() ?? 0;
-      final y1 = (stroke['y1'] as num?)?.toDouble() ?? 0;
-      final x2 = (stroke['x2'] as num?)?.toDouble() ?? x1;
-      final y2 = (stroke['y2'] as num?)?.toDouble() ?? y1;
-      canvas.drawLine(Offset(x1 * size.width, y1 * size.height), Offset(x2 * size.width, y2 * size.height), paint);
-    }
-  }
+  Widget _moveChoice(String move, IconData icon, String label, Color accent) => OutlinedButton(
+        onPressed: _sendingMove ? null : () => _move({'move': move}),
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 5),
+          side: BorderSide(color: accent.withValues(alpha: .25)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: accent, size: 26),
+            const SizedBox(height: 6),
+            Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+          ],
+        ),
+      );
 
-  @override
-  bool shouldRepaint(covariant _DoodlePainter oldDelegate) =>
-      oldDelegate.strokes != strokes || oldDelegate.strokeColor != strokeColor;
 }
