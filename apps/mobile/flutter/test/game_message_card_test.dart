@@ -152,7 +152,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(socket.sentMessageId, 'game-message-1');
-    expect(socket.sentMoveData, {'action': 'rematch_accept'});
+    expect(socket.sentMoveData, {'action': 'rematch_request'});
     expect(socket.sentPeer, 'bob');
     expect(socket.sentToGroup, false);
   });
@@ -168,7 +168,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(socket.sentMessageId, 'game-message-1');
-    expect(socket.sentMoveData, {'action': 'rematch_accept'});
+    expect(socket.sentMoveData, {'action': 'rematch_request'});
     expect(socket.sentPeer, 'group-123');
     expect(socket.sentToGroup, true);
   });
@@ -185,7 +185,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(socket.sentMessageId, 'game-message-1');
-    expect(socket.sentMoveData, {'action': 'rematch_accept'});
+    expect(socket.sentMoveData, {'action': 'rematch_request'});
     expect(socket.sentPeer, 'bob');
     expect(socket.sentToGroup, false);
   });
