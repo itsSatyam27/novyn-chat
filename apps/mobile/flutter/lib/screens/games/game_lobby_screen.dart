@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -226,7 +227,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
         _friendInviteCountdown.value = _friendInviteSecondsRemaining;
         if (_friendInviteSecondsRemaining == 0) {
           timer.cancel();
-          _handleFriendInviteTimeout({'messageId': messageId, 'gameType': widget.gameType});
+          _handleGameInviteTimeout({'messageId': messageId, 'gameType': widget.gameType});
         }
       });
 
