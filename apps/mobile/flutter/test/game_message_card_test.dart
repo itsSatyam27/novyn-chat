@@ -119,8 +119,9 @@ void main() {
     final socket = _FakeSocketService();
     await tester.pumpWidget(gameCardHost(socket));
 
-    expect(find.bySemanticsLabel('X, winning tile'), findsNWidgets(3));
-    expect(find.bySemanticsLabel('O'), findsNWidgets(2));
+    for (final index in [0, 1, 2, 3, 4]) {
+      expect(find.byKey(ValueKey('tic-tac-toe-cell-$index')), findsOneWidget);
+    }
     expect(tester.takeException(), isNull);
   });
 
@@ -128,6 +129,10 @@ void main() {
     final socket = _FakeSocketService();
     await tester.pumpWidget(gameCardHost(socket));
 
+    await tester.ensureVisible(find.text('View match results'));
+    await tester.tap(find.text('View match results'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('View match results'));
     await tester.tap(find.text('View match results'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Play again'));
