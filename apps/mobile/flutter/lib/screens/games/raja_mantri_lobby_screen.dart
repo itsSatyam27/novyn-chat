@@ -37,7 +37,7 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
   List<UserModel> _friends = [];
   bool _loadingFriends = false;
 
-  static const List<String> _defaultBots = ['Pikachu', 'Miyouna', 'Bholu'];
+  static const List<String> _defaultBots = ['Bot 1', 'Bot 2', 'Bot 3'];
 
   @override
   void initState() {

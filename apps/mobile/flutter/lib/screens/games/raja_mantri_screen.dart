@@ -149,7 +149,7 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
     final opponentNames = (widget.customOpponents != null &&
             widget.customOpponents!.length >= 3)
         ? widget.customOpponents!
-        : ['Pikachu', 'Miyouna', 'Bholu'];
+        : ['Bot 1', 'Bot 2', 'Bot 3'];
 
     _players = [
       RMPlayer(
@@ -370,19 +370,17 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
       ..sort((a, b) => b.score.compareTo(a.score));
     final winner = sorted.first;
 
-    showModalBottomSheet<void>(
+    showDialog<void>(
       context: context,
-      isDismissible: false,
-      enableDrag: false,
-      backgroundColor: Colors.transparent,
+      barrierDismissible: false,
       barrierColor: const Color(0x8C140E32),
       builder: (ctx) {
         final isDark = Theme.of(ctx).brightness == Brightness.dark;
-        return Center(
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
           child: Container(
-            constraints: const BoxConstraints(maxWidth: 380),
-            margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-            padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+            constraints: const BoxConstraints(maxWidth: 380, maxHeight: 560),
             decoration: BoxDecoration(
               color: isDark ? const Color(0xFF201B36) : Colors.white,
               borderRadius: BorderRadius.circular(28),
@@ -397,118 +395,140 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
-                  '👑',
-                  style: TextStyle(fontSize: 54),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  '${winner.name} wins!',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                    color: isDark ? Colors.white : const Color(0xFF1E1A33),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                // Ranking Rows
-                ...List.generate(sorted.length, (idx) {
-                  final p = sorted[idx];
-                  final isFirst = idx == 0;
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? const Color(0xFF2C2449)
-                          : const Color(0xFFF4F2FA),
-                      borderRadius: BorderRadius.circular(12),
-                      border: isFirst
-                          ? Border.all(
-                              color: const Color(0xFFF59E0B),
-                              width: 2,
-                            )
-                          : null,
-                    ),
-                    child: Row(
+                // Scrollable content
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          '${idx + 1}. ${p.name}',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: isFirst
-                                ? FontWeight.w800
-                                : FontWeight.w600,
-                            color:
-                                isDark ? Colors.white : const Color(0xFF1E1A33),
-                          ),
+                        const Text(
+                          '👑',
+                          style: TextStyle(fontSize: 54),
                         ),
-                        const Spacer(),
+                        const SizedBox(height: 12),
                         Text(
-                          '${p.score}',
+                          '${winner.name} wins!',
                           style: TextStyle(
-                            fontSize: 16,
+                            fontSize: 24,
                             fontWeight: FontWeight.w900,
-                            color:
-                                isDark ? Colors.white : const Color(0xFF1E1A33),
+                            color: isDark ? Colors.white : const Color(0xFF1E1A33),
                           ),
                         ),
+                        const SizedBox(height: 20),
+                        // Ranking Rows
+                        ...List.generate(sorted.length, (idx) {
+                          final p = sorted[idx];
+                          final isFirst = idx == 0;
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? const Color(0xFF2C2449)
+                                  : const Color(0xFFF4F2FA),
+                              borderRadius: BorderRadius.circular(12),
+                              border: isFirst
+                                  ? Border.all(
+                                      color: const Color(0xFFF59E0B),
+                                      width: 2,
+                                    )
+                                  : null,
+                            ),
+                            child: Row(
+                              children: [
+                                Text(
+                                  '${idx + 1}. ${p.name}',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: isFirst
+                                        ? FontWeight.w800
+                                        : FontWeight.w600,
+                                    color: isDark
+                                        ? Colors.white
+                                        : const Color(0xFF1E1A33),
+                                  ),
+                                ),
+                                const Spacer(),
+                                Text(
+                                  '${p.score}',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w900,
+                                    color: isDark
+                                        ? Colors.white
+                                        : const Color(0xFF1E1A33),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                        const SizedBox(height: 20),
                       ],
                     ),
-                  );
-                }),
-                const SizedBox(height: 20),
-                // Play again button
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF5E44F3),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      shadowColor: const Color(0xFF3823B5),
-                    ),
-                    onPressed: () {
-                      Navigator.of(ctx).pop();
-                      _restartGame();
-                    },
-                    child: const Text(
-                      'Play again',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
                   ),
                 ),
-                const SizedBox(height: 10),
-                // Close room button
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: TextButton(
-                    style: TextButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                // Pinned buttons at bottom
+                Container(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF5E44F3),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          onPressed: () {
+                            Navigator.of(ctx).pop();
+                            _restartGame();
+                          },
+                          child: const Text(
+                            'Play again',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                    onPressed: () {
-                      Navigator.of(ctx).pop();
-                      Navigator.of(context).pop();
-                    },
-                    child: const Text(
-                      'Close room',
-                      style: TextStyle(
-                        color: Color(0xFFE53468),
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: TextButton(
+                          style: TextButton.styleFrom(
+                            backgroundColor: isDark
+                                ? const Color(0xFF2C2449)
+                                : const Color(0xFFF4F2FA),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          onPressed: () {
+                            Navigator.of(ctx).pop();
+                            Navigator.of(context).pop();
+                          },
+                          child: const Text(
+                            'Close room',
+                            style: TextStyle(
+                              color: Color(0xFFE53468),
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
               ],
@@ -560,7 +580,7 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
 
                     // Status Text
                     _buildStatusBanner(isDark),
-                    const SizedBox(height: 36),
+                    const SizedBox(height: 20),
 
                     // 4 Chits Row
                     _buildChitsRow(isDark),
@@ -993,8 +1013,18 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
 
   Widget _buildBottomActionArea(bool isDark) {
     return Container(
-      constraints: const BoxConstraints(minHeight: 84),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1A1530) : Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, -3),
+          ),
+        ],
+      ),
+      constraints: const BoxConstraints(minHeight: 76),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       alignment: Alignment.center,
       child: _buildActionButtonContent(isDark),
     );
@@ -1002,7 +1032,7 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
 
   Widget _buildActionButtonContent(bool isDark) {
     if (_gameState == RMGameState.userGuessing) {
-      // Suspect buttons for the 2 hidden suspects (Miyouna & Bholu)
+      // Suspect buttons for the 2 hidden suspects
       final chorIndex = _players.indexWhere((p) => p.currentRole == RMRole.chor);
       final mantriIndex = _players.indexWhere((p) => p.currentRole == RMRole.mantri);
 
@@ -1013,40 +1043,42 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
         children: suspects.map((suspect) {
           final sIndex = _players.indexOf(suspect);
           return Expanded(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 6),
-              height: 52,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: isDark ? const Color(0xFF282046) : Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    side: BorderSide(
-                      color: isDark ? const Color(0xFF382F5E) : const Color(0xFFE4DEF6),
-                      width: 1.5,
-                    ),
+            child: GestureDetector(
+              onTap: () => _onUserSelectSuspect(sIndex),
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 6),
+                height: 56,
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF282046) : Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: isDark ? const Color(0xFF4A3D7A) : const Color(0xFFD6CEF8),
+                    width: 1.5,
                   ),
-                  shadowColor: const Color(0xFFD0C8F2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: suspect.color.withValues(alpha: 0.12),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
                 ),
-                onPressed: () => _onUserSelectSuspect(sIndex),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     CircleAvatar(
-                      radius: 15,
+                      radius: 16,
                       backgroundColor: suspect.color,
                       child: Text(
                         suspect.name.characters.first.toUpperCase(),
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 10),
                     Flexible(
                       child: Text(
                         suspect.name,
