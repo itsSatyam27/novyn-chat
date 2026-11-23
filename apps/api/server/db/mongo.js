@@ -34,6 +34,7 @@ function createMongoStorage(options = {}) {
         { name: "conversation_time_idx" }
       ),
       collections.messages.createIndex({ messageId: 1 }, { name: "message_id_idx" }),
+      collections.media.createIndex({ ownerKey: 1 }, { name: "media_owner_idx" }),
     ]);
   }
 
@@ -60,6 +61,7 @@ function createMongoStorage(options = {}) {
         messages: db.collection(messagesCollectionName),
         auth_sessions: db.collection(options.authSessionsCollectionName || "auth_sessions"),
         feedback: db.collection('feedback'),
+        media: db.collection(options.mediaCollectionName || "media_metadata"),
       };
       await ensureIndexes();
       return true;
