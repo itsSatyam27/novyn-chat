@@ -68,6 +68,7 @@ class _AuthScreenState extends State<AuthScreen>
         backgroundColor: _kBg,
         resizeToAvoidBottomInset: true,
         body: SafeArea(
+          top: false,
           child: LayoutBuilder(
             builder: (context, constraints) {
               final artworkHeight = keyboardOpen
