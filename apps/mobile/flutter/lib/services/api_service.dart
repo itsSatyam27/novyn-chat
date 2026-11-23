@@ -1134,6 +1134,7 @@ class ApiService {
   /// Fetch cloud-backed completed human matches for the signed-in account.
   static Future<List<Map<String, dynamic>>?> getGameHistory() async {
     await initializeSessionStorage();
+    if (_cookieHeader.isEmpty) return null;
     try {
       Future<http.Response> request() => http.get(
         Uri.parse('$baseUrl/api/games/history'),
@@ -1162,6 +1163,8 @@ class ApiService {
   static Future<bool> saveGameHistory(
       List<Map<String, dynamic>> matches) async {
     if (matches.isEmpty) return true;
+    await initializeSessionStorage();
+    if (_cookieHeader.isEmpty) return false;
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/api/games/history'),
