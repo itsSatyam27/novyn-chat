@@ -53,15 +53,26 @@ class _GameMessageCardState extends State<GameMessageCard> {
     if (oldWidget.game['data'] != widget.game['data']) {
       _optimisticData = null;
     }
+    if (_recordedFinishedGame &&
+        widget.game['state']?.toString() != 'finished') {
+      _recordedFinishedGame = false;
+    }
     _recordFinishedGame(widget.game);
   }
 
   void _recordFinishedGame(Map<String, dynamic> game) {
     if (_recordedFinishedGame || game['state']?.toString() != 'finished') return;
     final username = widget.currentUsername.trim();
-    final matchId = game['id']?.toString().trim().isNotEmpty == true
+    final rawUpdatedAt = game['updatedAt'];
+    final playedAt = rawUpdatedAt is num
+        ? DateTime.fromMillisecondsSinceEpoch(rawUpdatedAt.toInt())
+        : DateTime.tryParse(rawUpdatedAt?.toString() ?? '') ?? DateTime.now();
+    final baseMatchId = game['id']?.toString().trim().isNotEmpty == true
         ? game['id'].toString()
         : widget.messageId.trim();
+    final matchId = rawUpdatedAt == null
+        ? baseMatchId
+        : '$baseMatchId-${playedAt.microsecondsSinceEpoch}';
     if (username.isEmpty || matchId.isEmpty) return;
     _recordedFinishedGame = true;
     final winner = game['winner']?.toString().trim().toLowerCase() ?? '';
@@ -70,13 +81,9 @@ class _GameMessageCardState extends State<GameMessageCard> {
         : winner == username.toLowerCase()
             ? 'win'
             : 'loss';
-    final rawUpdatedAt = game['updatedAt'];
     if (_isOfflineBot && rawUpdatedAt == null) {
       game['updatedAt'] = DateTime.now().millisecondsSinceEpoch;
     }
-    final playedAt = rawUpdatedAt is num
-        ? DateTime.fromMillisecondsSinceEpoch(rawUpdatedAt.toInt())
-        : DateTime.tryParse(rawUpdatedAt?.toString() ?? '') ?? DateTime.now();
     unawaited(GameHistoryService.recordFinishedMatch(
       username: username,
       matchId: matchId,
