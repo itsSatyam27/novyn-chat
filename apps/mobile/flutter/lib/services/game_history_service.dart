@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class GameHistoryEntry {
@@ -120,6 +121,7 @@ class GameHistoryService {
   GameHistoryService._();
 
   static const _keyPrefix = 'novyn_game_history_v1_';
+  static final ValueNotifier<int> revision = ValueNotifier<int>(0);
   static Future<void> _writeQueue = Future<void>.value();
 
   static String _key(String username) =>
@@ -204,6 +206,7 @@ class GameHistoryService {
         key,
         jsonEncode(matches.map((match) => match.toJson()).toList()),
       );
+      revision.value++;
     } catch (_) {
       // A failed local write must never interrupt a finished match.
     }
