@@ -929,31 +929,31 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
             decoration: _wallpaperDecoration(snapshot.chatWallpaper),
           ),
         ),
-            if (snapshot.chatWallpaper.trim().isEmpty)
-              Positioned.fill(
-                child: Builder(
-                  builder: (wallpaperContext) {
-                    final settings = wallpaperContext.watch<SettingsService>();
-                    final theme = Theme.of(wallpaperContext);
-                    final accent = settings.accentColorEnabled
-                        ? Color(settings.accentColorValue)
-                        : theme.colorScheme.primary;
-                    return Opacity(
-                      opacity: theme.brightness == Brightness.dark ? 0.14 : 0.98,
-                      child: SvgPicture.asset(
-                        'assets/images/novyn_chat_wallpaper.svg',
-                        fit: BoxFit.cover,
-                        colorFilter: ColorFilter.mode(
-                          accent.withValues(
-                            alpha: theme.brightness == Brightness.dark ? 0.24 : 0.14,
-                          ),
-                          BlendMode.srcATop,
-                        ),
+        if (snapshot.chatWallpaper.trim().isEmpty)
+          Positioned.fill(
+            child: Builder(
+              builder: (wallpaperContext) {
+                final settings = wallpaperContext.watch<SettingsService>();
+                final theme = Theme.of(wallpaperContext);
+                final accent = settings.accentColorEnabled
+                    ? Color(settings.accentColorValue)
+                    : theme.colorScheme.primary;
+                return Opacity(
+                  opacity: theme.brightness == Brightness.dark ? 0.14 : 0.98,
+                  child: SvgPicture.asset(
+                    'assets/images/novyn_chat_wallpaper.svg',
+                    fit: BoxFit.cover,
+                    colorFilter: ColorFilter.mode(
+                      accent.withValues(
+                        alpha: theme.brightness == Brightness.dark ? 0.24 : 0.14,
                       ),
-                    );
-                  },
-                ),
-              ),
+                      BlendMode.srcATop,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
         Scaffold(
           backgroundColor: Colors.transparent,
           appBar: _buildAppBar(socket),
@@ -961,73 +961,73 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
             color: Colors.transparent,
             child: Column(
               children: [
-            ConnectionBanner(chatId: _chatId ?? widget.peer.username),
-            Expanded(
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: _loading
-                        ? Center(
-                            child: CircularProgressIndicator(
-                                color: Theme.of(context).colorScheme.primary))
-                        : messages.isEmpty
-                            ? _fetchingFromServer
-                                ? _buildLoadingShimmer()
-                                : _buildEmptyChat()
-                            : _buildMessageList(
-                                messages,
-                                snapshot.peerIsTyping,
-                                peerIsRecordingVoice:
-                                    snapshot.peerIsRecordingVoice,
+                ConnectionBanner(chatId: _chatId ?? widget.peer.username),
+                Expanded(
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: _loading
+                            ? Center(
+                                child: CircularProgressIndicator(
+                                    color: Theme.of(context).colorScheme.primary))
+                            : messages.isEmpty
+                                ? _fetchingFromServer
+                                    ? _buildLoadingShimmer()
+                                    : _buildEmptyChat()
+                                : _buildMessageList(
+                                    messages,
+                                    snapshot.peerIsTyping,
+                                    peerIsRecordingVoice:
+                                        snapshot.peerIsRecordingVoice,
+                                  ),
+                      ),
+                      if (_showJumpToLatest && messages.isNotEmpty)
+                        Positioned(
+                          right: 18,
+                          bottom: 18,
+                          child: TweenAnimationBuilder<double>(
+                            tween: Tween(begin: 0.82, end: 1),
+                            duration: const Duration(milliseconds: 220),
+                            curve: Curves.easeOutBack,
+                            builder: (context, scale, child) => Transform.scale(
+                              scale: scale,
+                              child: child,
+                            ),
+                            child: Material(
+                              color: Theme.of(context).colorScheme.surface,
+                              elevation: 7,
+                              shape: const CircleBorder(),
+                              child: InkWell(
+                                customBorder: const CircleBorder(),
+                                onTap: _jumpToLatest,
+                                child: Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary
+                                            .withValues(alpha: 0.18)),
+                                  ),
+                                  child: Icon(
+                                      Icons.keyboard_double_arrow_down_rounded,
+                                      color: Theme.of(context).colorScheme.primary,
+                                      size: 23),
+                                ),
                               ),
-                  ),
-                  if (_showJumpToLatest && messages.isNotEmpty)
-                    Positioned(
-                      right: 18,
-                      bottom: 18,
-                      child: TweenAnimationBuilder<double>(
-                        tween: Tween(begin: 0.82, end: 1),
-                        duration: const Duration(milliseconds: 220),
-                        curve: Curves.easeOutBack,
-                        builder: (context, scale, child) => Transform.scale(
-                          scale: scale,
-                          child: child,
-                        ),
-                        child: Material(
-                          color: Theme.of(context).colorScheme.surface,
-                          elevation: 7,
-                          shape: const CircleBorder(),
-                          child: InkWell(
-                            customBorder: const CircleBorder(),
-                            onTap: _jumpToLatest,
-                            child: Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .primary
-                                        .withValues(alpha: 0.18)),
-                              ),
-                              child: Icon(
-                                  Icons.keyboard_double_arrow_down_rounded,
-                                  color: Theme.of(context).colorScheme.primary,
-                                  size: 23),
                             ),
                           ),
                         ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            SafeArea(
-              top: false,
-              left: false,
-              right: false,
-              child: _buildInputBar(socket),
+                    ],
+                  ),
+                ),
+                SafeArea(
+                  top: false,
+                  left: false,
+                  right: false,
+                  child: _buildInputBar(socket),
             ),
               ],
             ),
