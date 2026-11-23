@@ -53,15 +53,26 @@ class _GameMessageCardState extends State<GameMessageCard> {
     if (oldWidget.game['data'] != widget.game['data']) {
       _optimisticData = null;
     }
+    if (_recordedFinishedGame &&
+        widget.game['state']?.toString() != 'finished') {
+      _recordedFinishedGame = false;
+    }
     _recordFinishedGame(widget.game);
   }
 
   void _recordFinishedGame(Map<String, dynamic> game) {
     if (_recordedFinishedGame || game['state']?.toString() != 'finished') return;
     final username = widget.currentUsername.trim();
-    final matchId = game['id']?.toString().trim().isNotEmpty == true
+    final rawUpdatedAt = game['updatedAt'];
+    final playedAt = rawUpdatedAt is num
+        ? DateTime.fromMillisecondsSinceEpoch(rawUpdatedAt.toInt())
+        : DateTime.tryParse(rawUpdatedAt?.toString() ?? '') ?? DateTime.now();
+    final baseMatchId = game['id']?.toString().trim().isNotEmpty == true
         ? game['id'].toString()
         : widget.messageId.trim();
+    final matchId = rawUpdatedAt == null
+        ? baseMatchId
+        : '$baseMatchId-${playedAt.microsecondsSinceEpoch}';
     if (username.isEmpty || matchId.isEmpty) return;
     _recordedFinishedGame = true;
     final winner = game['winner']?.toString().trim().toLowerCase() ?? '';
@@ -70,10 +81,9 @@ class _GameMessageCardState extends State<GameMessageCard> {
         : winner == username.toLowerCase()
             ? 'win'
             : 'loss';
-    final rawUpdatedAt = game['updatedAt'];
-    final playedAt = rawUpdatedAt is num
-        ? DateTime.fromMillisecondsSinceEpoch(rawUpdatedAt.toInt())
-        : DateTime.tryParse(rawUpdatedAt?.toString() ?? '') ?? DateTime.now();
+    if (_isOfflineBot && rawUpdatedAt == null) {
+      game['updatedAt'] = DateTime.now().millisecondsSinceEpoch;
+    }
     unawaited(GameHistoryService.recordFinishedMatch(
       username: username,
       matchId: matchId,
@@ -81,6 +91,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
       opponent: widget.peerUsername,
       result: result,
       playedAt: playedAt,
+      isBotMatch: _isOfflineBot,
     ));
   }
 
@@ -184,11 +195,13 @@ class _GameMessageCardState extends State<GameMessageCard> {
         gData['winsX'] = ((gData['winsX'] as int?) ?? 0) + 1;
         HapticFeedback.heavyImpact();
         setState(() {});
+        _recordFinishedGame(widget.game);
         return;
       } else if (!board.contains(null)) {
         widget.game['state'] = 'finished';
         widget.game['winner'] = 'draw';
         setState(() {});
+        _recordFinishedGame(widget.game);
         return;
       }
 
@@ -243,6 +256,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
           widget.game['turn'] = widget.currentUsername;
         }
         setState(() {});
+        _recordFinishedGame(widget.game);
       });
     } else if (_type == 'rps') {
       final userMove = data['move']?.toString() ?? 'rock';
@@ -296,12 +310,16 @@ class _GameMessageCardState extends State<GameMessageCard> {
         }
         widget.game['data'] = Map<String, dynamic>.from(gData);
         setState(() {});
+        _recordFinishedGame(widget.game);
       });
     }
   }
 
   void _resetOfflineGame() {
     final gData = widget.game['data'] as Map<String, dynamic>? ?? {};
+    widget.game['id'] = 'bot_${DateTime.now().microsecondsSinceEpoch}';
+    widget.game.remove('updatedAt');
+    _recordedFinishedGame = false;
     widget.game['state'] = 'in_progress';
     widget.game['winner'] = null;
     widget.game['turn'] = widget.currentUsername;

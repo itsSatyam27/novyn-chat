@@ -30,6 +30,13 @@ void main() {
     expect(find.text('Matches'), findsOneWidget);
     expect(find.text('Wins'), findsOneWidget);
     expect(find.text('Losses'), findsOneWidget);
+    expect(find.text('Level 1'), findsOneWidget);
+    expect(find.text('0 total XP'), findsOneWidget);
+    expect(find.text('0 / 500 XP'), findsOneWidget);
+    expect(find.byKey(const ValueKey('game-streak-tictactoe')), findsOneWidget);
+    expect(find.byKey(const ValueKey('game-streak-rps')), findsOneWidget);
+    expect(find.byKey(const ValueKey('game-streak-rajamantri')), findsOneWidget);
+    expect(find.byIcon(Icons.local_fire_department_rounded), findsNWidgets(3));
     expect(find.byTooltip('View match history'), findsOneWidget);
     expect(find.text('Play with Random'), findsNothing);
     expect(tester.takeException(), isNull);
