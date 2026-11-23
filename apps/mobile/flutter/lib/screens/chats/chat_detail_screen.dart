@@ -3886,18 +3886,27 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
 
   BoxDecoration _wallpaperDecoration(String wallpaper) {
     final value = wallpaper.trim();
-    final defaultBg = Theme.of(context).brightness == Brightness.dark
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final defaultBg = isDark
         ? const Color(0xFF0B0B17)
         : const Color(0xFFF7F6FF);
+
     if (value.isEmpty) {
-      if (Theme.of(context).brightness == Brightness.dark) {
-        return BoxDecoration(color: defaultBg);
-      }
-      return const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFFF9F7FF), Color(0xFFF2EDFC)],
+      final settings = context.watch<SettingsService>();
+      final accent = settings.accentColorEnabled
+          ? Color(settings.accentColorValue)
+          : theme.colorScheme.primary;
+      return BoxDecoration(
+        color: defaultBg,
+        image: DecorationImage(
+          image: const AssetImage('assets/images/novyn_chat_wallpaper.svg'),
+          fit: BoxFit.cover,
+          opacity: isDark ? 0.12 : 0.96,
+          colorFilter: ColorFilter.mode(
+            accent.withValues(alpha: isDark ? 0.20 : 0.14),
+            BlendMode.srcATop,
+          ),
         ),
       );
     }
