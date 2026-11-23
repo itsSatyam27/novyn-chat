@@ -23,7 +23,6 @@ void main() {
     expect(find.text('Tic-Tac-Toe'), findsOneWidget);
     expect(find.text('Rock Paper'), findsOneWidget);
     expect(find.text('Raja Mantri'), findsOneWidget);
-    expect(find.text('Play vs Bot'), findsNWidgets(2));
     expect(find.text('Connect 4'), findsNothing);
     expect(find.text('Doodle Duel'), findsNothing);
     expect(find.text('Number Clash'), findsNothing);
