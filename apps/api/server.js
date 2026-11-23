@@ -975,7 +975,7 @@ app.post("/api/games/history", requireUser, requireCsrf, async (req, res) => {
   if (!incoming.length || incoming.length > 100) {
     return res.status(400).json({ error: "Submit between 1 and 100 completed matches." });
   }
-  const allowedGames = new Set(["tictactoe", "rps", "rockpaperscissors", "rajamantri", "ludo", "uno"]);
+  const allowedGames = new Set(["tictactoe", "rps", "rockpaperscissors", "rajamantri", "ludo", "uno", "connect4", "doodle", "numberclash", "updown"]);
   const docs = [];
   for (const item of incoming) {
     // Ignore bot records entirely: they neither award XP nor reset a human streak.
