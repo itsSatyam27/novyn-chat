@@ -77,6 +77,67 @@ const HighlightText: React.FC<{ text: string; query?: string }> = ({ text, query
   );
 };
 
+
+function trimMessageUrlPunctuation(value: string): string {
+  let url = value.replace(/[.,!?;:]+$/, '');
+  for (const [opening, closing] of [['(', ')'], ['[', ']'], ['{', '}']]) {
+    while (url.endsWith(closing) &&
+      url.split(opening).length - 1 < url.split(closing).length - 1) {
+      url = url.slice(0, -1);
+    }
+  }
+  return url;
+}
+
+const LinkedMessageText: React.FC<{ text: string; query?: string }> = ({ text, query }) => {
+  const parts: React.ReactNode[] = [];
+  const pattern = /https?:\/\/[^\s<>'"]+/gi;
+  let cursor = 0;
+  let index = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(text)) !== null) {
+    const rawUrl = match[0];
+    const url = trimMessageUrlPunctuation(rawUrl);
+    let validUrl = false;
+    try {
+      const parsed = new URL(url);
+      validUrl = ['http:', 'https:'].includes(parsed.protocol) &&
+        Boolean(parsed.hostname) && !parsed.username && !parsed.password;
+    } catch {
+      validUrl = false;
+    }
+    if (!validUrl) continue;
+
+    const start = match.index;
+    if (start > cursor) {
+      parts.push(<HighlightText key={`text-${index}`} text={text.slice(cursor, start)} query={query} />);
+    }
+    parts.push(
+      <a
+        key={`url-${index}`}
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(event) => event.stopPropagation()}
+        style={{ color: 'inherit', textDecoration: 'underline', fontWeight: 600, overflowWrap: 'anywhere' }}
+      >
+        {url}
+      </a>,
+    );
+    const punctuation = rawUrl.slice(url.length);
+    if (punctuation) parts.push(<span key={`punctuation-${index}`}>{punctuation}</span>);
+    cursor = start + rawUrl.length;
+    index += 1;
+  }
+
+  if (cursor < text.length || parts.length === 0) {
+    parts.push(<HighlightText key="text-tail" text={text.slice(cursor)} query={query} />);
+  }
+
+  return <>{parts}</>;
+};
+
 const COMMON_REACTIONS = ['❤️', '👍', '😂', '😭', '🔥', '🎉', '😮'];
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
@@ -930,7 +991,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             (!isAudioMessage || message.text !== '[Voice Message]') && (
               <div>
                 <div style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
-                  <HighlightText text={message.text} query={searchQuery} />
+                  <LinkedMessageText text={message.text} query={searchQuery} />
                 </div>
                 {extractFirstUrl(message.text) && (
                   <LinkPreviewCard url={extractFirstUrl(message.text)!} />
