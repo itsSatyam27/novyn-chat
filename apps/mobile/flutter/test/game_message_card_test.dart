@@ -3,10 +3,12 @@ import 'package:novyn/models/chat_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novyn/services/socket_service.dart';
 import 'package:novyn/widgets/game_message_card.dart';
+import 'package:novyn/screens/games/game_room_screen.dart';
 import 'package:provider/provider.dart';
 
 class _FakeSocketService extends SocketService {
   String? sentGameType;
+  int openChatCalls = 0;
   String? sentMessageId;
   String? sentPeer;
   Map<String, dynamic>? sentMoveData;
@@ -44,6 +46,7 @@ class _FakeSocketService extends SocketService {
     List<Message> cachedHistory, {
     bool isGroup = false,
   }) async {
+    openChatCalls++;
     return <Message>[
       Message(
         id: 'new-game-message',
@@ -171,6 +174,41 @@ void main() {
     expect(socket.sentMoveData, {'action': 'rematch_request'});
     expect(socket.sentPeer, 'group-123');
     expect(socket.sentToGroup, true);
+  });
+
+  testWidgets('Play vs Bot opens the correct local Tic-Tac-Toe board', (tester) async {
+    final socket = _FakeSocketService();
+    await tester.pumpWidget(
+      ChangeNotifierProvider<SocketService>.value(
+        value: socket,
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: ElevatedButton(
+                  onPressed: () => GameRoomScreen.openOfflineBotMatch(
+                    context: context,
+                    currentUsername: 'alice',
+                    gameType: 'tictactoe',
+                    title: 'Tic-Tac-Toe',
+                  ),
+                  child: const Text('Play vs Bot'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Play vs Bot'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Tic-Tac-Toe'), findsOneWidget);
+    expect(find.text('Playing with AI Bot'), findsOneWidget);
+    expect(find.byKey(const ValueKey('tic-tac-toe-cell-0')), findsOneWidget);
+    expect(socket.openChatCalls, 0);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('Rock Paper Scissors rematch uses the existing match', (tester) async {
