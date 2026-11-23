@@ -120,7 +120,8 @@ class _ReceivedFriendRequestsScreenState
             ),
           ),
         ],
-      ),    );
+      ),
+    );
   }
 
   Widget _requestTab(
@@ -501,7 +502,7 @@ class _ReceivedFriendRequestsScreenState
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        '\${names.length}',
+                        '${names.length}',
                         style: NovynText.body(
                           12,
                           weight: FontWeight.w800,
@@ -526,7 +527,7 @@ class _ReceivedFriendRequestsScreenState
                       separatorBuilder: (_, __) => const SizedBox(height: 11),
                       itemBuilder: (context, index) {
                         final username = names[index];
-                        final processingKey = 'sent:\${username.toLowerCase()}';
+                        final processingKey = 'sent:${username.toLowerCase()}';
                         final busy = _processing.contains(processingKey);
                         return FutureBuilder<UserModel?>(
                           future: service.getUser(username),
@@ -577,7 +578,7 @@ class _ReceivedFriendRequestsScreenState
                                         ),
                                         const SizedBox(height: 3),
                                         Text(
-                                          '@\${user.username} · Pending response',
+                                          '@${user.username} · Pending response',
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: NovynText.body(12, color: muted),
@@ -623,14 +624,14 @@ class _ReceivedFriendRequestsScreenState
   }
 
   Future<void> _cancelSentRequest(FriendService service, String username) async {
-    final processingKey = 'sent:\${username.toLowerCase()}';
+    final processingKey = 'sent:${username.toLowerCase()}';
     if (!_processing.add(processingKey)) return;
     setState(() {});
     try {
       await service.cancelSentRequest(username);
-      _message('Request to @\$username cancelled.');
+      _message('Request to @$username cancelled.');
     } catch (_) {
-      _message('Could not cancel request to @\$username. Please try again.');
+      _message('Could not cancel request to @$username. Please try again.');
     } finally {
       if (mounted) setState(() => _processing.remove(processingKey));
     }
