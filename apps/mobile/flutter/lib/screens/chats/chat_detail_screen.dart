@@ -3596,7 +3596,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   }
 
   Future<void> _showGifPicker({String type = 'gifs'}) async {
-  Future<void> _showGifPicker({String type = 'gifs'}) async {
     final search = TextEditingController();
     await showModalBottomSheet<void>(
       context: context,
