@@ -373,6 +373,7 @@ class _GamesScreenState extends State<GamesScreen> {
                       final game = filtered[index];
                       return _GameCarouselCard(
                         game: game,
+                        streakCount: _stats.currentWinStreak(game.type),
                         onPlay: () => _openGame(game),
                       );
                     }
@@ -437,6 +438,7 @@ class _GamesScreenState extends State<GamesScreen> {
                 children: [
                   _GameCarouselCard(
                     game: _rajaMantriGame,
+                    streakCount: _stats.currentWinStreak(_rajaMantriGame.type),
                     onPlay: () => _openGame(_rajaMantriGame),
                   ),
                   const SizedBox(width: 14),
@@ -588,6 +590,82 @@ class _GameProfileHeroCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 18),
+          // Global gaming XP and level progress.
+          Container(
+            key: const ValueKey('games-xp-progress'),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF2A2347) : const Color(0xFFF2EEFF),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF684BF5).withValues(alpha: .14),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.stars_rounded,
+                        color: Color(0xFF684BF5), size: 22),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Level ${stats.level}',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
+                              color: isDark ? Colors.white : const Color(0xFF1E1A33),
+                            )),
+                          Text('${stats.totalXp} total XP',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: isDark ? Colors.white60 : const Color(0xFF7E7A9C),
+                            )),
+                        ],
+                      ),
+                    ),
+                    Text('${stats.xpIntoCurrentLevel} / ${GameStatsSnapshot.xpPerLevel} XP',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? const Color(0xFFC4B5FD) : const Color(0xFF684BF5),
+                      )),
+                  ],
+                ),
+                const SizedBox(height: 11),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: LinearProgressIndicator(
+                    value: stats.levelProgress,
+                    minHeight: 7,
+                    backgroundColor: isDark
+                        ? const Color(0xFF453B68)
+                        : const Color(0xFFDDD5FA),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      Color(0xFF684BF5),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text('${stats.xpToNextLevel} XP to Level ${stats.level + 1}',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white54 : const Color(0xFF7E7A9C),
+                  )),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
           // 4 Stats Badges
           Row(
             children: [
@@ -778,10 +856,12 @@ class _HeroStatBox extends StatelessWidget {
 class _GameCarouselCard extends StatelessWidget {
   const _GameCarouselCard({
     required this.game,
+    required this.streakCount,
     required this.onPlay,
   });
 
   final _GameOption game;
+  final int streakCount;
   final VoidCallback onPlay;
 
   @override
@@ -809,19 +889,42 @@ class _GameCarouselCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Icon Box
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.22),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(
-              game.icon,
-              color: Colors.white,
-              size: 24,
-            ),
+          // Game icon and this game's current consecutive-win streak.
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.22),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(game.icon, color: Colors.white, size: 24),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.local_fire_department_rounded,
+                      color: Color(0xFFFFD166), size: 17),
+                    const SizedBox(width: 4),
+                    Text('$streakCount',
+                      key: ValueKey('game-streak-${game.type}'),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                      )),
+                  ],
+                ),
+              ),
+            ],
           ),
           const Spacer(),
           // Title
