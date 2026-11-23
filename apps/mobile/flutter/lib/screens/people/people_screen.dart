@@ -206,7 +206,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
                 children: [
                   Expanded(
                     child: Text(
-                      'Contacts',
+                      'Buddy',
                       style: TextStyle(
                         fontFamily: 'PlusJakartaSans',
                         fontSize: 36,
@@ -365,7 +365,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
                   border: InputBorder.none,
                   enabledBorder: InputBorder.none,
                   focusedBorder: InputBorder.none,
-                  hintText: 'Search contacts',
+                  hintText: 'Search buddies',
                   hintStyle: TextStyle(
                     fontFamily: 'PlusJakartaSans',
                     fontSize: 15,
@@ -467,7 +467,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
           const SizedBox(height: 34),
           const NovynEmptyState(
             icon: Icons.people_outline_rounded,
-            title: 'No contacts found',
+            title: 'No buddies found',
             description: 'Try another search or choose a different filter.',
           ),
         ],
@@ -489,7 +489,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
           children: [
             Expanded(
               child: Text(
-                _search.isEmpty ? 'CONTACTS' : 'SEARCH RESULTS',
+                _search.isEmpty ? 'BUDDIES' : 'SEARCH RESULTS',
                 style: TextStyle(
                   fontFamily: 'PlusJakartaSans',
                   fontSize: 12,
@@ -617,7 +617,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: _buildOverflowMenuRow(
             icon: Icons.person_search_rounded,
-            title: 'Discover people',
+            title: 'Find buddies',
             accent: accent,
           ),
         ),
@@ -627,7 +627,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: _buildOverflowMenuRow(
             icon: Icons.person_add_alt_1_rounded,
-            title: 'Friend requests',
+            title: 'Buddy requests',
             accent: accent,
             badge: requestCount,
           ),
@@ -638,7 +638,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: _buildOverflowMenuRow(
             icon: Icons.link_rounded,
-            title: 'Invite friends',
+            title: 'Invite buddies',
             accent: accent,
           ),
         ),
