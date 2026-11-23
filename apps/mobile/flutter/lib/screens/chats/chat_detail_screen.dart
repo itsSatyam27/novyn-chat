@@ -1032,13 +1032,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         : _peerStatusLabel();
     final peerStatusColor = widget.isGroup
         ? scheme.onSurfaceVariant
-        : switch (_peerPresence) {
-            'away' => const Color(0xFFF59E0B),
-            'busy' || 'dnd' => const Color(0xFFEC4899),
-            _ => _isOfflinePresenceState()
-                ? scheme.onSurfaceVariant
-                : const Color(0xFF16A34A),
-          };
+        : (_peerPresence == 'away'
+            ? const Color(0xFFF59E0B)
+            : (_peerPresence == 'busy' || _peerPresence == 'dnd'
+                ? const Color(0xFFEC4899)
+                : (_isOfflinePresenceState()
+                    ? scheme.onSurfaceVariant
+                    : const Color(0xFF16A34A))));
 
     final iconColor = isDark ? Colors.white : const Color(0xFF2D2942);
     final pillBg = isDark ? const Color(0xFF1B1A28) : Colors.white;
