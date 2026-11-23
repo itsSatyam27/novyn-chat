@@ -16,8 +16,7 @@ function trimUrlPunctuation(value: string): string {
   let url = value.replace(/[.,!?;:]+$/, '');
   for (const [opening, closing] of [['(', ')'], ['[', ']'], ['{', '}']]) {
     while (url.endsWith(closing) &&
-      (url.match(new RegExp('\\\\' + opening, 'g')) || []).length <
-        (url.match(new RegExp('\\\\' + closing, 'g')) || []).length) {
+      url.split(opening).length - 1 < url.split(closing).length - 1) {
       url = url.slice(0, -1);
     }
   }
