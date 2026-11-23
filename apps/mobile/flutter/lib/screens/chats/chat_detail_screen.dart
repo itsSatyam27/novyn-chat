@@ -1971,6 +1971,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   }
 
   void _insertQuickEmoji(String emoji) {
+    _insertEmojiText(novynCustomEmojis[emoji] ?? emoji);
+  }
+
+  void _insertEmojiText(String glyph) {
     final current = _ctrl.value;
     final selection = current.selection;
     final start = selection.isValid
@@ -1979,7 +1983,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     final end = selection.isValid
         ? selection.end.clamp(start, current.text.length).toInt()
         : current.text.length;
-    final glyph = novynCustomEmojis[emoji] ?? emoji;
     final updated = current.text.replaceRange(start, end, glyph);
     _ctrl.value = TextEditingValue(
       text: updated,
@@ -2119,7 +2122,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                 ],
                 Expanded(
                   child: EmojiPicker(
-                    textEditingController: _ctrl,
+                    onEmojiSelected: (category, emoji) {
+                      _insertEmojiText(emoji.emoji);
+                    },
                     config: Config(
                       height: null,
                       checkPlatformCompatibility: true,
@@ -4887,7 +4892,7 @@ class _MessageBubble extends StatelessWidget {
                 // ── Bubble with long-press ──────────────────────────────
                 GestureDetector(
                   // Double-tap a bubble to apply the familiar quick ❤️ reaction.
-                  // Long-press still opens the full message actions and reaction sheet.
+                  // Long-press opens the floating message actions and reaction popup.
                   onDoubleTap: () => _toggleReaction(context, '❤️'),
                   onLongPressStart: (details) {
                     final bubbleContext = bubbleKey.currentContext;
