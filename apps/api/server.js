@@ -3450,6 +3450,8 @@ async function initializeMongo() {
     mongoConversationsCollection = null;
     mongoMessagesCollection = null;
     mongoAuthSessionsCollection = null;
+    mongoMediaCollection = null;
+    mediaMetadataCache.clear();
     if (process.env.NODE_ENV === 'production') throw err;
     console.error("Failed to connect MongoDB, falling back to local file storage:", err);
   }
