@@ -190,16 +190,15 @@ class SocketService extends ChangeNotifier {
       message.ciphertext ?? '',
       peerPublicKey ?? '',
     ].join('\u0000');
-    var pending = _inFlightMessageDecryptions[key];
-    if (pending == null) {
-      // Share only the plaintext result. Each caller keeps its own Message
-      // object and therefore preserves its own latest reactions/attachments
-      // and other metadata from the corresponding history/live event.
-      pending = encryption
+    // Share only the plaintext result. Each caller keeps its own Message
+    // object and therefore preserves its own latest reactions/attachments
+    // and other metadata from the corresponding history/live event.
+    final pending = _inFlightMessageDecryptions.putIfAbsent(
+      key,
+      () => encryption
           .decrypt(message, account, peerPublicKey)
-          .then((decrypted) => decrypted.text);
-      _inFlightMessageDecryptions[key] = pending;
-    }
+          .then((decrypted) => decrypted.text),
+    );
 
     try {
       final clearText = await pending;
