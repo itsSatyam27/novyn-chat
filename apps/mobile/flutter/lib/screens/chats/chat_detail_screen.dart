@@ -3014,243 +3014,560 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     search.dispose();
   }
 
+
+  Widget _composerInput({
+    required TextEditingController controller,
+    required String hint,
+    required int maxLength,
+    required ValueChanged<String> onChanged,
+    bool multiline = false,
+    bool obscureText = false,
+    bool showCounter = true,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    final border = scheme.primary.withValues(alpha: .20);
+    return Container(
+      decoration: BoxDecoration(
+        color: scheme.primary.withValues(alpha: .035),
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: border, width: 1.2),
+      ),
+      padding: const EdgeInsets.fromLTRB(15, 3, 14, 8),
+      child: Column(
+        children: [
+          TextField(
+            controller: controller,
+            maxLength: maxLength,
+            minLines: multiline ? 2 : 1,
+            maxLines: multiline ? 3 : 1,
+            obscureText: obscureText,
+            onChanged: onChanged,
+            style: TextStyle(
+              fontFamily: 'PlusJakartaSans',
+              fontSize: 14,
+              color: scheme.onSurface,
+            ),
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: TextStyle(
+                color: scheme.onSurfaceVariant.withValues(alpha: .85),
+                fontFamily: 'PlusJakartaSans',
+              ),
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              counterText: '',
+              contentPadding: const EdgeInsets.symmetric(vertical: 11),
+            ),
+          ),
+          if (showCounter)
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                '${controller.text.length}/$maxLength',
+                style: TextStyle(
+                  fontFamily: 'PlusJakartaSans',
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _showCreateRiddleDialog() async {
     if (widget.isGroup) {
       NovynAlert.show(
-          context, 'Riddle Lock is currently available in direct chats only.',
-          isError: true,
-          title: 'Direct chats only',
-          icon: Icons.lock_rounded,
-          tone: NovynAlertTone.warning);
+        context,
+        'Riddle Lock is currently available in direct chats only.',
+        isError: true,
+        title: 'Direct chats only',
+        icon: Icons.lock_rounded,
+        tone: NovynAlertTone.warning,
+      );
       return;
     }
+
     final secret = TextEditingController();
     final question = TextEditingController();
     final answer = TextEditingController();
     final hint = TextEditingController();
     var maxTries = 3;
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-          builder: (context, refresh) => AlertDialog(
-                title: const Row(children: [
-                  Icon(Icons.lock_outline_rounded, size: 21),
-                  SizedBox(width: 9),
-                  Text('Lock a message')
-                ]),
-                content: SingleChildScrollView(
-                    child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  TextField(
-                      controller: secret,
-                      maxLength: 250,
-                      maxLines: 3,
-                      decoration:
-                          const InputDecoration(labelText: 'Secret message')),
-                  TextField(
-                      controller: question,
-                      maxLength: 160,
-                      decoration:
-                          const InputDecoration(labelText: 'Riddle question')),
-                  TextField(
-                      controller: answer,
-                      maxLength: 80,
-                      obscureText: true,
-                      decoration: const InputDecoration(labelText: 'Answer')),
-                  TextField(
-                      controller: hint,
-                      maxLength: 160,
-                      decoration:
-                          const InputDecoration(labelText: 'Hint (optional)')),
-                  const SizedBox(height: 8),
-                  Row(children: [
-                    const Text('Attempts',
-                        style: TextStyle(
-                            fontFamily: 'PlusJakartaSans',
-                            fontWeight: FontWeight.w600)),
-                    const Spacer(),
-                    ChoiceChip(
-                        label: const Text('3'),
-                        selected: maxTries == 3,
-                        onSelected: (_) => refresh(() => maxTries = 3)),
-                    const SizedBox(width: 8),
-                    ChoiceChip(
-                        label: const Text('5'),
-                        selected: maxTries == 5,
-                        onSelected: (_) => refresh(() => maxTries = 5))
-                  ]),
-                  const Text(
-                      'For fun only. Do not use this for passwords or private information.',
-                      style: TextStyle(
-                          fontFamily: 'PlusJakartaSans',
-                          fontSize: 11,
-                          color: Color(0xFF94A3B8))),
-                ])),
-                actions: [
-                  TextButton(
-                      onPressed: () => Navigator.pop(dialogContext),
-                      child: const Text('Cancel')),
-                  FilledButton.icon(
-                    onPressed: () async {
-                      if (secret.text.trim().isEmpty ||
-                          question.text.trim().isEmpty ||
-                          answer.text.trim().isEmpty) return;
-                      final result =
-                          await context.read<SocketService>().sendRiddle(
-                                peerUsername: widget.peer.uid.isNotEmpty
-                                    ? widget.peer.uid
-                                    : widget.peer.username,
-                                secret: secret.text.trim(),
-                                question: question.text.trim(),
-                                answer: answer.text.trim(),
-                                hint: hint.text.trim().isEmpty
-                                    ? null
-                                    : hint.text.trim(),
-                                maxTries: maxTries,
-                                isGroup: widget.isGroup,
-                              );
-                      if (!mounted) return;
-                      if (result['ok'] == true) {
-                        Navigator.pop(dialogContext);
-                      } else {
-                        NovynAlert.show(
-                            this.context,
-                            result['message']?.toString() ??
-                                'Could not send riddle.',
-                            isError: true,
-                            title: 'Could not send riddle',
-                            icon: Icons.lock_rounded);
-                      }
-                    },
-                    icon: Icon(Icons.lock_rounded, size: 17),
-                    label: const Text('Lock & send'),
+
+    try {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, refresh) {
+            final scheme = Theme.of(dialogContext).colorScheme;
+            final dark = Theme.of(dialogContext).brightness == Brightness.dark;
+            var sending = false;
+            final ready = secret.text.trim().isNotEmpty &&
+                question.text.trim().isNotEmpty &&
+                answer.text.trim().isNotEmpty;
+
+            return Dialog(
+              backgroundColor: scheme.surface,
+              insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(28),
+                side: BorderSide(
+                  color: scheme.outlineVariant.withValues(alpha: .28),
+                ),
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 460),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: scheme.primary.withValues(alpha: .10),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Icon(
+                              Icons.lock_outline_rounded,
+                              color: scheme.primary,
+                              size: 23,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Lock a message',
+                              style: TextStyle(
+                                fontFamily: 'PlusJakartaSans',
+                                fontSize: 19,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -.35,
+                                color: scheme.onSurface,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Close',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: () => Navigator.pop(dialogContext),
+                            icon: Icon(Icons.close_rounded, color: scheme.onSurfaceVariant),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      _composerInput(
+                        controller: secret,
+                        hint: 'Secret message',
+                        maxLength: 250,
+                        multiline: true,
+                        onChanged: (_) => refresh(() {}),
+                      ),
+                      const SizedBox(height: 10),
+                      _composerInput(
+                        controller: question,
+                        hint: 'Riddle question',
+                        maxLength: 160,
+                        onChanged: (_) => refresh(() {}),
+                      ),
+                      const SizedBox(height: 10),
+                      _composerInput(
+                        controller: answer,
+                        hint: 'Answer',
+                        maxLength: 80,
+                        obscureText: true,
+                        onChanged: (_) => refresh(() {}),
+                      ),
+                      const SizedBox(height: 10),
+                      _composerInput(
+                        controller: hint,
+                        hint: 'Hint (optional)',
+                        maxLength: 160,
+                        onChanged: (_) => refresh(() {}),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Attempts',
+                              style: TextStyle(
+                                fontFamily: 'PlusJakartaSans',
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: scheme.onSurface,
+                              ),
+                            ),
+                          ),
+                          _RiddleAttemptsChoice(
+                            label: '3',
+                            selected: maxTries == 3,
+                            onTap: () => refresh(() => maxTries = 3),
+                          ),
+                          const SizedBox(width: 8),
+                          _RiddleAttemptsChoice(
+                            label: '5',
+                            selected: maxTries == 5,
+                            onTap: () => refresh(() => maxTries = 5),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 13),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+                        decoration: BoxDecoration(
+                          color: scheme.primary.withValues(alpha: dark ? .10 : .055),
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.shield_outlined,
+                              size: 18,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                            const SizedBox(width: 9),
+                            Expanded(
+                              child: Text(
+                                'For fun only. Don’t use this for passwords or private information.',
+                                style: TextStyle(
+                                  fontFamily: 'PlusJakartaSans',
+                                  fontSize: 11.5,
+                                  height: 1.35,
+                                  color: scheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          const Spacer(),
+                          TextButton(
+                            onPressed: sending ? null : () => Navigator.pop(dialogContext),
+                            child: Text(
+                              'Cancel',
+                              style: TextStyle(
+                                fontFamily: 'PlusJakartaSans',
+                                fontWeight: FontWeight.w800,
+                                color: scheme.primary,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          FilledButton.icon(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: scheme.primary,
+                              foregroundColor: scheme.onPrimary,
+                              minimumSize: const Size(0, 50),
+                              padding: const EdgeInsets.symmetric(horizontal: 19),
+                              shape: const StadiumBorder(),
+                              elevation: 2,
+                            ),
+                            onPressed: !ready || sending
+                                ? null
+                                : () async {
+                                    refresh(() => sending = true);
+                                    try {
+                                      final result = await context.read<SocketService>().sendRiddle(
+                                        peerUsername: widget.peer.uid.isNotEmpty
+                                            ? widget.peer.uid
+                                            : widget.peer.username,
+                                        secret: secret.text.trim(),
+                                        question: question.text.trim(),
+                                        answer: answer.text.trim(),
+                                        hint: hint.text.trim().isEmpty ? null : hint.text.trim(),
+                                        maxTries: maxTries,
+                                        isGroup: widget.isGroup,
+                                      );
+                                      if (!mounted || !dialogContext.mounted) return;
+                                      if (result['ok'] == true) {
+                                        Navigator.pop(dialogContext);
+                                      } else {
+                                        refresh(() => sending = false);
+                                        NovynAlert.show(
+                                          this.context,
+                                          result['message']?.toString() ?? 'Could not send riddle.',
+                                          isError: true,
+                                          title: 'Could not send riddle',
+                                          icon: Icons.lock_rounded,
+                                        );
+                                      }
+                                    } catch (error) {
+                                      if (!dialogContext.mounted) return;
+                                      refresh(() => sending = false);
+                                      NovynAlert.show(
+                                        this.context,
+                                        error.toString().replaceFirst('Bad state: ', ''),
+                                        isError: true,
+                                        title: 'Could not send riddle',
+                                        icon: Icons.lock_rounded,
+                                      );
+                                    }
+                                  },
+                            icon: sending
+                                ? const SizedBox(
+                                    width: 17,
+                                    height: 17,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(Icons.lock_rounded, size: 17),
+                            label: Text(sending ? 'Sending…' : 'Lock & send'),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                ],
-              )),
-    );
-    secret.dispose();
-    question.dispose();
-    answer.dispose();
-    hint.dispose();
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    } finally {
+      secret.dispose();
+      question.dispose();
+      answer.dispose();
+      hint.dispose();
+    }
   }
 
   Future<void> _showCreatePollDialog() async {
     final question = TextEditingController();
-    final options = [TextEditingController(), TextEditingController()];
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, refresh) => AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.poll_outlined, size: 21),
-              SizedBox(width: 9),
-              Text('Create a poll'),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: question,
-                  maxLength: 500,
-                  decoration: const InputDecoration(
-                    labelText: 'Question',
-                    hintText: 'Ask your friends...',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                ...List.generate(
-                    options.length,
-                    (index) => Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
+    final options = <TextEditingController>[
+      TextEditingController(),
+      TextEditingController(),
+    ];
+
+    try {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, refresh) {
+            final scheme = Theme.of(dialogContext).colorScheme;
+            var sending = false;
+            final cleanQuestion = question.text.trim();
+            final cleanOptions = options
+                .map((item) => item.text.trim())
+                .where((item) => item.isNotEmpty)
+                .toList();
+            final ready = cleanQuestion.isNotEmpty && cleanOptions.length >= 2;
+
+            return Dialog(
+              backgroundColor: scheme.surface,
+              insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(28),
+                side: BorderSide(color: scheme.outlineVariant.withValues(alpha: .28)),
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 460),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: scheme.primary.withValues(alpha: .10),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Icon(Icons.poll_rounded, color: scheme.primary, size: 24),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Create a poll',
+                              style: TextStyle(
+                                fontFamily: 'PlusJakartaSans',
+                                fontSize: 19,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -.35,
+                                color: scheme.onSurface,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Close',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: () => Navigator.pop(dialogContext),
+                            icon: Icon(Icons.close_rounded, color: scheme.onSurfaceVariant),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      _composerInput(
+                        controller: question,
+                        hint: 'Question',
+                        maxLength: 500,
+                        onChanged: (_) => refresh(() {}),
+                      ),
+                      const SizedBox(height: 10),
+                      ...List.generate(options.length, (index) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 9),
                           child: Row(
                             children: [
                               Expanded(
-                                child: TextField(
+                                child: _composerInput(
                                   controller: options[index],
+                                  hint: 'Option ${index + 1}',
                                   maxLength: 200,
-                                  decoration: InputDecoration(
-                                    labelText: 'Option ${index + 1}',
-                                    counterText: '',
-                                  ),
+                                  showCounter: false,
+                                  onChanged: (_) => refresh(() {}),
                                 ),
                               ),
-                              if (options.length > 2)
+                              if (options.length > 2) ...[
+                                const SizedBox(width: 4),
                                 IconButton(
                                   tooltip: 'Remove option',
-                                  onPressed: () => refresh(() {
-                                    final removed = options.removeAt(index);
-                                    removed.dispose();
-                                  }),
-                                  icon: Icon(Icons.close_rounded),
+                                  onPressed: sending
+                                      ? null
+                                      : () => refresh(() {
+                                            final removed = options.removeAt(index);
+                                            removed.dispose();
+                                          }),
+                                  icon: Icon(Icons.remove_circle_outline_rounded, color: scheme.onSurfaceVariant),
                                 ),
+                              ],
                             ],
                           ),
-                        )),
-                if (options.length < 8)
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton.icon(
-                      onPressed: () =>
-                          refresh(() => options.add(TextEditingController())),
-                      icon: Icon(Icons.add_rounded, size: 18),
-                      label: const Text('Add option'),
-                    ),
+                        );
+                      }),
+                      if (options.length < 8)
+                        SizedBox(
+                          width: double.infinity,
+                          height: 52,
+                          child: OutlinedButton.icon(
+                            onPressed: sending
+                                ? null
+                                : () => refresh(() => options.add(TextEditingController())),
+                            icon: Icon(Icons.add_rounded, color: scheme.primary, size: 20),
+                            label: Text(
+                              'Add option',
+                              style: TextStyle(
+                                fontFamily: 'PlusJakartaSans',
+                                fontWeight: FontWeight.w800,
+                                color: scheme.primary,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(
+                                color: scheme.primary.withValues(alpha: .35),
+                                width: 1.3,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          const Spacer(),
+                          TextButton(
+                            onPressed: sending ? null : () => Navigator.pop(dialogContext),
+                            child: Text(
+                              'Cancel',
+                              style: TextStyle(
+                                fontFamily: 'PlusJakartaSans',
+                                fontWeight: FontWeight.w800,
+                                color: scheme.primary,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          FilledButton.icon(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: scheme.primary,
+                              foregroundColor: scheme.onPrimary,
+                              minimumSize: const Size(0, 50),
+                              padding: const EdgeInsets.symmetric(horizontal: 19),
+                              shape: const StadiumBorder(),
+                              elevation: 2,
+                            ),
+                            onPressed: !ready || sending
+                                ? null
+                                : () {
+                                    final finalQuestion = question.text.trim();
+                                    final finalOptions = options
+                                        .map((item) => item.text.trim())
+                                        .where((item) => item.isNotEmpty)
+                                        .toList();
+                                    if (finalOptions.toSet().length != finalOptions.length) {
+                                      NovynAlert.show(
+                                        dialogContext,
+                                        'Poll options must be unique.',
+                                        isError: true,
+                                        title: 'Duplicate options',
+                                        icon: Icons.poll_rounded,
+                                      );
+                                      return;
+                                    }
+                                    try {
+                                      refresh(() => sending = true);
+                                      context.read<SocketService>().createPoll(
+                                        finalQuestion,
+                                        finalOptions,
+                                        widget.peer.uid.isNotEmpty
+                                            ? widget.peer.uid
+                                            : widget.peer.username,
+                                        isGroup: widget.isGroup,
+                                      );
+                                      Navigator.pop(dialogContext);
+                                    } catch (error) {
+                                      refresh(() => sending = false);
+                                      NovynAlert.show(
+                                        dialogContext,
+                                        error.toString().replaceFirst('Bad state: ', ''),
+                                        isError: true,
+                                        title: 'Could not send poll',
+                                        icon: Icons.poll_rounded,
+                                      );
+                                    }
+                                  },
+                            icon: const Icon(Icons.send_rounded, size: 17),
+                            label: const Text('Send poll'),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-            FilledButton.icon(
-              onPressed: () {
-                final cleanQuestion = question.text.trim();
-                final cleanOptions = options
-                    .map((item) => item.text.trim())
-                    .where((item) => item.isNotEmpty)
-                    .toList();
-                if (cleanQuestion.isEmpty || cleanOptions.length < 2) {
-                  NovynAlert.show(
-                      dialogContext, 'Add a question and at least two options.',
-                      isError: true,
-                      title: 'Incomplete poll',
-                      icon: Icons.poll_rounded);
-                  return;
-                }
-                if (cleanOptions.toSet().length != cleanOptions.length) {
-                  NovynAlert.show(dialogContext, 'Poll options must be unique.',
-                      isError: true,
-                      title: 'Duplicate options',
-                      icon: Icons.poll_rounded);
-                  return;
-                }
-                context.read<SocketService>().createPoll(
-                      cleanQuestion,
-                      cleanOptions,
-                      widget.peer.uid.isNotEmpty
-                          ? widget.peer.uid
-                          : widget.peer.username,
-                      isGroup: widget.isGroup,
-                    );
-                Navigator.pop(dialogContext);
-              },
-              icon: Icon(Icons.send_rounded, size: 17),
-              label: const Text('Send poll'),
-            ),
-          ],
+                ),
+              ),
+            );
+          },
         ),
-      ),
-    );
-    question.dispose();
-    for (final option in options) {
-      option.dispose();
+      );
+    } finally {
+      question.dispose();
+      for (final option in options) {
+        option.dispose();
+      }
     }
   }
 
+  Future<void> _showGifPicker({String type = 'gifs'}) async {
   Future<void> _showGifPicker({String type = 'gifs'}) async {
     final search = TextEditingController();
     await showModalBottomSheet<void>(
@@ -6353,168 +6670,240 @@ class _GifPickerSheetState extends State<_GifPickerSheet> {
   }
 }
 
-// ── Attachment Button with theme-aware share sheet ─────────────────────────
+// ── Attachment Button with PDF-reference share sheet ───────────────────────
 class _AttachmentButton extends StatelessWidget {
   final ValueChanged<String> onSelected;
   const _AttachmentButton({required this.onSelected});
 
-  static const _items = [
-    _MenuItem(icon: Icons.poll_rounded, label: 'Poll'),
-    _MenuItem(icon: Icons.lock_outline_rounded, label: 'Riddle'),
-    _MenuItem(icon: Icons.gif_box_rounded, label: 'GIFs'),
-    _MenuItem(icon: Icons.sticky_note_2_outlined, label: 'Stickers'),
-    _MenuItem(icon: Icons.photo_library_rounded, label: 'Media'),
-    _MenuItem(icon: Icons.insert_drive_file_rounded, label: 'Document'),
-    _MenuItem(icon: Icons.headphones_rounded, label: 'Sound'),
+  static const _createItems = <_MenuItem>[
     _MenuItem(
-        icon: Icons.location_on_rounded, label: 'Location', enabled: false),
+      icon: Icons.poll_rounded,
+      label: 'Poll',
+      action: 'poll',
+      tint: Color(0xFF7051E8),
+      background: Color(0xFFF0EBFC),
+    ),
+    _MenuItem(
+      icon: Icons.help_outline_rounded,
+      label: 'Riddle',
+      action: 'riddle',
+      tint: Color(0xFF7C4DE2),
+      background: Color(0xFFF0E9FC),
+    ),
+    _MenuItem(
+      icon: Icons.gif_box_rounded,
+      label: 'GIFs &\nStickers',
+      action: 'gifs',
+      tint: Color(0xFF398D83),
+      background: Color(0xFFE7F4F1),
+    ),
+  ];
+
+  static const _shareItems = <_MenuItem>[
+    _MenuItem(
+      icon: Icons.photo_library_outlined,
+      label: 'Media',
+      action: 'image',
+      tint: Color(0xFF3E73D5),
+      background: Color(0xFFE9F1FC),
+    ),
+    _MenuItem(
+      icon: Icons.description_outlined,
+      label: 'Document',
+      action: 'document',
+      tint: Color(0xFF398A62),
+      background: Color(0xFFE8F4ED),
+    ),
+    _MenuItem(
+      icon: Icons.headphones_rounded,
+      label: 'Sound',
+      action: 'sound',
+      tint: Color(0xFF6545CB),
+      background: Color(0xFFEDE8FC),
+    ),
+    _MenuItem(
+      icon: Icons.location_on_outlined,
+      label: 'Location',
+      action: 'location',
+      tint: Color(0xFF9294A6),
+      background: Color(0xFFF0F0F5),
+      enabled: false,
+      footnote: 'Soon',
+    ),
   ];
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+
+    Widget sectionTitle(String title) => Padding(
+          padding: const EdgeInsets.only(left: 2, bottom: 10),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              title,
+              style: TextStyle(
+                fontFamily: 'PlusJakartaSans',
+                fontSize: 11.5,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.25,
+                color: scheme.primary,
+              ),
+            ),
+          ),
+        );
+
+    Widget menuGrid(List<_MenuItem> items, int columns) {
+      return GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: items.length,
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: columns,
+          mainAxisSpacing: 8,
+          crossAxisSpacing: columns == 4 ? 4 : 10,
+          childAspectRatio: columns == 4 ? .82 : .94,
+        ),
+        itemBuilder: (tileContext, index) {
+          final item = items[index];
+          return Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(17),
+              onTap: () {
+                HapticService.vibrate(
+                  NovynHapticType.selection,
+                  category: HapticCategory.chat,
+                );
+                Navigator.pop(context);
+                if (!item.enabled) {
+                  NovynAlert.show(
+                    context,
+                    '${item.label} sharing is not available yet.',
+                    title: 'Coming soon',
+                    icon: Icons.hourglass_top_rounded,
+                    tone: NovynAlertTone.neutral,
+                  );
+                  return;
+                }
+                onSelected(item.action);
+              },
+              child: Opacity(
+                opacity: item.enabled ? 1 : .7,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        color: item.background,
+                        borderRadius: BorderRadius.circular(21),
+                      ),
+                      child: Icon(item.icon, color: item.tint, size: 27),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      item.label,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        fontSize: 12.5,
+                        height: 1.15,
+                        fontWeight: FontWeight.w700,
+                        color: scheme.onSurface,
+                      ),
+                    ),
+                    if (item.footnote != null)
+                      Text(
+                        item.footnote!,
+                        style: TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    }
+
     return Material(
       color: scheme.primary.withValues(alpha: .10),
       shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),
         onTap: () {
-          HapticService.vibrate(NovynHapticType.light,
-              category: HapticCategory.chat);
+          HapticService.vibrate(
+            NovynHapticType.light,
+            category: HapticCategory.chat,
+          );
           showModalBottomSheet<void>(
             context: context,
             backgroundColor: Colors.transparent,
             isScrollControlled: true,
             useSafeArea: true,
             builder: (sheetContext) {
-              final theme = Theme.of(sheetContext);
-              final colors = theme.colorScheme;
-              final tints = <Color>[
-                colors.primary,
-                colors.secondary,
-                colors.tertiary
-              ];
-              return Container(
-                margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-                padding: const EdgeInsets.fromLTRB(18, 12, 18, 20),
-                decoration: BoxDecoration(
-                  color: colors.surface,
-                  borderRadius: BorderRadius.circular(28),
-                  border: Border.all(
-                      color: colors.outlineVariant.withValues(alpha: .65)),
-                  boxShadow: [
-                    BoxShadow(
-                        color: Colors.black.withValues(alpha: .16),
-                        blurRadius: 24,
-                        offset: const Offset(0, -5))
-                  ],
-                ),
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Center(
-                      child: Container(
-                          width: 38,
-                          height: 4,
-                          decoration: BoxDecoration(
-                              color: colors.onSurfaceVariant
-                                  .withValues(alpha: .32),
-                              borderRadius: BorderRadius.circular(8)))),
-                  const SizedBox(height: 15),
-                  Row(children: [
-                    Expanded(
-                        child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                          Text('Share something',
-                              style: theme.textTheme.titleLarge
-                                  ?.copyWith(fontWeight: FontWeight.w800)),
-                          const SizedBox(height: 3),
-                          Text('Make the conversation more fun',
-                              style: theme.textTheme.bodySmall
-                                  ?.copyWith(color: colors.onSurfaceVariant)),
-                        ])),
-                    IconButton(
-                        tooltip: 'Close',
-                        onPressed: () => Navigator.pop(sheetContext),
-                        icon: const Icon(Icons.close_rounded)),
-                  ]),
-                  const SizedBox(height: 12),
-                  GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _items.length,
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 3,
-                            mainAxisSpacing: 10,
-                            crossAxisSpacing: 10,
-                            childAspectRatio: 1.12),
-                    itemBuilder: (context, index) {
-                      final item = _items[index];
-                      final tint = tints[index % tints.length];
-                      return Material(
-                        color: item.enabled
-                            ? colors.surfaceContainerLow
-                            : colors.surfaceContainer,
-                        borderRadius: BorderRadius.circular(18),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(18),
-                          onTap: () {
-                            Navigator.pop(sheetContext);
-                            if (!item.enabled) {
-                              NovynAlert.show(context,
-                                  '${item.label} sharing is not available yet.',
-                                  title: 'Coming soon',
-                                  icon: Icons.hourglass_top_rounded,
-                                  tone: NovynAlertTone.neutral);
-                              return;
-                            }
-                            onSelected(item.label == 'Media'
-                                ? 'image'
-                                : item.label.toLowerCase());
-                          },
-                          child: Opacity(
-                              opacity: item.enabled ? 1 : .48,
-                              child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Container(
-                                        width: 48,
-                                        height: 48,
-                                        decoration: BoxDecoration(
-                                            color: tint.withValues(alpha: .14),
-                                            borderRadius:
-                                                BorderRadius.circular(15)),
-                                        child: Icon(item.icon,
-                                            color: tint, size: 23)),
-                                    const SizedBox(height: 7),
-                                    Text(item.label,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: theme.textTheme.labelMedium
-                                            ?.copyWith(
-                                                fontWeight: FontWeight.w700)),
-                                    if (!item.enabled)
-                                      Text('Coming soon',
-                                          style: theme.textTheme.labelSmall
-                                              ?.copyWith(
-                                                  color:
-                                                      colors.onSurfaceVariant,
-                                                  fontSize: 8)),
-                                  ])),
+              final colors = Theme.of(sheetContext).colorScheme;
+              final screenWidth = MediaQuery.of(sheetContext).size.width;
+              final bottomSpace = MediaQuery.of(sheetContext).padding.bottom;
+              return SafeArea(
+                top: false,
+                child: Align(
+                  alignment: Alignment.bottomLeft,
+                  child: Container(
+                    width: math.min(screenWidth - 24, 440.0),
+                    margin: EdgeInsets.fromLTRB(10, 0, 10, 84 + bottomSpace),
+                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
+                    decoration: BoxDecoration(
+                      color: colors.surface,
+                      borderRadius: BorderRadius.circular(30),
+                      border: Border.all(
+                        color: colors.outlineVariant.withValues(alpha: .35),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: .16),
+                          blurRadius: 28,
+                          offset: const Offset(0, 8),
                         ),
-                      );
-                    },
+                      ],
+                    ),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          sectionTitle('CREATE & PLAY'),
+                          menuGrid(_createItems, 3),
+                          const SizedBox(height: 10),
+                          Divider(
+                            height: 1,
+                            color: colors.outlineVariant.withValues(alpha: .45),
+                          ),
+                          const SizedBox(height: 14),
+                          sectionTitle('SHARE'),
+                          menuGrid(_shareItems, 4),
+                        ],
+                      ),
+                    ),
                   ),
-                ]),
+                ),
               );
             },
           );
         },
-        child: SizedBox(
-            width: 40,
-            height: 40,
-            child:
-                Icon(Icons.grid_view_rounded, size: 20, color: scheme.primary)),
+        child: const SizedBox(
+          width: 40,
+          height: 40,
+          child: Icon(Icons.grid_view_rounded, size: 20, color: Color(0xFF7051E8)),
+        ),
       ),
     );
   }
@@ -6523,9 +6912,21 @@ class _AttachmentButton extends StatelessWidget {
 class _MenuItem {
   final IconData icon;
   final String label;
+  final String action;
+  final Color tint;
+  final Color background;
   final bool enabled;
-  const _MenuItem(
-      {required this.icon, required this.label, this.enabled = true});
+  final String? footnote;
+
+  const _MenuItem({
+    required this.icon,
+    required this.label,
+    required this.action,
+    required this.tint,
+    required this.background,
+    this.enabled = true,
+    this.footnote,
+  });
 }
 
 // ── Spark Icon Painter ─────────────────────────────────────────────────────
