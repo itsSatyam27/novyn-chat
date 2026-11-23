@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -1765,6 +1766,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
             isGroup: widget.isGroup,
             messageStatus: socket.messageStatusFor(current.id),
             myUid: _myUid ?? '',
+            quickEmojis: _quickEmojis,
             onReply: _startReply,
             onForward: _showForwardDialog,
           ),
@@ -1986,67 +1988,182 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     setState(() {});
   }
 
-  void _showQuickEmojiPicker() {
-    final emojis = _quickEmojis.isEmpty
-        ? defaultQuickReactionEmojis
-        : _quickEmojis;
-    showModalBottomSheet<void>(
+  Future<void> _showQuickEmojiPicker() async {
+    final shouldRestoreKeyboard = _messageFocusNode.hasFocus;
+    _messageFocusNode.unfocus();
+
+    await showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
+      useSafeArea: true,
       builder: (sheetContext) {
         final scheme = Theme.of(sheetContext).colorScheme;
+        final media = MediaQuery.of(sheetContext);
+        final pickerHeight = math.min(
+          440.0,
+          math.max(300.0, media.size.height - media.padding.vertical - 28),
+        ).toDouble();
+
         return SafeArea(
           child: Container(
-            margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+            height: pickerHeight,
+            margin: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+            clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
               color: scheme.surface,
-              borderRadius: BorderRadius.circular(26),
-              border: Border.all(color: scheme.primary.withValues(alpha: .18)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(26),
+              ),
               boxShadow: [
                 BoxShadow(
-                    color: Colors.black.withValues(alpha: .12),
-                    blurRadius: 24,
-                    offset: const Offset(0, 8))
+                  color: Colors.black.withValues(alpha: .18),
+                  blurRadius: 24,
+                  offset: const Offset(0, -5),
+                ),
               ],
             ),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
               children: [
-                Row(children: [
-                  Expanded(
-                      child: Text('Novyn emojis',
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 10, 8),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.emoji_emotions_outlined,
+                        color: scheme.primary,
+                        size: 21,
+                      ),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: Text(
+                          'Emoji',
                           style: TextStyle(
-                              fontFamily: 'PlusJakartaSans',
-                              fontSize: 17,
-                              fontWeight: FontWeight.w800,
-                              color: scheme.onSurface))),
-                ]),
-                const SizedBox(height: 8),
-                GridView.count(
-                  crossAxisCount: 4,
-                  shrinkWrap: true,
-                  mainAxisSpacing: 8,
-                  crossAxisSpacing: 8,
-                  physics: const NeverScrollableScrollPhysics(),
-                  children: emojis
-                      .map((emoji) => Material(
-                            color: scheme.primary.withValues(alpha: .08),
-                            borderRadius: BorderRadius.circular(16),
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(16),
-                              onTap: () {
-                                _insertQuickEmoji(emoji);
-                                Navigator.pop(sheetContext);
-                              },
+                            fontFamily: 'PlusJakartaSans',
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: scheme.onSurface,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Close emoji picker',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => Navigator.pop(sheetContext),
+                        icon: Icon(
+                          Icons.keyboard_rounded,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_quickEmojis.isNotEmpty) ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 7),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'NOVYN QUICK EMOJIS',
+                        style: TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 9,
+                          letterSpacing: 1.1,
+                          fontWeight: FontWeight.w800,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    height: 45,
+                    child: ListView.separated(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _quickEmojis.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 8),
+                      itemBuilder: (context, index) {
+                        final emojiKey = _quickEmojis[index];
+                        final glyph = novynCustomEmojis[emojiKey] ?? emojiKey;
+                        return Material(
+                          color: scheme.primary.withValues(alpha: .08),
+                          borderRadius: BorderRadius.circular(14),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(14),
+                            onTap: () {
+                              HapticService.vibrate(
+                                NovynHapticType.selection,
+                                category: HapticCategory.chat,
+                              );
+                              _insertQuickEmoji(emojiKey);
+                            },
+                            child: SizedBox(
+                              width: 44,
                               child: Center(
-                                child: Text(novynCustomEmojis[emoji] ?? '',
-                                    style: const TextStyle(fontSize: 30)),
+                                child: Text(
+                                  glyph,
+                                  style: const TextStyle(fontSize: 25),
+                                ),
                               ),
                             ),
-                          ))
-                      .toList(),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  Divider(
+                    height: 1,
+                    color: scheme.outlineVariant.withValues(alpha: .45),
+                  ),
+                ],
+                Expanded(
+                  child: EmojiPicker(
+                    textEditingController: _ctrl,
+                    config: Config(
+                      height: null,
+                      bgColor: scheme.surface,
+                      checkPlatformCompatibility: true,
+                      viewOrderConfig: const ViewOrderConfig(
+                        top: EmojiPickerItem.searchBar,
+                        middle: EmojiPickerItem.emojiView,
+                        bottom: EmojiPickerItem.categoryBar,
+                      ),
+                      emojiViewConfig: EmojiViewConfig(
+                        columns: 8,
+                        emojiSizeMax: 27,
+                        backgroundColor: scheme.surface,
+                        verticalSpacing: 5,
+                        horizontalSpacing: 2,
+                        gridPadding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 6,
+                        ),
+                      ),
+                      skinToneConfig: const SkinToneConfig(
+                        rememberSkinTone: true,
+                      ),
+                      categoryViewConfig: CategoryViewConfig(
+                        backgroundColor: scheme.surface,
+                        dividerColor: Colors.transparent,
+                        indicatorColor: scheme.primary,
+                        iconColor: scheme.onSurfaceVariant,
+                        iconColorSelected: scheme.primary,
+                        tabBarHeight: 46,
+                      ),
+                      bottomActionBarConfig: BottomActionBarConfig(
+                        backgroundColor: scheme.surface,
+                        buttonColor: scheme.surface,
+                        buttonIconColor: scheme.onSurfaceVariant,
+                      ),
+                      searchViewConfig: SearchViewConfig(
+                        backgroundColor: scheme.surface,
+                        buttonColor: Colors.transparent,
+                        buttonIconColor: scheme.onSurfaceVariant,
+                        hintText: 'Search emoji',
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -2054,6 +2171,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         );
       },
     );
+
+    if (mounted && shouldRestoreKeyboard) {
+      _messageFocusNode.requestFocus();
+    }
   }
 
   Widget _buildInputBar(SocketService socket) {
@@ -4701,6 +4822,7 @@ class _MessageBubble extends StatelessWidget {
   final bool isGroup;
   final String messageStatus;
   final String myUid;
+  final List<String> quickEmojis;
   final ValueChanged<dynamic>? onReply;
   final ValueChanged<dynamic>? onForward;
 
@@ -4712,6 +4834,7 @@ class _MessageBubble extends StatelessWidget {
     this.isGroup = false,
     this.messageStatus = 'sent',
     this.myUid = '',
+    this.quickEmojis = defaultQuickReactionEmojis,
     this.onReply,
     this.onForward,
   });
@@ -5065,7 +5188,9 @@ class _MessageBubble extends StatelessWidget {
       category: HapticCategory.chat,
     );
 
-    const emojis = ['❤️', '😂', '😮', '👍', '🔥'];
+    final emojis = quickEmojis.isEmpty
+        ? defaultQuickReactionEmojis
+        : quickEmojis;
     final isMine = message.isFromMe as bool;
     final canCopy = message.text.toString().trim().isNotEmpty &&
         message.text.toString() != '🔒 Encrypted message';
@@ -5310,7 +5435,7 @@ class _MessageBubble extends StatelessWidget {
                               height: 42,
                               child: Center(
                                 child: Text(
-                                  emoji,
+                                  novynCustomEmojis[emoji] ?? emoji,
                                   style: const TextStyle(fontSize: 24),
                                 ),
                               ),
@@ -5855,14 +5980,15 @@ class _MessageBubble extends StatelessWidget {
   void _toggleReaction(BuildContext context, String emoji) {
     final socket = context.read<SocketService>();
     final reactions = Map<String, String>.from(message.reactions ?? {});
+    final reactionGlyph = novynCustomEmojis[emoji] ?? emoji;
     final currentEmoji = reactions[myUid];
 
-    if (currentEmoji == emoji) {
+    if (currentEmoji == reactionGlyph) {
       // Remove reaction
       socket.removeReaction(message.id as String, peer.uid);
     } else {
       // Add/change reaction
-      socket.addReaction(message.id as String, emoji, peer.uid);
+      socket.addReaction(message.id as String, reactionGlyph, peer.uid);
     }
   }
 
