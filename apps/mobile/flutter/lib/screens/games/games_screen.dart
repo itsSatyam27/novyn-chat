@@ -91,7 +91,7 @@ class _GamesScreenState extends State<GamesScreen> {
   void _on3pCarouselScroll() {
     if (!_carousel3pController.hasClients) return;
     const itemExtent = 238.0; // card width (224) + separator (14)
-    final index = (_carousel3pController.offset / itemExtent).round().clamp(0, 1);
+    final index = (_carousel3pController.offset / itemExtent).round().clamp(0, 2);
     if (index != _active3pIndex) {
       setState(() => _active3pIndex = index);
     }
@@ -451,7 +451,7 @@ class _GamesScreenState extends State<GamesScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(
-                  2,
+                  3,
                   (index) {
                     final isActive = index == _active3pIndex;
                     return AnimatedContainer(
