@@ -1882,6 +1882,8 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
   String _status = 'Pick your move';
   int _statusIndex = 0;
   int _lastRound = 0;
+  Object? _lastObservedData;
+  String? _lastObservedState;
 
   // Delayed scores and round: updated only when reveal finishes!
   int _displayedP1Score = 0;
@@ -1907,6 +1909,10 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
       duration: const Duration(milliseconds: 420),
     );
     final data = _data;
+    // The parent mutates the shared game map in place, so keep our own
+    // snapshot of the data reference instead of comparing oldWidget.game.
+    _lastObservedData = widget.game['data'];
+    _lastObservedState = widget.game['state']?.toString();
     _lastRound = (data['round'] as num?)?.toInt() ?? 1;
     _displayedP1Score = (data['p1Score'] as num?)?.toInt() ?? 0;
     _displayedP2Score = (data['p2Score'] as num?)?.toInt() ?? 0;
@@ -1920,8 +1926,12 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
   @override
   void didUpdateWidget(covariant _RockPaperScissorsPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.game['data'] != widget.game['data'] ||
-        oldWidget.game['state'] != widget.game['state']) {
+    final currentData = widget.game['data'];
+    final currentState = widget.game['state']?.toString();
+    if (!identical(_lastObservedData, currentData) ||
+        _lastObservedState != currentState) {
+      _lastObservedData = currentData;
+      _lastObservedState = currentState;
       _syncGame();
     }
   }
