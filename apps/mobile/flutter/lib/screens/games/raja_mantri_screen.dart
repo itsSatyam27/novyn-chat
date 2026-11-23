@@ -260,7 +260,6 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
   Future<void> _recordGameStats(RMPlayer winner) async {
     if (!_historyRecorded) {
       _historyRecorded = true;
-      final user = _players.firstWhere((p) => p.isUser);
       final opponents = _players.where((p) => !p.isUser).map((p) => p.name).join(', ');
       unawaited(GameHistoryService.recordFinishedMatch(
         username: widget.currentUsername,
