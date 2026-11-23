@@ -220,12 +220,28 @@ async function requireAdmin(req, res, next) {
 
 function mediaMetadata(filename) {
   if (!/^[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+$/.test(filename)) return null;
-  try { return JSON.parse(fs.readFileSync(path.join(uploadsDir, `${filename}.metadata.json`), 'utf8')); }
-  catch { return null; }
+  const cached = mediaMetadataCache.get(filename);
+  if (cached) return cached;
+  try {
+    const metadata = JSON.parse(fs.readFileSync(path.join(uploadsDir, `${filename}.metadata.json`), 'utf8'));
+    mediaMetadataCache.set(filename, metadata);
+    return metadata;
+  } catch { return null; }
 }
 
-function saveMediaMetadata(filename, ownerKey, remote = null) {
-  fs.writeFileSync(path.join(uploadsDir, `${filename}.metadata.json`), JSON.stringify({ ownerKey, remote }), { flag: 'wx' });
+async function saveMediaMetadata(filename, ownerKey, remote = null) {
+  const metadata = { ownerKey, remote };
+  if (mongoMediaCollection) {
+    await mongoMediaCollection.updateOne(
+      { _id: filename },
+      { $set: { ownerKey, remote, updatedAt: new Date() } },
+      { upsert: true }
+    );
+    mediaMetadataCache.set(filename, metadata);
+    return;
+  }
+  fs.writeFileSync(path.join(uploadsDir, `${filename}.metadata.json`), JSON.stringify(metadata), { flag: 'wx' });
+  mediaMetadataCache.set(filename, metadata);
 }
 
 function userCanReadMedia(filename, userKey) {
@@ -256,7 +272,7 @@ async function storeCloudMedia(file, ownerKey, folder) {
     resource_type: 'auto', type: 'authenticated', folder,
   });
   const filename = `cloud-${crypto.randomBytes(16).toString('hex')}.bin`;
-  saveMediaMetadata(filename, ownerKey, {
+  await saveMediaMetadata(filename, ownerKey, {
     publicId: result.public_id, format: result.format || '', resourceType: result.resource_type,
   });
   return `/uploads/${filename}?token=${signUploadToken(filename)}`;
@@ -796,7 +812,7 @@ app.post(
       const filename = `voice-${Date.now()}-${crypto.randomBytes(3).toString("hex")}${safeExt}`;
       const destPath = path.join(uploadsDir, filename);
       fs.renameSync(req.file.path, destPath);
-      saveMediaMetadata(filename, auth.userKey);
+      await saveMediaMetadata(filename, auth.userKey);
       const token = signUploadToken(filename);
       res.json({ url: `/uploads/${filename}?token=${token}` });
     } catch (error) {
@@ -1392,6 +1408,8 @@ let mongoUsersCollection = null;
 let mongoConversationsCollection = null;
 let mongoMessagesCollection = null;
 let mongoAuthSessionsCollection = null;
+let mongoMediaCollection = null;
+const mediaMetadataCache = new Map();
 
 let persistTimer = null;
 let persistInFlight = Promise.resolve();
@@ -3396,6 +3414,33 @@ async function initializeMongo() {
     mongoConversationsCollection = mongoStorage.getCollection("conversations");
     mongoMessagesCollection = mongoStorage.getCollection("messages");
     mongoAuthSessionsCollection = mongoStorage.getCollection("auth_sessions");
+    mongoMediaCollection = mongoStorage.getCollection("media");
+    if (mongoMediaCollection) {
+      const storedMedia = await mongoMediaCollection.find({}).toArray();
+      for (const item of storedMedia) {
+        if (item?._id && item?.ownerKey) {
+          mediaMetadataCache.set(String(item._id), { ownerKey: item.ownerKey, remote: item.remote || null });
+        }
+      }
+      // Migrate legacy metadata files when an earlier deployment used a persistent uploads volume.
+      const legacyFiles = await fsp.readdir(uploadsDir).catch(() => []);
+      for (const name of legacyFiles.filter((entry) => entry.endsWith(".metadata.json"))) {
+        const filename = name.slice(0, -".metadata.json".length);
+        if (mediaMetadataCache.has(filename)) continue;
+        try {
+          const legacy = JSON.parse(await fsp.readFile(path.join(uploadsDir, name), "utf8"));
+          if (!legacy?.ownerKey) continue;
+          await mongoMediaCollection.updateOne(
+            { _id: filename },
+            { $setOnInsert: { ownerKey: legacy.ownerKey, remote: legacy.remote || null, updatedAt: new Date() } },
+            { upsert: true }
+          );
+          mediaMetadataCache.set(filename, { ownerKey: legacy.ownerKey, remote: legacy.remote || null });
+        } catch (error) {
+          console.warn("[NovynMedia] Legacy media metadata migration skipped:", name, error?.message || error);
+        }
+      }
+    }
 
     console.log(`Connected to MongoDB database: ${MONGODB_DB}`);
   } catch (err) {
@@ -6713,7 +6758,7 @@ app.post(
       const filename = `wallpaper-${Date.now()}-${crypto.randomBytes(3).toString("hex")}${ext}`;
       const destPath = path.join(uploadsDir, filename);
       fs.writeFileSync(destPath, buffer);
-      saveMediaMetadata(filename, req.userKey);
+      await saveMediaMetadata(filename, req.userKey);
       const token = signUploadToken(filename);
       return res.json({ url: `/uploads/${filename}?token=${token}`, source: finalUrl.href });
     } catch (err) {
