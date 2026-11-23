@@ -92,7 +92,7 @@ class SocketService extends ChangeNotifier {
   String? _chatHistoryTarget;
   VoidCallback? onAuthenticated;
   final Map<String, String> _peerKeys = {};
-  final Map<String, Future<Message>> _inFlightMessageDecryptions = {};
+  final Map<String, Future<String>> _inFlightMessageDecryptions = {};
   final BackendContacts contacts = BackendContacts();
   io.Socket? _socket;
   bool _isConnected = false;
@@ -179,10 +179,9 @@ class SocketService extends ChangeNotifier {
     Message message,
     String account,
     String? peerPublicKey,
-  ) {
-    if (!encryption.needsDecryption(message)) {
-      return Future<Message>.value(message);
-    }
+  ) async {
+    if (!encryption.needsDecryption(message)) return message;
+
     final key = [
       account.trim().toLowerCase(),
       message.chatId.trim().toLowerCase(),
@@ -191,16 +190,27 @@ class SocketService extends ChangeNotifier {
       message.ciphertext ?? '',
       peerPublicKey ?? '',
     ].join('\u0000');
-    final existing = _inFlightMessageDecryptions[key];
-    if (existing != null) return existing;
+    var pending = _inFlightMessageDecryptions[key];
+    if (pending == null) {
+      // Share only the plaintext result. Each caller keeps its own Message
+      // object and therefore preserves its own latest reactions/attachments
+      // and other metadata from the corresponding history/live event.
+      pending = encryption
+          .decrypt(message, account, peerPublicKey)
+          .then((decrypted) => decrypted.text);
+      _inFlightMessageDecryptions[key] = pending;
+    }
 
-    final pending = encryption.decrypt(message, account, peerPublicKey);
-    _inFlightMessageDecryptions[key] = pending;
-    return pending.whenComplete(() {
+    try {
+      final clearText = await pending;
+      return clearText == message.text
+          ? message
+          : message.copyWith(text: clearText);
+    } finally {
       if (identical(_inFlightMessageDecryptions[key], pending)) {
         _inFlightMessageDecryptions.remove(key);
       }
-    });
+    }
   }
 
   // Reconnection state
