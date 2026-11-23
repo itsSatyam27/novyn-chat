@@ -52,7 +52,6 @@ class GameHistoryService {
   GameHistoryService._();
 
   static const _keyPrefix = 'novyn_game_history_v1_';
-  static const _maxEntries = 250;
   static Future<void> _writeQueue = Future<void>.value();
 
   static String _key(String username) =>
@@ -131,7 +130,7 @@ class GameHistoryService {
       ]..sort((a, b) => b.playedAt.compareTo(a.playedAt));
       await prefs.setString(
         key,
-        jsonEncode(matches.take(_maxEntries).map((match) => match.toJson()).toList()),
+        jsonEncode(matches.map((match) => match.toJson()).toList()),
       );
     } catch (_) {
       // A failed local write must never interrupt a finished match.
