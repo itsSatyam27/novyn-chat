@@ -66,10 +66,12 @@ class _GamesScreenState extends State<GamesScreen> {
     unawaited(_loadLastPlayed());
     _carouselController.addListener(_onCarouselScroll);
     _carousel3pController.addListener(_on3pCarouselScroll);
+    GameHistoryService.revision.addListener(_onGameHistoryChanged);
   }
 
   @override
   void dispose() {
+    GameHistoryService.revision.removeListener(_onGameHistoryChanged);
     _searchController.dispose();
     _searchFocusNode.dispose();
     _carouselController.removeListener(_onCarouselScroll);
@@ -94,6 +96,12 @@ class _GamesScreenState extends State<GamesScreen> {
     final index = (_carousel3pController.offset / itemExtent).round().clamp(0, 2);
     if (index != _active3pIndex) {
       setState(() => _active3pIndex = index);
+    }
+  }
+
+  void _onGameHistoryChanged() {
+    if (mounted && _statsUsername.isNotEmpty) {
+      _loadStats(_statsUsername);
     }
   }
 
