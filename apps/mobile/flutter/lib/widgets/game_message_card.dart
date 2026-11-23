@@ -1466,7 +1466,14 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
       playerX,
       widget.canJoinGroup ? widget.currentUsername : playerO,
     );
-    if (!mounted || success) return;
+    if (!mounted) return;
+    // Offline bot moves update the local game map after a short delay. Clear
+    // the player's optimistic snapshot so the board can render the bot reply.
+    if (success && widget.game['isOfflineBot'] == true) {
+      setState(() => _optimisticBoard = null);
+      return;
+    }
+    if (success) return;
     setState(() { _optimisticBoard = null; _error = 'Move not sent · tap again to retry'; });
   }
 
