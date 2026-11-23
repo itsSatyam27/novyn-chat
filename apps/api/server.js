@@ -6604,73 +6604,90 @@ app.post("/api/auth/revoke-sessions",
 );
 
 const { fetchSafeExternalUrl, readResponseWithLimit, readResponseBufferWithLimit } = require("./server/security/ssrf");
+const { createLinkPreviewData } = require("./server/chat/link-preview");
 
-app.get("/api/link-preview", requireUser, createIpRateLimiter({ getStore: () => httpRateLimits }, 'link-preview', 60, 60 * 1000), async (req, res) => {
-  const targetUrl = String(req.query?.url || "").trim();
-  if (!targetUrl) {
-    res.status(400).json({ error: "Invalid URL" });
-    return;
-  }
+const linkPreviewCache = new Map();
+const LINK_PREVIEW_CACHE_TTL_MS = 10 * 60 * 1000;
+const LINK_PREVIEW_CACHE_LIMIT = 500;
 
-  try {
-    const response = await fetchSafeExternalUrl(targetUrl, {
+app.get(
+  "/api/link-preview",
+  requireUser,
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "link-preview", 60, 60 * 1000),
+  async (req, res) => {
+    const targetUrl = String(req.query?.url || "").trim();
+    if (!targetUrl || targetUrl.length > 2048) {
+      res.status(400).json({ error: "Invalid URL" });
+      return;
+    }
+
+    try {
+      // fetchSafeExternalUrl validates DNS/IP ranges and pins the vetted
+      // address for the actual request, preventing private-network SSRF and DNS rebinding.
+      const safeUrl = new URL(targetUrl);
+      if (!["http:", "https:"].includes(safeUrl.protocol) || safeUrl.username || safeUrl.password) {
+        res.status(400).json({ error: "URL is not allowed." });
+        return;
+      }
+
+      const cacheKey = safeUrl.href;
+      const cached = linkPreviewCache.get(cacheKey);
+      if (cached && cached.expiresAt > Date.now()) {
+        res.set("Cache-Control", "private, max-age=600");
+        res.json(cached.data);
+        return;
+      }
+      if (cached) linkPreviewCache.delete(cacheKey);
+
+      const response = await fetchSafeExternalUrl(safeUrl.href, {
         timeoutMs: 4000,
         headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "User-Agent": "Mozilla/5.0 (compatible; NovynLinkPreview/1.0)",
+          Accept: "text/html,application/xhtml+xml;q=0.9",
         },
       });
-    if (!response.ok) {
-      res.status(400).json({ error: "Failed to fetch URL" });
-      return;
-    }
 
-    if (response.status >= 300 && response.status < 400) {
-      res.status(400).json({ error: "Redirects are not allowed." });
-      return;
-    }
-    const contentType = String(response.headers.get("content-type") || "").toLowerCase();
-    if (contentType && !/(^|;)\s*(text\/html|application\/xhtml\+xml)(?:\s*;|$)/i.test(contentType)) {
-      res.status(415).json({ error: "URL does not return an HTML page." });
-      return;
-    }
-    const html = await readResponseWithLimit(response, 1024 * 1024);
-    const titleMatch = html.match(/<meta\s+property=["']og:title["']\s+content=["'](.*?)["']/i) ||
-      html.match(/<title[^>]*>(.*?)<\/title>/i) ||
-      html.match(/<meta\s+name=["']title["']\s+content=["'](.*?)["']/i);
-    const descMatch = html.match(/<meta\s+property=["']og:description["']\s+content=["'](.*?)["']/i) ||
-      html.match(/<meta\s+name=["']description["']\s+content=["'](.*?)["']/i);
-    const imageMatch = html.match(/<meta\s+property=["']og:image["']\s+content=["'](.*?)["']/i) ||
-      html.match(/<meta\s+name=["']twitter:image["']\s+content=["'](.*?)["']/i);
-    const siteMatch = html.match(/<meta\s+property=["']og:site_name["']\s+content=["'](.*?)["']/i);
+      if (response.status >= 300 && response.status < 400) {
+        await response.body?.cancel();
+        res.status(400).json({ error: "Redirects are not allowed." });
+        return;
+      }
+      if (!response.ok) {
+        await response.body?.cancel();
+        res.status(400).json({ error: "Failed to fetch URL" });
+        return;
+      }
 
-    let parsedUrl = null;
-    try {
-      parsedUrl = new URL(targetUrl);
-    } catch (_) {}
+      const contentType = String(response.headers.get("content-type") || "").toLowerCase();
+      if (contentType && !/(^|;)\s*(text\/html|application\/xhtml\+xml)(?:\s*;|$)/i.test(contentType)) {
+        await response.body?.cancel();
+        res.status(415).json({ error: "URL does not return an HTML page." });
+        return;
+      }
 
-    const title = titleMatch ? titleMatch[1].replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").slice(0, 120) : (parsedUrl?.hostname || targetUrl);
-    const description = descMatch ? descMatch[1].replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").slice(0, 200) : "";
-    let image = imageMatch ? imageMatch[1] : "";
-    if (image && !image.startsWith("http") && parsedUrl) {
-      image = new URL(image, parsedUrl.origin).href;
+      const html = await readResponseWithLimit(response, 1024 * 1024);
+      const preview = createLinkPreviewData(html, safeUrl.href);
+
+      if (linkPreviewCache.size >= LINK_PREVIEW_CACHE_LIMIT) {
+        const oldestKey = linkPreviewCache.keys().next().value;
+        if (oldestKey) linkPreviewCache.delete(oldestKey);
+      }
+      linkPreviewCache.set(cacheKey, {
+        data: preview,
+        expiresAt: Date.now() + LINK_PREVIEW_CACHE_TTL_MS,
+      });
+
+      res.set("Cache-Control", "private, max-age=600");
+      res.json(preview);
+    } catch (error) {
+      const message = String(error?.message || "");
+      const clientError = /Unsafe destination|Unsupported URL|credentials|Redirects|Response too large|Invalid URL/i.test(message);
+      res.status(clientError ? 400 : 502).json({
+        error: clientError ? "URL is not allowed." : "Failed to load link preview.",
+      });
     }
-    const siteName = siteMatch ? siteMatch[1] : (parsedUrl?.hostname.replace(/^www\./, '') || "");
-
-    res.json({
-      url: safeUrl.href,
-      title,
-      description,
-      image,
-      siteName,
-      domain: parsedUrl?.hostname || "",
-    });
-  } catch (err) {
-    const message = String(err?.message || "");
-    const clientError = /Unsafe destination|Unsupported URL|credentials|Redirects|Response too large/.test(message);
-    res.status(clientError ? 400 : 500).json({ error: clientError ? "URL is not allowed." : "Failed to parse link preview" });
   }
-});
+);
 
 app.post(
   "/api/import-wallpaper-url",
