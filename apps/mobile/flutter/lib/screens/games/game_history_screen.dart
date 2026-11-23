@@ -98,9 +98,9 @@ class _GameHistoryScreenState extends State<GameHistoryScreen> {
             );
             final wins = monthMatches.where((m) => m.result == 'win').length;
             final losses = monthMatches.where((m) => m.result == 'loss').length;
-            final winRate = wins + losses == 0
+            final winRate = monthMatches.isEmpty
                 ? 0
-                : (wins / (wins + losses) * 100).round();
+                : (wins / monthMatches.length * 100).round();
             final filtered = monthMatches.where((match) {
               switch (_filter) {
                 case _HistoryFilter.wins:
@@ -177,7 +177,8 @@ class _GameHistoryScreenState extends State<GameHistoryScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text('THIS MONTH',
+                                  Text(_month.year == DateTime.now().year && _month.month == DateTime.now().month
+                                    ? 'THIS MONTH' : 'MONTH SUMMARY',
                                     style: TextStyle(color: muted,
                                       fontSize: 13, fontWeight: FontWeight.w800,
                                       letterSpacing: 1.5)),
