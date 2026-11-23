@@ -294,7 +294,10 @@ void main() {
     expect(find.text('Playing with AI Bot'), findsOneWidget);
     expect(find.text('?'), findsNWidgets(2));
 
-    await tester.tap(find.text('Rock').last);
+    final rockChoice = find.text('Rock').last;
+    await tester.ensureVisible(rockChoice);
+    await tester.pumpAndSettle();
+    await tester.tap(rockChoice);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
     await tester.pump(const Duration(milliseconds: 1800));
