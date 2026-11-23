@@ -41,6 +41,7 @@ import 'package:novyn/services/haptic_service.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../widgets/custom_emoji.dart';
+import '../../widgets/chat_link_text.dart';
 
 String _mimeForFile(String filename) {
   final name = filename.toLowerCase();
@@ -5096,11 +5097,7 @@ class _MessageBubble extends StatelessWidget {
   static final Map<String, Future<Map<String, dynamic>?>> _linkPreviewCache =
       {};
 
-  String? _extractFirstUrl(String text) {
-    return RegExp(r'https?://\S+', caseSensitive: false)
-        .firstMatch(text)
-        ?.group(0);
-  }
+  String? _extractFirstUrl(String text) => extractFirstChatUrl(text);
 
   Widget _buildLinkPreview(BuildContext context, String url) {
     final future = _linkPreviewCache.putIfAbsent(
@@ -5464,8 +5461,8 @@ class _MessageBubble extends StatelessWidget {
                                             .startsWith('image/') ==
                                         true) &&
                                 (message.text as String).trim() == '[Image]'))
-                          Text(
-                            novynEmojiText(message.text as String),
+                          ChatLinkText(
+                            text: novynEmojiText(message.text as String),
                             style: TextStyle(
                               fontFamily: 'PlusJakartaSans',
                               fontSize: 15 *

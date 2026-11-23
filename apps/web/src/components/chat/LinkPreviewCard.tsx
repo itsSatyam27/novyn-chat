@@ -12,10 +12,30 @@ interface LinkPreviewData {
 
 const previewCache = new Map<string, LinkPreviewData | null>();
 
+function trimUrlPunctuation(value: string): string {
+  let url = value.replace(/[.,!?;:]+$/, '');
+  for (const [opening, closing] of [['(', ')'], ['[', ']'], ['{', '}']]) {
+    while (url.endsWith(closing) &&
+      url.split(opening).length - 1 < url.split(closing).length - 1) {
+      url = url.slice(0, -1);
+    }
+  }
+  return url;
+}
+
 export function extractFirstUrl(text: string): string | null {
   if (!text) return null;
   const match = text.match(/https?:\/\/[^\s<>'"]+/i);
-  return match ? match[0] : null;
+  if (!match) return null;
+  const url = trimUrlPunctuation(match[0]);
+  try {
+    const parsed = new URL(url);
+    return ['http:', 'https:'].includes(parsed.protocol) && parsed.hostname && !parsed.username && !parsed.password
+      ? url
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 export const LinkPreviewCard: React.FC<{ url: string }> = ({ url }) => {
