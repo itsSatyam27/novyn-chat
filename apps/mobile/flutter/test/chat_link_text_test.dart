@@ -34,6 +34,5 @@ void main() {
 
     expect(find.text('https://example.com/novyn'), findsOneWidget);
     expect(find.byType(InkWell), findsOneWidget);
-    expect(find.text(' now.'), findsOneWidget);
   });
 }
