@@ -4937,8 +4937,6 @@ ${htmlMessages}
   }
 }
 
-}
-
 // ── Message Bubble ─────────────────────────────────────────────────────────
 class _MessageBubble extends StatelessWidget {
   static final Map<String, Future<Map<String, dynamic>?>> _linkPreviewCache =
