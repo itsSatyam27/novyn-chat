@@ -71,6 +71,9 @@ class _GameMessageCardState extends State<GameMessageCard> {
             ? 'win'
             : 'loss';
     final rawUpdatedAt = game['updatedAt'];
+    if (_isOfflineBot && rawUpdatedAt == null) {
+      game['updatedAt'] = DateTime.now().millisecondsSinceEpoch;
+    }
     final playedAt = rawUpdatedAt is num
         ? DateTime.fromMillisecondsSinceEpoch(rawUpdatedAt.toInt())
         : DateTime.tryParse(rawUpdatedAt?.toString() ?? '') ?? DateTime.now();
@@ -81,6 +84,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
       opponent: widget.peerUsername,
       result: result,
       playedAt: playedAt,
+      isBotMatch: _isOfflineBot,
     ));
   }
 
@@ -184,11 +188,13 @@ class _GameMessageCardState extends State<GameMessageCard> {
         gData['winsX'] = ((gData['winsX'] as int?) ?? 0) + 1;
         HapticFeedback.heavyImpact();
         setState(() {});
+        _recordFinishedGame(widget.game);
         return;
       } else if (!board.contains(null)) {
         widget.game['state'] = 'finished';
         widget.game['winner'] = 'draw';
         setState(() {});
+        _recordFinishedGame(widget.game);
         return;
       }
 
@@ -243,6 +249,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
           widget.game['turn'] = widget.currentUsername;
         }
         setState(() {});
+        _recordFinishedGame(widget.game);
       });
     } else if (_type == 'rps') {
       final userMove = data['move']?.toString() ?? 'rock';
@@ -296,12 +303,16 @@ class _GameMessageCardState extends State<GameMessageCard> {
         }
         widget.game['data'] = Map<String, dynamic>.from(gData);
         setState(() {});
+        _recordFinishedGame(widget.game);
       });
     }
   }
 
   void _resetOfflineGame() {
     final gData = widget.game['data'] as Map<String, dynamic>? ?? {};
+    widget.game['id'] = 'bot_${DateTime.now().microsecondsSinceEpoch}';
+    widget.game.remove('updatedAt');
+    _recordedFinishedGame = false;
     widget.game['state'] = 'in_progress';
     widget.game['winner'] = null;
     widget.game['turn'] = widget.currentUsername;
