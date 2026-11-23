@@ -36,7 +36,6 @@ import '../../utils/quick_reaction_preferences.dart';
 import '../../widgets/novyn_toast.dart';
 import 'profile_info_screen.dart';
 import 'group_info_screen.dart';
-import '../../widgets/connection_banner.dart';
 import '../../screens/calls/call_screen.dart';
 import 'package:novyn/services/haptic_service.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -971,7 +970,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
             color: Colors.transparent,
             child: Column(
               children: [
-                ConnectionBanner(chatId: _chatId ?? widget.peer.username),
+                // Keep the message timeline fixed during socket reconnects.
+                // Outgoing bubbles retain their own sending and failed/retry indicators.
                 Expanded(
                   child: Stack(
                     children: [
