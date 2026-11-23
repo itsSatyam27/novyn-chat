@@ -884,7 +884,7 @@ app.post(
       const filename = `file-${Date.now()}-${crypto.randomBytes(3).toString("hex")}${ext}`;
       const destPath = path.join(uploadsDir, filename);
       fs.renameSync(req.file.path, destPath);
-      saveMediaMetadata(filename, auth.userKey);
+      await saveMediaMetadata(filename, auth.userKey);
       const token = signUploadToken(filename);
       res.json({
         url: `/uploads/${filename}?token=${token}`,
