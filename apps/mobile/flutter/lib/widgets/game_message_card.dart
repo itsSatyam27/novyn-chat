@@ -246,33 +246,44 @@ class _GameMessageCardState extends State<GameMessageCard> {
       });
     } else if (_type == 'rps') {
       final userMove = data['move']?.toString() ?? 'rock';
-      final gData = widget.game['data'] as Map<String, dynamic>;
+      final gData = Map<String, dynamic>.from(
+        widget.game['data'] as Map<String, dynamic>,
+      );
       gData['p1Move'] = userMove;
+      gData['p2Move'] = null;
+      gData['roundResolved'] = false;
+      widget.game['data'] = gData;
+      setState(() {});
 
       Timer(const Duration(milliseconds: 400), () {
         if (!mounted) return;
         const botChoices = ['rock', 'paper', 'scissors'];
         final botMove = botChoices[math.Random().nextInt(botChoices.length)];
-        gData['p2Move'] = botMove;
-
         int p1Score = (gData['p1Score'] as int?) ?? 0;
         int p2Score = (gData['p2Score'] as int?) ?? 0;
-        int round = (gData['round'] as int?) ?? 1;
+        final round = (gData['round'] as int?) ?? 1;
         final target = (gData['target'] as int?) ?? 3;
+        String roundWinner = 'draw';
 
         if (userMove != botMove) {
           if ((userMove == 'rock' && botMove == 'scissors') ||
               (userMove == 'paper' && botMove == 'rock') ||
               (userMove == 'scissors' && botMove == 'paper')) {
             p1Score++;
+            roundWinner = widget.currentUsername;
           } else {
             p2Score++;
+            roundWinner = 'AI Bot';
           }
         }
 
+        gData['p2Move'] = botMove;
+        gData['roundWinner'] = roundWinner;
         gData['p1Score'] = p1Score;
         gData['p2Score'] = p2Score;
         gData['round'] = round + 1;
+        gData['roundResolved'] = true;
+        gData['roundResolvedAt'] = DateTime.now().millisecondsSinceEpoch;
 
         if (p1Score >= target) {
           widget.game['state'] = 'finished';
@@ -283,6 +294,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
           widget.game['winner'] = 'AI Bot';
           HapticFeedback.mediumImpact();
         }
+        widget.game['data'] = Map<String, dynamic>.from(gData);
         setState(() {});
       });
     }
@@ -1466,7 +1478,14 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
       playerX,
       widget.canJoinGroup ? widget.currentUsername : playerO,
     );
-    if (!mounted || success) return;
+    if (!mounted) return;
+    // Offline bot moves update the local game map after a short delay. Clear
+    // the player's optimistic snapshot so the board can render the bot reply.
+    if (success && widget.game['isOfflineBot'] == true) {
+      setState(() => _optimisticBoard = null);
+      return;
+    }
+    if (success) return;
     setState(() { _optimisticBoard = null; _error = 'Move not sent · tap again to retry'; });
   }
 
@@ -1863,6 +1882,8 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
   String _status = 'Pick your move';
   int _statusIndex = 0;
   int _lastRound = 0;
+  Object? _lastObservedData;
+  String? _lastObservedState;
 
   // Delayed scores and round: updated only when reveal finishes!
   int _displayedP1Score = 0;
@@ -1888,6 +1909,10 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
       duration: const Duration(milliseconds: 420),
     );
     final data = _data;
+    // The parent mutates the shared game map in place, so keep our own
+    // snapshot of the data reference instead of comparing oldWidget.game.
+    _lastObservedData = widget.game['data'];
+    _lastObservedState = widget.game['state']?.toString();
     _lastRound = (data['round'] as num?)?.toInt() ?? 1;
     _displayedP1Score = (data['p1Score'] as num?)?.toInt() ?? 0;
     _displayedP2Score = (data['p2Score'] as num?)?.toInt() ?? 0;
@@ -1901,8 +1926,12 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
   @override
   void didUpdateWidget(covariant _RockPaperScissorsPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.game['data'] != widget.game['data'] ||
-        oldWidget.game['state'] != widget.game['state']) {
+    final currentData = widget.game['data'];
+    final currentState = widget.game['state']?.toString();
+    if (!identical(_lastObservedData, currentData) ||
+        _lastObservedState != currentState) {
+      _lastObservedData = currentData;
+      _lastObservedState = currentState;
       _syncGame();
     }
   }
