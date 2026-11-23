@@ -245,8 +245,20 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pump();
 
-    expect(find.text('X'), findsOneWidget);
-    expect(find.text('O'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('tic-tac-toe-cell-0')),
+        matching: find.text('X'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('tic-tac-toe-cell-4')),
+        matching: find.text('O'),
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Your move'), findsOneWidget);
     expect(socket.openChatCalls, 0);
     expect(tester.takeException(), isNull);
