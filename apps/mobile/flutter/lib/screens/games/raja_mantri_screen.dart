@@ -155,7 +155,7 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
   Timer? _guessTimer;
   int _guessSecondsRemaining = 15;
   bool _historyRecorded = false;
-  final String _historyMatchId = 'rajamantri_${DateTime.now().microsecondsSinceEpoch}';
+  String _historyMatchId = 'rajamantri_${DateTime.now().microsecondsSinceEpoch}';
 
   // Floating Reactions (Feature 3)
   final List<_FloatingEmojiData> _floatingEmojis = [];
@@ -258,18 +258,22 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
   }
 
   Future<void> _recordGameStats(RMPlayer winner) async {
-    if (!_historyRecorded) {
-      _historyRecorded = true;
-      final opponents = _players.where((p) => !p.isUser).map((p) => p.name).join(', ');
-      unawaited(GameHistoryService.recordFinishedMatch(
-        username: widget.currentUsername,
-        matchId: _historyMatchId,
-        gameType: 'rajamantri',
-        opponent: opponents,
-        result: winner.isUser ? 'win' : 'loss',
-        playedAt: DateTime.now(),
-      ));
-    }
+    if (_historyRecorded) return;
+    _historyRecorded = true;
+    final opponents = _players.where((p) => !p.isUser).map((p) => p.name).join(', ');
+    final isBotMatch = !widget.isPassAndPlay &&
+        _players.where((p) => !p.isUser).every(
+          (player) => player.name.toLowerCase().startsWith('bot '),
+        );
+    unawaited(GameHistoryService.recordFinishedMatch(
+      username: widget.currentUsername,
+      matchId: _historyMatchId,
+      gameType: 'rajamantri',
+      opponent: opponents,
+      result: winner.isUser ? 'win' : 'loss',
+      playedAt: DateTime.now(),
+      isBotMatch: isBotMatch,
+    ));
     try {
       final prefs = await SharedPreferences.getInstance();
       final played = (prefs.getInt('rm_played') ?? 0) + 1;
@@ -653,6 +657,8 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
   }
 
   void _restartGame() {
+    _historyRecorded = false;
+    _historyMatchId = 'rajamantri_${DateTime.now().microsecondsSinceEpoch}';
     setState(() {
       for (final p in _players) {
         p.score = 0;
