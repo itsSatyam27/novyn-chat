@@ -50,8 +50,26 @@ class MessageEncryptionService {
   final _aes = AesGcm.with256bits();
   final Map<String, _EcdhIdentity> _identities = {};
   final Map<String, Future<_EcdhIdentity>> _identityLoads = {};
+  // One P-256 ECDH derivation per account identity and peer key, shared by
+  // every message in that conversation.
+  final Map<String, Future<SecretKey>> _sharedKeyLoads = {};
 
   String _account(String username) => username.trim().toLowerCase();
+
+  /// Whether a stored encrypted message still contains a ciphertext placeholder.
+  /// Successfully decrypted messages retain their encrypted envelope for reloads,
+  /// but must not be decrypted again on every chat open.
+  bool needsDecryption(Message message) {
+    if (!message.isEncrypted ||
+        message.ciphertext?.isNotEmpty != true ||
+        message.iv?.isNotEmpty != true) {
+      return false;
+    }
+    final text = message.text.trim();
+    return text.isEmpty ||
+        text == '?? Encrypted message' ||
+        text == '🔒 Encrypted message';
+  }
 
   static String _b64url(List<int> bytes) =>
       base64Url.encode(bytes).replaceAll('=', '');
@@ -300,6 +318,7 @@ class MessageEncryptionService {
     }));
     _identities.remove(account);
     _identityLoads.remove(account);
+    _sharedKeyLoads.removeWhere((key, _) => key.startsWith('$account|'));
     final restoredPublicKey = await initializeIdentity(account);
     if (!samePublicKey(restoredPublicKey, backupPublicKey)) {
       throw StateError('The restored Novyn identity could not be verified.');
@@ -307,11 +326,49 @@ class MessageEncryptionService {
     return restoredPublicKey;
   }
 
-  Future<SecretKey> _sharedKey(String username, String peerPublicKeyJwk, {bool requireExistingIdentity = false}) async {
-    final identity = await _identity(username, createIfMissing: !requireExistingIdentity);
+  Future<SecretKey> _sharedKey(
+    String username,
+    String peerPublicKeyJwk, {
+    bool requireExistingIdentity = false,
+  }) async {
+    final account = _account(username);
+    final identity = await _identity(
+      account,
+      createIfMissing: !requireExistingIdentity,
+    );
+    // Include the local identity's public coordinates so restoring a new
+    // identity can never reuse a shared key derived from the previous one.
+    final cacheKey = [
+      account,
+      _b64url(identity.x),
+      _b64url(identity.y),
+      peerPublicKeyJwk,
+    ].join('|');
+    final cached = _sharedKeyLoads[cacheKey];
+    if (cached != null) return cached;
+
+    final loading = _deriveSharedKey(identity, peerPublicKeyJwk);
+    _sharedKeyLoads[cacheKey] = loading;
+    try {
+      return await loading;
+    } catch (_) {
+      if (identical(_sharedKeyLoads[cacheKey], loading)) {
+        _sharedKeyLoads.remove(cacheKey);
+      }
+      rethrow;
+    }
+  }
+
+  Future<SecretKey> _deriveSharedKey(
+    _EcdhIdentity identity,
+    String peerPublicKeyJwk,
+  ) async {
     final decoded = jsonDecode(peerPublicKeyJwk);
-    if (decoded is! Map || decoded['kty'] != 'EC' || decoded['crv'] != 'P-256' ||
-        decoded['x'] is! String || decoded['y'] is! String) {
+    if (decoded is! Map ||
+        decoded['kty'] != 'EC' ||
+        decoded['crv'] != 'P-256' ||
+        decoded['x'] is! String ||
+        decoded['y'] is! String) {
       throw const FormatException('The contact has an invalid encryption key.');
     }
     final x = _decodeB64url(decoded['x'] as String);

@@ -92,6 +92,7 @@ class SocketService extends ChangeNotifier {
   String? _chatHistoryTarget;
   VoidCallback? onAuthenticated;
   final Map<String, String> _peerKeys = {};
+  final Map<String, Future<String>> _inFlightMessageDecryptions = {};
   final BackendContacts contacts = BackendContacts();
   io.Socket? _socket;
   bool _isConnected = false;
@@ -172,6 +173,43 @@ class SocketService extends ChangeNotifier {
     final seen = DateTime.tryParse(data['seenAt']?.toString() ?? '');
     if (delivered != null) _messageDeliveredAt[id] = delivered.toLocal();
     if (seen != null) _messageSeenAt[id] = seen.toLocal();
+  }
+
+  Future<Message> _decryptMessageOnce(
+    Message message,
+    String account,
+    String? peerPublicKey,
+  ) async {
+    if (!encryption.needsDecryption(message)) return message;
+
+    final key = [
+      account.trim().toLowerCase(),
+      message.chatId.trim().toLowerCase(),
+      message.id,
+      message.iv ?? '',
+      message.ciphertext ?? '',
+      peerPublicKey ?? '',
+    ].join('\u0000');
+    // Share only the plaintext result. Each caller keeps its own Message
+    // object and therefore preserves its own latest reactions/attachments
+    // and other metadata from the corresponding history/live event.
+    final pending = _inFlightMessageDecryptions.putIfAbsent(
+      key,
+      () => encryption
+          .decrypt(message, account, peerPublicKey)
+          .then((decrypted) => decrypted.text),
+    );
+
+    try {
+      final clearText = await pending;
+      return clearText == message.text
+          ? message
+          : message.copyWith(text: clearText);
+    } finally {
+      if (identical(_inFlightMessageDecryptions[key], pending)) {
+        _inFlightMessageDecryptions.remove(key);
+      }
+    }
   }
 
   // Reconnection state
@@ -1045,7 +1083,7 @@ class SocketService extends ChangeNotifier {
               : (message.senderPublicKey?.isNotEmpty == true
                   ? message.senderPublicKey
                   : _peerKeys[withUser.toLowerCase()]);
-          return encryption.decrypt(message, account, peerKey);
+          return _decryptMessageOnce(message, account, peerKey);
         }));
         if (_myUsername != account ||
             _currentChatWith?.toLowerCase() != withUser.toLowerCase()) {
@@ -1158,7 +1196,7 @@ class SocketService extends ChangeNotifier {
             : (msg.senderPublicKey?.isNotEmpty == true
                 ? msg.senderPublicKey
                 : _peerKeys[chatPartner.toLowerCase()]);
-        msg = await encryption.decrypt(msg, account, peerKey);
+        msg = await _decryptMessageOnce(msg, account, peerKey);
       }
       if (isOwn) {
         _recentOwnMessageEchoIds.add(msgId);
@@ -2836,29 +2874,48 @@ class SocketService extends ChangeNotifier {
     final account = _myUsername;
     final peer = _currentChatWith;
     if (account == null || peer == null) return;
-    final snapshot = _messages;
-    final decrypted = await Future.wait(snapshot.map((message) {
-      final peerKey = message.isFromMe
-          ? _peerKeys[peer.toLowerCase()]
-          : (message.senderPublicKey?.isNotEmpty == true
-              ? message.senderPublicKey
-              : _peerKeys[peer.toLowerCase()]);
-      return encryption.decrypt(message, account, peerKey);
-    }));
-    if (_myUsername != account || _currentChatWith != peer) return;
-    final byId = {for (final message in decrypted) message.id: message};
-    _messages = _messages
-        .map((message) => byId[message.id]?.ciphertext == message.ciphertext
-            ? byId[message.id] ?? message
-            : message)
-        .toList();
-    _messages = _resolveReplyPreviews(_messages);
-    await HybridDbService.saveMessages(_messages);
 
-    // Keep the conversation-list preview in sync with the decrypted latest
-    // message. The chat view can decrypt successfully after keys/history load,
-    // while the cached friend-list preview may still contain the ciphertext
-    // placeholder from the initial socket snapshot.
+    // Cached messages already decrypted on a previous open keep their
+    // ciphertext envelope, but only placeholder messages need crypto work.
+    final pending = _messages
+        .where(encryption.needsDecryption)
+        .toList(growable: false);
+    var changed = false;
+    if (pending.isNotEmpty) {
+      final decrypted = await Future.wait(pending.map((message) {
+        final peerKey = message.isFromMe
+            ? _peerKeys[peer.toLowerCase()]
+            : (message.senderPublicKey?.isNotEmpty == true
+                ? message.senderPublicKey
+                : _peerKeys[peer.toLowerCase()]);
+        return _decryptMessageOnce(message, account, peerKey);
+      }));
+      if (_myUsername != account || _currentChatWith != peer) return;
+
+      final byId = {for (final message in decrypted) message.id: message};
+      final updated = _messages.map((message) {
+        final clear = byId[message.id];
+        if (clear == null ||
+            clear.ciphertext != message.ciphertext ||
+            clear.text == message.text) {
+          return message;
+        }
+        changed = true;
+        // Preserve any reactions/status-adjacent fields updated while crypto
+        // was in flight; only replace the plaintext body.
+        return message.copyWith(text: clear.text);
+      }).toList();
+
+      if (changed) {
+        _messages = _resolveReplyPreviews(updated);
+        await HybridDbService.saveMessages(_messages);
+      }
+    }
+
+    if (_myUsername != account || _currentChatWith != peer) return;
+
+    // Keep the conversation-list preview in sync even when the cached chat
+    // messages were already decrypted before this open.
     if (_messages.isNotEmpty) {
       final latest = _messages.reduce(
         (a, b) => a.createdAt.isAfter(b.createdAt) ? a : b,
@@ -2870,17 +2927,22 @@ class SocketService extends ChangeNotifier {
           (chat) => chat.peerUid.toLowerCase() == peer.toLowerCase(),
         );
         if (previewIndex >= 0) {
-          final updated = List<ChatPreview>.from(_conversations);
-          updated[previewIndex] = updated[previewIndex].copyWith(
-            lastMessage: latest.text,
-            lastTime: latest.createdAt,
-          );
-          _conversations = updated;
-          await HybridDbService.saveChat(updated[previewIndex]);
+          final existing = _conversations[previewIndex];
+          if (existing.lastMessage != latest.text ||
+              existing.lastTime != latest.createdAt) {
+            final updated = List<ChatPreview>.from(_conversations);
+            updated[previewIndex] = existing.copyWith(
+              lastMessage: latest.text,
+              lastTime: latest.createdAt,
+            );
+            _conversations = updated;
+            await HybridDbService.saveChat(updated[previewIndex]);
+            changed = true;
+          }
         }
       }
     }
-    notifyListeners();
+    if (changed) notifyListeners();
   }
 
   List<Message> _resolveReplyPreviews(List<Message> messages) {

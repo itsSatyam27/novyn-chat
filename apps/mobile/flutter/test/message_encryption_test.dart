@@ -134,6 +134,39 @@ void main() {
             .text,
         'hii');
   });
+  test('only encrypted ciphertext placeholders need decryption', () {
+    final service = MessageEncryptionService(
+      read: (_) async => null,
+      write: (_, __) async {},
+    );
+    final encryptedMessage = Message(
+      id: 'placeholder',
+      text: '🔒 Encrypted message',
+      isFromMe: false,
+      chatId: 'peer',
+      isEncrypted: true,
+      ciphertext: base64Encode(List<int>.filled(16, 1)),
+      iv: base64Encode(List<int>.filled(12, 2)),
+    );
+    expect(service.needsDecryption(encryptedMessage), isTrue);
+    expect(
+      service.needsDecryption(
+        encryptedMessage.copyWith(text: '?? Encrypted message'),
+      ),
+      isTrue,
+    );
+    expect(
+      service.needsDecryption(encryptedMessage.copyWith(text: 'Hello there')),
+      isFalse,
+    );
+    expect(
+      service.needsDecryption(
+        Message(id: 'plain', text: 'Hello there', isFromMe: false),
+      ),
+      isFalse,
+    );
+  });
+
   test('wrong password, wrong account and unsupported format never store keys',
       () async {
     var writes = 0;
