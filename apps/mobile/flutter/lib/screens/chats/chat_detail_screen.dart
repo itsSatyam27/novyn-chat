@@ -487,8 +487,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         await prefs.remove(_pendingUploadKey);
         return;
       }
-      final bytes = await file.readAsBytes();
-      if (bytes.isEmpty) {
+      // Check file metadata only during chat opening. Attachment bytes can be
+      // large, so read them only if the user explicitly retries the upload.
+      if (await file.length() <= 0) {
         await prefs.remove(_pendingUploadKey);
         return;
       }
@@ -499,21 +500,27 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
           ? Map<String, dynamic>.from(record['attachmentExtra'] as Map)
           : <String, dynamic>{};
       _pendingUploadFilePath = path;
-      _retryAttachment = () => _uploadAndSendPreparedAttachment(
-            Uint8List.fromList(bytes),
-            record['filename']?.toString() ?? 'attachment',
-            record['mime']?.toString() ?? 'application/octet-stream',
-            (record['size'] as num?)?.toInt() ?? bytes.length,
-            record['recipient']?.toString() ?? widget.peer.username,
-            record['kind']?.toString() ?? 'file',
-            metadata,
-            displayName: record['displayName']?.toString(),
-            attachmentExtra: attachmentExtra,
-            voiceEndpoint: record['voiceEndpoint'] == true,
-            replyToId: record['replyToId']?.toString(),
-            replyToText: record['replyToText']?.toString(),
-            replyToSender: record['replyToSender']?.toString(),
-          );
+      _retryAttachment = () async {
+        final bytes = await file.readAsBytes();
+        if (bytes.isEmpty) {
+          throw StateError('The saved attachment is empty. Please select it again.');
+        }
+        await _uploadAndSendPreparedAttachment(
+          Uint8List.fromList(bytes),
+          record['filename']?.toString() ?? 'attachment',
+          record['mime']?.toString() ?? 'application/octet-stream',
+          (record['size'] as num?)?.toInt() ?? bytes.length,
+          record['recipient']?.toString() ?? widget.peer.username,
+          record['kind']?.toString() ?? 'file',
+          metadata,
+          displayName: record['displayName']?.toString(),
+          attachmentExtra: attachmentExtra,
+          voiceEndpoint: record['voiceEndpoint'] == true,
+          replyToId: record['replyToId']?.toString(),
+          replyToText: record['replyToText']?.toString(),
+          replyToSender: record['replyToSender']?.toString(),
+        );
+      };
       if (mounted) setState(() {});
     } catch (error) {
       debugPrint('[NovynUpload] Could not restore retry file: $error');
@@ -604,8 +611,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     _chatId = widget.isGroup
         ? (widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username)
         : widget.peer.username;
-    await _restorePendingAttachmentUpload();
-
+    // Restore the retry affordance after the first chat frame. Loading a
+    // saved attachment file must never delay the cached conversation render.
     final cacheWatch = Stopwatch()..start();
     List<Message> cachedMessages = [];
     try {
@@ -632,6 +639,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     setState(() {
       _loading = false;
       _fetchingFromServer = cachedMessages.isEmpty;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_restorePendingAttachmentUpload());
     });
 
     try {
