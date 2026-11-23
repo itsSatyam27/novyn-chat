@@ -25,8 +25,10 @@ void main() {
     await record('ttt-3', 'tictactoe', 'win', base.add(const Duration(hours: 2)));
     // A repeated finish event for the same match must not award XP twice.
     await record('ttt-3', 'tictactoe', 'win', base.add(const Duration(hours: 2)));
-    await record('rps-bot', 'rps', 'win', base.add(const Duration(days: 1)),
+    await record('rps-human-1', 'rps', 'win', base.add(const Duration(days: 1)));
+    await record('rps-bot', 'rps', 'loss', base.add(const Duration(days: 1, hours: 1)),
         bot: true);
+    await record('rps-human-2', 'rps', 'win', base.add(const Duration(days: 1, hours: 2)));
 
     final stats = await GameHistoryService.load('alice');
     expect(stats.total, 4);
@@ -35,7 +37,7 @@ void main() {
     expect(stats.xpIntoCurrentLevel, 120);
     expect(stats.xpToNextLevel, 380);
     expect(stats.currentWinStreak('tictactoe'), 3);
-    expect(stats.currentWinStreak('rps'), 0);
+    expect(stats.currentWinStreak('rps'), 2);
     expect(stats.matches.firstWhere((match) => match.id == 'rps-bot').isBotMatch,
         isTrue);
   });
