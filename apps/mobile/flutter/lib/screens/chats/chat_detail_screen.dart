@@ -1028,7 +1028,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                   left: false,
                   right: false,
                   child: _buildInputBar(socket),
-            ),
+                ),
               ],
             ),
           ),
