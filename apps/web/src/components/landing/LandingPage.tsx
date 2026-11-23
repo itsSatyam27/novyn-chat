@@ -234,7 +234,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
                     ease: 'easeInOut',
                   }}
                 >
-                  <NovynLogo size={56} variant="white" />
+                  <NovynLogo size={64} variant="white" />
                 </motion.div>
               </div>
             </motion.div>
