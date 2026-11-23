@@ -921,14 +921,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     );
     final messages = snapshot.messages;
 
-    return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      appBar: _buildAppBar(socket),
-      body: Container(
-        decoration: _wallpaperDecoration(snapshot.chatWallpaper),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: _wallpaperDecoration(snapshot.chatWallpaper),
+          ),
+        ),
             if (snapshot.chatWallpaper.trim().isEmpty)
               Positioned.fill(
                 child: Builder(
@@ -954,7 +954,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                   },
                 ),
               ),
-            Column(
+        Scaffold(
+          backgroundColor: Colors.transparent,
+          appBar: _buildAppBar(socket),
+          body: Container(
+            color: Colors.transparent,
+            child: Column(
               children: [
             ConnectionBanner(chatId: _chatId ?? widget.peer.username),
             Expanded(
@@ -1024,20 +1029,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
               right: false,
               child: _buildInputBar(socket),
             ),
-          ],
+              ],
             ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
-  }
-
-  Color _headerBackdrop(String wallpaper, bool dark) {
-    final v = wallpaper.trim();
-    if (v.startsWith('#') && v.length == 7) {
-      return Color(int.parse('FF${v.substring(1)}', radix: 16));
-    }
-    return dark ? const Color(0xFF0B0B17) : const Color(0xFFF9F7FF);
   }
 
   bool _isSameMinute(DateTime a, DateTime b) {
@@ -1240,7 +1237,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     return PreferredSize(
       preferredSize: Size.fromHeight(topInset + gapTop + cardHeight + gapBottom),
       child: ColoredBox(
-        color: _headerBackdrop(socket.chatWallpaper, isDark),
+        // Use the same wallpaper canvas behind the header and composer.
+        // A subtle veil preserves status-bar and header-control contrast.
+        color: isDark
+            ? Colors.black.withValues(alpha: .12)
+            : Colors.white.withValues(alpha: .20),
         child: Padding(
           padding: EdgeInsets.fromLTRB(12, topInset + gapTop, 12, gapBottom),
           child: Row(
