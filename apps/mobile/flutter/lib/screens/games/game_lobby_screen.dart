@@ -699,9 +699,9 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
                 _buildSearchEndedNotice(theme),
                 const SizedBox(height: 18),
               ],
-              _buildRandomCard(theme, connectionReady),
-              const SizedBox(height: 16),
               _buildBotCard(theme),
+              const SizedBox(height: 16),
+              _buildRandomCard(theme, connectionReady),
               const SizedBox(height: 16),
               _buildFriendCard(theme, connectionReady),
             ],
@@ -919,43 +919,11 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
   }
 
   void _playWithAiBot() {
-    final account = _account ?? '';
-    final initialGame = <String, dynamic>{
-      'type': widget.gameType,
-      'title': widget.title,
-      'state': 'in_progress',
-      'creator': account,
-      'turn': account,
-      'isOfflineBot': true,
-      'data': widget.gameType == 'tictactoe'
-          ? <String, dynamic>{
-              'playerX': account,
-              'playerO': 'AI Bot',
-              'board': List<dynamic>.filled(9, null),
-              'winsX': 0,
-              'winsO': 0,
-            }
-          : <String, dynamic>{
-              'player1': account,
-              'player2': 'AI Bot',
-              'round': 1,
-              'target': 3,
-              'p1Score': 0,
-              'p2Score': 0,
-              'p1Move': null,
-              'p2Move': null,
-            },
-    };
-
-    Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => GameRoomScreen(
-          messageId: 'bot_${DateTime.now().millisecondsSinceEpoch}',
-          peerUsername: 'AI Bot',
-          currentUsername: account,
-          initialGame: initialGame,
-        ),
-      ),
+    GameRoomScreen.openOfflineBotMatch(
+      context: context,
+      currentUsername: _auth?.user?.username ?? _account ?? '',
+      gameType: widget.gameType,
+      title: widget.title,
     );
   }
 

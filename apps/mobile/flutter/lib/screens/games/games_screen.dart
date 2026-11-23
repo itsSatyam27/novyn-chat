@@ -441,8 +441,6 @@ class _GamesScreenState extends State<GamesScreen> {
                   ),
                   const SizedBox(width: 14),
                   _ComingSoonCard(isDark: isDark),
-                  const SizedBox(width: 14),
-                  _ComingSoonCard(isDark: isDark),
                 ],
               ),
             ),
