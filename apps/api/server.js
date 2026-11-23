@@ -949,6 +949,78 @@ app.get("/api/rtc/ice", (req, res) => {
   });
 });
 
+// Game history is account-scoped in MongoDB. Bot matches are deliberately never stored.
+app.get("/api/games/history", requireUser, async (req, res) => {
+  if (!mongoGameHistoryCollection) {
+    return res.status(503).json({ error: "Cloud game history is temporarily unavailable." });
+  }
+  try {
+    const matches = await mongoGameHistoryCollection
+      .find({ userKey: req.userKey }, { projection: { _id: 0, userKey: 0 } })
+      .sort({ playedAt: -1 })
+      .limit(2000)
+      .toArray();
+    return res.json({ ok: true, matches });
+  } catch (error) {
+    console.warn("[NovynGames] History read failed:", error?.message || error);
+    return res.status(503).json({ error: "Cloud game history could not be loaded." });
+  }
+});
+
+app.post("/api/games/history", requireUser, requireCsrf, async (req, res) => {
+  if (!mongoGameHistoryCollection) {
+    return res.status(503).json({ error: "Cloud game history is temporarily unavailable." });
+  }
+  const incoming = Array.isArray(req.body?.matches) ? req.body.matches : [req.body];
+  if (!incoming.length || incoming.length > 100) {
+    return res.status(400).json({ error: "Submit between 1 and 100 completed matches." });
+  }
+  const allowedGames = new Set(["tictactoe", "rps", "rockpaperscissors", "rajamantri", "ludo", "uno"]);
+  const docs = [];
+  for (const item of incoming) {
+    // Ignore bot records entirely: they neither award XP nor reset a human streak.
+    if (item?.isBotMatch === true || item?.opponentType === "bot") continue;
+    const matchId = toDisplayName(item?.id || item?.matchId).slice(0, 160);
+    const gameType = toDisplayName(item?.gameType).toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 40);
+    const opponent = toDisplayName(item?.opponent).slice(0, 64);
+    const result = ["win", "loss", "draw"].includes(item?.result) ? item.result : "";
+    const playedAt = new Date(item?.playedAt);
+    if (!matchId || !allowedGames.has(gameType) || !opponent ||
+        normalizeName(opponent) === req.userKey || !result ||
+        !Number.isFinite(playedAt.getTime()) ||
+        playedAt.getTime() > Date.now() + 5 * 60 * 1000 ||
+        playedAt.getTime() < Date.now() - 5 * 365 * 24 * 60 * 60 * 1000) {
+      return res.status(400).json({ error: "A completed human match contains invalid details." });
+    }
+    docs.push({
+      _id: req.userKey + ":" + matchId,
+      userKey: req.userKey,
+      id: matchId,
+      gameType,
+      opponent,
+      result,
+      playedAt: playedAt.toISOString(),
+      isBotMatch: false,
+    });
+  }
+  try {
+    if (docs.length) {
+      await mongoGameHistoryCollection.bulkWrite(
+        docs.map((doc) => ({ updateOne: {
+          filter: { _id: doc._id, userKey: req.userKey },
+          update: { $setOnInsert: doc },
+          upsert: true,
+        }})),
+        { ordered: false }
+      );
+    }
+    return res.json({ ok: true, saved: docs.length });
+  } catch (error) {
+    console.warn("[NovynGames] History write failed:", error?.message || error);
+    return res.status(503).json({ error: "Cloud game history could not be saved." });
+  }
+});
+
 // Call history is scoped to the authenticated account. callId makes retries idempotent.
 app.get("/api/calls", requireUser, (req, res) => {
   const user = users.get(req.userKey);
@@ -1409,6 +1481,7 @@ let mongoConversationsCollection = null;
 let mongoMessagesCollection = null;
 let mongoAuthSessionsCollection = null;
 let mongoMediaCollection = null;
+let mongoGameHistoryCollection = null;
 const mediaMetadataCache = new Map();
 
 let persistTimer = null;
@@ -3415,6 +3488,7 @@ async function initializeMongo() {
     mongoMessagesCollection = mongoStorage.getCollection("messages");
     mongoAuthSessionsCollection = mongoStorage.getCollection("auth_sessions");
     mongoMediaCollection = mongoStorage.getCollection("media");
+    mongoGameHistoryCollection = mongoStorage.getCollection("game_history");
     if (mongoMediaCollection) {
       const storedMedia = await mongoMediaCollection.find({}).toArray();
       for (const item of storedMedia) {
@@ -3451,6 +3525,7 @@ async function initializeMongo() {
     mongoMessagesCollection = null;
     mongoAuthSessionsCollection = null;
     mongoMediaCollection = null;
+    mongoGameHistoryCollection = null;
     mediaMetadataCache.clear();
     if (process.env.NODE_ENV === 'production') throw err;
     console.error("Failed to connect MongoDB, falling back to local file storage:", err);
