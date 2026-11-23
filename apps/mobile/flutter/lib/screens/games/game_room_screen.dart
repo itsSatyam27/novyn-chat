@@ -93,7 +93,9 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _socket = context.read<SocketService>();
-      if (widget.randomSessionId == null &&
+      if (widget.initialGame['isOfflineBot'] != true &&
+          widget.peerUsername != 'AI Bot' &&
+          widget.randomSessionId == null &&
           widget.peerUsername.trim().isNotEmpty &&
           _socket!.currentChatWith?.toLowerCase() !=
               widget.peerUsername.toLowerCase()) {
@@ -114,6 +116,10 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
   }
 
   void _notifyLeaveRoom() {
+    if (widget.initialGame['isOfflineBot'] == true ||
+        widget.peerUsername == 'AI Bot') {
+      return;
+    }
     final s = _socket;
     if (s == null || !s.isConnected) return;
     final rId = widget.randomSessionId;
