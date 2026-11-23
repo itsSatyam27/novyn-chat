@@ -2122,7 +2122,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                     textEditingController: _ctrl,
                     config: Config(
                       height: null,
-                      bgColor: scheme.surface,
                       checkPlatformCompatibility: true,
                       viewOrderConfig: const ViewOrderConfig(
                         top: EmojiPickerItem.searchBar,
@@ -2153,7 +2152,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                       ),
                       bottomActionBarConfig: BottomActionBarConfig(
                         backgroundColor: scheme.surface,
-                        buttonColor: scheme.surface,
                         buttonIconColor: scheme.onSurfaceVariant,
                       ),
                       searchViewConfig: SearchViewConfig(
