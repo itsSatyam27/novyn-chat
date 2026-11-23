@@ -39,6 +39,7 @@ import '../../widgets/connection_banner.dart';
 import '../../screens/calls/call_screen.dart';
 import 'package:novyn/services/haptic_service.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../widgets/custom_emoji.dart';
 
 String _mimeForFile(String filename) {
@@ -924,8 +925,36 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       appBar: _buildAppBar(socket),
       body: Container(
         decoration: _wallpaperDecoration(snapshot.chatWallpaper),
-        child: Column(
+        child: Stack(
+          fit: StackFit.expand,
           children: [
+            if (snapshot.chatWallpaper.trim().isEmpty)
+              Positioned.fill(
+                child: Builder(
+                  builder: (wallpaperContext) {
+                    final settings = wallpaperContext.watch<SettingsService>();
+                    final theme = Theme.of(wallpaperContext);
+                    final accent = settings.accentColorEnabled
+                        ? Color(settings.accentColorValue)
+                        : theme.colorScheme.primary;
+                    return Opacity(
+                      opacity: theme.brightness == Brightness.dark ? 0.14 : 0.98,
+                      child: SvgPicture.asset(
+                        'assets/images/novyn_chat_wallpaper.svg',
+                        fit: BoxFit.cover,
+                        colorFilter: ColorFilter.mode(
+                          accent.withValues(
+                            alpha: theme.brightness == Brightness.dark ? 0.24 : 0.14,
+                          ),
+                          BlendMode.srcATop,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            Column(
+              children: [
             ConnectionBanner(chatId: _chatId ?? widget.peer.username),
             Expanded(
               child: Stack(
@@ -993,6 +1022,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
               left: false,
               right: false,
               child: _buildInputBar(socket),
+            ),
+          ],
             ),
           ],
         ),
@@ -3886,30 +3917,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
 
   BoxDecoration _wallpaperDecoration(String wallpaper) {
     final value = wallpaper.trim();
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final defaultBg = isDark
+    final defaultBg = Theme.of(context).brightness == Brightness.dark
         ? const Color(0xFF0B0B17)
         : const Color(0xFFF7F6FF);
-
-    if (value.isEmpty) {
-      final settings = context.watch<SettingsService>();
-      final accent = settings.accentColorEnabled
-          ? Color(settings.accentColorValue)
-          : theme.colorScheme.primary;
-      return BoxDecoration(
-        color: defaultBg,
-        image: DecorationImage(
-          image: const AssetImage('assets/images/novyn_chat_wallpaper.svg'),
-          fit: BoxFit.cover,
-          opacity: isDark ? 0.12 : 0.96,
-          colorFilter: ColorFilter.mode(
-            accent.withValues(alpha: isDark ? 0.20 : 0.14),
-            BlendMode.srcATop,
-          ),
-        ),
-      );
-    }
+    if (value.isEmpty) return BoxDecoration(color: defaultBg);
     if (value.startsWith('http://') || value.startsWith('https://')) {
       return BoxDecoration(
           image: DecorationImage(
