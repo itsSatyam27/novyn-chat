@@ -85,7 +85,10 @@ class Message extends HiveObject {
   @HiveField(21)
   final String? senderPublicKey;
 
-  bool get needsMessageKey => isEncrypted && text == '?? Encrypted message';
+  bool get needsMessageKey =>
+      isEncrypted &&
+      (text.trim() == '?? Encrypted message' ||
+          text.trim() == '🔒 Encrypted message');
 
   // The shared backend sends emoji -> usernames[], while the mobile UI uses
   // username -> emoji. Preserve the older mobile shape too.
