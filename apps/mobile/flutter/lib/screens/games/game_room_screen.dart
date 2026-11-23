@@ -27,6 +27,59 @@ class GameRoomScreen extends StatefulWidget {
   final bool isGroup;
   final bool closeChatOnExit;
 
+  static void openOfflineBotMatch({
+    required BuildContext context,
+    required String currentUsername,
+    required String gameType,
+    required String title,
+  }) {
+    final account = currentUsername.trim();
+    if (account.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sign in to start a practice game.')),
+      );
+      return;
+    }
+
+    final initialGame = <String, dynamic>{
+      'gameType': gameType,
+      'title': title,
+      'state': 'in_progress',
+      'createdBy': account,
+      'turn': account,
+      'isOfflineBot': true,
+      'data': gameType == 'tictactoe'
+          ? <String, dynamic>{
+              'playerX': account,
+              'playerO': 'AI Bot',
+              'board': List<dynamic>.filled(9, null),
+              'winsX': 0,
+              'winsO': 0,
+            }
+          : <String, dynamic>{
+              'player1': account,
+              'player2': 'AI Bot',
+              'round': 1,
+              'target': 3,
+              'p1Score': 0,
+              'p2Score': 0,
+              'p1Move': null,
+              'p2Move': null,
+            },
+    };
+
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => GameRoomScreen(
+          messageId: 'bot_${DateTime.now().millisecondsSinceEpoch}',
+          peerUsername: 'AI Bot',
+          currentUsername: account,
+          initialGame: initialGame,
+        ),
+      ),
+    );
+  }
+
   @override
   State<GameRoomScreen> createState() => _GameRoomScreenState();
 }
