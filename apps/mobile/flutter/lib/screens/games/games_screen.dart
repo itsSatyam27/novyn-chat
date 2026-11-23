@@ -9,6 +9,7 @@ import '../../services/game_history_service.dart';
 import '../../widgets/user_avatar.dart';
 import 'game_history_screen.dart';
 import 'game_lobby_screen.dart';
+import 'game_room_screen.dart';
 import 'raja_mantri_lobby_screen.dart';
 
 class GamesScreen extends StatefulWidget {
@@ -158,6 +159,17 @@ class _GamesScreenState extends State<GamesScreen> {
       MaterialPageRoute<void>(builder: (_) => screen),
     );
     if (mounted) _loadStats(_statsUsername);
+  }
+
+  void _openVsBot(_GameOption game) {
+    final username =
+        Provider.of<AuthService?>(context, listen: false)?.user?.username ?? '';
+    GameRoomScreen.openOfflineBotMatch(
+      context: context,
+      currentUsername: username,
+      gameType: game.type,
+      title: game.title == 'Rock Paper' ? 'Rock Paper Scissors' : game.title,
+    );
   }
 
   Future<void> _openHistory(String username) async {
@@ -374,6 +386,7 @@ class _GamesScreenState extends State<GamesScreen> {
                       return _GameCarouselCard(
                         game: game,
                         onPlay: () => _openGame(game),
+                        onPlayBot: () => _openVsBot(game),
                       );
                     }
                     return _ComingSoonCard(isDark: isDark);
@@ -781,10 +794,12 @@ class _GameCarouselCard extends StatelessWidget {
   const _GameCarouselCard({
     required this.game,
     required this.onPlay,
+    this.onPlayBot,
   });
 
   final _GameOption game;
   final VoidCallback onPlay;
+  final VoidCallback? onPlayBot;
 
   @override
   Widget build(BuildContext context) {
@@ -851,39 +866,120 @@ class _GameCarouselCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          // Play Button
-          Material(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(22),
-            child: InkWell(
-              onTap: onPlay,
+          // Keep online and offline play visible on the game card itself.
+          if (onPlayBot == null)
+            Material(
+              color: Colors.white,
               borderRadius: BorderRadius.circular(22),
-              child: Container(
-                width: double.infinity,
-                height: 42,
-                alignment: Alignment.center,
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.play_arrow_rounded,
-                      color: Color(0xFF1E1A33),
-                      size: 20,
-                    ),
-                    SizedBox(width: 4),
-                    Text(
-                      'Play',
-                      style: TextStyle(
+              child: InkWell(
+                onTap: onPlay,
+                borderRadius: BorderRadius.circular(22),
+                child: Container(
+                  width: double.infinity,
+                  height: 42,
+                  alignment: Alignment.center,
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.play_arrow_rounded,
                         color: Color(0xFF1E1A33),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
+                        size: 20,
                       ),
-                    ),
-                  ],
+                      SizedBox(width: 4),
+                      Text(
+                        'Play',
+                        style: TextStyle(
+                          color: Color(0xFF1E1A33),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: Material(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(22),
+                    child: InkWell(
+                      onTap: onPlay,
+                      borderRadius: BorderRadius.circular(22),
+                      child: SizedBox(
+                        height: 42,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.play_arrow_rounded,
+                              color: Color(0xFF1E1A33),
+                              size: 18,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              'Play',
+                              style: TextStyle(
+                                color: Color(0xFF1E1A33),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Material(
+                    color: Colors.white.withValues(alpha: .18),
+                    borderRadius: BorderRadius.circular(22),
+                    child: InkWell(
+                      onTap: onPlayBot,
+                      borderRadius: BorderRadius.circular(22),
+                      child: Container(
+                        height: 42,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(22),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: .7),
+                          ),
+                        ),
+                        alignment: Alignment.center,
+                        child: const FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.smart_toy_rounded,
+                                color: Colors.white,
+                                size: 15,
+                              ),
+                              SizedBox(width: 3),
+                              Text(
+                                'Play vs Bot',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ),
         ],
       ),
     );
