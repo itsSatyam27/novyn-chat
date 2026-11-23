@@ -246,33 +246,44 @@ class _GameMessageCardState extends State<GameMessageCard> {
       });
     } else if (_type == 'rps') {
       final userMove = data['move']?.toString() ?? 'rock';
-      final gData = widget.game['data'] as Map<String, dynamic>;
+      final gData = Map<String, dynamic>.from(
+        widget.game['data'] as Map<String, dynamic>,
+      );
       gData['p1Move'] = userMove;
+      gData['p2Move'] = null;
+      gData['roundResolved'] = false;
+      widget.game['data'] = gData;
+      setState(() {});
 
       Timer(const Duration(milliseconds: 400), () {
         if (!mounted) return;
         const botChoices = ['rock', 'paper', 'scissors'];
         final botMove = botChoices[math.Random().nextInt(botChoices.length)];
-        gData['p2Move'] = botMove;
-
         int p1Score = (gData['p1Score'] as int?) ?? 0;
         int p2Score = (gData['p2Score'] as int?) ?? 0;
-        int round = (gData['round'] as int?) ?? 1;
+        final round = (gData['round'] as int?) ?? 1;
         final target = (gData['target'] as int?) ?? 3;
+        String roundWinner = 'draw';
 
         if (userMove != botMove) {
           if ((userMove == 'rock' && botMove == 'scissors') ||
               (userMove == 'paper' && botMove == 'rock') ||
               (userMove == 'scissors' && botMove == 'paper')) {
             p1Score++;
+            roundWinner = widget.currentUsername;
           } else {
             p2Score++;
+            roundWinner = 'AI Bot';
           }
         }
 
+        gData['p2Move'] = botMove;
+        gData['roundWinner'] = roundWinner;
         gData['p1Score'] = p1Score;
         gData['p2Score'] = p2Score;
         gData['round'] = round + 1;
+        gData['roundResolved'] = true;
+        gData['roundResolvedAt'] = DateTime.now().millisecondsSinceEpoch;
 
         if (p1Score >= target) {
           widget.game['state'] = 'finished';
@@ -283,6 +294,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
           widget.game['winner'] = 'AI Bot';
           HapticFeedback.mediumImpact();
         }
+        widget.game['data'] = Map<String, dynamic>.from(gData);
         setState(() {});
       });
     }
