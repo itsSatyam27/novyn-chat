@@ -50,6 +50,58 @@ void main() {
       expect(items.where((m) => isMessageBeforeCursor(m, sameTime)).map((m) => m.id),
           ['older']);
     });
+
+    test('ordered index inserts messages by timestamp then message ID', () {
+      final ordered = <Message>[
+        message('id-a', sameTime),
+        message('id-c', sameTime),
+        message('newer', sameTime.add(const Duration(minutes: 1))),
+      ];
+      final incoming = message('id-b', sameTime);
+      ordered.insert(messageInsertionIndex(ordered, incoming), incoming);
+      expect(ordered.map((m) => m.id).toList(),
+          ['id-a', 'id-b', 'id-c', 'newer']);
+    });
+
+    test('ordered latest page returns only the newest N entries', () {
+      final ordered = [
+        message('old', sameTime.subtract(const Duration(hours: 1))),
+        message('id-a', sameTime),
+        message('id-b', sameTime),
+        message('new', sameTime.add(const Duration(hours: 1))),
+      ];
+      expect(latestMessagesPageFromOrdered(ordered, limit: 2)
+          .map((m) => m.id).toList(), ['id-b', 'new']);
+      expect(latestMessagesPageFromOrdered(ordered, limit: 0), isEmpty);
+    });
+
+    test('ordered older page uses composite cursor and nearest limit', () {
+      final ordered = [
+        message('old', sameTime.subtract(const Duration(hours: 1))),
+        message('id-a', sameTime),
+        message('id-b', sameTime),
+        message('id-c', sameTime),
+        message('new', sameTime.add(const Duration(hours: 1))),
+      ];
+      expect(
+        olderMessagesPageFromOrdered(
+          ordered, sameTime, beforeId: 'id-c', limit: 2,
+        ).map((m) => m.id).toList(),
+        ['id-a', 'id-b'],
+      );
+    });
+
+    test('ordered older page keeps legacy timestamp-only cursor exclusive', () {
+      final ordered = [
+        message('old', sameTime.subtract(const Duration(minutes: 1))),
+        message('same-time', sameTime),
+      ];
+      expect(
+        olderMessagesPageFromOrdered(ordered, sameTime)
+            .map((m) => m.id).toList(),
+        ['old'],
+      );
+    });
   });
 
   group('SQLite message page queries', () {
