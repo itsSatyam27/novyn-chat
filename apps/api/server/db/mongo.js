@@ -20,7 +20,8 @@ function createMongoStorage(options = {}) {
       collections?.users &&
       collections?.conversations &&
       collections?.messages &&
-      collections?.auth_sessions
+      collections?.auth_sessions &&
+      collections?.media
     );
   }
 
