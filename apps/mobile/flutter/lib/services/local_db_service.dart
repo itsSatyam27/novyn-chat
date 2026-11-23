@@ -17,9 +17,20 @@ class LocalDbService {
   static Future<void>? _initFuture;
   static String _accountSuffix = '';
 
-  // Hive stores messages by ID, so scanning every message on each chat open
-  // is O(total account history). Keep a per-chat ID index in memory instead.
+  // Keep the ID map for direct lookups and lazily build an ordered index
+  // only for chats that are opened. Repeated opens then read the latest page
+  // without sorting the conversation again.
   static final Map<String, Map<String, Message>> _messagesByChatId = {};
+  static final Map<String, List<Message>> _orderedMessagesByChatId = {};
+
+  static List<Message> _orderedMessagesForChat(String chatId) {
+    return _orderedMessagesByChatId.putIfAbsent(chatId, () {
+      final ordered =
+          (_messagesByChatId[chatId]?.values ?? const <Message>[]).toList();
+      ordered.sort(compareMessagesChronologically);
+      return ordered;
+    });
+  }
 
   static String _boxName(String base) =>
       _accountSuffix.isEmpty ? base : '${base}_$_accountSuffix';
@@ -69,18 +80,35 @@ class LocalDbService {
 
   static void _rebuildMessageIndex() {
     _messagesByChatId.clear();
+    _orderedMessagesByChatId.clear();
     final box = _messagesBox;
     if (box == null) return;
     for (final message in box.values) {
-      _indexMessage(message);
+      _messagesByChatId.putIfAbsent(
+        message.chatId,
+        () => <String, Message>{},
+      )[message.id] = message;
     }
   }
 
   static void _indexMessage(Message message) {
-    _messagesByChatId.putIfAbsent(
+    final messagesById = _messagesByChatId.putIfAbsent(
       message.chatId,
       () => <String, Message>{},
-    )[message.id] = message;
+    );
+    final previous = messagesById[message.id];
+    if (previous != null) {
+      _orderedMessagesByChatId[previous.chatId]
+          ?.removeWhere((item) => item.id == message.id);
+    }
+    messagesById[message.id] = message;
+
+    // Maintain the ordered cache only after it has been requested. This
+    // avoids sorting every conversation during database initialization.
+    final ordered = _orderedMessagesByChatId[message.chatId];
+    if (ordered != null) {
+      ordered.insert(messageInsertionIndex(ordered, message), message);
+    }
   }
 
   static void _removeIndexedMessage(Message? message) {
@@ -90,6 +118,8 @@ class LocalDbService {
     if (messages != null && messages.isEmpty) {
       _messagesByChatId.remove(message.chatId);
     }
+    _orderedMessagesByChatId[message.chatId]
+        ?.removeWhere((item) => item.id == message.id);
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -135,12 +165,14 @@ class LocalDbService {
     }
   }
 
-  /// Get messages for a specific chat (sorted by time)
+  /// Get the latest page from the cached chronological index.
   static Future<List<Message>> getMessages(String chatId, {int limit = 50}) async {
     await _ensureInit();
     try {
-      final messages = _messagesByChatId[chatId]?.values ?? const <Message>[];
-      return latestMessagesPage(messages, limit: limit);
+      return latestMessagesPageFromOrdered(
+        _orderedMessagesForChat(chatId),
+        limit: limit,
+      );
     } catch (e) {
       print('Error getting messages: $e');
       return [];
@@ -156,11 +188,12 @@ class LocalDbService {
   }) async {
     await _ensureInit();
     try {
-      final messages = (_messagesByChatId[chatId]?.values ??
-              const <Message>[])
-          .where((message) =>
-              isMessageBeforeCursor(message, before, beforeId: beforeId));
-      return latestMessagesPage(messages, limit: limit);
+      return olderMessagesPageFromOrdered(
+        _orderedMessagesForChat(chatId),
+        before,
+        beforeId: beforeId,
+        limit: limit,
+      );
     } catch (e) {
       print('Error getting older messages: $e');
       return [];
@@ -663,6 +696,7 @@ class LocalDbService {
     try {
       await _messagesBox?.clear();
       _messagesByChatId.clear();
+      _orderedMessagesByChatId.clear();
       await _chatsBox?.clear();
       await _usersBox?.clear();
       await _metaBox?.clear();
@@ -826,6 +860,7 @@ class LocalDbService {
     _usersBox = null;
     _metaBox = null;
     _messagesByChatId.clear();
+    _orderedMessagesByChatId.clear();
     _isInitialized = false;
     _initFuture = null;
   }
