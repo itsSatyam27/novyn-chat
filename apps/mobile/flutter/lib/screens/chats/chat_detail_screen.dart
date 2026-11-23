@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -1796,6 +1797,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
             isGroup: widget.isGroup,
             messageStatus: socket.messageStatusFor(current.id),
             myUid: _myUid ?? '',
+            quickEmojis: _quickEmojis,
             onReply: _startReply,
             onForward: _showForwardDialog,
           ),
@@ -2000,6 +2002,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   }
 
   void _insertQuickEmoji(String emoji) {
+    _insertEmojiText(novynCustomEmojis[emoji] ?? emoji);
+  }
+
+  void _insertEmojiText(String glyph) {
     final current = _ctrl.value;
     final selection = current.selection;
     final start = selection.isValid
@@ -2008,7 +2014,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     final end = selection.isValid
         ? selection.end.clamp(start, current.text.length).toInt()
         : current.text.length;
-    final glyph = novynCustomEmojis[emoji] ?? emoji;
     final updated = current.text.replaceRange(start, end, glyph);
     _ctrl.value = TextEditingValue(
       text: updated,
@@ -2017,67 +2022,181 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     setState(() {});
   }
 
-  void _showQuickEmojiPicker() {
-    final emojis = _quickEmojis.isEmpty
-        ? defaultQuickReactionEmojis
-        : _quickEmojis;
-    showModalBottomSheet<void>(
+  Future<void> _showQuickEmojiPicker() async {
+    final shouldRestoreKeyboard = _messageFocusNode.hasFocus;
+    _messageFocusNode.unfocus();
+
+    await showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
+      useSafeArea: true,
       builder: (sheetContext) {
         final scheme = Theme.of(sheetContext).colorScheme;
+        final media = MediaQuery.of(sheetContext);
+        final pickerHeight = math.min(
+          440.0,
+          math.max(300.0, media.size.height - media.padding.vertical - 28),
+        ).toDouble();
+
         return SafeArea(
           child: Container(
-            margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+            height: pickerHeight,
+            margin: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+            clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
               color: scheme.surface,
-              borderRadius: BorderRadius.circular(26),
-              border: Border.all(color: scheme.primary.withValues(alpha: .18)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(26),
+              ),
               boxShadow: [
                 BoxShadow(
-                    color: Colors.black.withValues(alpha: .12),
-                    blurRadius: 24,
-                    offset: const Offset(0, 8))
+                  color: Colors.black.withValues(alpha: .18),
+                  blurRadius: 24,
+                  offset: const Offset(0, -5),
+                ),
               ],
             ),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
               children: [
-                Row(children: [
-                  Expanded(
-                      child: Text('Novyn emojis',
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 10, 8),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.emoji_emotions_outlined,
+                        color: scheme.primary,
+                        size: 21,
+                      ),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: Text(
+                          'Emoji',
                           style: TextStyle(
-                              fontFamily: 'PlusJakartaSans',
-                              fontSize: 17,
-                              fontWeight: FontWeight.w800,
-                              color: scheme.onSurface))),
-                ]),
-                const SizedBox(height: 8),
-                GridView.count(
-                  crossAxisCount: 4,
-                  shrinkWrap: true,
-                  mainAxisSpacing: 8,
-                  crossAxisSpacing: 8,
-                  physics: const NeverScrollableScrollPhysics(),
-                  children: emojis
-                      .map((emoji) => Material(
-                            color: scheme.primary.withValues(alpha: .08),
-                            borderRadius: BorderRadius.circular(16),
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(16),
-                              onTap: () {
-                                _insertQuickEmoji(emoji);
-                                Navigator.pop(sheetContext);
-                              },
+                            fontFamily: 'PlusJakartaSans',
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: scheme.onSurface,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Close emoji picker',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => Navigator.pop(sheetContext),
+                        icon: Icon(
+                          Icons.keyboard_rounded,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_quickEmojis.isNotEmpty) ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 7),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'NOVYN QUICK EMOJIS',
+                        style: TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 9,
+                          letterSpacing: 1.1,
+                          fontWeight: FontWeight.w800,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    height: 45,
+                    child: ListView.separated(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _quickEmojis.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 8),
+                      itemBuilder: (context, index) {
+                        final emojiKey = _quickEmojis[index];
+                        final glyph = novynCustomEmojis[emojiKey] ?? emojiKey;
+                        return Material(
+                          color: scheme.primary.withValues(alpha: .08),
+                          borderRadius: BorderRadius.circular(14),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(14),
+                            onTap: () {
+                              HapticService.vibrate(
+                                NovynHapticType.selection,
+                                category: HapticCategory.chat,
+                              );
+                              _insertQuickEmoji(emojiKey);
+                            },
+                            child: SizedBox(
+                              width: 44,
                               child: Center(
-                                child: Text(novynCustomEmojis[emoji] ?? '',
-                                    style: const TextStyle(fontSize: 30)),
+                                child: Text(
+                                  glyph,
+                                  style: const TextStyle(fontSize: 25),
+                                ),
                               ),
                             ),
-                          ))
-                      .toList(),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  Divider(
+                    height: 1,
+                    color: scheme.outlineVariant.withValues(alpha: .45),
+                  ),
+                ],
+                Expanded(
+                  child: EmojiPicker(
+                    onEmojiSelected: (category, emoji) {
+                      _insertEmojiText(emoji.emoji);
+                    },
+                    config: Config(
+                      height: null,
+                      checkPlatformCompatibility: true,
+                      viewOrderConfig: const ViewOrderConfig(
+                        top: EmojiPickerItem.searchBar,
+                        middle: EmojiPickerItem.emojiView,
+                        bottom: EmojiPickerItem.categoryBar,
+                      ),
+                      emojiViewConfig: EmojiViewConfig(
+                        columns: 8,
+                        emojiSizeMax: 27,
+                        backgroundColor: scheme.surface,
+                        verticalSpacing: 5,
+                        horizontalSpacing: 2,
+                        gridPadding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 6,
+                        ),
+                      ),
+                      skinToneConfig: const SkinToneConfig(
+                        rememberSkinTone: true,
+                      ),
+                      categoryViewConfig: CategoryViewConfig(
+                        backgroundColor: scheme.surface,
+                        dividerColor: Colors.transparent,
+                        indicatorColor: scheme.primary,
+                        iconColor: scheme.onSurfaceVariant,
+                        iconColorSelected: scheme.primary,
+                        tabBarHeight: 46,
+                      ),
+                      bottomActionBarConfig: BottomActionBarConfig(
+                        backgroundColor: scheme.surface,
+                        buttonIconColor: scheme.onSurfaceVariant,
+                      ),
+                      searchViewConfig: SearchViewConfig(
+                        backgroundColor: scheme.surface,
+                        buttonIconColor: scheme.onSurfaceVariant,
+                        hintText: 'Search emoji',
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -2085,6 +2204,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         );
       },
     );
+
+    if (mounted && shouldRestoreKeyboard) {
+      _messageFocusNode.requestFocus();
+    }
   }
 
   Widget _buildInputBar(SocketService socket) {
@@ -4721,6 +4844,7 @@ class _MessageBubble extends StatelessWidget {
   final bool isGroup;
   final String messageStatus;
   final String myUid;
+  final List<String> quickEmojis;
   final ValueChanged<dynamic>? onReply;
   final ValueChanged<dynamic>? onForward;
 
@@ -4732,6 +4856,7 @@ class _MessageBubble extends StatelessWidget {
     this.isGroup = false,
     this.messageStatus = 'sent',
     this.myUid = '',
+    this.quickEmojis = defaultQuickReactionEmojis,
     this.onReply,
     this.onForward,
   });
@@ -4743,6 +4868,7 @@ class _MessageBubble extends StatelessWidget {
         message.createdAt, context.read<SettingsService>().timeFormat);
     final reactions = Map<String, String>.from(message.reactions ?? {});
     final labelScale = context.watch<SettingsService>().chatLabelSize;
+    final bubbleKey = GlobalKey();
 
     return Padding(
       padding: EdgeInsets.only(bottom: showMeta ? 8 : 3),
@@ -4785,10 +4911,22 @@ class _MessageBubble extends StatelessWidget {
                 // ── Bubble with long-press ──────────────────────────────
                 GestureDetector(
                   // Double-tap a bubble to apply the familiar quick ❤️ reaction.
-                  // Long-press still opens the full message actions and reaction sheet.
+                  // Long-press opens the floating message actions and reaction popup.
                   onDoubleTap: () => _toggleReaction(context, '❤️'),
-                  onLongPress: () => _showReactionPicker(context),
+                  onLongPressStart: (details) {
+                    final bubbleContext = bubbleKey.currentContext;
+                    final renderObject = bubbleContext?.findRenderObject();
+                    final bubbleRect = renderObject is RenderBox
+                        ? (renderObject.localToGlobal(Offset.zero) & renderObject.size)
+                        : Rect.fromCenter(
+                            center: details.globalPosition,
+                            width: 240,
+                            height: 72,
+                          );
+                    _showReactionPicker(context, bubbleRect);
+                  },
                   child: Container(
+                    key: bubbleKey,
                     padding: const EdgeInsets.symmetric(
                         horizontal: 15, vertical: 10),
                     constraints: BoxConstraints(
@@ -5066,11 +5204,16 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 
-  void _showReactionPicker(BuildContext context) {
-    HapticService.vibrate(NovynHapticType.medium,
-        category: HapticCategory.chat);
-    const emojis = ['❤️', '😂', '😮', '😢', '👍', '🔥'];
-    final scheme = Theme.of(context).colorScheme;
+  void _showReactionPicker(BuildContext context, Rect bubbleRect) {
+    HapticService.vibrate(
+      NovynHapticType.medium,
+      category: HapticCategory.chat,
+    );
+
+    final emojis = quickEmojis.isEmpty
+        ? defaultQuickReactionEmojis
+        : quickEmojis;
+    final isMine = message.isFromMe as bool;
     final canCopy = message.text.toString().trim().isNotEmpty &&
         message.text.toString() != '🔒 Encrypted message';
     final socket = context.read<SocketService>();
@@ -5080,314 +5223,299 @@ class _MessageBubble extends StatelessWidget {
     final seenAt = socket.messageSeenAtFor(messageId);
     final timeFormat = context.read<SettingsService>().timeFormat;
     final sentAt = message.createdAt as DateTime;
+    final isPinned = message.pinnedAt?.toString().isNotEmpty ?? false;
+    final canEdit = isMine && !messageId.startsWith('tmp_') && !message.isEncrypted;
+    final scheme = Theme.of(context).colorScheme;
 
-    Widget statusLine(IconData icon, String label, DateTime? timestamp,
-        {bool active = true}) {
-      final color = active
-          ? const Color(0xFF128C7E)
-          : scheme.onSurfaceVariant.withValues(alpha: .55);
-      return Padding(
-        padding: const EdgeInsets.only(top: 7),
-        child: Row(
-          children: [
-            Icon(icon, size: 15, color: color),
-            const SizedBox(width: 8),
-            Expanded(
-                child: Text(label,
-                    style: TextStyle(
-                      fontFamily: 'PlusJakartaSans',
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: scheme.onSurfaceVariant,
-                    ))),
-            Text(
-              timestamp == null
-                  ? (active ? 'Recorded' : '—')
-                  : _formatTime(timestamp, timeFormat),
-              style: TextStyle(
-                  fontFamily: 'PlusJakartaSans',
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: active
-                      ? scheme.onSurface
-                      : scheme.onSurfaceVariant.withValues(alpha: .55)),
-            ),
-          ],
-        ),
-      );
-    }
-
-    showModalBottomSheet<void>(
+    showGeneralDialog<void>(
       context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (sheetContext) {
-        final sheetScheme = Theme.of(sheetContext).colorScheme;
-        final preview = message.text.toString().trim().isNotEmpty
-            ? message.text.toString().trim()
-            : (message.attachment != null ? 'Attachment' : 'Message');
-        return SafeArea(
-          child: Container(
-            margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-            constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(sheetContext).size.height * .90),
-            decoration: BoxDecoration(
-              color: sheetScheme.surface,
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(
-                  color: sheetScheme.outlineVariant.withValues(alpha: .65)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: .20),
-                  blurRadius: 28,
-                  offset: const Offset(0, -6),
-                )
+      barrierDismissible: true,
+      barrierLabel: 'Dismiss message options',
+      barrierColor: Colors.black.withValues(alpha: .42),
+      transitionDuration: const Duration(milliseconds: 180),
+      pageBuilder: (dialogContext, animation, secondaryAnimation) {
+        final media = MediaQuery.of(dialogContext);
+        final screen = media.size;
+        final insets = media.padding;
+        final popupWidth = math.min(304.0, screen.width - 32).toDouble();
+
+        final actions = <Widget>[
+          _ActionItem(
+            icon: Icons.reply_rounded,
+            label: 'Reply',
+            color: scheme.onSurfaceVariant,
+            onTap: () {
+              Navigator.of(dialogContext).pop();
+              onReply?.call(message);
+            },
+          ),
+          if (canCopy)
+            _ActionItem(
+              icon: Icons.copy_rounded,
+              label: 'Copy text',
+              color: scheme.onSurfaceVariant,
+              onTap: () async {
+                await Clipboard.setData(
+                  ClipboardData(text: message.text.toString()),
+                );
+                if (!dialogContext.mounted) return;
+                Navigator.of(dialogContext).pop();
+                NovynAlert.showEvent(context, NovynAlertEvent.textCopied);
+              },
+            ),
+          _ActionItem(
+            icon: Icons.forward_rounded,
+            label: 'Forward',
+            color: scheme.onSurfaceVariant,
+            onTap: () {
+              Navigator.of(dialogContext).pop();
+              onForward?.call(message);
+            },
+          ),
+          _ActionItem(
+            icon: Icons.push_pin_outlined,
+            label: isPinned ? 'Unpin' : 'Pin',
+            color: scheme.onSurfaceVariant,
+            onTap: () {
+              Navigator.of(dialogContext).pop();
+              if (isPinned) {
+                socket.unpinMessage(
+                  messageId,
+                  peer.uid.isNotEmpty ? peer.uid : peer.username,
+                );
+                NovynAlert.show(
+                  context,
+                  'Removed from the top of this chat.',
+                  title: 'Message unpinned',
+                  icon: Icons.push_pin_outlined,
+                  tone: NovynAlertTone.neutral,
+                );
+              } else {
+                socket.pinMessage(
+                  messageId,
+                  peer.uid.isNotEmpty ? peer.uid : peer.username,
+                );
+                NovynAlert.showEvent(
+                  context,
+                  NovynAlertEvent.messagePinned,
+                );
+              }
+            },
+          ),
+          if (canEdit)
+            _ActionItem(
+              icon: Icons.edit_outlined,
+              label: 'Edit',
+              color: scheme.onSurfaceVariant,
+              onTap: () {
+                Navigator.of(dialogContext).pop();
+                _showEditDialog(context);
+              },
+            ),
+          _ActionItem(
+            icon: Icons.delete_outline_rounded,
+            label: 'Delete',
+            color: const Color(0xFFE53935),
+            onTap: () {
+              Navigator.of(dialogContext).pop();
+              _deleteMessage(context, forEveryone: isMine);
+            },
+          ),
+        ];
+
+        final statusHeight = isMine ? 88.0 : 0.0;
+        final estimatedMenuHeight =
+            statusHeight + actions.length * 58.0 + math.max(0, actions.length - 1);
+        final availableHeight =
+            math.max(240.0, screen.height - insets.top - insets.bottom - 24);
+        final maxMenuHeight = math.min(
+          estimatedMenuHeight,
+          math.min(availableHeight, screen.height * .70),
+        ).toDouble();
+        final belowTop = bubbleRect.bottom + 12;
+        final fitsBelow =
+            screen.height - insets.bottom - belowTop >= maxMenuHeight + 8;
+        final menuTop = (fitsBelow
+                ? belowTop
+                : math.max(insets.top + 12, bubbleRect.top - maxMenuHeight - 12))
+            .toDouble();
+        final reactionTop = (fitsBelow
+                ? math.max(insets.top + 12, bubbleRect.top - 66)
+                : math.max(insets.top + 12, menuTop - 64))
+            .toDouble();
+        final maxLeft = math.max(16.0, screen.width - popupWidth - 16.0);
+        final desiredLeft =
+            isMine ? bubbleRect.right - popupWidth : bubbleRect.left;
+        final popupLeft = desiredLeft.clamp(16.0, maxLeft).toDouble();
+
+        Widget statusCell(
+          IconData icon,
+          String label,
+          DateTime? timestamp, {
+          bool active = true,
+        }) {
+          final color = active
+              ? (label == 'Seen'
+                  ? const Color(0xFF128C7E)
+                  : const Color(0xFF706A86))
+              : scheme.onSurfaceVariant.withValues(alpha: .42);
+          return Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 20, color: color),
+                const SizedBox(height: 6),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontFamily: 'PlusJakartaSans',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: scheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  timestamp == null
+                      ? (active ? 'Recorded' : '—')
+                      : _formatTime(timestamp, timeFormat),
+                  style: TextStyle(
+                    fontFamily: 'PlusJakartaSans',
+                    fontSize: 11,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
               ],
             ),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(18, 12, 18, 20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                      child: Container(
-                    width: 38,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: sheetScheme.onSurfaceVariant.withValues(alpha: .3),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  )),
-                  const SizedBox(height: 15),
-                  Row(children: [
-                    Expanded(
-                        child: Text('Message options',
-                            style: TextStyle(
-                              fontFamily: 'PlusJakartaSans',
-                              fontSize: 19,
-                              fontWeight: FontWeight.w800,
-                              color: sheetScheme.onSurface,
-                            ))),
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      onPressed: () => Navigator.pop(sheetContext),
-                      icon: Icon(Icons.close_rounded,
-                          color: sheetScheme.onSurfaceVariant),
-                    ),
-                  ]),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: sheetScheme.surfaceContainerHighest
-                          .withValues(alpha: .55),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                          color:
-                              sheetScheme.outlineVariant.withValues(alpha: .5)),
+          );
+        }
+
+        final statusPanel = Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(8, 13, 8, 12),
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerLow,
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(24),
+            ),
+          ),
+          child: Row(
+            children: [
+              statusCell(Icons.check_rounded, 'Sent', sentAt),
+              statusCell(
+                Icons.done_all_rounded,
+                'Delivered',
+                deliveredAt,
+                active: status == 'delivered' || status == 'seen',
+              ),
+              statusCell(
+                Icons.done_all_rounded,
+                'Seen',
+                seenAt,
+                active: status == 'seen',
+              ),
+            ],
+          ),
+        );
+
+        return Material(
+          type: MaterialType.transparency,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => Navigator.of(dialogContext).pop(),
+                  child: const SizedBox.expand(),
+                ),
+              ),
+              Positioned(
+                left: popupLeft,
+                top: reactionTop,
+                width: popupWidth,
+                child: Material(
+                  color: scheme.surface,
+                  elevation: 16,
+                  shadowColor: Colors.black.withValues(alpha: .24),
+                  borderRadius: BorderRadius.circular(40),
+                  clipBehavior: Clip.antiAlias,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 5,
                     ),
                     child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            width: 3,
-                            height: 38,
-                            decoration: BoxDecoration(
-                                color: sheetScheme.primary,
-                                borderRadius: BorderRadius.circular(3)),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                              child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(message.isFromMe ? 'You' : peer.name,
-                                  style: TextStyle(
-                                    fontFamily: 'PlusJakartaSans',
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w800,
-                                    color: sheetScheme.primary,
-                                  )),
-                              const SizedBox(height: 3),
-                              Text(preview,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontFamily: 'PlusJakartaSans',
-                                    fontSize: 13,
-                                    color: sheetScheme.onSurface,
-                                  )),
-                            ],
-                          )),
-                        ]),
-                  ),
-                  if (message.isFromMe as bool) ...[
-                    const SizedBox(height: 12),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.fromLTRB(13, 11, 13, 12),
-                      decoration: BoxDecoration(
-                        color: sheetScheme.surfaceContainerLow,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                            color: sheetScheme.outlineVariant
-                                .withValues(alpha: .55)),
-                      ),
-                      child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('MESSAGE INFO',
-                                style: TextStyle(
-                                  fontFamily: 'PlusJakartaSans',
-                                  fontSize: 9,
-                                  letterSpacing: 1.1,
-                                  fontWeight: FontWeight.w800,
-                                  color: sheetScheme.onSurfaceVariant,
-                                )),
-                            statusLine(Icons.check_rounded, 'Sent', sentAt),
-                            statusLine(Icons.done_all_rounded, 'Delivered',
-                                deliveredAt,
-                                active:
-                                    status == 'delivered' || status == 'seen'),
-                            statusLine(Icons.done_all_rounded, 'Seen', seenAt,
-                                active: status == 'seen'),
-                          ]),
-                    ),
-                  ],
-                  const SizedBox(height: 14),
-                  Text('QUICK REACTIONS',
-                      style: TextStyle(
-                        fontFamily: 'PlusJakartaSans',
-                        fontSize: 9,
-                        letterSpacing: 1.1,
-                        fontWeight: FontWeight.w800,
-                        color: sheetScheme.onSurfaceVariant,
-                      )),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: emojis
-                        .map((emoji) => Expanded(
-                                child: Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 3),
-                              child: Material(
-                                color: sheetScheme.surfaceContainerHighest
-                                    .withValues(alpha: .7),
-                                borderRadius: BorderRadius.circular(14),
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(14),
-                                  onTap: () {
-                                    Navigator.pop(sheetContext);
-                                    _toggleReaction(context, emoji);
-                                  },
-                                  child: SizedBox(
-                                      height: 46,
-                                      child: Center(
-                                        child: Text(emoji,
-                                            style:
-                                                const TextStyle(fontSize: 23)),
-                                      )),
+                      children: emojis.map((emoji) {
+                        return Expanded(
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(32),
+                            onTap: () {
+                              Navigator.of(dialogContext).pop();
+                              _toggleReaction(context, emoji);
+                            },
+                            child: SizedBox(
+                              height: 42,
+                              child: Center(
+                                child: Text(
+                                  novynCustomEmojis[emoji] ?? emoji,
+                                  style: const TextStyle(fontSize: 24),
                                 ),
                               ),
-                            )))
-                        .toList(),
-                  ),
-                  const SizedBox(height: 12),
-                  Divider(
-                      height: 1,
-                      color: sheetScheme.outlineVariant.withValues(alpha: .7)),
-                  if (canCopy)
-                    _ActionItem(
-                      icon: Icons.copy_rounded,
-                      label: 'Copy text',
-                      color: sheetScheme.primary,
-                      onTap: () async {
-                        await Clipboard.setData(
-                            ClipboardData(text: message.text.toString()));
-                        if (!sheetContext.mounted) return;
-                        Navigator.pop(sheetContext);
-                        NovynAlert.showEvent(
-                            context, NovynAlertEvent.textCopied);
-                      },
+                            ),
+                          ),
+                        );
+                      }).toList(),
                     ),
-                  _ActionItem(
-                    icon: Icons.reply_rounded,
-                    label: 'Reply',
-                    color: sheetScheme.primary,
-                    onTap: () {
-                      Navigator.pop(sheetContext);
-                      onReply?.call(message);
-                    },
                   ),
-                  _ActionItem(
-                    icon: Icons.forward_rounded,
-                    label: 'Forward',
-                    color: sheetScheme.onSurfaceVariant,
-                    onTap: () {
-                      Navigator.pop(sheetContext);
-                      onForward?.call(message);
-                    },
-                  ),
-                  _ActionItem(
-                    icon: Icons.push_pin_outlined,
-                    label: (message.pinnedAt?.toString().isNotEmpty ?? false)
-                        ? 'Unpin message'
-                        : 'Pin message',
-                    color: sheetScheme.onSurfaceVariant,
-                    onTap: () {
-                      Navigator.pop(sheetContext);
-                      if (message.pinnedAt?.toString().isNotEmpty ?? false) {
-                        socket.unpinMessage(message.id.toString(),
-                            peer.uid.isNotEmpty ? peer.uid : peer.username);
-                        NovynAlert.show(
-                            context, 'Removed from the top of this chat.',
-                            title: 'Message unpinned',
-                            icon: Icons.push_pin_outlined,
-                            tone: NovynAlertTone.neutral);
-                      } else {
-                        socket.pinMessage(message.id.toString(),
-                            peer.uid.isNotEmpty ? peer.uid : peer.username);
-                        NovynAlert.showEvent(
-                            context, NovynAlertEvent.messagePinned);
-                      }
-                    },
-                  ),
-                  if (message.isFromMe as bool) ...[
-                    if (!(message.id as String).startsWith('tmp_') &&
-                        !message.isEncrypted)
-                      _ActionItem(
-                        icon: Icons.edit_rounded,
-                        label: 'Edit',
-                        color: const Color(0xFF0EA5E9),
-                        onTap: () {
-                          Navigator.pop(sheetContext);
-                          _showEditDialog(context);
-                        },
-                      ),
-                    _ActionItem(
-                      icon: Icons.delete_rounded,
-                      label: 'Delete for everyone',
-                      color: const Color(0xFFEF4444),
-                      onTap: () {
-                        Navigator.pop(sheetContext);
-                        _deleteMessage(context, forEveryone: true);
-                      },
-                    ),
-                  ],
-                  _ActionItem(
-                    icon: Icons.delete_outline_rounded,
-                    label: 'Delete for me',
-                    color: sheetScheme.onSurfaceVariant,
-                    onTap: () {
-                      Navigator.pop(sheetContext);
-                      _deleteMessage(context, forEveryone: false);
-                    },
-                  ),
-                ],
+                ),
               ),
-            ),
+              Positioned(
+                left: popupLeft,
+                top: menuTop,
+                width: popupWidth,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: maxMenuHeight),
+                  child: Material(
+                    color: scheme.surface,
+                    elevation: 18,
+                    shadowColor: Colors.black.withValues(alpha: .28),
+                    borderRadius: BorderRadius.circular(25),
+                    clipBehavior: Clip.antiAlias,
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (isMine) statusPanel,
+                          for (var index = 0; index < actions.length; index++) ...[
+                            actions[index],
+                            if (index < actions.length - 1)
+                              Divider(
+                                height: 1,
+                                thickness: 1,
+                                color: scheme.outlineVariant
+                                    .withValues(alpha: .42),
+                              ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+        );
+        return FadeTransition(
+          opacity: curved,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: .96, end: 1).animate(curved),
+            child: child,
           ),
         );
       },
@@ -5874,14 +6002,15 @@ class _MessageBubble extends StatelessWidget {
   void _toggleReaction(BuildContext context, String emoji) {
     final socket = context.read<SocketService>();
     final reactions = Map<String, String>.from(message.reactions ?? {});
+    final reactionGlyph = novynCustomEmojis[emoji] ?? emoji;
     final currentEmoji = reactions[myUid];
 
-    if (currentEmoji == emoji) {
+    if (currentEmoji == reactionGlyph) {
       // Remove reaction
       socket.removeReaction(message.id as String, peer.uid);
     } else {
       // Add/change reaction
-      socket.addReaction(message.id as String, emoji, peer.uid);
+      socket.addReaction(message.id as String, reactionGlyph, peer.uid);
     }
   }
 
@@ -6765,35 +6894,32 @@ class _ActionItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDanger = color == const Color(0xFFE53935) ||
+        color == const Color(0xFFEF4444);
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
-        child: Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
+      child: SizedBox(
+        height: 58,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 22),
+          child: Row(
+            children: [
+              Icon(icon, color: color, size: 23),
+              const SizedBox(width: 19),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontFamily: 'PlusJakartaSans',
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    color: isDanger ? color : scheme.onSurface,
+                  ),
+                ),
               ),
-              child: Icon(icon, color: color, size: 18),
-            ),
-            const SizedBox(width: 14),
-            Text(
-              label,
-              style: TextStyle(
-                fontFamily: 'PlusJakartaSans',
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-                color: color == const Color(0xFF94A3B8)
-                    ? Theme.of(context).colorScheme.onSurface
-                    : color,
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
