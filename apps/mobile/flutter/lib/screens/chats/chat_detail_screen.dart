@@ -921,123 +921,120 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     );
     final messages = snapshot.messages;
 
-    return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      appBar: _buildAppBar(socket),
-      body: Container(
-        decoration: _wallpaperDecoration(snapshot.chatWallpaper),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (snapshot.chatWallpaper.trim().isEmpty)
-              Positioned.fill(
-                child: Builder(
-                  builder: (wallpaperContext) {
-                    final settings = wallpaperContext.watch<SettingsService>();
-                    final theme = Theme.of(wallpaperContext);
-                    final accent = settings.accentColorEnabled
-                        ? Color(settings.accentColorValue)
-                        : theme.colorScheme.primary;
-                    return Opacity(
-                      opacity: theme.brightness == Brightness.dark ? 0.14 : 0.98,
-                      child: SvgPicture.asset(
-                        'assets/images/novyn_chat_wallpaper.svg',
-                        fit: BoxFit.cover,
-                        colorFilter: ColorFilter.mode(
-                          accent.withValues(
-                            alpha: theme.brightness == Brightness.dark ? 0.24 : 0.14,
-                          ),
-                          BlendMode.srcATop,
-                        ),
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: _wallpaperDecoration(snapshot.chatWallpaper),
+          ),
+        ),
+        if (snapshot.chatWallpaper.trim().isEmpty)
+          Positioned.fill(
+            child: Builder(
+              builder: (wallpaperContext) {
+                final settings = wallpaperContext.watch<SettingsService>();
+                final theme = Theme.of(wallpaperContext);
+                final accent = settings.accentColorEnabled
+                    ? Color(settings.accentColorValue)
+                    : theme.colorScheme.primary;
+                return Opacity(
+                  opacity: theme.brightness == Brightness.dark ? 0.14 : 0.98,
+                  child: SvgPicture.asset(
+                    'assets/images/novyn_chat_wallpaper.svg',
+                    fit: BoxFit.cover,
+                    colorFilter: ColorFilter.mode(
+                      accent.withValues(
+                        alpha: theme.brightness == Brightness.dark ? 0.24 : 0.14,
                       ),
-                    );
-                  },
-                ),
-              ),
-            Column(
-              children: [
-            ConnectionBanner(chatId: _chatId ?? widget.peer.username),
-            Expanded(
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: _loading
-                        ? Center(
-                            child: CircularProgressIndicator(
-                                color: Theme.of(context).colorScheme.primary))
-                        : messages.isEmpty
-                            ? _fetchingFromServer
-                                ? _buildLoadingShimmer()
-                                : _buildEmptyChat()
-                            : _buildMessageList(
-                                messages,
-                                snapshot.peerIsTyping,
-                                peerIsRecordingVoice:
-                                    snapshot.peerIsRecordingVoice,
-                              ),
+                      BlendMode.srcATop,
+                    ),
                   ),
-                  if (_showJumpToLatest && messages.isNotEmpty)
-                    Positioned(
-                      right: 18,
-                      bottom: 18,
-                      child: TweenAnimationBuilder<double>(
-                        tween: Tween(begin: 0.82, end: 1),
-                        duration: const Duration(milliseconds: 220),
-                        curve: Curves.easeOutBack,
-                        builder: (context, scale, child) => Transform.scale(
-                          scale: scale,
-                          child: child,
-                        ),
-                        child: Material(
-                          color: Theme.of(context).colorScheme.surface,
-                          elevation: 7,
-                          shape: const CircleBorder(),
-                          child: InkWell(
-                            customBorder: const CircleBorder(),
-                            onTap: _jumpToLatest,
-                            child: Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .primary
-                                        .withValues(alpha: 0.18)),
+                );
+              },
+            ),
+          ),
+        Scaffold(
+          backgroundColor: Colors.transparent,
+          appBar: _buildAppBar(socket),
+          body: Container(
+            color: Colors.transparent,
+            child: Column(
+              children: [
+                ConnectionBanner(chatId: _chatId ?? widget.peer.username),
+                Expanded(
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: _loading
+                            ? Center(
+                                child: CircularProgressIndicator(
+                                    color: Theme.of(context).colorScheme.primary))
+                            : messages.isEmpty
+                                ? _fetchingFromServer
+                                    ? _buildLoadingShimmer()
+                                    : _buildEmptyChat()
+                                : _buildMessageList(
+                                    messages,
+                                    snapshot.peerIsTyping,
+                                    peerIsRecordingVoice:
+                                        snapshot.peerIsRecordingVoice,
+                                  ),
+                      ),
+                      if (_showJumpToLatest && messages.isNotEmpty)
+                        Positioned(
+                          right: 18,
+                          bottom: 18,
+                          child: TweenAnimationBuilder<double>(
+                            tween: Tween(begin: 0.82, end: 1),
+                            duration: const Duration(milliseconds: 220),
+                            curve: Curves.easeOutBack,
+                            builder: (context, scale, child) => Transform.scale(
+                              scale: scale,
+                              child: child,
+                            ),
+                            child: Material(
+                              color: Theme.of(context).colorScheme.surface,
+                              elevation: 7,
+                              shape: const CircleBorder(),
+                              child: InkWell(
+                                customBorder: const CircleBorder(),
+                                onTap: _jumpToLatest,
+                                child: Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary
+                                            .withValues(alpha: 0.18)),
+                                  ),
+                                  child: Icon(
+                                      Icons.keyboard_double_arrow_down_rounded,
+                                      color: Theme.of(context).colorScheme.primary,
+                                      size: 23),
+                                ),
                               ),
-                              child: Icon(
-                                  Icons.keyboard_double_arrow_down_rounded,
-                                  color: Theme.of(context).colorScheme.primary,
-                                  size: 23),
                             ),
                           ),
                         ),
-                      ),
-                    ),
-                ],
-              ),
+                    ],
+                  ),
+                ),
+                SafeArea(
+                  top: false,
+                  left: false,
+                  right: false,
+                  child: _buildInputBar(socket),
+                ),
+              ],
             ),
-            SafeArea(
-              top: false,
-              left: false,
-              right: false,
-              child: _buildInputBar(socket),
-            ),
-          ],
-            ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
-  }
-
-  Color _headerBackdrop(String wallpaper, bool dark) {
-    final v = wallpaper.trim();
-    if (v.startsWith('#') && v.length == 7) {
-      return Color(int.parse('FF${v.substring(1)}', radix: 16));
-    }
-    return dark ? const Color(0xFF0B0B17) : const Color(0xFFF9F7FF);
   }
 
   bool _isSameMinute(DateTime a, DateTime b) {
@@ -1240,7 +1237,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     return PreferredSize(
       preferredSize: Size.fromHeight(topInset + gapTop + cardHeight + gapBottom),
       child: ColoredBox(
-        color: _headerBackdrop(socket.chatWallpaper, isDark),
+        // Use the same wallpaper canvas behind the header and composer.
+        // A subtle veil preserves status-bar and header-control contrast.
+        color: isDark
+            ? Colors.black.withValues(alpha: .12)
+            : Colors.white.withValues(alpha: .20),
         child: Padding(
           padding: EdgeInsets.fromLTRB(12, topInset + gapTop, 12, gapBottom),
           child: Row(
