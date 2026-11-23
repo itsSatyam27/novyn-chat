@@ -61,134 +61,100 @@ class _AuthScreenState extends State<AuthScreen>
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark.copyWith(
         statusBarColor: Colors.transparent,
-        systemNavigationBarColor: _kBg,
+        systemNavigationBarColor: Colors.white,
         systemNavigationBarIconBrightness: Brightness.dark,
       ),
       child: Scaffold(
         backgroundColor: _kBg,
         resizeToAvoidBottomInset: true,
         body: SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: EdgeInsets.fromLTRB(22, keyboardOpen ? 5 : 14, 22, 8),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: _kAccent,
-                        borderRadius: BorderRadius.circular(13),
-                        boxShadow: const [
+          top: false,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final artworkHeight = keyboardOpen
+                  ? 0.0
+                  : math.min(
+                      constraints.maxHeight * .44,
+                      constraints.maxWidth * 620 / 864,
+                    );
+              return Column(
+                children: [
+                  if (!keyboardOpen)
+                    SizedBox(
+                      width: double.infinity,
+                      height: artworkHeight,
+                      child: Image.asset(
+                        'assets/images/novyn_auth_hero.webp',
+                        fit: BoxFit.cover,
+                        alignment: Alignment.topCenter,
+                        errorBuilder: (_, __, ___) => const ColoredBox(
+                          color: Color(0xFFE8E0FF),
+                          child: Center(
+                            child: Icon(
+                              Icons.chat_bubble_rounded,
+                              color: _kAccent,
+                              size: 52,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  Expanded(
+                    child: Container(
+                      width: double.infinity,
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(38),
+                        ),
+                        boxShadow: [
                           BoxShadow(
-                            color: Color(0x4D6C4DF6),
-                            blurRadius: 20,
-                            offset: Offset(0, 10),
+                            color: Color(0x1F6C4DF6),
+                            blurRadius: 24,
+                            offset: Offset(0, -7),
                           ),
                         ],
                       ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(13),
-                        child: Image.asset(
-                          'assets/icons/novyn-badge.png',
-                          fit: BoxFit.cover,
-                          semanticLabel: 'Novyn',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Novyn', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, letterSpacing: -.5, color: _kText)),
-                        Text('Your space, your people', style: TextStyle(fontSize: 13.5, color: _kSub)),
-                      ],
-                    ),
-                    const Spacer(),
-                    if (!keyboardOpen)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: .75),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: _kLine),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.lock_outline_rounded, size: 13, color: _kAccentDim),
-                            SizedBox(width: 5),
-                            Text('SECURE CHAT', style: TextStyle(color: _kAccentDim, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: .8)),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 440),
-                    child: Container(
-                      width: double.infinity,
-                      margin: EdgeInsets.fromLTRB(16, keyboardOpen ? 0 : 4, 16, 12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(28),
-                        border: Border.all(color: Colors.white.withValues(alpha: .9)),
-                        boxShadow: const [BoxShadow(color: Color(0x1F6C4DF6), blurRadius: 30, offset: Offset(0, 10))],
-                      ),
                       child: Column(
                         children: [
-                          const SizedBox(height: 17),
-                          _buildTabBar(),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 12),
+                          Container(
+                            width: 44,
+                            height: 5,
+                            decoration: BoxDecoration(
+                              color: _kLine,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
                           Expanded(
-                            child: TabBarView(
-                              controller: _tabController,
-                              children: [
-                                _LoginTab(onSwitchToRegister: () => _tabController.animateTo(1)),
-                                _RegisterTab(onSwitchToLogin: () => _tabController.animateTo(0)),
-                              ],
+                            child: Center(
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 480),
+                                child: TabBarView(
+                                  controller: _tabController,
+                                  children: [
+                                    _LoginTab(
+                                      onSwitchToRegister: () =>
+                                          _tabController.animateTo(1),
+                                    ),
+                                    _RegisterTab(
+                                      onSwitchToLogin: () =>
+                                          _tabController.animateTo(0),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
                           ),
                         ],
                       ),
                     ),
                   ),
-                ),
-              ),
-            ],
+                ],
+              );
+            },
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTabBar() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 22),
-      child: Container(
-        height: 52,
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(color: _kSegment, borderRadius: BorderRadius.circular(18)),
-        child: TabBar(
-          controller: _tabController,
-          onTap: (_) => setState(() {}),
-          indicator: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: const [BoxShadow(color: Color(0x266C4DF6), blurRadius: 8, offset: Offset(0, 2))],
-          ),
-          indicatorSize: TabBarIndicatorSize.tab,
-          indicatorPadding: const EdgeInsets.all(1),
-          dividerColor: Colors.transparent,
-          labelStyle: GoogleFonts.inter(fontSize: 14.5, fontWeight: FontWeight.w700),
-          unselectedLabelStyle: GoogleFonts.inter(fontSize: 14.5, fontWeight: FontWeight.w600),
-          labelColor: _kAccentDim,
-          unselectedLabelColor: _kSub,
-          tabs: const [Tab(text: 'Sign in'), Tab(text: 'Sign up')],
         ),
       ),
     );
@@ -212,6 +178,7 @@ class _LoginTabState extends State<_LoginTab> {
   final _passCtrl  = TextEditingController();
   bool _obscure  = true;
   bool _loading  = false;
+  bool _rememberMe = true;
   String? _error;
 
   @override
@@ -235,7 +202,7 @@ class _LoginTabState extends State<_LoginTab> {
     }
     setState(() { _loading = true; _error = null; });
     final auth = context.read<AuthService>();
-    final err  = await auth.login(identifier: _emailCtrl.text, password: _passCtrl.text);
+    final err  = await auth.login(identifier: _emailCtrl.text, password: _passCtrl.text, remember: _rememberMe);
     if (!mounted) return;
     if (err != null) {
       setState(() { _error = err; _loading = false; });
@@ -337,76 +304,139 @@ class _LoginTabState extends State<_LoginTab> {
     final sessions = context.watch<SettingsService>().savedSessions;
     return SingleChildScrollView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 26),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
+          Text(
             'Welcome back',
-            style: TextStyle(
-              fontSize: 25,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 27,
               fontWeight: FontWeight.w800,
-              letterSpacing: -.5,
+              letterSpacing: -.8,
               color: _kText,
             ),
           ),
-          const SizedBox(height: 4),
-          const Text(
-            'Sign in to pick up your chats where you left off.',
-            style: TextStyle(fontSize: 14.5, height: 1.4, color: _kSub),
+          const SizedBox(height: 5),
+          Text(
+            'Your chats and your people are waiting',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(fontSize: 15, color: _kSub),
           ),
-          const SizedBox(height: 18),
-          _GoogleButton(label: 'Continue with Google', loading: _loading, onTap: _googleSignIn),
-          const SizedBox(height: 17),
-          const _OrDivider(label: 'or sign in with email'),
+          const SizedBox(height: 22),
+          _Field(
+            controller: _emailCtrl,
+            hint: 'Email address',
+            icon: Icons.mail_outline_rounded,
+            keyboardType: TextInputType.emailAddress,
+          ),
+          const SizedBox(height: 13),
+          _Field(
+            controller: _passCtrl,
+            hint: 'Password',
+            icon: Icons.lock_outline_rounded,
+            obscure: _obscure,
+            suffix: _EyeToggle(
+              obscure: _obscure,
+              onToggle: () => setState(() => _obscure = !_obscure),
+            ),
+          ),
+          const SizedBox(height: 11),
+          Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => setState(() => _rememberMe = !_rememberMe),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 5),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 160),
+                          width: 25,
+                          height: 25,
+                          decoration: BoxDecoration(
+                            color: _rememberMe ? _kAccent : Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: _rememberMe ? _kAccent : _kLine,
+                              width: 1.4,
+                            ),
+                          ),
+                          child: _rememberMe
+                              ? const Icon(Icons.check_rounded,
+                                  color: Colors.white, size: 19)
+                              : null,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Remember me',
+                          style: GoogleFonts.inter(
+                            fontSize: 13.5,
+                            color: _kSub,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: _loading ? null : _showForgotPassword,
+                style: TextButton.styleFrom(
+                  foregroundColor: _kAccentDim,
+                  padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 7),
+                ),
+                child: Text(
+                  'Forgot password?',
+                  style: GoogleFonts.inter(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: _kAccentDim,
+                  ),
+                ),
+              ),
+            ],
+          ),
           if (sessions.isNotEmpty) ...[
-            const SizedBox(height: 18),
+            const SizedBox(height: 4),
             const _SectionLabel('SAVED ACCOUNTS'),
-            const SizedBox(height: 9),
+            const SizedBox(height: 8),
             ...sessions.map((session) => _SavedAccountTile(
               session: session,
               onTap: () => _fillFromSession(session),
-              onRemove: () => context.read<SettingsService>().removeSession(session.uid),
+              onRemove: () =>
+                  context.read<SettingsService>().removeSession(session.uid),
             )),
           ],
-          const SizedBox(height: 16),
-          const _SectionLabel('EMAIL OR USERNAME'),
-          const SizedBox(height: 8),
-          _Field(controller: _emailCtrl, hint: 'you@example.com or username', icon: Icons.email_outlined, keyboardType: TextInputType.emailAddress),
-          const SizedBox(height: 15),
-          const _SectionLabel('PASSWORD'),
-          const SizedBox(height: 8),
-          _Field(
-            controller: _passCtrl,
-            hint: 'Your password',
-            icon: Icons.lock_outline_rounded,
-            obscure: _obscure,
-            suffix: _EyeToggle(obscure: _obscure, onToggle: () => setState(() => _obscure = !_obscure)),
-          ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              onPressed: _loading ? null : _showForgotPassword,
-              style: TextButton.styleFrom(foregroundColor: _kAccentDim, padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 7)),
-              child: const Text('Forgot password?', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: _kAccentDim)),
-            ),
-          ),
           if (_error != null) ...[
             const SizedBox(height: 8),
             _ErrorBanner(message: _error!),
           ],
-          const SizedBox(height: 10),
-          _PrimaryButton(label: 'Sign in', loading: _loading, onTap: _submit),
-          const SizedBox(height: 14),
-          const Center(
-            child: Text(
-              'By continuing, you agree to Novyn’s Terms and Privacy Policy.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 11.5, height: 1.45, color: _kSub),
-            ),
+          const SizedBox(height: 9),
+          _PrimaryButton(
+            label: 'Sign in  →',
+            loading: _loading,
+            onTap: _submit,
           ),
-          const SizedBox(height: 8),
-          _SwitchLink(prefix: 'New to Novyn? ', action: 'Create an account', onTap: widget.onSwitchToRegister),
+          const SizedBox(height: 19),
+          const _OrDivider(label: 'Or continue with'),
+          const SizedBox(height: 14),
+          _GoogleButton(
+            label: 'Google',
+            loading: _loading,
+            onTap: _googleSignIn,
+          ),
+          const SizedBox(height: 18),
+          _SwitchLink(
+            prefix: 'Don’t have an account? ',
+            action: 'Create an account',
+            onTap: widget.onSwitchToRegister,
+          ),
         ],
       ),
     );
@@ -901,10 +931,8 @@ class _RegisterTabState extends State<_RegisterTab> {
   final _usernameCtrl = TextEditingController();
   final _emailCtrl    = TextEditingController();
   final _passCtrl     = TextEditingController();
-  final _confirmCtrl  = TextEditingController();
 
   bool _obscurePass    = true;
-  bool _obscureConfirm = true;
   bool _loading        = false;
   String? _error;
   bool _checkingUsername = false;
@@ -918,7 +946,6 @@ class _RegisterTabState extends State<_RegisterTab> {
     _usernameCtrl.dispose();
     _emailCtrl.dispose();
     _passCtrl.dispose();
-    _confirmCtrl.dispose();
     _usernameDebounce?.cancel();
     super.dispose();
   }
@@ -959,7 +986,6 @@ class _RegisterTabState extends State<_RegisterTab> {
     final username = _usernameCtrl.text.trim();
     final email    = _emailCtrl.text.trim();
     final pass     = _passCtrl.text;
-    final confirm  = _confirmCtrl.text;
 
     if (name.isEmpty) { setState(() => _error = 'Please enter your name.'); return; }
     if (username.length < 3) { setState(() => _error = 'Username must be at least 3 characters.'); return; }
@@ -968,7 +994,6 @@ class _RegisterTabState extends State<_RegisterTab> {
     if (_checkingUsername) { setState(() => _error = 'Please wait while we check your username.'); return; }
     if (_usernameAvailable == false) { setState(() => _error = 'That username is already taken.'); return; }
     if (pass.length < 12) { setState(() => _error = 'Password must be at least 12 characters.'); return; }
-    if (pass != confirm) { setState(() => _error = 'Passwords do not match.'); return; }
 
     setState(() { _loading = true; _error = null; });
 
@@ -1147,154 +1172,129 @@ class _RegisterTabState extends State<_RegisterTab> {
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+      padding: const EdgeInsets.fromLTRB(24, 18, 24, 26),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
+          Text(
             'Create your account',
-            style: TextStyle(
-              fontSize: 25,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 27,
               fontWeight: FontWeight.w800,
-              letterSpacing: -.5,
+              letterSpacing: -.8,
               color: _kText,
             ),
           ),
-          const SizedBox(height: 4),
-          const Text(
-            'Join Novyn and start chatting with your people.',
-            style: TextStyle(fontSize: 14.5, height: 1.4, color: _kSub),
+          const SizedBox(height: 5),
+          Text(
+            'Join Novyn and start chatting',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(fontSize: 15, color: _kSub),
           ),
-          const SizedBox(height: 18),
-          _GoogleButton(label: 'Sign up with Google', loading: _loading, onTap: _googleSignIn),
-          const SizedBox(height: 17),
-          const _OrDivider(label: 'or create an account with email'),
-          const SizedBox(height: 18),
-          const _SectionLabel('FULL NAME'),
-          const SizedBox(height: 8),
-          _Field(controller: _nameCtrl, hint: 'Your full name', icon: Icons.person_outline_rounded),
-          const SizedBox(height: 15),
-          const _SectionLabel('USERNAME'),
-          const SizedBox(height: 8),
+          const SizedBox(height: 19),
+          _Field(
+            controller: _nameCtrl,
+            hint: 'Your full name',
+            icon: Icons.person_outline_rounded,
+            onChanged: (_) {
+              if (_error != null) setState(() => _error = null);
+            },
+          ),
+          const SizedBox(height: 12),
           _Field(
             controller: _usernameCtrl,
             hint: 'Choose a username',
-            icon: Icons.alternate_email_rounded,
-            onChanged: _checkUsername,
+            icon: Icons.person_outline_rounded,
+            onChanged: (value) {
+              _checkUsername(value);
+              if (_error != null) setState(() => _error = null);
+            },
             suffix: _checkingUsername
-                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: _kAccent))
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: _kAccent,
+                    ),
+                  )
                 : _usernameAvailable == null
                     ? null
                     : Icon(
-                        _usernameAvailable! ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                        _usernameAvailable!
+                            ? Icons.check_circle_rounded
+                            : Icons.cancel_rounded,
                         color: _usernameAvailable! ? _kGreen : _kRed,
                         size: 20,
                       ),
           ),
           if (_usernameAvailable == false) ...[
             const SizedBox(height: 5),
-            const _StatusLine(text: 'This username is taken. Try another.', color: _kRed),
+            const _StatusLine(
+              text: 'This username is taken. Try another.',
+              color: _kRed,
+            ),
           ],
           if (_usernameAvailable == true) ...[
             const SizedBox(height: 5),
-            const _StatusLine(text: '✓  Username is available', color: _kGreen),
+            const _StatusLine(
+              text: '✓  Username is available',
+              color: _kGreen,
+            ),
           ],
-          const SizedBox(height: 15),
-          const _SectionLabel('EMAIL'),
-          const SizedBox(height: 8),
-          _Field(controller: _emailCtrl, hint: 'you@example.com', icon: Icons.email_outlined, keyboardType: TextInputType.emailAddress),
-          const SizedBox(height: 15),
-          const _SectionLabel('PASSWORD'),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
+          _Field(
+            controller: _emailCtrl,
+            hint: 'Email address',
+            icon: Icons.mail_outline_rounded,
+            keyboardType: TextInputType.emailAddress,
+            onChanged: (_) {
+              if (_error != null) setState(() => _error = null);
+            },
+          ),
+          const SizedBox(height: 12),
           _Field(
             controller: _passCtrl,
-            hint: 'At least 12 characters',
+            hint: 'Create a password',
             icon: Icons.lock_outline_rounded,
             obscure: _obscurePass,
-            suffix: _EyeToggle(obscure: _obscurePass, onToggle: () => setState(() => _obscurePass = !_obscurePass)),
-          ),
-          const SizedBox(height: 9),
-          _PasswordStrengthMeter(controller: _passCtrl),
-          const SizedBox(height: 15),
-          const _SectionLabel('CONFIRM PASSWORD'),
-          const SizedBox(height: 8),
-          _Field(
-            controller: _confirmCtrl,
-            hint: 'Re-enter your password',
-            icon: Icons.lock_outline_rounded,
-            obscure: _obscureConfirm,
-            suffix: _EyeToggle(obscure: _obscureConfirm, onToggle: () => setState(() => _obscureConfirm = !_obscureConfirm)),
+            suffix: _EyeToggle(
+              obscure: _obscurePass,
+              onToggle: () => setState(() => _obscurePass = !_obscurePass),
+            ),
+            onChanged: (_) {
+              if (_error != null) setState(() => _error = null);
+            },
           ),
           if (_error != null) ...[
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
             _ErrorBanner(message: _error!),
           ],
-          const SizedBox(height: 22),
-          _PrimaryButton(label: 'Create account', loading: _loading, onTap: _submit),
-          const SizedBox(height: 14),
-          const Center(
-            child: Text(
-              'By continuing, you agree to Novyn’s Terms and Privacy Policy.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 11.5, height: 1.45, color: _kSub),
-            ),
+          const SizedBox(height: 17),
+          _PrimaryButton(
+            label: 'Create account',
+            loading: _loading,
+            onTap: _submit,
           ),
-          const SizedBox(height: 8),
-          _SwitchLink(prefix: 'Already on Novyn? ', action: 'Sign in', onTap: widget.onSwitchToLogin),
+          const SizedBox(height: 19),
+          const _OrDivider(label: 'Or sign up with'),
+          const SizedBox(height: 14),
+          _GoogleButton(
+            label: 'Google',
+            loading: _loading,
+            onTap: _googleSignIn,
+          ),
+          const SizedBox(height: 18),
+          _SwitchLink(
+            prefix: 'Already have an account? ',
+            action: 'Sign in',
+            onTap: widget.onSwitchToLogin,
+          ),
         ],
       ),
     );
   }
-}
-
-class _PasswordStrengthMeter extends StatelessWidget {
-  const _PasswordStrengthMeter({required this.controller});
-  final TextEditingController controller;
-
-  static const _colors = [Color(0xFFC62828), Color(0xFFD97706), Color(0xFF65A30D), Color(0xFF15803D)];
-  static const _labels = ['', 'Weak', 'Fair', 'Good', 'Strong'];
-
-  @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-        animation: controller,
-        builder: (_, __) {
-          final password = controller.text;
-          var strength = 0;
-          if (password.isNotEmpty) {
-            if (password.length >= 12) strength++;
-            if (RegExp(r'[a-z]').hasMatch(password) && RegExp(r'[A-Z]').hasMatch(password)) strength++;
-            if (RegExp(r'\d').hasMatch(password)) strength++;
-            if (RegExp(r'[^A-Za-z0-9]').hasMatch(password)) strength++;
-            if (password.length < 12 && strength > 1) strength = 1;
-            if (strength == 0) strength = 1;
-          }
-          return Row(
-            children: [
-              for (var index = 0; index < 4; index++) ...[
-                Expanded(
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 220),
-                    height: 5,
-                    decoration: BoxDecoration(
-                      color: index < strength ? _colors[strength - 1] : _kLine,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                ),
-                if (index < 3) const SizedBox(width: 5),
-              ],
-              SizedBox(
-                width: 48,
-                child: Text(
-                  _labels[strength],
-                  textAlign: TextAlign.right,
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: strength == 0 ? _kSub : _colors[strength - 1]),
-                ),
-              ),
-            ],
-          );
-        },
-      );
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1362,7 +1362,7 @@ class _FieldState extends State<_Field> {
       duration: const Duration(milliseconds: 200),
       decoration: BoxDecoration(
         color: _focused ? const Color(0xFFF1EEFC) : _kField,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(21),
         border: Border.all(
           color: _focused ? _kAccent : _kLine,
           width: _focused ? 1.5 : 1,
@@ -1420,7 +1420,7 @@ class _FieldState extends State<_Field> {
             border:         InputBorder.none,
             enabledBorder:  InputBorder.none,
             focusedBorder:  InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
           ),
         ),
       ),
@@ -1505,7 +1505,7 @@ class _PrimaryButton extends StatelessWidget {
         onTap: loading ? null : onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          padding: const EdgeInsets.symmetric(vertical: 19),
           decoration: BoxDecoration(
             gradient: loading
                 ? LinearGradient(colors: [
@@ -1517,7 +1517,7 @@ class _PrimaryButton extends StatelessWidget {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(20),
             boxShadow: loading
                 ? []
                 : [
@@ -1591,13 +1591,13 @@ class _GoogleButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SizedBox(
         width: double.infinity,
-        height: 54,
+        height: 60,
         child: OutlinedButton(
           onPressed: loading ? null : onTap,
           style: OutlinedButton.styleFrom(
             foregroundColor: _kText,
             side: const BorderSide(color: _kLine, width: 1.4),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(21)),
             backgroundColor: Colors.white,
           ),
           child: loading
