@@ -2161,7 +2161,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                       ),
                       searchViewConfig: SearchViewConfig(
                         backgroundColor: scheme.surface,
-                        buttonColor: Colors.transparent,
                         buttonIconColor: scheme.onSurfaceVariant,
                         hintText: 'Search emoji',
                       ),
