@@ -141,8 +141,9 @@ class GameHistoryService {
       // Cloud is the durable source. Keep the local cache as an offline fallback,
       // and migrate any pre-cloud human matches using idempotent match IDs.
       final localHuman = matches.where((match) => !match.isBotMatch).toList();
-      if (localHuman.isNotEmpty) {
-        await ApiService.saveGameHistory(localHuman.map((match) => match.toJson()).toList());
+      for (var offset = 0; offset < localHuman.length; offset += 100) {
+        final batch = localHuman.skip(offset).take(100).toList();
+        await ApiService.saveGameHistory(batch.map((match) => match.toJson()).toList());
       }
       final cloud = await ApiService.getGameHistory();
       if (cloud != null) {
