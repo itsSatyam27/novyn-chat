@@ -3096,6 +3096,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     final answer = TextEditingController();
     final hint = TextEditingController();
     var maxTries = 3;
+    var sending = false;
 
     try {
       await showDialog<void>(
@@ -3105,7 +3106,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
           builder: (dialogContext, refresh) {
             final scheme = Theme.of(dialogContext).colorScheme;
             final dark = Theme.of(dialogContext).brightness == Brightness.dark;
-            var sending = false;
             final ready = secret.text.trim().isNotEmpty &&
                 question.text.trim().isNotEmpty &&
                 answer.text.trim().isNotEmpty;
@@ -3206,16 +3206,44 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                               ),
                             ),
                           ),
-                          _RiddleAttemptsChoice(
-                            label: '3',
+                          ChoiceChip(
+                            label: const Text('3'),
                             selected: maxTries == 3,
-                            onTap: () => refresh(() => maxTries = 3),
+                            onSelected: (_) => refresh(() => maxTries = 3),
+                            selectedColor: scheme.primary,
+                            backgroundColor: scheme.surfaceContainerLow,
+                            checkmarkColor: scheme.onPrimary,
+                            labelStyle: TextStyle(
+                              fontFamily: 'PlusJakartaSans',
+                              fontWeight: FontWeight.w800,
+                              color: maxTries == 3 ? scheme.onPrimary : scheme.onSurface,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(13),
+                              side: BorderSide(
+                                color: maxTries == 3 ? scheme.primary : scheme.outlineVariant,
+                              ),
+                            ),
                           ),
                           const SizedBox(width: 8),
-                          _RiddleAttemptsChoice(
-                            label: '5',
+                          ChoiceChip(
+                            label: const Text('5'),
                             selected: maxTries == 5,
-                            onTap: () => refresh(() => maxTries = 5),
+                            onSelected: (_) => refresh(() => maxTries = 5),
+                            selectedColor: scheme.primary,
+                            backgroundColor: scheme.surfaceContainerLow,
+                            checkmarkColor: scheme.onPrimary,
+                            labelStyle: TextStyle(
+                              fontFamily: 'PlusJakartaSans',
+                              fontWeight: FontWeight.w800,
+                              color: maxTries == 5 ? scheme.onPrimary : scheme.onSurface,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(13),
+                              side: BorderSide(
+                                color: maxTries == 5 ? scheme.primary : scheme.outlineVariant,
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -3352,6 +3380,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       TextEditingController(),
       TextEditingController(),
     ];
+    var sending = false;
 
     try {
       await showDialog<void>(
@@ -3360,7 +3389,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         builder: (dialogContext) => StatefulBuilder(
           builder: (dialogContext, refresh) {
             final scheme = Theme.of(dialogContext).colorScheme;
-            var sending = false;
             final cleanQuestion = question.text.trim();
             final cleanOptions = options
                 .map((item) => item.text.trim())
