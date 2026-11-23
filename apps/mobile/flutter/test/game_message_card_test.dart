@@ -211,6 +211,47 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('offline Tic-Tac-Toe bot replies and its move stays visible', (tester) async {
+    final socket = _FakeSocketService();
+    await tester.pumpWidget(
+      ChangeNotifierProvider<SocketService>.value(
+        value: socket,
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: ElevatedButton(
+                  onPressed: () => GameRoomScreen.openOfflineBotMatch(
+                    context: context,
+                    currentUsername: 'alice',
+                    gameType: 'tictactoe',
+                    title: 'Tic-Tac-Toe',
+                  ),
+                  child: const Text('Play vs Bot'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Play vs Bot'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('tic-tac-toe-cell-0')));
+    await tester.pump();
+    expect(find.text('AI Bot is thinking…'), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump();
+
+    expect(find.text('X'), findsOneWidget);
+    expect(find.text('O'), findsOneWidget);
+    expect(find.text('Your move'), findsOneWidget);
+    expect(socket.openChatCalls, 0);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Rock Paper Scissors rematch uses the existing match', (tester) async {
     final socket = _FakeSocketService();
     await tester.pumpWidget(gameCardHost(socket, gameType: 'rps'));
