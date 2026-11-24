@@ -454,6 +454,9 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
         }
         await prefs.setBool(migrationKey, true);
       }
+      _hasPendingHiddenChatChanges =
+          (prefs.getStringList(_hiddenChatChangesPreferenceKey(username)) ?? [])
+              .isNotEmpty;
       if (!mounted ||
           context.read<AuthService>().user?.username.trim().toLowerCase() !=
               username.trim().toLowerCase()) {
