@@ -59,6 +59,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
   Timer? _queueTimer;
   Timer? _friendInviteTimer;
   bool _backgroundRouteOpen = false;
+  bool _matchmakingRouteOpen = false;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
@@ -278,8 +279,6 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
       _searchEndedByDisconnect = false;
       _secondsRemaining = 60;
       _queueCountdown.value = 60;
-      // Give the server timeout event a short delivery grace period before
-      // showing a local fallback in case the event was lost during reconnect.
       _queueDeadline = DateTime.now().add(const Duration(seconds: 60));
     });
     try {
@@ -305,6 +304,21 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
         setState(() => _secondsRemaining = remaining.clamp(0, 60));
         _queueCountdown.value = remaining.clamp(0, 60);
       });
+      if (!_matchmakingRouteOpen && mounted) {
+        _matchmakingRouteOpen = true;
+        unawaited(Navigator.of(context).push<void>(
+          MaterialPageRoute<void>(
+            fullscreenDialog: true,
+            builder: (_) => _RandomMatchmakingScreen(
+              gameTitle: widget.title,
+              countdown: _queueCountdown,
+              onCancel: () => _cancelRandomSearch(),
+            ),
+          ),
+        ).whenComplete(() {
+          _matchmakingRouteOpen = false;
+        }));
+      }
     } catch (error) {
       _queueTimer?.cancel();
       if (!mounted) return;
@@ -490,6 +504,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
       _searchEndedByDisconnect = false;
     });
     if (sessionId.isEmpty || game == null) {
+      if (_matchmakingRouteOpen) Navigator.of(context).pop();
       NovynAlert.show(
         context,
         'A player was found, but the game room could not be created. Please try again.',
@@ -499,20 +514,46 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
       );
       return;
     }
-    if (_backgroundRouteOpen) {
-      _backgroundRouteOpen = false;
+    if (_matchmakingRouteOpen) {
+      _matchmakingRouteOpen = false;
       Navigator.of(context).pop();
     }
+    final currentUsername = _socket?.myUsername ?? _auth?.user?.username ?? '';
+    final opponentUsername = opponent['username']?.toString() ?? '';
+    final opponentName = opponent['displayName']?.toString().trim().isNotEmpty == true
+        ? opponent['displayName'].toString()
+        : (opponentUsername.isNotEmpty ? opponentUsername : 'Player');
     Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
-        builder: (_) => GameRoomScreen(
-          currentUsername: _socket?.myUsername ?? _auth?.user?.username ?? '',
-          initialGame: game,
-          randomSessionId: sessionId,
-          peerUsername: opponent['username']?.toString() ?? '',
-          opponentDisplayName: opponent['displayName']?.toString() ??
-              opponent['username']?.toString() ??
-              'Player',
+        fullscreenDialog: true,
+        builder: (_) => _RandomMatchFoundScreen(
+          gameTitle: widget.title,
+          currentName: _auth?.user?.displayName.isNotEmpty == true
+              ? _auth!.user!.displayName
+              : currentUsername,
+          opponentName: opponentName,
+          currentLevel: (data['level'] ?? 1) as int,
+          opponentLevel: (opponent['level'] ?? 1) is int
+              ? opponent['level'] as int
+              : int.tryParse(opponent['level']?.toString() ?? '') ?? 1,
+          onLeave: () {
+            _socket?.moveRandomGame(sessionId, const {'action': 'leave_room'});
+            if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+          },
+          onStart: () {
+            if (!mounted) return;
+            Navigator.of(context).pushReplacement<void, void>(
+              MaterialPageRoute<void>(
+                builder: (_) => GameRoomScreen(
+                  currentUsername: currentUsername,
+                  initialGame: game,
+                  randomSessionId: sessionId,
+                  peerUsername: opponentUsername,
+                  opponentDisplayName: opponentName,
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -652,59 +693,301 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
     final socket = context.watch<SocketService>();
     final connectionReady = socket.isConnected && socket.isAuthenticated;
+    final surface = isDark ? const Color(0xFF201B36) : Colors.white;
+    final foreground = isDark ? Colors.white : const Color(0xFF1E1A43);
+    final muted = isDark ? Colors.white60 : const Color(0xFF625D8C);
 
     return PopScope<void>(
       canPop: !_searchingRandom && !_cancellingMatchmaking && _pendingFriendInviteId == null,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop && !_cancellingMatchmaking) {
-          unawaited(_handleBack());
-        }
+        if (!didPop && !_cancellingMatchmaking) unawaited(_handleBack());
       },
       child: Scaffold(
-        backgroundColor: isDark ? theme.scaffoldBackgroundColor : const Color(0xFFF3F1F9),
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          surfaceTintColor: Colors.transparent,
-          leading: IconButton(
-            tooltip: 'Back',
-            onPressed: _cancellingMatchmaking ? null : _handleBack,
-            icon: Icon(Icons.arrow_back_rounded, color: colors.onSurface),
+        backgroundColor: isDark ? const Color(0xFF141026) : const Color(0xFFF5F3FC),
+        body: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 10, 24, 10),
+                child: Row(
+                  children: [
+                    Material(
+                      color: surface,
+                      shape: const CircleBorder(),
+                      child: IconButton(
+                        onPressed: _cancellingMatchmaking ? null : _handleBack,
+                        icon: Icon(Icons.arrow_back_rounded, color: foreground, size: 26),
+                        iconSize: 26,
+                        padding: const EdgeInsets.all(14),
+                        constraints: const BoxConstraints(),
+                      ),
+                    ),
+                    const SizedBox(width: 18),
+                    Expanded(
+                      child: Text(
+                        widget.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -.5,
+                          color: foreground,
+                        ),
+                      ),
+                    ),
+                    Icon(widget.icon, color: const Color(0xFFB9B2E9), size: 38),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+                  children: [
+                    if (!connectionReady) ...[
+                      _buildConnectionNotice(theme),
+                      const SizedBox(height: 18),
+                    ] else if (_searchEndedByDisconnect) ...[
+                      _buildSearchEndedNotice(theme),
+                      const SizedBox(height: 18),
+                    ],
+                    Text('Quick play', style: TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: muted,
+                    )),
+                    const SizedBox(height: 12),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: _QuickPlayTile(
+                            title: 'Play vs Bot',
+                            subtitle: 'Works offline',
+                            icon: Icons.smart_toy_outlined,
+                            iconBackground: const Color(0xFFDDF3E9),
+                            iconColor: const Color(0xFF176B45),
+                            background: surface,
+                            foreground: foreground,
+                            subtitleColor: muted,
+                            playColor: const Color(0xFF5E44F3),
+                            onTap: _playWithAiBot,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: _QuickPlayTile(
+                            title: 'Random player',
+                            subtitle: 'Find a match online',
+                            icon: Icons.public_rounded,
+                            iconBackground: const Color(0xFF796CF4),
+                            iconColor: Colors.white,
+                            background: const Color(0xFF5E4CF2),
+                            foreground: Colors.white,
+                            subtitleColor: Colors.white.withValues(alpha: .88),
+                            playColor: Colors.white,
+                            onTap: connectionReady && !_searchingRandom
+                                ? _startRandomSearch
+                                : null,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 28),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text('Invite a friend', style: TextStyle(
+                            fontFamily: 'PlusJakartaSans',
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: muted,
+                          )),
+                        ),
+                        Text('${_friends.length} friends', style: TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: muted,
+                        )),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _buildFriendPicker(theme, connectionReady),
+                  ],
+                ),
+              ),
+              _buildInviteBottomBar(theme, connectionReady),
+            ],
           ),
-          title: Text(
-            widget.title,
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-              fontSize: 24,
-              letterSpacing: -.3,
-              color: colors.onSurface,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFriendPicker(ThemeData theme, bool connectionReady) {
+    final isDark = theme.brightness == Brightness.dark;
+    final surface = isDark ? const Color(0xFF201B36) : Colors.white;
+    final foreground = isDark ? Colors.white : const Color(0xFF1E1A43);
+    final muted = isDark ? Colors.white60 : const Color(0xFF625D8C);
+    final selectedFriend = _selectedFriendModel;
+    final filtered = _filteredFriends;
+    return Column(
+      children: [
+        TextField(
+          controller: _searchController,
+          onChanged: (value) {
+            final query = value.trim().toLowerCase();
+            setState(() {
+              _searchQuery = query;
+              if (_selectedFriend != null && !_friends.any((friend) =>
+                  friend.username.toLowerCase() == _selectedFriend &&
+                  (friend.name.toLowerCase().contains(query) ||
+                      friend.username.toLowerCase().contains(query)))) {
+                _selectedFriend = null;
+              }
+            });
+          },
+          style: TextStyle(color: foreground, fontSize: 15),
+          decoration: InputDecoration(
+            hintText: 'Search by username',
+            hintStyle: TextStyle(color: muted, fontSize: 15),
+            prefixIcon: Icon(Icons.search_rounded, color: muted, size: 24),
+            filled: true,
+            fillColor: surface,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(28), borderSide: BorderSide.none),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(28), borderSide: BorderSide.none),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(28),
+              borderSide: const BorderSide(color: Color(0xFF5E44F3), width: 1.5),
+            ),
+            suffixIcon: _searchQuery.isEmpty ? null : IconButton(
+              onPressed: () {
+                _searchController.clear();
+                setState(() => _searchQuery = '');
+              },
+              icon: Icon(Icons.close_rounded, color: muted),
             ),
           ),
-          centerTitle: false,
-          titleSpacing: 0,
         ),
-        body: SafeArea(
-          top: false,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 36),
-            children: [
-              if (!connectionReady) ...[
-                _buildConnectionNotice(theme),
-                const SizedBox(height: 18),
-              ] else if (_searchEndedByDisconnect) ...[
-                _buildSearchEndedNotice(theme),
-                const SizedBox(height: 18),
-              ],
-              _buildBotCard(theme),
-              const SizedBox(height: 16),
-              _buildRandomCard(theme, connectionReady),
-              const SizedBox(height: 16),
-              _buildFriendCard(theme, connectionReady),
-            ],
+        const SizedBox(height: 10),
+        if (_loadingFriends)
+          const Padding(
+            padding: EdgeInsets.all(24),
+            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          )
+        else if (_friendsLoadFailed)
+          TextButton.icon(
+            onPressed: () => _subscribeToFriends(force: true),
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Could not load friends · Retry'),
+          )
+        else if (filtered.isEmpty)
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Text(
+              _friends.isEmpty ? 'Add friends in Contacts to play private matches.' : 'No friends found.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: muted),
+            ),
+          )
+        else
+          ...filtered.map((friend) {
+            final selected = friend.username.toLowerCase() == _selectedFriend;
+            final name = friend.name.isEmpty ? friend.username : friend.name;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Material(
+                color: selected
+                    ? const Color(0xFFEEEAFE)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(22),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(22),
+                  onTap: _sendingInvite ? null : () => setState(
+                    () => _selectedFriend = friend.username.toLowerCase(),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    child: Row(
+                      children: [
+                        UserAvatar(
+                          name: name,
+                          photoUrl: friend.photoUrl,
+                          radius: 23,
+                          isOnline: friend.isOnline,
+                          presence: friend.status,
+                          showOnlineIndicator: true,
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontFamily: 'PlusJakartaSans',
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: foreground,
+                                )),
+                              const SizedBox(height: 2),
+                              Text('@${friend.username} · ${_presence(friend)}',
+                                style: TextStyle(fontSize: 12.5, color: muted)),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          selected ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded,
+                          color: selected ? const Color(0xFF6250F5) : const Color(0xFF9690B4),
+                          size: 26,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+      ],
+    );
+  }
+
+  Widget _buildInviteBottomBar(ThemeData theme, bool connectionReady) {
+    final friend = _selectedFriendModel;
+    final enabled = connectionReady && friend != null && !_sendingInvite;
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 10, 24, 18),
+        child: SizedBox(
+          height: 64,
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: enabled ? () => _playWithFriend(friend) : null,
+            icon: _sendingInvite
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.person_add_alt_1_rounded, size: 22),
+            label: Text(
+              _sendingInvite
+                  ? 'Sending invite…'
+                  : friend == null ? 'Select a friend to invite' : 'Invite @${friend.username}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+            ),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF5E4CF2),
+              foregroundColor: Colors.white,
+              disabledBackgroundColor: const Color(0xFF5E4CF2).withValues(alpha: .35),
+              shape: const StadiumBorder(),
+            ),
           ),
         ),
       ),
@@ -1578,6 +1861,427 @@ class _MatchmakingBackgroundScreen extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _QuickPlayTile extends StatelessWidget {
+  const _QuickPlayTile({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.iconBackground,
+    required this.iconColor,
+    required this.background,
+    required this.foreground,
+    required this.subtitleColor,
+    required this.playColor,
+    required this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color iconBackground;
+  final Color iconColor;
+  final Color background;
+  final Color foreground;
+  final Color subtitleColor;
+  final Color playColor;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: background,
+      borderRadius: BorderRadius.circular(30),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(30),
+        child: SizedBox(
+          height: 188,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 58,
+                  height: 58,
+                  decoration: BoxDecoration(
+                    color: iconBackground,
+                    borderRadius: BorderRadius.circular(19),
+                  ),
+                  child: Icon(icon, color: iconColor, size: 29),
+                ),
+                const Spacer(),
+                Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'PlusJakartaSans',
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: foreground,
+                  )),
+                const SizedBox(height: 3),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 12.5, color: subtitleColor)),
+                    ),
+                    Icon(Icons.play_arrow_rounded, color: playColor, size: 23),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RandomMatchmakingScreen extends StatelessWidget {
+  const _RandomMatchmakingScreen({
+    required this.gameTitle,
+    required this.countdown,
+    required this.onCancel,
+  });
+
+  final String gameTitle;
+  final ValueListenable<int> countdown;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final background = isDark ? const Color(0xFF141026) : const Color(0xFFF5F3FC);
+    final foreground = isDark ? Colors.white : const Color(0xFF1E1A43);
+    final muted = isDark ? Colors.white60 : const Color(0xFF625D8C);
+    return PopScope<void>(
+      canPop: false,
+      child: Scaffold(
+        backgroundColor: background,
+        body: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+                child: Row(
+                  children: [
+                    Material(
+                      color: isDark ? const Color(0xFF201B36) : Colors.white,
+                      shape: const CircleBorder(),
+                      child: IconButton(
+                        onPressed: onCancel,
+                        icon: Icon(Icons.close_rounded, color: foreground, size: 27),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(child: Text(gameTitle, style: TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: foreground,
+                    ))),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEDE9FC),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text('Random player', style: TextStyle(
+                        color: Color(0xFF403875), fontWeight: FontWeight.w700, fontSize: 12,
+                      )),
+                    ),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              SizedBox(
+                width: 300,
+                height: 300,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    for (final size in [300.0, 230.0, 160.0])
+                      Container(
+                        width: size,
+                        height: size,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: const Color(0xFFBDB5F3).withValues(alpha: .45), width: 1.5),
+                        ),
+                      ),
+                    for (final dot in const [
+                      [0.18, 0.28, 13.0, Color(0xFFD5F1E5)],
+                      [0.82, 0.18, 11.0, Color(0xFFFFDCE7)],
+                      [0.25, 0.82, 10.0, Color(0xFFE6E0FF)],
+                      [0.84, 0.78, 14.0, Color(0xFFFFE5D4)],
+                    ])
+                      Positioned(
+                        left: 300 * (dot[0] as double) - (dot[2] as double) / 2,
+                        top: 300 * (dot[1] as double) - (dot[2] as double) / 2,
+                        child: Container(
+                          width: dot[2] as double,
+                          height: dot[2] as double,
+                          decoration: BoxDecoration(color: dot[3] as Color, shape: BoxShape.circle),
+                        ),
+                      ),
+                    Container(
+                      width: 112,
+                      height: 112,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E1A43),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: const Color(0xFF6250F5), width: 5),
+                        boxShadow: const [BoxShadow(color: Color(0x336250F5), blurRadius: 18)],
+                      ),
+                      alignment: Alignment.center,
+                      child: const Text('?', style: TextStyle(color: Colors.white, fontSize: 48, fontWeight: FontWeight.w800)),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 50),
+              Text('Finding a player', style: TextStyle(
+                fontFamily: 'PlusJakartaSans',
+                fontSize: 28,
+                fontWeight: FontWeight.w800,
+                color: foreground,
+              )),
+              const SizedBox(height: 8),
+              Text('Matching you with someone at your level',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 15, color: muted)),
+              const SizedBox(height: 24),
+              ValueListenableBuilder<int>(
+                valueListenable: countdown,
+                builder: (context, seconds, _) => Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF201B36) : Colors.white,
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.access_time_rounded, color: muted, size: 20),
+                    const SizedBox(width: 10),
+                    Text('0:${seconds.toString().padLeft(2, '0')}', style: TextStyle(
+                      color: foreground, fontWeight: FontWeight.w800, fontSize: 16,
+                    )),
+                  ]),
+                ),
+              ),
+              const Spacer(),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                child: SizedBox(
+                  height: 64,
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: onCancel,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: isDark ? const Color(0xFF282046) : const Color(0xFFEDE9FC),
+                      foregroundColor: const Color(0xFF5141E5),
+                      shape: const StadiumBorder(),
+                    ),
+                    child: const Text('Cancel search', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RandomMatchFoundScreen extends StatefulWidget {
+  const _RandomMatchFoundScreen({
+    required this.gameTitle,
+    required this.currentName,
+    required this.opponentName,
+    required this.currentLevel,
+    required this.opponentLevel,
+    required this.onLeave,
+    required this.onStart,
+  });
+
+  final String gameTitle;
+  final String currentName;
+  final String opponentName;
+  final int currentLevel;
+  final int opponentLevel;
+  final VoidCallback onLeave;
+  final VoidCallback onStart;
+
+  @override
+  State<_RandomMatchFoundScreen> createState() => _RandomMatchFoundScreenState();
+}
+
+class _RandomMatchFoundScreenState extends State<_RandomMatchFoundScreen> {
+  Timer? _timer;
+  int _seconds = 3;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return timer.cancel();
+      if (_seconds <= 1) {
+        timer.cancel();
+        widget.onStart();
+      } else {
+        setState(() => _seconds--);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final background = isDark ? const Color(0xFF141026) : const Color(0xFFF5F3FC);
+    final foreground = isDark ? Colors.white : const Color(0xFF1E1A43);
+    final muted = isDark ? Colors.white60 : const Color(0xFF625D8C);
+    return PopScope<void>(
+      canPop: false,
+      child: Scaffold(
+        backgroundColor: background,
+        body: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+                child: Row(
+                  children: [
+                    Material(
+                      color: isDark ? const Color(0xFF201B36) : Colors.white,
+                      shape: const CircleBorder(),
+                      child: IconButton(
+                        onPressed: widget.onLeave,
+                        icon: Icon(Icons.close_rounded, color: foreground, size: 27),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(child: Text(widget.gameTitle, style: TextStyle(
+                      fontFamily: 'PlusJakartaSans', fontSize: 20, fontWeight: FontWeight.w800, color: foreground,
+                    ))),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+                      decoration: BoxDecoration(color: const Color(0xFFEDE9FC), borderRadius: BorderRadius.circular(20)),
+                      child: const Text('Random player', style: TextStyle(color: Color(0xFF403875), fontWeight: FontWeight.w700, fontSize: 12)),
+                    ),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                decoration: BoxDecoration(color: const Color(0xFFDDF3E9), borderRadius: BorderRadius.circular(22)),
+                child: const Text('Match found', style: TextStyle(color: Color(0xFF176B45), fontWeight: FontWeight.w800, fontSize: 14)),
+              ),
+              const SizedBox(height: 22),
+              Text('Get ready!', style: TextStyle(
+                fontFamily: 'PlusJakartaSans', fontSize: 30, fontWeight: FontWeight.w800, color: foreground,
+              )),
+              const SizedBox(height: 56),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _MatchPlayerBadge(name: widget.currentName, level: widget.currentLevel, color: const Color(0xFF6250F5)),
+                  Text('VS', style: TextStyle(color: muted, fontWeight: FontWeight.w900, fontSize: 20)),
+                  _MatchPlayerBadge(name: widget.opponentName, level: widget.opponentLevel, color: const Color(0xFFE32C62)),
+                ],
+              ),
+              const SizedBox(height: 72),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 48),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: LinearProgressIndicator(
+                    value: _seconds / 3,
+                    minHeight: 8,
+                    backgroundColor: const Color(0xFFE3DFF5),
+                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF6250F5)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text('Starting in $_seconds seconds', style: TextStyle(
+                fontFamily: 'PlusJakartaSans', fontSize: 16, fontWeight: FontWeight.w600, color: muted,
+              )),
+              const Spacer(),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                child: SizedBox(
+                  height: 64,
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: widget.onLeave,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: isDark ? const Color(0xFF282046) : const Color(0xFFEDE9FC),
+                      foregroundColor: const Color(0xFF5141E5),
+                      shape: const StadiumBorder(),
+                    ),
+                    child: const Text('Leave match', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MatchPlayerBadge extends StatelessWidget {
+  const _MatchPlayerBadge({required this.name, required this.level, required this.color});
+  final String name;
+  final int level;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1E1A43);
+    return SizedBox(
+      width: 112,
+      child: Column(
+        children: [
+          Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              border: Border.all(color: color, width: 3),
+              boxShadow: [BoxShadow(color: color.withValues(alpha: .15), blurRadius: 0, spreadRadius: 5)],
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              name.trim().isEmpty ? '?' : name.trim().substring(0, 1).toUpperCase(),
+              style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.w800),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(
+            fontFamily: 'PlusJakartaSans', fontSize: 16, fontWeight: FontWeight.w800, color: foreground,
+          )),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+            decoration: BoxDecoration(color: const Color(0xFFEDE9FC), borderRadius: BorderRadius.circular(20)),
+            child: Text('Level $level', style: const TextStyle(color: Color(0xFF403875), fontWeight: FontWeight.w700, fontSize: 12)),
+          ),
+        ],
       ),
     );
   }
