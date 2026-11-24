@@ -108,7 +108,7 @@ test("a bot Sipahi automatically resolves the round after all human picks", () =
   const session = createRajaMantriGameSession({
     sessionId: "rm-bots",
     playerCount: 3,
-    random: () => 0.2,
+    random: () => 0.9,
     players: [
       { username: "host", displayName: "Host" },
       { username: "bot-1", displayName: "Bot 1", isBot: true },
