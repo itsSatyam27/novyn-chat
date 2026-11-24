@@ -727,6 +727,7 @@ class SocketService extends ChangeNotifier {
     }
     _isConnected = false;
     _isAuthenticated = false;
+    _hasLoadedConversations = false;
     _authenticationReady = null;
     _registeredIdentityAccount = null;
     _reconnectTimer?.cancel();
@@ -780,6 +781,7 @@ class SocketService extends ChangeNotifier {
       _stopPendingOutboxRetry();
       _isConnecting = false;
       _isConnected = false;
+      _hasLoadedConversations = false;
       _voiceUsersInChats.clear();
       _peerIsRecordingVoice = false;
       SyncService().setOnlineStatus(false);
@@ -925,17 +927,19 @@ class SocketService extends ChangeNotifier {
       _socket!.on(event, (data) => contacts.applyEvent(event, data));
     }
     _socket!.on('register_success', (data) {
-      if (data is Map) _handleFriendList(data);
+      // Mark the accepted session first so a hiddenChats snapshot can be
+      // applied by ChatsScreen immediately, before preview decryption awaits.
       _markSocketAuthenticated();
+      if (data is Map) _handleFriendList(data);
       unawaited(_registerEncryptionIdentity()
           .then((_) => _flushPendingMessageOutbox()));
     });
     // ── Initial data + friend list ────────────────────────────────────────
     _socket!.on('init', (data) {
+      _markSocketAuthenticated();
       if (data is Map && data['friends'] != null) {
         _handleFriendList(data);
       }
-      _markSocketAuthenticated();
       unawaited(
         _registerEncryptionIdentity().then((_) => _flushPendingMessageOutbox()),
       );
@@ -1972,11 +1976,22 @@ class SocketService extends ChangeNotifier {
 
   Future<void> _applyFriendList(dynamic data) async {
     if (data is Map && data['hiddenChats'] is List) {
-      _hiddenChatUsernames
-        ..clear()
-        ..addAll((data['hiddenChats'] as List)
-            .map((value) => value.toString().trim().toLowerCase())
-            .where((value) => value.isNotEmpty));
+      final nextHidden = (data['hiddenChats'] as List)
+          .map((value) => value.toString().trim().toLowerCase())
+          .where((value) => value.isNotEmpty)
+          .toSet();
+      final hiddenChanged =
+          nextHidden.length != _hiddenChatUsernames.length ||
+          !nextHidden.containsAll(_hiddenChatUsernames);
+      if (hiddenChanged) {
+        _hiddenChatUsernames
+          ..clear()
+          ..addAll(nextHidden);
+        // Notify before awaiting encrypted preview decryption. The chat list
+        // can remove server-hidden rows immediately, without waiting for every
+        // latest-message preview to decrypt.
+        notifyListeners();
+      }
     }
     final rawList =
         data is List ? data : (data is Map ? data['friends'] : null);
