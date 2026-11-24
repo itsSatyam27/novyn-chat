@@ -31,6 +31,8 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
   bool _acting = false;
   bool _recorded = false;
   bool _wasConnected = true;
+  bool _matchAbandoned = false;
+  String _abandonedBy = '';
 
   String get _username => _auth?.user?.username.trim().toLowerCase() ?? '';
   List<Map<String, dynamic>> get _players {
@@ -55,6 +57,7 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
       _auth = context.read<AuthService>();
       _socket = context.read<SocketService>();
       _socket!.onRajaMantriGameUpdated = _handleGameUpdated;
+      _socket!.onRajaMantriGameAbandoned = _handleGameAbandoned;
       _socket!.addListener(_handleSocketStateChanged);
       _loadGame();
     });
@@ -65,6 +68,7 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
     if (_socket != null) {
       _socket!.removeListener(_handleSocketStateChanged);
       _socket!.onRajaMantriGameUpdated = null;
+      _socket!.onRajaMantriGameAbandoned = null;
     }
     super.dispose();
   }
@@ -93,6 +97,17 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
     _recordFinishedResult();
   }
 
+  void _handleGameAbandoned(Map data) {
+    if (!mounted || data['sessionId']?.toString() != widget.sessionId) return;
+    setState(() {
+      _matchAbandoned = true;
+      _abandonedBy = data['leftDisplayName']?.toString().trim().isNotEmpty == true
+          ? data['leftDisplayName'].toString()
+          : (data['leftUsername']?.toString() ?? 'A player');
+    });
+    _showMessage('$_abandonedBy left the match. The room has ended.');
+  }
+
   void _handleSocketStateChanged() {
     if (!mounted) return;
     final connected = _socket?.isConnected == true && _socket?.isAuthenticated == true;
@@ -110,7 +125,7 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
     Future<Map<String, dynamic>> Function() action, {
     String? successMessage,
   }) async {
-    if (_acting) return;
+    if (_acting || _matchAbandoned) return;
     setState(() => _acting = true);
     try {
       final result = await action();
@@ -176,7 +191,7 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
   }
 
   Future<bool> _confirmLeave() async {
-    if (_phase == 'finished') return true;
+    if (_phase == 'finished' || _matchAbandoned) return true;
     return await showDialog<bool>(
           context: context,
           builder: (dialogContext) => AlertDialog(
@@ -242,6 +257,7 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
     final isGuessing = _phase == 'guessing';
     final isResult = _phase == 'result';
     final isFinished = _phase == 'finished';
+    final isAbandoned = _matchAbandoned;
     final guessedSipahi = _game?['sipahiUsername']?.toString() ?? '';
     final lastResult = _game?['lastResult'] is Map
         ? Map<String, dynamic>.from(_game!['lastResult'] as Map)
@@ -298,13 +314,21 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
                   children: [
-                    _PhaseBanner(
-                      phase: _phase,
-                      myRole: myRole,
-                      isSipahi: _isSipahi,
-                      foreground: foreground,
-                      muted: muted,
-                    ),
+                    if (isAbandoned)
+                      _InfoCard(
+                        title: 'Match ended',
+                        subtitle: '$_abandonedBy left the room. Return to Games to start another match.',
+                        foreground: foreground,
+                        muted: muted,
+                      )
+                    else
+                      _PhaseBanner(
+                        phase: _phase,
+                        myRole: myRole,
+                        isSipahi: _isSipahi,
+                        foreground: foreground,
+                        muted: muted,
+                      ),
                     const SizedBox(height: 18),
                     Text('Players', style: TextStyle(color: muted, fontWeight: FontWeight.w800, fontSize: 13)),
                     const SizedBox(height: 10),
@@ -372,6 +396,7 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
                 isGuessing: isGuessing,
                 isResult: isResult,
                 isFinished: isFinished,
+                isAbandoned: isAbandoned,
               ),
             ],
           ),
@@ -386,9 +411,16 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
     required bool isGuessing,
     required bool isResult,
     required bool isFinished,
+    required bool isAbandoned,
   }) {
     Widget child;
-    if (isPicking && !_myPicked) {
+    if (isAbandoned) {
+      child = FilledButton.icon(
+        onPressed: () => Navigator.of(context).pop(),
+        icon: const Icon(Icons.done_rounded),
+        label: const Text('Back to Games'),
+      );
+    } else if (isPicking && !_myPicked) {
       child = FilledButton.icon(
         onPressed: _acting ? null : _pickChit,
         icon: const Icon(Icons.style_rounded),
