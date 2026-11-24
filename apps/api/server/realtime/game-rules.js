@@ -248,15 +248,15 @@ function handleRematchAction(game, userKey, moveData) {
       return { ok: false, reason: "You are not a player in this match." };
     }
     const winner = leavingPlayer1 ? player2 : player1;
-    if (!winner) {
-      return { ok: false, reason: "There is no opponent in this room to award the match to." };
-    }
+    // A group Tic-Tac-Toe creator may leave before anyone has claimed O.
+    // Close that empty room as cancelled instead of trapping the creator.
+    const forfeitWinner = winner || "draw";
     return {
       ok: true,
       game: {
         ...game,
         state: "finished",
-        winner,
+        winner: forfeitWinner,
         turn: "",
         data: {
           ...current,
@@ -265,7 +265,8 @@ function handleRematchAction(game, userKey, moveData) {
           rematch: {
             status: "opponent_left",
             leftBy: userKey,
-            winner,
+            winner: forfeitWinner,
+            outcome: winner ? "forfeit" : "cancelled_before_join",
           },
         },
         lastMoveBy: userKey,
