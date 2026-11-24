@@ -582,7 +582,6 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
     setState(() {
       _searchingRandom = false;
       _queueDeadline = null;
-      _secondsRemaining = 60;
     });
     _showMatchTimeoutDialog(
       title: 'No player found',
@@ -1395,7 +1394,7 @@ class _RandomMatchmakingScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'Matching you with someone at your level',
+                              'Searching for an available opponent',
                               textAlign: TextAlign.center,
                               style: TextStyle(fontSize: 15, color: muted),
                             ),
