@@ -2715,6 +2715,32 @@ class SocketService extends ChangeNotifier {
   String? rajaMantriSessionForInvite(String messageId) =>
       _rajaMantriInviteSessions[messageId];
 
+  Future<void> leaveRajaMantriInvite(String messageId) async {
+    await _waitForSocketAuthentication();
+    final socket = _socket;
+    if (socket == null || !_isConnected || !_isAuthenticated) {
+      throw StateError('Reconnect before leaving this room.');
+    }
+    final completer = Completer<Map<String, dynamic>>();
+    socket.emitWithAck(
+      'leave_rajamantri_invite',
+      {'messageId': messageId},
+      ack: (dynamic result) {
+        if (completer.isCompleted) return;
+        completer.complete(result is Map
+            ? Map<String, dynamic>.from(result)
+            : <String, dynamic>{'ok': false});
+      },
+    );
+    final result = await completer.future.timeout(
+      const Duration(seconds: 5),
+      onTimeout: () => <String, dynamic>{'ok': false, 'message': 'Could not leave this room.'},
+    );
+    if (result['ok'] != true) {
+      throw StateError(result['message']?.toString() ?? 'This room invitation is no longer active.');
+    }
+  }
+
   Future<Map<String, dynamic>> startRajaMantriFriendRoom({
     required int playerCount,
     required List<String> inviteMessageIds,
