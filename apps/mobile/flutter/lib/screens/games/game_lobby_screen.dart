@@ -48,7 +48,6 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
   bool _reconnecting = false;
   bool _searchEndedByDisconnect = false;
   bool _friendsLoadFailed = false;
-  int _secondsRemaining = 60;
   int _friendInviteSecondsRemaining = 60;
   final ValueNotifier<int> _friendInviteCountdown = ValueNotifier<int>(60);
   final ValueNotifier<int> _queueCountdown = ValueNotifier<int>(60);
@@ -108,18 +107,28 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
   bool get _connectionReady =>
       _socket?.isConnected == true && _socket?.isAuthenticated == true;
 
-  void _handleSocketStateChanged() {
-    if (!mounted || !_searchingRandom || _connectionReady) return;
-    _queueTimer?.cancel();
+  void _closeRandomSearchRoutes() {
+    // A background-search route can be stacked above the dedicated animated
+    // matchmaking route. Remove both in top-first order so match-found,
+    // timeout and cancel never leave a stale search screen underneath.
+    if (_backgroundRouteOpen) {
+      _backgroundRouteOpen = false;
+      Navigator.of(context).pop();
+    }
     if (_matchmakingRouteOpen) {
       _matchmakingRouteOpen = false;
       Navigator.of(context).pop();
     }
+  }
+
+  void _handleSocketStateChanged() {
+    if (!mounted || !_searchingRandom || _connectionReady) return;
+    _queueTimer?.cancel();
+    _closeRandomSearchRoutes();
     setState(() {
       _searchingRandom = false;
       _cancellingMatchmaking = false;
       _queueDeadline = null;
-      _secondsRemaining = 60;
       _searchEndedByDisconnect = true;
     });
   }
@@ -284,7 +293,6 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
     setState(() {
       _searchingRandom = true;
       _searchEndedByDisconnect = false;
-      _secondsRemaining = 60;
       _queueCountdown.value = 60;
       _queueDeadline = DateTime.now().add(const Duration(seconds: 60));
     });
@@ -308,7 +316,6 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
           });
           return;
         }
-        setState(() => _secondsRemaining = remaining.clamp(0, 60));
         _queueCountdown.value = remaining.clamp(0, 60);
       });
       if (!_matchmakingRouteOpen && mounted) {
@@ -332,7 +339,6 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
       setState(() {
         _searchingRandom = false;
         _queueDeadline = null;
-        _secondsRemaining = 60;
       });
       NovynAlert.show(
         context,
@@ -383,10 +389,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
         _secondsRemaining = 60;
         _queueDeadline = null;
       });
-      if (_matchmakingRouteOpen) {
-        _matchmakingRouteOpen = false;
-        Navigator.of(context).pop();
-      }
+      _closeRandomSearchRoutes();
       if (leaveLobby) {
         if (_backgroundRouteOpen) {
           _backgroundRouteOpen = false;
@@ -515,7 +518,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
       _searchEndedByDisconnect = false;
     });
     if (sessionId.isEmpty || game == null) {
-      if (_matchmakingRouteOpen) Navigator.of(context).pop();
+      _closeRandomSearchRoutes();
       NovynAlert.show(
         context,
         'A player was found, but the game room could not be created. Please try again.',
@@ -525,10 +528,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
       );
       return;
     }
-    if (_matchmakingRouteOpen) {
-      _matchmakingRouteOpen = false;
-      Navigator.of(context).pop();
-    }
+    _closeRandomSearchRoutes();
     final currentUsername = _socket?.myUsername ?? _auth?.user?.username ?? '';
     final opponentUsername = opponent['username']?.toString() ?? '';
     final opponentName = opponent['displayName']?.toString().trim().isNotEmpty == true
@@ -571,10 +571,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
   void _handleRandomMatchTimeout(Map data) {
     if (!mounted || !_searchingRandom || data['gameType']?.toString() != widget.gameType) return;
     _queueTimer?.cancel();
-    if (_matchmakingRouteOpen) {
-      _matchmakingRouteOpen = false;
-      Navigator.of(context).pop();
-    }
+    _closeRandomSearchRoutes();
     setState(() {
       _searchingRandom = false;
       _queueDeadline = null;
@@ -1370,7 +1367,7 @@ class _RandomMatchmakingScreen extends StatelessWidget {
                         constraints.maxWidth - 48,
                         constraints.maxHeight * .48,
                       ),
-                    ).clamp(150.0, 300.0);
+                    ).clamp(150.0, 300.0).toDouble();
                     return Column(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
