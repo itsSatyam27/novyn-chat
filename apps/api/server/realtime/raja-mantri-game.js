@@ -201,7 +201,7 @@ function getRajaMantriGameView(session, username) {
     sipahiUsername: session.phase === "guessing" || session.phase === "result" || session.phase === "finished"
       ? session.sipahiUsername
       : "",
-    myRole: me.role,
+    myRole: me.picked ? me.role : '',
     myPicked: me.picked,
     isHost: userKey === session.hostUsername,
     lastResult: session.lastResult ? { ...session.lastResult } : null,
@@ -210,7 +210,7 @@ function getRajaMantriGameView(session, username) {
       displayName: player.displayName,
       score: player.score,
       roundDelta: player.roundDelta,
-      role: player.username === userKey || player.roleRevealed ? player.role : null,
+      role: ((player.username === userKey && player.picked) || player.roleRevealed) ? player.role : null,
       roleRevealed: player.roleRevealed,
       picked: player.picked,
       isBot: player.isBot,
