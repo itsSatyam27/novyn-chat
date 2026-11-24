@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  test('awards global XP once and reduces rewards for bot matches', () async {
+  test('bot matches award no XP and do not affect human streaks', () async {
     final base = DateTime(2026, 11, 1, 9);
     Future<void> record(String id, String type, String result, DateTime at,
         {bool bot = false}) {
@@ -25,17 +25,20 @@ void main() {
     await record('ttt-3', 'tictactoe', 'win', base.add(const Duration(hours: 2)));
     // A repeated finish event for the same match must not award XP twice.
     await record('ttt-3', 'tictactoe', 'win', base.add(const Duration(hours: 2)));
-    await record('rps-bot', 'rps', 'win', base.add(const Duration(days: 1)),
+    await record('rps-human-1', 'rps', 'win', base.add(const Duration(days: 1)));
+    await record('rps-bot', 'rps', 'loss', base.add(const Duration(days: 1, hours: 1)),
         bot: true);
+    await record('rps-human-2', 'rps', 'win', base.add(const Duration(days: 1, hours: 2)));
 
     final stats = await GameHistoryService.load('alice');
-    expect(stats.total, 4);
-    expect(stats.totalXp, 145);
+    // History still shows bot matches locally, but they contribute no XP.
+    expect(stats.total, 6);
+    expect(stats.totalXp, 210);
     expect(stats.level, 1);
-    expect(stats.xpIntoCurrentLevel, 145);
-    expect(stats.xpToNextLevel, 355);
+    expect(stats.xpIntoCurrentLevel, 210);
+    expect(stats.xpToNextLevel, 290);
     expect(stats.currentWinStreak('tictactoe'), 3);
-    expect(stats.currentWinStreak('rps'), 1);
+    expect(stats.currentWinStreak('rps'), 2);
     expect(stats.matches.firstWhere((match) => match.id == 'rps-bot').isBotMatch,
         isTrue);
   });

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'api_service.dart';
 
 class GameHistoryEntry {
   const GameHistoryEntry({
@@ -66,18 +67,11 @@ class GameStatsSnapshot {
     var xp = 0;
 
     for (final match in chronological) {
+      if (match.isBotMatch) continue;
       final game = _normaliseGameType(match.gameType);
       final isWin = match.result == 'win';
-      xp += match.isBotMatch ? 5 : 10;
-
-      if (isWin) {
-        xp += match.isBotMatch ? 10 : 25;
-      }
-
-      if (match.isBotMatch) {
-        competitiveStreaks[game] = 0;
-        continue;
-      }
+      xp += 10;
+      if (isWin) xp += 25;
 
       if (!isWin) {
         competitiveStreaks[game] = 0;
@@ -106,6 +100,7 @@ class GameStatsSnapshot {
       ..sort((a, b) => b.playedAt.compareTo(a.playedAt));
     var streak = 0;
     for (final match in chronological) {
+      if (match.isBotMatch) continue;
       if (_normaliseGameType(match.gameType) != target) continue;
       if (match.result != 'win') break;
       streak++;
@@ -143,6 +138,29 @@ class GameHistoryService {
           .where((entry) => entry.id.isNotEmpty)
           .toList()
         ..sort((a, b) => b.playedAt.compareTo(a.playedAt));
+      // Cloud is the durable source. Keep the local cache as an offline fallback,
+      // and migrate any pre-cloud human matches using idempotent match IDs.
+      final localHuman = matches.where((match) => !match.isBotMatch).toList();
+      for (var offset = 0; offset < localHuman.length; offset += 100) {
+        final batch = localHuman.skip(offset).take(100).toList();
+        await ApiService.saveGameHistory(batch.map((match) => match.toJson()).toList());
+      }
+      final cloud = await ApiService.getGameHistory();
+      if (cloud != null) {
+        final merged = <String, GameHistoryEntry>{
+          for (final match in matches) match.id: match,
+          for (final raw in cloud)
+            if ((raw['id'] ?? '').toString().isNotEmpty)
+              raw['id'].toString(): GameHistoryEntry.fromJson(raw),
+        };
+        final synced = merged.values.toList()
+          ..sort((a, b) => b.playedAt.compareTo(a.playedAt));
+        await prefs.setString(
+          _key(username),
+          jsonEncode(synced.map((match) => match.toJson()).toList()),
+        );
+        return GameStatsSnapshot(List<GameHistoryEntry>.unmodifiable(synced));
+      }
       return GameStatsSnapshot(List<GameHistoryEntry>.unmodifiable(matches));
     } catch (_) {
       return GameStatsSnapshot.empty;
@@ -207,6 +225,18 @@ class GameHistoryService {
         jsonEncode(matches.map((match) => match.toJson()).toList()),
       );
       revision.value++;
+      if (!isBotMatch) {
+        await ApiService.saveGameHistory([
+          GameHistoryEntry(
+            id: matchId,
+            gameType: gameType,
+            opponent: opponent.trim().isEmpty ? 'Opponent' : opponent.trim(),
+            result: normalizedResult,
+            playedAt: playedAt,
+            isBotMatch: false,
+          ).toJson(),
+        ]);
+      }
     } catch (_) {
       // A failed local write must never interrupt a finished match.
     }

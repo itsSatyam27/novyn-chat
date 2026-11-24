@@ -264,6 +264,62 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('offline Tic-Tac-Toe shows Play Again card after the match ends', (tester) async {
+    final socket = _FakeSocketService();
+    final game = <String, dynamic>{
+      'gameType': 'tictactoe',
+      'title': 'Tic-Tac-Toe',
+      'createdBy': 'alice',
+      'opponent': 'AI Bot',
+      'isOfflineBot': true,
+      'state': 'finished',
+      'winner': 'alice',
+      'turn': '',
+      'data': <String, dynamic>{
+        'board': ['X', 'X', 'X', 'O', 'O', null, null, null, null],
+        'playerX': 'alice',
+        'playerO': 'AI Bot',
+        'winningLine': [0, 1, 2],
+        'movesCount': 5,
+      },
+    };
+    await tester.pumpWidget(
+      ChangeNotifierProvider<SocketService>.value(
+        value: socket,
+        child: MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: GameMessageCard(
+                messageId: 'bot_finished_test',
+                game: game,
+                currentUsername: 'alice',
+                peerUsername: 'AI Bot',
+                compact: false,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('You win!'), findsOneWidget);
+    expect(find.text('One more round?'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Play again'), findsOneWidget);
+
+    final playAgainButton = find.widgetWithText(FilledButton, 'Play again');
+    await tester.ensureVisible(playAgainButton);
+    await tester.pumpAndSettle();
+    await tester.tap(playAgainButton);
+    await tester.pumpAndSettle();
+
+    expect(game['state'], 'in_progress');
+    expect(game['winner'], isNull);
+    expect((game['data'] as Map<String, dynamic>)['board'], List<dynamic>.filled(9, null));
+    expect(socket.sentMoveData, isNull);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('offline Rock Paper Scissors bot move is revealed', (tester) async {
     final socket = _FakeSocketService();
     await tester.pumpWidget(
