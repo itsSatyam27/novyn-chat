@@ -31,11 +31,12 @@ void main() {
     await record('rps-human-2', 'rps', 'win', base.add(const Duration(days: 1, hours: 2)));
 
     final stats = await GameHistoryService.load('alice');
-    expect(stats.total, 4);
-    expect(stats.totalXp, 120);
+    // History still shows bot matches locally, but they contribute no XP.
+    expect(stats.total, 6);
+    expect(stats.totalXp, 210);
     expect(stats.level, 1);
-    expect(stats.xpIntoCurrentLevel, 120);
-    expect(stats.xpToNextLevel, 380);
+    expect(stats.xpIntoCurrentLevel, 210);
+    expect(stats.xpToNextLevel, 290);
     expect(stats.currentWinStreak('tictactoe'), 3);
     expect(stats.currentWinStreak('rps'), 2);
     expect(stats.matches.firstWhere((match) => match.id == 'rps-bot').isBotMatch,
