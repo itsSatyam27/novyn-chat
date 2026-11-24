@@ -7397,7 +7397,28 @@ io.on("connection", (socket) => {
       return respond({ ok: false, message: "This game invite has expired." });
     }
     clearTimeout(invite.timer);
-    pendingGameInvites.delete(messageId);
+    if (invite.gameType === "rajamantri") {
+      // RMCS invitations stay reserved after acceptance until the host starts
+      // the complete 3P/4P room. This keeps a joined player addressable.
+      invite.accepted = true;
+      invite.acceptedAt = Date.now();
+      invite.acceptedSocketId = socket.id;
+      invite.expiresAt = Date.now() + 5 * 60 * 1000;
+      invite.timer = setTimeout(() => {
+        if (pendingGameInvites.get(messageId) !== invite) return;
+        pendingGameInvites.delete(messageId);
+        const hostSocketId = onlineUsers.get(invite.fromKey);
+        if (hostSocketId) {
+          io.to(hostSocketId).emit("game_invite_timeout", { messageId, gameType: invite.gameType });
+        }
+        if (invite.acceptedSocketId) {
+          io.to(invite.acceptedSocketId).emit("game_invite_timeout", { messageId, gameType: invite.gameType });
+        }
+      }, 5 * 60 * 1000);
+      if (typeof invite.timer.unref === "function") invite.timer.unref();
+    } else {
+      pendingGameInvites.delete(messageId);
+    }
     const senderSocketId = onlineUsers.get(invite.fromKey);
     if (senderSocketId) {
       io.to(senderSocketId).emit("game_invite_accepted", {
@@ -7406,7 +7427,7 @@ io.on("connection", (socket) => {
         from: userKey,
       });
     }
-    return respond({ ok: true });
+    return respond({ ok: true, waitingForHost: invite.gameType === "rajamantri" });
   });
 
   socket.on("cancel_game_invite", (payload, callback) => {
@@ -7420,6 +7441,100 @@ io.on("connection", (socket) => {
     clearTimeout(invite.timer);
     pendingGameInvites.delete(messageId);
     return respond({ ok: true });
+  });
+
+  socket.on("start_rajamantri_friend_room", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : () => {};
+    const userKey = normalizeName(socket.data.userKey || "");
+    if (!userKey || onlineUsers.get(userKey) !== socket.id) {
+      return respond({ ok: false, message: "Please sign in again before starting this room." });
+    }
+    if (!allowSocketAction(socket, "start_rajamantri_friend_room", 3, 60_000)) {
+      return respond({ ok: false, message: "Please wait before starting another room." });
+    }
+    const playerCount = Number(payload?.playerCount);
+    const inviteIds = Array.isArray(payload?.inviteMessageIds)
+      ? payload.inviteMessageIds.map((value) => String(value || "").trim().slice(0, 128)).filter(Boolean)
+      : [];
+    const botCount = Number(payload?.botCount);
+    if (![3, 4].includes(playerCount) || !Number.isInteger(botCount) ||
+        botCount < 0 || inviteIds.length + botCount !== playerCount - 1) {
+      return respond({ ok: false, message: "Every seat must be filled by a joined friend or a bot." });
+    }
+    if (new Set(inviteIds).size !== inviteIds.length) {
+      return respond({ ok: false, message: "Duplicate friend invitations were supplied." });
+    }
+    const invites = [];
+    for (const messageId of inviteIds) {
+      const invite = pendingGameInvites.get(messageId);
+      if (!invite || invite.fromKey !== userKey || invite.gameType !== "rajamantri" ||
+          invite.accepted !== true || invite.expiresAt <= Date.now() ||
+          onlineUsers.get(invite.toKey) !== invite.acceptedSocketId) {
+        return respond({ ok: false, message: "One of the invited friends is no longer ready. Refresh the room." });
+      }
+      invites.push({ messageId, invite });
+    }
+    const host = users.get(userKey);
+    const players = [{
+      username: userKey,
+      displayName: toDisplayName(host?.displayName || host?.username || userKey),
+      isBot: false,
+    }];
+    for (const { invite } of invites) {
+      const friend = users.get(invite.toKey);
+      players.push({
+        username: invite.toKey,
+        displayName: toDisplayName(friend?.displayName || friend?.username || invite.toKey),
+        isBot: false,
+      });
+    }
+    const matchId = crypto.randomUUID();
+    for (let index = 0; index < botCount; index += 1) {
+      players.push({
+        username: "bot_" + matchId.replace(/-/g, "").slice(0, 12) + "_" + (index + 1),
+        displayName: "Bot " + (index + 1),
+        isBot: true,
+      });
+    }
+    let game;
+    try {
+      game = createRajaMantriGameSession({ sessionId: matchId, playerCount, players });
+    } catch (_) {
+      return respond({ ok: false, message: "Could not create the Raja Mantri room." });
+    }
+    const expiryTimer = setTimeout(() => expireRajaMantriSession(matchId), RAJA_MANTRI_SESSION_TTL_MS);
+    if (typeof expiryTimer.unref === "function") expiryTimer.unref();
+    rajaMantriSessions.set(matchId, { game, expiryTimer });
+    for (const { messageId, invite } of invites) {
+      clearTimeout(invite.timer);
+      pendingGameInvites.delete(messageId);
+    }
+    const packet = {
+      sessionId: matchId,
+      playerCount,
+      inviteMessageIds: inviteIds,
+      players: players.map((player, seat) => ({
+        username: player.username,
+        displayName: player.displayName,
+        seat,
+        isBot: player.isBot,
+      })),
+    };
+    for (const { invite } of invites) {
+      const targetSocket = onlineUsers.get(invite.toKey);
+      if (targetSocket) {
+        io.to(targetSocket).emit("rajamantri_room_started", {
+          ...packet,
+          messageId: invites.find((entry) => entry.invite === invite)?.messageId,
+        });
+      }
+    }
+    return respond({
+      ok: true,
+      sessionId: matchId,
+      playerCount,
+      players: packet.players,
+    });
   });
 
   socket.on("random_game_move", (payload, callback) => {
