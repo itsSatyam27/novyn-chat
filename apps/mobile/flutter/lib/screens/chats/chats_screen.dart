@@ -75,6 +75,8 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
   List<ChatPreview> _lastSocketConversations = const [];
   bool _topChatsPreloadStarted = false;
   bool _hiddenChatSyncInFlight = false;
+  Future<void>? _hiddenPreferencesLoadFuture;
+  String? _hiddenPreferencesLoadOwner;
 
   // Static cache moved to ChatsScreen widget class
 
@@ -406,7 +408,27 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _loadHiddenChatPreferences(String username) async {
+  Future<void> _loadHiddenChatPreferences(String username) {
+    final normalizedUsername = username.trim().toLowerCase();
+    if (_hiddenChatsOwner == normalizedUsername) return Future<void>.value();
+    final pending = _hiddenPreferencesLoadFuture;
+    if (pending != null && _hiddenPreferencesLoadOwner == normalizedUsername) {
+      return pending;
+    }
+
+    _hiddenPreferencesLoadOwner = normalizedUsername;
+    late final Future<void> tracked;
+    tracked = _loadHiddenChatPreferencesInternal(normalizedUsername).whenComplete(() {
+      if (identical(_hiddenPreferencesLoadFuture, tracked)) {
+        _hiddenPreferencesLoadFuture = null;
+        _hiddenPreferencesLoadOwner = null;
+      }
+    });
+    _hiddenPreferencesLoadFuture = tracked;
+    return tracked;
+  }
+
+  Future<void> _loadHiddenChatPreferencesInternal(String username) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final stored = prefs.getStringList(_hiddenChatsPreferenceKey(username)) ?? [];
@@ -660,6 +682,17 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     // Do not let an empty, not-yet-authenticated socket snapshot erase cache.
     if (!socket.isAuthenticated || !socket.hasLoadedConversations ||
         socket.myUsername?.toLowerCase() != owner) {
+      return;
+    }
+    // A live server snapshot must never bypass the local deletion tombstones.
+    // Gate this path too, not only the explicit local-cache loader.
+    if (_hiddenChatsOwner != owner) {
+      unawaited(_loadHiddenChatPreferences(owner).then((_) {
+        if (mounted && _hiddenChatsOwner == owner &&
+            context.read<AuthService>().user?.username.trim().toLowerCase() == owner) {
+          _handleSocketUpdate();
+        }
+      }));
       return;
     }
 
