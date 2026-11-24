@@ -96,7 +96,6 @@ function pickRajaMantriChit(session, username) {
   if (!player || player.isBot) return { ok: false, reason: "You are not an active player in this match." };
   if (player.picked) return { ok: false, reason: "You have already picked your chit." };
   player.picked = true;
-  player.roleRevealed = true;
   if (session.players.every((entry) => entry.picked)) {
     beginGuessing(session);
     resolveBotSipahiGuess(session);
