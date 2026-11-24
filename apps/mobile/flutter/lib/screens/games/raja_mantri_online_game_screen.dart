@@ -190,6 +190,19 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
     ));
   }
 
+  Future<void> _leaveMatchAndPop() async {
+    final navigator = Navigator.of(context);
+    if (_phase != 'finished' && !_matchAbandoned) {
+      try {
+        await (_socket ?? context.read<SocketService>()).leaveRajaMantriGame(widget.sessionId);
+      } catch (_) {
+        // Leaving the local UI must remain possible during a network outage.
+        // The server session will expire if this device cannot send the leave.
+      }
+    }
+    if (mounted && navigator.canPop()) navigator.pop();
+  }
+
   Future<bool> _confirmLeave() async {
     if (_phase == 'finished' || _matchAbandoned) return true;
     return await showDialog<bool>(
@@ -274,8 +287,7 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
-        final navigator = Navigator.of(context);
-        if (await _confirmLeave() && mounted) navigator.pop();
+        if (await _confirmLeave() && mounted) await _leaveMatchAndPop();
       },
       child: Scaffold(
         backgroundColor: background,
@@ -284,8 +296,7 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
           elevation: 0,
           leading: IconButton(
             onPressed: () async {
-              final navigator = Navigator.of(context);
-              if (await _confirmLeave() && mounted) navigator.pop();
+              if (await _confirmLeave() && mounted) await _leaveMatchAndPop();
             },
             icon: Icon(Icons.arrow_back_rounded, color: foreground),
           ),
