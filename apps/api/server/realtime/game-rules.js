@@ -1,5 +1,6 @@
 "use strict";
 
+const crypto = require("crypto");
 const GAME_TYPES = new Set(["tictactoe", "rps", "rajamantri"]);
 const RPS_MOVES = new Set(["rock", "paper", "scissors"]);
 
@@ -398,7 +399,7 @@ function applyGameMove(game, userKey, moveData) {
   }
 }
 
-function createGameChallenge(input = {}) {
+function createGameChallenge(input = {}, { randomInt = crypto.randomInt } = {}) {
   const userKey = String(input.userKey || "").trim().toLowerCase();
   const userName = String(input.userDisplayName || input.userKey || "").trim();
   const toType = input.toType === "group" ? "group" : "friend";
@@ -415,8 +416,12 @@ function createGameChallenge(input = {}) {
   const titles = { tictactoe: "Tic-Tac-Toe", rps: "Rock Paper Scissors", rajamantri: "Raja Mantri Chor Sipahi" };
   const board = gameType === "tictactoe" ? Array(9).fill(null) : undefined;
   const initialOpponent = toType === "friend" ? to : null;
+  const randomizeTicTacToePlayers = gameType === "tictactoe" && Boolean(initialOpponent);
+  const creatorIsX = !randomizeTicTacToePlayers || randomInt(2) === 0;
+  const playerX = creatorIsX ? userName : initialOpponent;
+  const playerO = creatorIsX ? initialOpponent : userName;
   const data = gameType === "tictactoe"
-    ? { board, playerX: userName }
+    ? { board, playerX, ...(playerO ? { playerO } : {}) }
     : gameType === "rps"
     ? { player1: userName, player2: initialOpponent, round: 1, p1Score: 0, p2Score: 0, target: 3 }
     : { host: userName, players: [userName], round: 1, target: 5 };
@@ -430,7 +435,7 @@ function createGameChallenge(input = {}) {
       createdBy: userName,
       opponent: toType === "friend" ? to : undefined,
       state: "in_progress",
-      turn: userName,
+      turn: gameType === "tictactoe" ? playerX : userName,
       data,
     },
   };

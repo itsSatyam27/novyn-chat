@@ -4,14 +4,14 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { applyGameMove, createGameChallenge } = require("../server/realtime/game-rules");
 
-function friendGame() {
+function friendGame(randomValue = 0) {
   const result = createGameChallenge({
     userKey: "alice",
     userDisplayName: "alice",
     to: "bob",
     toType: "friend",
     game: { gameType: "tictactoe", id: "ttt-friend-test" },
-  });
+  }, { randomInt: () => randomValue });
   assert.equal(result.ok, true);
   return result.game;
 }
@@ -22,16 +22,22 @@ function boardWith(...moves) {
   return board;
 }
 
-test("friend Tic-Tac-Toe challenge starts with the creator and targets the selected friend", () => {
-  const game = friendGame();
+test("friend Tic-Tac-Toe randomly assigns X/O and gives X the first turn", () => {
+  for (const [randomValue, expectedX, expectedO] of [
+    [0, "alice", "bob"],
+    [1, "bob", "alice"],
+  ]) {
+    const game = friendGame(randomValue);
 
-  assert.equal(game.gameType, "tictactoe");
-  assert.equal(game.createdBy, "alice");
-  assert.equal(game.opponent, "bob");
-  assert.equal(game.state, "in_progress");
-  assert.equal(game.turn, "alice");
-  assert.deepEqual(game.data.board, Array(9).fill(null));
-  assert.equal(game.data.playerX, "alice");
+    assert.equal(game.gameType, "tictactoe");
+    assert.equal(game.createdBy, "alice");
+    assert.equal(game.opponent, "bob");
+    assert.equal(game.state, "in_progress");
+    assert.equal(game.turn, expectedX);
+    assert.deepEqual(game.data.board, Array(9).fill(null));
+    assert.equal(game.data.playerX, expectedX);
+    assert.equal(game.data.playerO, expectedO);
+  }
 });
 
 test("friend Tic-Tac-Toe rejects the wrong turn and accepts alternating legal moves", () => {

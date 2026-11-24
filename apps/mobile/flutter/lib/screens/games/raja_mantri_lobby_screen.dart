@@ -522,6 +522,7 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
           fullscreenDialog: true,
           builder: (_) => _RajaMantriSearchingScreen(
             playerCount: _playerCount,
+            currentUsername: _account,
             progress: _searchProgress,
             roster: _searchRoster,
             secondsRemaining: _searchSeconds,
@@ -550,7 +551,7 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
     if (int.tryParse(data['playerCount']?.toString() ?? '') != _playerCount) return;
     final count = int.tryParse(data['playersFound']?.toString() ?? '');
     if (count != null) _searchProgress.value = count;
-    final players = data['players'];
+    final players = data['players'] ?? data['waitingPlayers'];
     if (players is List) {
       _searchRoster.value = players
           .whereType<Map>()
@@ -583,6 +584,7 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
         fullscreenDialog: true,
         builder: (_) => _RajaMantriMatchFoundScreen(
           playerCount: playerCount,
+          currentUsername: _account,
           players: players,
           onStart: () {
             if (!mounted) return;
@@ -892,10 +894,10 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
                                   const SizedBox(width: 12),
                                   AnimatedContainer(
                                     duration: const Duration(milliseconds: 160),
-                                    width: 26,
-                                    height: 26,
+                                    width: 28,
+                                    height: 28,
                                     decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
+                                      borderRadius: BorderRadius.circular(8),
                                       color: selected ? _purple : Colors.transparent,
                                       border: Border.all(
                                         color: selected ? _purple : const Color(0xFF9690B7),
@@ -991,21 +993,39 @@ class _RMQuickPlayTile extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(26),
         child: SizedBox(
-          height: 110,
+          height: 136,
           child: Padding(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: iconBackground,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Icon(icon, color: iconColor, size: 21),
+                Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: iconBackground,
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Icon(icon, color: iconColor, size: 25),
+                    ),
+                    const Spacer(),
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: foreground.withValues(alpha: .12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.play_arrow_rounded,
+                        color: foreground,
+                        size: 21,
+                      ),
+                    ),
+                  ],
                 ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1017,7 +1037,7 @@ class _RMQuickPlayTile extends StatelessWidget {
                       style: TextStyle(
                         color: foreground,
                         fontWeight: FontWeight.w900,
-                        fontSize: 16,
+                      fontSize: 15,
                         letterSpacing: -.3,
                       ),
                     ),
@@ -1065,7 +1085,7 @@ class _RMWaitingRoomSheet extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Container(
-        height: MediaQuery.of(context).size.height * .52,
+        height: MediaQuery.of(context).size.height * .60,
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF201B36) : Colors.white,
@@ -1253,6 +1273,7 @@ class _RMWaitingRoomSheet extends StatelessWidget {
 class _RajaMantriSearchingScreen extends StatelessWidget {
   const _RajaMantriSearchingScreen({
     required this.playerCount,
+    required this.currentUsername,
     required this.progress,
     required this.roster,
     required this.secondsRemaining,
@@ -1260,6 +1281,7 @@ class _RajaMantriSearchingScreen extends StatelessWidget {
   });
 
   final int playerCount;
+  final String currentUsername;
   final ValueListenable<int> progress;
   final ValueListenable<List<Map<String, dynamic>>> roster;
   final ValueListenable<int> secondsRemaining;
@@ -1292,7 +1314,7 @@ class _RajaMantriSearchingScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 14),
-                    Expanded(child: Text('Raja Mantri Chor Sipahi', style: TextStyle(color: foreground, fontSize: 19, fontWeight: FontWeight.w900), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    Expanded(child: Text('Raja Mantri Chor Sipahi', style: TextStyle(color: foreground, fontSize: 19, fontWeight: FontWeight.w900), maxLines: 2, overflow: TextOverflow.ellipsis)),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
                       decoration: BoxDecoration(color: const Color(0xFFEDE9FC), borderRadius: BorderRadius.circular(22)),
@@ -1344,7 +1366,16 @@ class _RajaMantriSearchingScreen extends StatelessWidget {
                                   border: Border.all(color: const Color(0xFF6250F5), width: 5),
                                 ),
                                 alignment: Alignment.center,
-                                child: const Icon(Icons.groups_rounded, color: Colors.white, size: 42),
+                                child: Text(
+                                  currentUsername.trim().isEmpty
+                                      ? '?'
+                                      : currentUsername.trim()[0].toUpperCase(),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 42,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
                               ),
                             ],
                           ),
@@ -1386,7 +1417,20 @@ class _RajaMantriSearchingScreen extends StatelessWidget {
                         ValueListenableBuilder<List<Map<String, dynamic>>>(
                           valueListenable: roster,
                           builder: (context, players, _) {
-                            final occupied = players.take(playerCount).toList();
+                            final occupied = players.take(playerCount).toList()
+                              ..sort((left, right) {
+                                final current = currentUsername.toLowerCase();
+                                final leftIsCurrent = left['username']
+                                        ?.toString()
+                                        .toLowerCase() ==
+                                    current;
+                                final rightIsCurrent = right['username']
+                                        ?.toString()
+                                        .toLowerCase() ==
+                                    current;
+                                if (leftIsCurrent == rightIsCurrent) return 0;
+                                return leftIsCurrent ? -1 : 1;
+                              });
                             final slots = List<Map<String, dynamic>?>.generate(
                               playerCount,
                               (index) => index < occupied.length ? occupied[index] : null,
@@ -1518,12 +1562,14 @@ class _RajaMantriSearchingScreen extends StatelessWidget {
 class _RajaMantriMatchFoundScreen extends StatefulWidget {
   const _RajaMantriMatchFoundScreen({
     required this.playerCount,
+    required this.currentUsername,
     required this.players,
     required this.onStart,
     required this.onLeave,
   });
 
   final int playerCount;
+  final String currentUsername;
   final List<Map<String, dynamic>> players;
   final VoidCallback onStart;
   final VoidCallback onLeave;
@@ -1587,7 +1633,7 @@ class _RajaMantriMatchFoundScreenState extends State<_RajaMantriMatchFoundScreen
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
                       decoration: BoxDecoration(color: const Color(0xFFEDE9FC), borderRadius: BorderRadius.circular(22)),
-                      child: Text('${widget.playerCount} players', style: const TextStyle(color: Color(0xFF403875), fontWeight: FontWeight.w800)),
+                      child: const Text('Random players', style: TextStyle(color: Color(0xFF403875), fontWeight: FontWeight.w800)),
                     ),
                   ],
                 ),
@@ -1595,7 +1641,18 @@ class _RajaMantriMatchFoundScreenState extends State<_RajaMantriMatchFoundScreen
               Expanded(
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    final columns = widget.playerCount == 3 && constraints.maxWidth > 380 ? 3 : 2;
+                    final columns = widget.playerCount == 3 ? 3 : 2;
+                    final itemSpacing = columns == 3 ? 10.0 : 20.0;
+                    final itemWidth = (constraints.maxWidth - 48 - itemSpacing * (columns - 1)) / columns;
+                    final players = [...widget.players]..sort((left, right) {
+                      final current = widget.currentUsername.toLowerCase();
+                      final leftIsCurrent =
+                          left['username']?.toString().toLowerCase() == current;
+                      final rightIsCurrent =
+                          right['username']?.toString().toLowerCase() == current;
+                      if (leftIsCurrent == rightIsCurrent) return 0;
+                      return leftIsCurrent ? -1 : 1;
+                    });
                     return Column(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
@@ -1614,28 +1671,35 @@ class _RajaMantriMatchFoundScreenState extends State<_RajaMantriMatchFoundScreen
                           padding: const EdgeInsets.symmetric(horizontal: 24),
                           child: Wrap(
                             alignment: WrapAlignment.center,
-                            spacing: 20,
+                            spacing: itemSpacing,
                             runSpacing: 22,
-                            children: List.generate(widget.players.length, (index) {
-                              final player = widget.players[index];
+                            children: List.generate(players.length, (index) {
+                              final player = players[index];
                               final name = player['displayName']?.toString() ?? player['username']?.toString() ?? 'Player';
-                              final avatarSize = columns == 3 ? 78.0 : 88.0;
+                              final avatarSize = math.min(columns == 3 ? 78.0 : 88.0, itemWidth - 12).toDouble();
                               return SizedBox(
-                                width: columns == 3 ? 96 : (constraints.maxWidth - 100) / 2,
+                                width: itemWidth,
                                 child: Column(
                                   children: [
                                     Container(
-                                      width: avatarSize,
-                                      height: avatarSize,
+                                      width: avatarSize + 12,
+                                      height: avatarSize + 12,
+                                      padding: const EdgeInsets.all(4),
                                       decoration: BoxDecoration(
-                                        color: colors[index % colors.length],
                                         shape: BoxShape.circle,
-                                        border: Border.all(color: colors[index % colors.length], width: 3),
+                                        border: Border.all(color: colors[index % colors.length], width: 2),
                                       ),
-                                      alignment: Alignment.center,
-                                      child: Text(
-                                        name.trim().isEmpty ? '?' : name.trim().substring(0, 1).toUpperCase(),
-                                        style: TextStyle(color: Colors.white, fontSize: avatarSize * .4, fontWeight: FontWeight.w900),
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: colors[index % colors.length],
+                                          shape: BoxShape.circle,
+                                          border: Border.all(color: background, width: 3),
+                                        ),
+                                        alignment: Alignment.center,
+                                        child: Text(
+                                          name.trim().isEmpty ? '?' : name.trim().substring(0, 1).toUpperCase(),
+                                          style: TextStyle(color: Colors.white, fontSize: avatarSize * .4, fontWeight: FontWeight.w900),
+                                        ),
                                       ),
                                     ),
                                     const SizedBox(height: 10),
@@ -1644,7 +1708,10 @@ class _RajaMantriMatchFoundScreenState extends State<_RajaMantriMatchFoundScreen
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
                                       decoration: BoxDecoration(color: const Color(0xFFEDE9FC), borderRadius: BorderRadius.circular(22)),
-                                      child: Text(index == 0 ? 'Host' : 'Joined', style: const TextStyle(color: Color(0xFF403875), fontWeight: FontWeight.w800, fontSize: 11)),
+                                      child: Text(
+                                        player['username']?.toString().toLowerCase() == widget.currentUsername.toLowerCase() ? 'You' : 'Joined',
+                                        style: const TextStyle(color: Color(0xFF403875), fontWeight: FontWeight.w800, fontSize: 11),
+                                      ),
                                     ),
                                   ],
                                 ),

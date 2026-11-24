@@ -22,12 +22,9 @@ class _GamesScreenState extends State<GamesScreen> {
   static const _lastPlayedKey = 'games_last_played_v1';
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
-  final ScrollController _carouselController = ScrollController();
-  final ScrollController _carousel3pController = ScrollController();
 
   String _searchQuery = '';
-  int _activeCarouselIndex = 0;
-  int _active3pIndex = 0;
+  String _activeCategory = 'All';
   String _statsUsername = '';
   GameStatsSnapshot _stats = GameStatsSnapshot.empty;
   int _rmPlayed = 0;
@@ -40,14 +37,14 @@ class _GamesScreenState extends State<GamesScreen> {
     _GameOption(
       type: 'tictactoe',
       title: 'Tic-Tac-Toe',
-      subtitle: 'Quick strategy',
+      subtitle: 'Quick strategy · 2P',
       icon: Icons.tag_rounded,
       gradient: [Color(0xFF6341ED), Color(0xFF5B3DE6)],
     ),
     _GameOption(
       type: 'rps',
       title: 'Rock Paper',
-      subtitle: 'Fast showdown',
+      subtitle: 'Fast showdown · 2P',
       icon: Icons.content_cut_rounded,
       gradient: [Color(0xFFE53468), Color(0xFFD61E53)],
     ),
@@ -56,7 +53,7 @@ class _GamesScreenState extends State<GamesScreen> {
   static const _GameOption _rajaMantriGame = _GameOption(
     type: 'rajamantri',
     title: 'Raja Mantri',
-    subtitle: 'Chor Sipahi (4P)',
+    subtitle: 'Chor Sipahi · 4P',
     icon: Icons.military_tech_rounded,
     gradient: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
   );
@@ -65,8 +62,6 @@ class _GamesScreenState extends State<GamesScreen> {
   void initState() {
     super.initState();
     unawaited(_loadLastPlayed());
-    _carouselController.addListener(_onCarouselScroll);
-    _carousel3pController.addListener(_on3pCarouselScroll);
     GameHistoryService.revision.addListener(_onGameHistoryChanged);
   }
 
@@ -75,29 +70,7 @@ class _GamesScreenState extends State<GamesScreen> {
     GameHistoryService.revision.removeListener(_onGameHistoryChanged);
     _searchController.dispose();
     _searchFocusNode.dispose();
-    _carouselController.removeListener(_onCarouselScroll);
-    _carouselController.dispose();
-    _carousel3pController.removeListener(_on3pCarouselScroll);
-    _carousel3pController.dispose();
     super.dispose();
-  }
-
-  void _onCarouselScroll() {
-    if (!_carouselController.hasClients) return;
-    const itemExtent = 238.0; // card width (224) + separator (14)
-    final index = (_carouselController.offset / itemExtent).round().clamp(0, 2);
-    if (index != _activeCarouselIndex) {
-      setState(() => _activeCarouselIndex = index);
-    }
-  }
-
-  void _on3pCarouselScroll() {
-    if (!_carousel3pController.hasClients) return;
-    const itemExtent = 238.0; // card width (224) + separator (14)
-    final index = (_carousel3pController.offset / itemExtent).round().clamp(0, 2);
-    if (index != _active3pIndex) {
-      setState(() => _active3pIndex = index);
-    }
   }
 
   void _onGameHistoryChanged() {
@@ -187,20 +160,18 @@ class _GamesScreenState extends State<GamesScreen> {
   }
 
   List<_GameOption> get _filteredGames {
-    final list = <_GameOption>[..._games];
-    if (_searchQuery.isEmpty) return list;
-    final q = _searchQuery.toLowerCase();
-    final res = list.where((g) {
+    final categoryGames = switch (_activeCategory) {
+      '2 Player' => _games,
+      '3P / 4P' => <_GameOption>[_rajaMantriGame],
+      _ => <_GameOption>[..._games, _rajaMantriGame],
+    };
+    if (_searchQuery.isEmpty) return categoryGames;
+    return categoryGames.where((g) {
+      final q = _searchQuery.toLowerCase();
       return g.title.toLowerCase().contains(q) ||
           g.subtitle.toLowerCase().contains(q) ||
           (g.type == 'rps' && 'rock paper scissors'.contains(q));
     }).toList();
-    if ('raja mantri chor sipahi rmcs'.contains(q) ||
-        _rajaMantriGame.title.toLowerCase().contains(q) ||
-        _rajaMantriGame.subtitle.toLowerCase().contains(q)) {
-      res.add(_rajaMantriGame);
-    }
-    return res;
   }
 
   @override
@@ -246,22 +217,6 @@ class _GamesScreenState extends State<GamesScreen> {
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               padding: const EdgeInsets.only(top: 16, bottom: 116),
               children: [
-                // Title Header
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Text(
-                    'Games',
-                    style: TextStyle(
-                      fontFamily: 'PlusJakartaSans',
-                      fontSize: 34,
-                      fontWeight: FontWeight.w900,
-                      color: isDark ? Colors.white : const Color(0xFF1E1A33),
-                      letterSpacing: -0.6,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 18),
-
                 // Hero Profile & Stats Card
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -341,153 +296,74 @@ class _GamesScreenState extends State<GamesScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 24),
-
-            // 2 Player Section Header
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20),
-              child: Text(
-                '2 Player',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF5E44F3),
-                  letterSpacing: 0.5,
+                const SizedBox(height: 20),
+                SizedBox(
+                  height: 42,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    children: [
+                      _GamesCategoryPill(
+                        label: 'All',
+                        selected: _activeCategory == 'All',
+                        onTap: () => setState(() => _activeCategory = 'All'),
+                      ),
+                      const SizedBox(width: 9),
+                      _GamesCategoryPill(
+                        label: '2 Player',
+                        selected: _activeCategory == '2 Player',
+                        onTap: () => setState(() => _activeCategory = '2 Player'),
+                      ),
+                      const SizedBox(width: 9),
+                      _GamesCategoryPill(
+                        label: '3P / 4P',
+                        selected: _activeCategory == '3P / 4P',
+                        onTap: () => setState(() => _activeCategory = '3P / 4P'),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 14),
-
-            // 2 Player Games Carousel
-            if (filtered.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-                child: Center(
-                  child: Text(
-                    'No games found matching "$_searchQuery"',
-                    style: TextStyle(
-                      color: isDark ? Colors.white60 : const Color(0xFF7E7A9C),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+                const SizedBox(height: 14),
+                if (filtered.isEmpty && _searchQuery.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
+                    child: Center(
+                      child: Text(
+                        'No games found for "$_searchQuery"',
+                        style: TextStyle(
+                          color: isDark ? Colors.white60 : const Color(0xFF7E7A9C),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: filtered.length + (_searchQuery.isEmpty ? 1 : 0),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        childAspectRatio: 1,
+                      ),
+                      itemBuilder: (context, index) {
+                        if (index == filtered.length) {
+                          return _GameComingSoonGridCard(isDark: isDark);
+                        }
+                        final game = filtered[index];
+                        return _GameGridCard(
+                          game: game,
+                          streakCount: _stats.currentWinStreak(game.type),
+                          onPlay: () => _openGame(game),
+                        );
+                      },
                     ),
                   ),
-                ),
-              )
-            else ...[
-              SizedBox(
-                height: 236,
-                child: ListView.separated(
-                  controller: _carouselController,
-                  scrollDirection: Axis.horizontal,
-                  physics: const BouncingScrollPhysics(),
-                  clipBehavior: Clip.none,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-                  itemCount: filtered.length + (_searchQuery.isEmpty ? 1 : 0),
-                  separatorBuilder: (_, __) => const SizedBox(width: 14),
-                  itemBuilder: (context, index) {
-                    if (index < filtered.length) {
-                      final game = filtered[index];
-                      return _GameCarouselCard(
-                        game: game,
-                        streakCount: _stats.currentWinStreak(game.type),
-                        onPlay: () => _openGame(game),
-                      );
-                    }
-                    return _ComingSoonCard(isDark: isDark);
-                  },
-                ),
-              ),
-              const SizedBox(height: 14),
-              // Dots Indicator
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(
-                    filtered.length + (_searchQuery.isEmpty ? 1 : 0),
-                    (index) {
-                      final isActive = index == _activeCarouselIndex;
-                      return AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        margin: const EdgeInsets.symmetric(horizontal: 3),
-                        width: isActive ? 20 : 6,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          color: isActive
-                              ? const Color(0xFF5E44F3)
-                              : (isDark ? const Color(0xFF382F57) : const Color(0xFFD8D1F7)),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-            ],
-
-            const SizedBox(height: 24),
-
-            // 3 P / 4 P Section Header
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20),
-              child: Text(
-                '3 P / 4 P',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF5E44F3),
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
-
-            // 3 P / 4 P Games Carousel
-            SizedBox(
-              height: 236,
-              child: ListView(
-                controller: _carousel3pController,
-                scrollDirection: Axis.horizontal,
-                physics: const BouncingScrollPhysics(),
-                clipBehavior: Clip.none,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-                children: [
-                  _GameCarouselCard(
-                    game: _rajaMantriGame,
-                    streakCount: _stats.currentWinStreak(_rajaMantriGame.type),
-                    onPlay: () => _openGame(_rajaMantriGame),
-                  ),
-                  const SizedBox(width: 14),
-                  _ComingSoonCard(isDark: isDark),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-            // Dots Indicator for 3 P / 4 P
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(
-                  3,
-                  (index) {
-                    final isActive = index == _active3pIndex;
-                    return AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      margin: const EdgeInsets.symmetric(horizontal: 3),
-                      width: isActive ? 20 : 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: isActive
-                            ? const Color(0xFF5E44F3)
-                            : (isDark ? const Color(0xFF382F57) : const Color(0xFFD8D1F7)),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
           ],
         ),
       ),
@@ -534,7 +410,6 @@ class _GameProfileHeroCardState extends State<_GameProfileHeroCard> {
     final losses = stats.losses;
     final draws = stats.draws;
     final winRate = total > 0 ? (wins / total * 100).round() : 0;
-    final totalPlayed = total + widget.rmPlayed;
     final foreground = isDark ? Colors.white : const Color(0xFF1E1A33);
     final muted = isDark ? Colors.white60 : const Color(0xFF625D8C);
     final surface = isDark ? const Color(0xFF201B36) : Colors.white;
@@ -788,7 +663,7 @@ class _GameProfileHeroCardState extends State<_GameProfileHeroCard> {
                           ),
                         ],
                       ),
-                      if (totalPlayed > 0 || widget.rmHighScore > 0) ...[
+                      if (widget.rmPlayed > 0 || widget.rmHighScore > 0) ...[
                         const SizedBox(height: 14),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
@@ -798,10 +673,10 @@ class _GameProfileHeroCardState extends State<_GameProfileHeroCard> {
                           ),
                           child: Row(
                             children: [
-                              Icon(Icons.sports_esports_rounded, color: const Color(0xFF5E44F3), size: 19),
+                              Icon(Icons.military_tech_rounded, color: const Color(0xFF5E44F3), size: 19),
                               const SizedBox(width: 9),
                               Text(
-                                'Game stats',
+                                'Raja Mantri',
                                 style: TextStyle(
                                   fontFamily: 'PlusJakartaSans',
                                   fontSize: 13,
@@ -812,7 +687,7 @@ class _GameProfileHeroCardState extends State<_GameProfileHeroCard> {
                               const Spacer(),
                               Flexible(
                                 child: Text(
-                                  '$totalPlayed played${widget.rmHighScore > 0 ? ' · Best: ${widget.rmHighScore} pts' : ''}',
+                                  '${widget.rmPlayed} played${widget.rmHighScore > 0 ? ' · Best: ${widget.rmHighScore} pts' : ''}',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   textAlign: TextAlign.end,
@@ -907,8 +782,57 @@ class _HeroStatBox extends StatelessWidget {
   }
 }
 
-class _GameCarouselCard extends StatelessWidget {
-  const _GameCarouselCard({
+class _GamesCategoryPill extends StatelessWidget {
+  const _GamesCategoryPill({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Material(
+      color: selected
+          ? const Color(0xFF6848F5)
+          : (isDark ? const Color(0xFF201B36) : Colors.white),
+      borderRadius: BorderRadius.circular(24),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(24),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: selected
+                  ? const Color(0xFF6848F5)
+                  : (isDark ? const Color(0xFF382F57) : const Color(0xFFE7E1FA)),
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: selected
+                  ? Colors.white
+                  : (isDark ? Colors.white70 : const Color(0xFF625D7D)),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GameGridCard extends StatelessWidget {
+  const _GameGridCard({
     required this.game,
     required this.streakCount,
     required this.onPlay,
@@ -922,42 +846,39 @@ class _GameCarouselCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      width: 224,
-      height: 216,
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: game.gradient,
         ),
-        borderRadius: BorderRadius.circular(26),
+        borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
-            color: game.gradient.first.withValues(alpha: isDark ? 0.22 : 0.18),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
+            color: game.gradient.first.withValues(alpha: isDark ? 0.24 : 0.2),
+            blurRadius: 14,
+            offset: const Offset(0, 7),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Game icon and this game's current consecutive-win streak.
           Row(
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.22),
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(13),
                 ),
-                child: Icon(game.icon, color: Colors.white, size: 24),
+                child: Icon(game.icon, color: Colors.white, size: 22),
               ),
               const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(18),
@@ -966,47 +887,46 @@ class _GameCarouselCard extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(Icons.local_fire_department_rounded,
-                      color: Color(0xFFFFD166), size: 17),
-                    const SizedBox(width: 4),
-                    Text('$streakCount',
+                        color: Color(0xFFFFD166), size: 15),
+                    const SizedBox(width: 3),
+                    Text(
+                      '$streakCount',
                       key: ValueKey('game-streak-${game.type}'),
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 13,
+                        fontSize: 12,
                         fontWeight: FontWeight.w900,
-                      )),
+                      ),
+                    ),
                   ],
                 ),
               ),
             ],
           ),
           const Spacer(),
-          // Title
           Text(
             game.title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 20,
+              fontSize: 17,
               fontWeight: FontWeight.w900,
               letterSpacing: -0.3,
             ),
           ),
-          const SizedBox(height: 3),
-          // Subtitle
+          const SizedBox(height: 4),
           Text(
             game.subtitle,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.85),
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 16),
-          // Play Button
+          const SizedBox(height: 12),
           Material(
             color: Colors.white,
             borderRadius: BorderRadius.circular(22),
@@ -1015,22 +935,22 @@ class _GameCarouselCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(22),
               child: Container(
                 width: double.infinity,
-                height: 42,
+                height: 38,
                 alignment: Alignment.center,
                 child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
                       Icons.play_arrow_rounded,
-                      color: Color(0xFF1E1A33),
-                      size: 20,
+                      color: Color(0xFF5E44F3),
+                      size: 19,
                     ),
                     SizedBox(width: 4),
                     Text(
                       'Play',
                       style: TextStyle(
-                        color: Color(0xFF1E1A33),
-                        fontSize: 14,
+                        color: Color(0xFF5E44F3),
+                        fontSize: 13,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -1045,8 +965,8 @@ class _GameCarouselCard extends StatelessWidget {
   }
 }
 
-class _ComingSoonCard extends StatelessWidget {
-  const _ComingSoonCard({required this.isDark});
+class _GameComingSoonGridCard extends StatelessWidget {
+  const _GameComingSoonGridCard({required this.isDark});
 
   final bool isDark;
 
@@ -1058,23 +978,21 @@ class _ComingSoonCard extends StatelessWidget {
         strokeWidth: 1.5,
         dashWidth: 6,
         dashSpace: 5,
-        radius: 26,
+        radius: 22,
       ),
       child: Container(
-        width: 224,
-        height: 216,
         decoration: BoxDecoration(
           color: isDark
               ? const Color(0xFF1E1833).withValues(alpha: 0.6)
               : Colors.white.withValues(alpha: 0.55),
-          borderRadius: BorderRadius.circular(26),
+          borderRadius: BorderRadius.circular(24),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              width: 44,
-              height: 44,
+              width: 42,
+              height: 42,
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF2C2449) : const Color(0xFFEEEAFB),
                 shape: BoxShape.circle,
