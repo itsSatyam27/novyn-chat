@@ -560,6 +560,11 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
             );
           },
           onLeave: () {
+            unawaited(
+              (_socket ?? context.read<SocketService>())
+                  .leaveRajaMantriGame(sessionId)
+                  .catchError((_) {}),
+            );
             if (Navigator.of(context).canPop()) Navigator.of(context).pop();
           },
         ),
