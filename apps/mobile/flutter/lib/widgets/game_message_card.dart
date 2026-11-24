@@ -604,6 +604,7 @@ void _showGameOverModal(
   bool isOpponentRequest = false,
   String? playerLeft,
   String? opponentName,
+  bool isOfflineBot = false,
 }) {
   showModalBottomSheet<void>(
     context: context,
@@ -622,6 +623,7 @@ void _showGameOverModal(
         isOpponentRequest: isOpponentRequest,
         playerLeft: playerLeft,
         opponentName: opponentName,
+        isOfflineBot: isOfflineBot,
       );
     },
   );
@@ -639,6 +641,7 @@ class _GameOverModalContent extends StatefulWidget {
     this.isOpponentRequest = false,
     this.playerLeft,
     this.opponentName,
+    this.isOfflineBot = false,
   });
 
   final String emoji;
@@ -651,6 +654,7 @@ class _GameOverModalContent extends StatefulWidget {
   final bool isOpponentRequest;
   final String? playerLeft;
   final String? opponentName;
+  final bool isOfflineBot;
 
   @override
   State<_GameOverModalContent> createState() => _GameOverModalContentState();
@@ -723,6 +727,17 @@ class _GameOverModalContentState extends State<_GameOverModalContent> {
         _statusNote = '$opponent left the room';
         _rematchRequested = false;
       });
+      return;
+    }
+    if (widget.isOfflineBot) {
+      if (_loading) return;
+      setState(() => _loading = true);
+      try {
+        await widget.onPlayAgain();
+        if (mounted) Navigator.of(context).pop();
+      } catch (_) {
+        if (mounted) setState(() => _loading = false);
+      }
       return;
     }
     setState(() {
@@ -1420,7 +1435,7 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
   @override
   void initState() {
     super.initState();
-    if (_finished && !widget.isOfflineBot) {
+    if (_finished) {
       _gameOverModalShown = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _showGameOver();
@@ -1435,15 +1450,13 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
       _optimisticBoard = null;
       _error = null;
     }
-    if (oldWidget.game['state'] != widget.game['state']) {
-      if (_finished && !widget.isOfflineBot && !_gameOverModalShown) {
-        _gameOverModalShown = true;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _showGameOver();
-        });
-      } else if (!_finished) {
-        _gameOverModalShown = false;
-      }
+    if (_finished && !_gameOverModalShown) {
+      _gameOverModalShown = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showGameOver();
+      });
+    } else if (!_finished) {
+      _gameOverModalShown = false;
     }
   }
 
@@ -1486,6 +1499,7 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
       isOpponentRequest: isOpponentRequest,
       playerLeft: playerLeft,
       opponentName: opponentName,
+      isOfflineBot: widget.isOfflineBot,
     );
   }
 
@@ -1698,49 +1712,7 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
           const SizedBox(height: 10),
           const LinearProgressIndicator(minHeight: 2),
         ],
-        if (_finished && widget.isOfflineBot) ...[
-          const SizedBox(height: 18),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: dark
-                  ? const Color(0xFF282046)
-                  : const Color(0xFFF3F0FA),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: const Color(0xFF5E44F3).withValues(alpha: .22),
-              ),
-            ),
-            child: Column(
-              children: [
-                const Icon(
-                  Icons.replay_rounded,
-                  color: Color(0xFF5E44F3),
-                  size: 24,
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'One more round?',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: dark ? Colors.white : const Color(0xFF1E1A33),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: widget.startingRematch ? null : widget.onPlayAgain,
-                    icon: const Icon(Icons.refresh_rounded, size: 18),
-                    label: const Text('Play again'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ] else if (_finished) ...[
+        if (_finished) ...[
           const SizedBox(height: 14),
           TextButton.icon(
             onPressed: _showGameOver,
