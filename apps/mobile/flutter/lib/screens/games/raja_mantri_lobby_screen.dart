@@ -102,10 +102,6 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
   void dispose() {
     _searchTimer?.cancel();
     _searchController.dispose();
-    _roomMembers.dispose();
-    _searchProgress.dispose();
-    _searchRoster.dispose();
-    _searchSeconds.dispose();
     if (_socket != null) {
       if (!_roomStarted) {
         final pendingInvites = _roomMembers.value
@@ -127,6 +123,10 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
         unawaited(_socket!.cancelRajaMantriMatchmaking().catchError((_) {}));
       }
     }
+    _roomMembers.dispose();
+    _searchProgress.dispose();
+    _searchRoster.dispose();
+    _searchSeconds.dispose();
     super.dispose();
   }
 
