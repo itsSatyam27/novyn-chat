@@ -237,18 +237,38 @@ function handleRematchAction(game, userKey, moveData) {
   const now = Date.now();
 
   if (moveData.action === "leave_room") {
+    if (game.state === "finished") {
+      return { ok: true, game };
+    }
+    const player1Key = String(player1 || "").trim().toLowerCase();
+    const player2Key = String(player2 || "").trim().toLowerCase();
+    const leavingPlayer1 = sameUser(userKey, player1Key);
+    const leavingPlayer2 = Boolean(player2Key) && sameUser(userKey, player2Key);
+    if (!leavingPlayer1 && !leavingPlayer2) {
+      return { ok: false, reason: "You are not a player in this match." };
+    }
+    const winner = leavingPlayer1 ? player2 : player1;
+    if (!winner) {
+      return { ok: false, reason: "There is no opponent in this room to award the match to." };
+    }
     return {
       ok: true,
       game: {
         ...game,
+        state: "finished",
+        winner,
+        turn: "",
         data: {
           ...current,
           playerLeft: userKey,
+          forfeitedBy: userKey,
           rematch: {
             status: "opponent_left",
             leftBy: userKey,
+            winner,
           },
         },
+        lastMoveBy: userKey,
         updatedAt: now,
       },
     };
