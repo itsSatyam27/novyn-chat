@@ -489,7 +489,7 @@ class _GamesScreenState extends State<GamesScreen> {
   }
 }
 
-class _GameProfileHeroCard extends StatelessWidget {
+class _GameProfileHeroCard extends StatefulWidget {
   const _GameProfileHeroCard({
     required this.displayName,
     required this.username,
@@ -511,18 +511,32 @@ class _GameProfileHeroCard extends StatelessWidget {
   final bool isDark;
 
   @override
+  State<_GameProfileHeroCard> createState() => _GameProfileHeroCardState();
+}
+
+class _GameProfileHeroCardState extends State<_GameProfileHeroCard> {
+  bool _expanded = false;
+
+  @override
   Widget build(BuildContext context) {
+    final stats = widget.stats;
+    final isDark = widget.isDark;
     final total = stats.total;
     final wins = stats.wins;
     final losses = stats.losses;
     final draws = stats.draws;
     final winRate = total > 0 ? (wins / total * 100).round() : 0;
+    final totalPlayed = total + widget.rmPlayed;
+    final foreground = isDark ? Colors.white : const Color(0xFF1E1A33);
+    final muted = isDark ? Colors.white60 : const Color(0xFF625D8C);
+    final surface = isDark ? const Color(0xFF201B36) : Colors.white;
+    final softSurface = isDark ? const Color(0xFF2A2347) : const Color(0xFFF1EEFC);
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF201B36) : Colors.white,
-        borderRadius: BorderRadius.circular(26),
+        color: surface,
+        borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
             color: const Color(0xFF5E44F3).withValues(alpha: isDark ? 0.08 : 0.04),
@@ -534,279 +548,303 @@ class _GameProfileHeroCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header Row: Avatar, Name & Handle, History Button
-          Row(
-            children: [
-              UserAvatar(
-                name: displayName.isNotEmpty ? displayName : username,
-                photoUrl: photoUrl,
-                radius: 24,
-                fallbackColor: const Color(0xFF5E44F3),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      displayName.isNotEmpty ? displayName : 'Player',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: isDark ? Colors.white : const Color(0xFF1E1A33),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      username.isNotEmpty ? '@$username' : '',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: isDark ? Colors.white60 : const Color(0xFF7E7A9C),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Tooltip(
-                message: 'View match history',
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: onHistoryTap,
-                    borderRadius: BorderRadius.circular(16),
-                    child: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF2C2649) : const Color(0xFFEDE9FA),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: const Icon(
-                        Icons.history_rounded,
-                        color: Color(0xFF5E44F3),
-                        size: 22,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          // Global gaming XP and level progress.
-          Container(
-            key: const ValueKey('games-xp-progress'),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF2A2347) : const Color(0xFFF2EEFF),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            borderRadius: BorderRadius.circular(24),
+            child: Row(
               children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF684BF5).withValues(alpha: .14),
-                        borderRadius: BorderRadius.circular(12),
+                SizedBox(
+                  width: 66,
+                  height: 66,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox.expand(
+                        child: CircularProgressIndicator(
+                          value: stats.levelProgress,
+                          strokeWidth: 4,
+                          strokeCap: StrokeCap.round,
+                          backgroundColor: isDark
+                              ? const Color(0xFF453B68)
+                              : const Color(0xFFE3DDFB),
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            Color(0xFF6250F5),
+                          ),
+                        ),
                       ),
-                      child: const Icon(Icons.stars_rounded,
-                        color: Color(0xFF684BF5), size: 22),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Level ${stats.level}',
-                            style: TextStyle(
-                              fontSize: 15,
+                      Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: UserAvatar(
+                          name: widget.displayName.isNotEmpty
+                              ? widget.displayName
+                              : widget.username,
+                          photoUrl: widget.photoUrl,
+                          radius: 27,
+                          fallbackColor: const Color(0xFF5E44F3),
+                        ),
+                      ),
+                      Positioned(
+                        right: -5,
+                        bottom: -2,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF6250F5),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: surface, width: 2),
+                          ),
+                          child: Text(
+                            'Lv${stats.level}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
                               fontWeight: FontWeight.w900,
-                              color: isDark ? Colors.white : const Color(0xFF1E1A33),
-                            )),
-                          Text('${stats.totalXp} total XP',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: isDark ? Colors.white60 : const Color(0xFF7E7A9C),
-                            )),
-                        ],
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                    Text('${stats.xpIntoCurrentLevel} / ${GameStatsSnapshot.xpPerLevel} XP',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: isDark ? const Color(0xFFC4B5FD) : const Color(0xFF684BF5),
-                      )),
-                  ],
-                ),
-                const SizedBox(height: 11),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: LinearProgressIndicator(
-                    value: stats.levelProgress,
-                    minHeight: 7,
-                    backgroundColor: isDark
-                        ? const Color(0xFF453B68)
-                        : const Color(0xFFDDD5FA),
-                    valueColor: const AlwaysStoppedAnimation<Color>(
-                      Color(0xFF684BF5),
-                    ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 6),
-                Text('${stats.xpToNextLevel} XP to Level ${stats.level + 1}',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? Colors.white54 : const Color(0xFF7E7A9C),
-                  )),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.displayName.isNotEmpty ? widget.displayName : 'Player',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: foreground,
+                        ),
+                      ),
+                      const SizedBox(height: 7),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: LinearProgressIndicator(
+                          value: stats.levelProgress,
+                          minHeight: 7,
+                          backgroundColor: isDark
+                              ? const Color(0xFF453B68)
+                              : const Color(0xFFE3DDFB),
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            Color(0xFF6250F5),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        '${stats.xpIntoCurrentLevel} / ${GameStatsSnapshot.xpPerLevel} XP · ${stats.xpToNextLevel} to Level ${stats.level + 1}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: muted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: softSurface,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    _expanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                    color: const Color(0xFF5E44F3),
+                    size: 28,
+                  ),
+                ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          // 4 Stats Badges
-          Row(
-            children: [
-              Expanded(
-                child: _HeroStatBox(
-                  value: '$total',
-                  label: 'Matches',
-                  bgColor: isDark ? const Color(0xFF282244) : const Color(0xFFF1EFFF),
-                  textColor: isDark ? Colors.white : const Color(0xFF1E1A33),
-                  labelColor: isDark ? Colors.white60 : const Color(0xFF7E7A9C),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _HeroStatBox(
-                  value: '$wins',
-                  label: 'Wins',
-                  bgColor: isDark ? const Color(0xFF1C332A) : const Color(0xFFE8F7EE),
-                  textColor: const Color(0xFF16A34A),
-                  labelColor: isDark ? const Color(0xFF4ADE80) : const Color(0xFF388E57),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _HeroStatBox(
-                  value: '$losses',
-                  label: 'Losses',
-                  bgColor: isDark ? const Color(0xFF381F28) : const Color(0xFFFDE8EC),
-                  textColor: const Color(0xFFEF4444),
-                  labelColor: isDark ? const Color(0xFFF87171) : const Color(0xFF9E4B57),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _HeroStatBox(
-                  value: '$draws',
-                  label: 'Draws',
-                  bgColor: isDark ? const Color(0xFF282244) : const Color(0xFFF1EFFF),
-                  textColor: isDark ? Colors.white : const Color(0xFF1E1A33),
-                  labelColor: isDark ? Colors.white60 : const Color(0xFF7E7A9C),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          // Win rate label & value
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Win rate',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white60 : const Color(0xFF7E7A9C),
-                ),
-              ),
-              Text(
-                '$winRate%',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF16A34A),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          // Segmented Progress Bar
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: SizedBox(
-              height: 6,
-              child: total == 0
-                  ? Container(color: isDark ? const Color(0xFF2C2649) : const Color(0xFFE8E5F4))
-                  : Row(
-                      children: [
-                        if (wins > 0)
+          AnimatedSize(
+            duration: const Duration(milliseconds: 280),
+            curve: Curves.easeInOutCubic,
+            alignment: Alignment.topCenter,
+            child: _expanded
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 16),
+                      Divider(
+                        height: 1,
+                        color: isDark ? const Color(0xFF3A3158) : const Color(0xFFE9E5F6),
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
                           Expanded(
-                            flex: wins,
-                            child: Container(color: const Color(0xFF16A34A)),
+                            child: _HeroStatBox(
+                              value: '$total',
+                              label: 'Matches',
+                              bgColor: softSurface,
+                              textColor: foreground,
+                              labelColor: muted,
+                            ),
                           ),
-                        if (wins > 0 && (draws > 0 || losses > 0))
-                          Container(width: 2, color: Colors.transparent),
-                        if (draws > 0)
+                          const SizedBox(width: 8),
                           Expanded(
-                            flex: draws,
-                            child: Container(color: const Color(0xFFB8ACE8)),
+                            child: _HeroStatBox(
+                              value: '$wins',
+                              label: 'Wins',
+                              bgColor: isDark ? const Color(0xFF1C332A) : const Color(0xFFE0F4E9),
+                              textColor: const Color(0xFF16834A),
+                              labelColor: const Color(0xFF388E57),
+                            ),
                           ),
-                        if (draws > 0 && losses > 0)
-                          Container(width: 2, color: Colors.transparent),
-                        if (losses > 0)
+                          const SizedBox(width: 8),
                           Expanded(
-                            flex: losses,
-                            child: Container(color: const Color(0xFFEF4444)),
+                            child: _HeroStatBox(
+                              value: '$losses',
+                              label: 'Losses',
+                              bgColor: isDark ? const Color(0xFF381F28) : const Color(0xFFFDE2E2),
+                              textColor: const Color(0xFFD92D2D),
+                              labelColor: const Color(0xFFB42318),
+                            ),
                           ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _HeroStatBox(
+                              value: '$draws',
+                              label: 'Draws',
+                              bgColor: softSurface,
+                              textColor: foreground,
+                              labelColor: muted,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Text(
+                            'Win rate',
+                            style: TextStyle(
+                              fontFamily: 'PlusJakartaSans',
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: foreground,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: SizedBox(
+                                height: 7,
+                                child: total == 0
+                                    ? Container(color: softSurface)
+                                    : Row(
+                                        children: [
+                                          if (wins > 0)
+                                            Expanded(
+                                              flex: wins,
+                                              child: Container(color: const Color(0xFF16A34A)),
+                                            ),
+                                          if (draws > 0)
+                                            Expanded(
+                                              flex: draws,
+                                              child: Container(color: const Color(0xFFB8ACE8)),
+                                            ),
+                                          if (losses > 0)
+                                            Expanded(
+                                              flex: losses,
+                                              child: Container(color: const Color(0xFFEF4444)),
+                                            ),
+                                        ],
+                                      ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            '$winRate%',
+                            style: const TextStyle(
+                              fontFamily: 'PlusJakartaSans',
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF16834A),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (totalPlayed > 0 || widget.rmHighScore > 0) ...[
+                        const SizedBox(height: 14),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+                          decoration: BoxDecoration(
+                            color: softSurface,
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.sports_esports_rounded, color: const Color(0xFF5E44F3), size: 19),
+                              const SizedBox(width: 9),
+                              Text(
+                                'Game stats',
+                                style: TextStyle(
+                                  fontFamily: 'PlusJakartaSans',
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: foreground,
+                                ),
+                              ),
+                              const Spacer(),
+                              Flexible(
+                                child: Text(
+                                  '$totalPlayed played${widget.rmHighScore > 0 ? ' · Best: ${widget.rmHighScore} pts' : ''}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.end,
+                                  style: const TextStyle(
+                                    fontFamily: 'PlusJakartaSans',
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF5E44F3),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ],
-                    ),
-            ),
+                      const SizedBox(height: 14),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: widget.onHistoryTap,
+                          icon: const Icon(Icons.history_rounded, size: 20),
+                          label: const Text('Match history'),
+                          style: FilledButton.styleFrom(
+                            foregroundColor: const Color(0xFF5E44F3),
+                            backgroundColor: softSurface,
+                            elevation: 0,
+                            minimumSize: const Size.fromHeight(48),
+                            shape: const StadiumBorder(),
+                            textStyle: const TextStyle(
+                              fontFamily: 'PlusJakartaSans',
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                : const SizedBox.shrink(),
           ),
-          if (rmPlayed > 0) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF282244) : const Color(0xFFF1EFFF),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  const Text('👑', style: TextStyle(fontSize: 16)),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Raja Mantri',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      color: isDark ? Colors.white : const Color(0xFF1E1A33),
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    '$rmPlayed played · Best: $rmHighScore pts',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF5E44F3),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
         ],
       ),
     );
