@@ -983,14 +983,20 @@ app.post("/api/games/history", requireUser, requireCsrf, async (req, res) => {
     const matchId = toDisplayName(item?.id || item?.matchId).slice(0, 160);
     const gameType = toDisplayName(item?.gameType).toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 40);
     const opponent = toDisplayName(item?.opponent).slice(0, 64);
+    const opponentKey = normalizeName(opponent);
+    const opponentAccount = opponentKey ? users.get(opponentKey) : null;
     const result = ["win", "loss", "draw"].includes(item?.result) ? item.result : "";
     const playedAt = new Date(item?.playedAt);
+    // A client flag is not proof that a match was human-vs-human. Require the
+    // opponent to resolve to a registered Novyn account on the server.
     if (!matchId || !allowedGames.has(gameType) || !opponent ||
-        normalizeName(opponent) === req.userKey || !result ||
+        !opponentKey || opponentKey === req.userKey ||
+        !opponentAccount?.isRegistered || !result ||
+        /^(ai|bot)(\b|[_ -])/i.test(opponent) ||
         !Number.isFinite(playedAt.getTime()) ||
         playedAt.getTime() > Date.now() + 5 * 60 * 1000 ||
         playedAt.getTime() < Date.now() - 5 * 365 * 24 * 60 * 60 * 1000) {
-      return res.status(400).json({ error: "A completed human match contains invalid details." });
+      return res.status(400).json({ error: "A completed human match must include a registered, different Novyn opponent and valid match details." });
     }
     docs.push({
       _id: req.userKey + ":" + matchId,
