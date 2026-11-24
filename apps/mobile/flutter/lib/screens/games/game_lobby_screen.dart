@@ -258,10 +258,8 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
         builder: (sheetContext) {
           _friendWaitingSheetContext = sheetContext;
           return _FriendInviteWaitingSheet(
-            gameTitle: widget.title,
             friend: friend,
             currentUser: _auth?.user,
-            countdown: _friendInviteCountdown,
             accepted: _friendInviteAccepted,
             onStart: _openPendingFriendGame,
             onCancel: () => _cancelPendingFriendInvite(leaveLobby: false),
@@ -1793,51 +1791,20 @@ class _MatchPlayerBadge extends StatelessWidget {
   }
 }
 
-class _FriendInviteWaitingSheet extends StatefulWidget {
+class _FriendInviteWaitingSheet extends StatelessWidget {
   const _FriendInviteWaitingSheet({
-    required this.gameTitle,
     required this.friend,
     required this.currentUser,
-    required this.countdown,
     required this.accepted,
     required this.onStart,
     required this.onCancel,
   });
 
-  final String gameTitle;
   final UserModel friend;
   final NovynUser? currentUser;
-  final ValueListenable<int> countdown;
   final ValueListenable<bool> accepted;
   final VoidCallback onStart;
   final VoidCallback onCancel;
-
-  @override
-  State<_FriendInviteWaitingSheet> createState() => _FriendInviteWaitingSheetState();
-}
-
-class _FriendInviteWaitingSheetState extends State<_FriendInviteWaitingSheet>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _pulseController;
-  late Animation<double> _pulseAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    )..repeat(reverse: true);
-    _pulseAnimation = Tween<double>(begin: 0.92, end: 1.08).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _pulseController.dispose();
-    super.dispose();
-  }
 
   Widget _memberRow({
     required String name,
@@ -1854,29 +1821,20 @@ class _FriendInviteWaitingSheetState extends State<_FriendInviteWaitingSheet>
       ),
       child: Row(
         children: [
-          UserAvatar(
-            name: name,
-            photoUrl: photoUrl,
-            radius: 19,
-            showOnlineIndicator: false,
-          ),
+          UserAvatar(name: name, photoUrl: photoUrl, radius: 19, showOnlineIndicator: false),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               isHost ? '$name · Host' : name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: foreground,
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
-              ),
+              style: TextStyle(color: foreground, fontSize: 14, fontWeight: FontWeight.w800),
             ),
           ),
           ValueListenableBuilder<bool>(
-            valueListenable: widget.accepted,
-            builder: (context, accepted, _) {
-              final joined = isHost || accepted;
+            valueListenable: accepted,
+            builder: (context, isAccepted, _) {
+              final joined = isHost || isAccepted;
               return Container(
                 padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
                 decoration: BoxDecoration(
@@ -1886,11 +1844,7 @@ class _FriendInviteWaitingSheetState extends State<_FriendInviteWaitingSheet>
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      Icons.circle,
-                      size: 9,
-                      color: joined ? const Color(0xFF18A05E) : const Color(0xFFE9A400),
-                    ),
+                    Icon(Icons.circle, size: 9, color: joined ? const Color(0xFF18A05E) : const Color(0xFFE9A400)),
                     const SizedBox(width: 7),
                     Text(
                       joined ? 'Joined' : 'Joining…',
@@ -1915,10 +1869,10 @@ class _FriendInviteWaitingSheetState extends State<_FriendInviteWaitingSheet>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final foreground = isDark ? Colors.white : const Color(0xFF1E1A43);
     final muted = isDark ? Colors.white60 : const Color(0xFF625D8C);
-    final friendName = widget.friend.name.isEmpty ? widget.friend.username : widget.friend.name;
-    final myName = widget.currentUser?.displayName.isNotEmpty == true
-        ? widget.currentUser!.displayName
-        : (widget.currentUser?.username ?? 'You');
+    final friendName = friend.name.isEmpty ? friend.username : friend.name;
+    final myName = currentUser?.displayName.isNotEmpty == true
+        ? currentUser!.displayName
+        : (currentUser?.username ?? 'You');
 
     return SafeArea(
       top: false,
@@ -1953,24 +1907,13 @@ class _FriendInviteWaitingSheetState extends State<_FriendInviteWaitingSheet>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'In this room',
-                        style: TextStyle(
-                          color: foreground,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
+                      Text('In this room', style: TextStyle(color: foreground, fontSize: 20, fontWeight: FontWeight.w900)),
                       const SizedBox(height: 3),
                       ValueListenableBuilder<bool>(
-                        valueListenable: widget.accepted,
-                        builder: (context, accepted, _) => Text(
-                          accepted ? '2 of 2 joined' : '1 of 2 joined',
-                          style: TextStyle(
-                            color: muted,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                          ),
+                        valueListenable: accepted,
+                        builder: (context, isAccepted, _) => Text(
+                          isAccepted ? '2 of 2 joined' : '1 of 2 joined',
+                          style: TextStyle(color: muted, fontSize: 13, fontWeight: FontWeight.w700),
                         ),
                       ),
                     ],
@@ -1979,39 +1922,26 @@ class _FriendInviteWaitingSheetState extends State<_FriendInviteWaitingSheet>
                 Container(
                   width: 48,
                   height: 48,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFEDE9FC),
-                    shape: BoxShape.circle,
-                  ),
+                  decoration: const BoxDecoration(color: Color(0xFFEDE9FC), shape: BoxShape.circle),
                   child: const Icon(Icons.person_add_alt_1_rounded, color: Color(0xFF5141E5)),
                 ),
               ],
             ),
             const SizedBox(height: 16),
-            _memberRow(
-              name: myName,
-              photoUrl: widget.currentUser?.avatarId ?? '',
-              isHost: true,
-              isDark: isDark,
-            ),
+            _memberRow(name: myName, photoUrl: currentUser?.avatarId ?? '', isHost: true, isDark: isDark),
             const SizedBox(height: 9),
-            _memberRow(
-              name: friendName,
-              photoUrl: widget.friend.photoUrl,
-              isHost: false,
-              isDark: isDark,
-            ),
+            _memberRow(name: friendName, photoUrl: friend.photoUrl, isHost: false, isDark: isDark),
             const SizedBox(height: 20),
             ValueListenableBuilder<bool>(
-              valueListenable: widget.accepted,
-              builder: (context, accepted, _) => SizedBox(
+              valueListenable: accepted,
+              builder: (context, isAccepted, _) => SizedBox(
                 width: double.infinity,
                 height: 58,
                 child: FilledButton.icon(
-                  onPressed: accepted ? widget.onStart : null,
+                  onPressed: isAccepted ? onStart : null,
                   icon: const Icon(Icons.play_arrow_rounded, size: 23),
                   label: Text(
-                    accepted ? 'Start match' : 'Waiting for friend',
+                    isAccepted ? 'Start match' : 'Waiting for friend',
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
                   ),
                   style: FilledButton.styleFrom(
@@ -2027,11 +1957,8 @@ class _FriendInviteWaitingSheetState extends State<_FriendInviteWaitingSheet>
             const SizedBox(height: 5),
             Center(
               child: TextButton(
-                onPressed: widget.onCancel,
-                child: Text(
-                  'Cancel invite',
-                  style: TextStyle(color: muted, fontWeight: FontWeight.w700),
-                ),
+                onPressed: onCancel,
+                child: Text('Cancel invite', style: TextStyle(color: muted, fontWeight: FontWeight.w700)),
               ),
             ),
           ],
