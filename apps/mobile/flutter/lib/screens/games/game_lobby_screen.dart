@@ -828,11 +828,11 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    _buildFriendPicker(theme, connectionReady),
+                    _buildFriendPicker(theme),
                   ],
                 ),
               ),
-              _buildInviteBottomBar(theme, connectionReady),
+              _buildInviteBottomBar(),
             ],
           ),
         ),
@@ -840,12 +840,11 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
     );
   }
 
-  Widget _buildFriendPicker(ThemeData theme, bool connectionReady) {
+  Widget _buildFriendPicker(ThemeData theme) {
     final isDark = theme.brightness == Brightness.dark;
     final surface = isDark ? const Color(0xFF201B36) : Colors.white;
     final foreground = isDark ? Colors.white : const Color(0xFF1E1A43);
     final muted = isDark ? Colors.white60 : const Color(0xFF625D8C);
-    final selectedFriend = _selectedFriendModel;
     final filtered = _filteredFriends;
     return Column(
       children: [
@@ -969,7 +968,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
     );
   }
 
-  Widget _buildInviteBottomBar(ThemeData theme, bool connectionReady) {
+  Widget _buildInviteBottomBar() {
     final friend = _selectedFriendModel;
     final enabled = connectionReady && friend != null && !_sendingInvite;
     return SafeArea(
