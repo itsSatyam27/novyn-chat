@@ -664,7 +664,7 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final background = isDark ? const Color(0xFF141026) : const Color(0xFFF5F3FC);
+    final background = isDark ? const Color(0xFF141026) : const Color(0xFFF6F5FD);
     final foreground = isDark ? Colors.white : _ink;
     final muted = isDark ? Colors.white60 : _muted;
     final friends = _filteredFriends;
@@ -760,7 +760,6 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
                           background: isDark ? const Color(0xFF201B36) : Colors.white,
                           foreground: foreground,
                           subtitleColor: muted,
-                          playColor: _purple,
                           onTap: _openFillBotsRoom,
                         ),
                       ),
@@ -775,7 +774,6 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
                           background: _purple,
                           foreground: Colors.white,
                           subtitleColor: Colors.white.withValues(alpha: .88),
-                          playColor: Colors.white,
                           onTap: _startRandomSearch,
                         ),
                       ),
@@ -804,7 +802,7 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
                       prefixIcon: Icon(Icons.search_rounded, color: muted, size: 24),
                       filled: true,
                       fillColor: isDark ? const Color(0xFF201B36) : Colors.white,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(28), borderSide: BorderSide.none),
                       enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(28), borderSide: BorderSide.none),
                       focusedBorder: OutlineInputBorder(
@@ -971,7 +969,6 @@ class _RMQuickPlayTile extends StatelessWidget {
     required this.background,
     required this.foreground,
     required this.subtitleColor,
-    required this.playColor,
     required this.onTap,
   });
 
@@ -983,54 +980,46 @@ class _RMQuickPlayTile extends StatelessWidget {
   final Color background;
   final Color foreground;
   final Color subtitleColor;
-  final Color playColor;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: background,
-      borderRadius: BorderRadius.circular(30),
+      borderRadius: BorderRadius.circular(26),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(26),
         child: SizedBox(
-          height: 184,
+          height: 110,
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Container(
-                  width: 58,
-                  height: 58,
+                  width: 40,
+                  height: 40,
                   decoration: BoxDecoration(
                     color: iconBackground,
-                    borderRadius: BorderRadius.circular(19),
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Icon(icon, color: iconColor, size: 29),
+                  child: Icon(icon, color: iconColor, size: 21),
                 ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: foreground,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 17,
-                              letterSpacing: -.3,
-                            ),
-                          ),
-                        ),
-                        Icon(Icons.play_arrow_rounded, color: playColor, size: 24),
-                      ],
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: foreground,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 16,
+                        letterSpacing: -.3,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -1072,11 +1061,11 @@ class _RMWaitingRoomSheet extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final foreground = isDark ? Colors.white : const Color(0xFF1E1A43);
     final muted = isDark ? Colors.white60 : const Color(0xFF625D8C);
-    final surface = isDark ? const Color(0xFF201B36) : const Color(0xFFF5F3FC);
+    final surface = isDark ? const Color(0xFF201B36) : const Color(0xFFF6F5FD);
     return SafeArea(
       top: false,
       child: Container(
-        height: MediaQuery.of(context).size.height * .58,
+        height: MediaQuery.of(context).size.height * .52,
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF201B36) : Colors.white,
@@ -1127,7 +1116,7 @@ class _RMWaitingRoomSheet extends StatelessWidget {
                     final member = index < values.length ? values[index] : null;
                     if (member == null) {
                       return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         decoration: BoxDecoration(
                           color: surface,
                           borderRadius: BorderRadius.circular(18),
@@ -1151,7 +1140,7 @@ class _RMWaitingRoomSheet extends StatelessWidget {
                     final ready = member.isHost || member.isBot || member.isJoined;
                     final statusColor = ready ? const Color(0xFF18A05E) : const Color(0xFFE9A400);
                     return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(color: surface, borderRadius: BorderRadius.circular(18)),
                       child: Row(
                         children: [
@@ -1279,7 +1268,7 @@ class _RajaMantriSearchingScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final background = isDark ? const Color(0xFF141026) : const Color(0xFFF5F3FC);
+    final background = isDark ? const Color(0xFF141026) : const Color(0xFFF6F5FD);
     final foreground = isDark ? Colors.white : const Color(0xFF1E1A43);
     final muted = isDark ? Colors.white60 : const Color(0xFF625D8C);
     final surface = isDark ? const Color(0xFF201B36) : Colors.white;
@@ -1570,7 +1559,7 @@ class _RajaMantriMatchFoundScreenState extends State<_RajaMantriMatchFoundScreen
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final background = isDark ? const Color(0xFF141026) : const Color(0xFFF5F3FC);
+    final background = isDark ? const Color(0xFF141026) : const Color(0xFFF6F5FD);
     final foreground = isDark ? Colors.white : const Color(0xFF1E1A43);
     final muted = isDark ? Colors.white60 : const Color(0xFF625D8C);
     const colors = [Color(0xFF6250F5), Color(0xFFE32C62), Color(0xFF0D9472), Color(0xFFB86A00)];

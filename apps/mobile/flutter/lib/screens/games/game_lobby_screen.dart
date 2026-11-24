@@ -755,7 +755,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
         if (!didPop && !_cancellingMatchmaking) unawaited(_handleBack());
       },
       child: Scaffold(
-        backgroundColor: isDark ? const Color(0xFF141026) : const Color(0xFFF5F3FC),
+        backgroundColor: isDark ? const Color(0xFF141026) : const Color(0xFFF6F5FD),
         body: SafeArea(
           child: Column(
             children: [
@@ -824,7 +824,6 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
                             background: surface,
                             foreground: foreground,
                             subtitleColor: muted,
-                            playColor: const Color(0xFF5E44F3),
                             onTap: _playWithAiBot,
                           ),
                         ),
@@ -839,7 +838,6 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
                             background: const Color(0xFF5E4CF2),
                             foreground: Colors.white,
                             subtitleColor: Colors.white.withValues(alpha: .88),
-                            playColor: Colors.white,
                             onTap: connectionReady && !_searchingRandom
                                 ? _startRandomSearch
                                 : null,
@@ -908,7 +906,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
             prefixIcon: Icon(Icons.search_rounded, color: muted, size: 24),
             filled: true,
             fillColor: surface,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(28), borderSide: BorderSide.none),
             enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(28), borderSide: BorderSide.none),
             focusedBorder: OutlineInputBorder(
@@ -1116,8 +1114,14 @@ class _MatchmakingBackgroundScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final background = isDark ? const Color(0xFF141026) : const Color(0xFFF6F5FD);
     return Scaffold(
+      backgroundColor: background,
       appBar: AppBar(
+        backgroundColor: background,
+        foregroundColor: isDark ? Colors.white : const Color(0xFF1E1A43),
+        elevation: 0,
         title: const Text('Matchmaking'),
         leading: IconButton(
           tooltip: 'Return to game setup',
@@ -1200,7 +1204,6 @@ class _QuickPlayTile extends StatelessWidget {
     required this.background,
     required this.foreground,
     required this.subtitleColor,
-    required this.playColor,
     required this.onTap,
   });
 
@@ -1212,50 +1215,46 @@ class _QuickPlayTile extends StatelessWidget {
   final Color background;
   final Color foreground;
   final Color subtitleColor;
-  final Color playColor;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: background,
-      borderRadius: BorderRadius.circular(30),
+      borderRadius: BorderRadius.circular(26),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(26),
         child: SizedBox(
-          height: 188,
+          height: 142,
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  width: 58,
-                  height: 58,
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
                     color: iconBackground,
-                    borderRadius: BorderRadius.circular(19),
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Icon(icon, color: iconColor, size: 29),
+                  child: Icon(icon, color: iconColor, size: 23),
                 ),
                 const Spacer(),
                 Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: 'PlusJakartaSans',
-                    fontSize: 17,
+                    fontSize: 16,
                     fontWeight: FontWeight.w800,
                     color: foreground,
                   )),
                 const SizedBox(height: 3),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 12.5, color: subtitleColor)),
-                    ),
-                    Icon(Icons.play_arrow_rounded, color: playColor, size: 23),
-                  ],
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12.5, color: subtitleColor),
                 ),
               ],
             ),
@@ -1343,7 +1342,7 @@ class _RandomMatchmakingScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final background = isDark ? const Color(0xFF141026) : const Color(0xFFF5F3FC);
+    final background = isDark ? const Color(0xFF141026) : const Color(0xFFF6F5FD);
     final foreground = isDark ? Colors.white : const Color(0xFF1E1A43);
     final muted = isDark ? Colors.white60 : const Color(0xFF625D8C);
     final surface = isDark ? const Color(0xFF201B36) : Colors.white;
@@ -1549,7 +1548,7 @@ class _RandomMatchFoundScreenState extends State<_RandomMatchFoundScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final background = isDark ? const Color(0xFF141026) : const Color(0xFFF5F3FC);
+    final background = isDark ? const Color(0xFF141026) : const Color(0xFFF6F5FD);
     final foreground = isDark ? Colors.white : const Color(0xFF1E1A43);
     final muted = isDark ? Colors.white60 : const Color(0xFF625D8C);
     final surface = isDark ? const Color(0xFF201B36) : Colors.white;
@@ -1839,7 +1838,7 @@ class _FriendInviteWaitingSheet extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF28223F) : const Color(0xFFF5F3FC),
+        color: isDark ? const Color(0xFF28223F) : const Color(0xFFF6F5FD),
         borderRadius: BorderRadius.circular(18),
       ),
       child: Row(
