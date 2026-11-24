@@ -2582,15 +2582,20 @@ class SocketService extends ChangeNotifier {
     }
   }
 
-  Future<Map<String, dynamic>> joinRandomGame(String gameType) async {
+  Future<Map<String, dynamic>> joinRandomGame(
+    String gameType, {
+    int? playerLevel,
+  }) async {
     await _waitForSocketAuthentication();
     final socket = _socket;
     if (socket == null || !_isConnected || !_isAuthenticated) {
       throw StateError('Connect to Novyn before starting a random game.');
     }
     final completer = Completer<Map<String, dynamic>>();
-    socket.emitWithAck('join_random_game', {'gameType': gameType},
-        ack: (dynamic result) {
+    socket.emitWithAck('join_random_game', {
+      'gameType': gameType,
+      if (playerLevel != null) 'playerLevel': playerLevel,
+    }, ack: (dynamic result) {
       if (completer.isCompleted) return;
       completer.complete(result is Map
           ? Map<String, dynamic>.from(result)
