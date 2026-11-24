@@ -1,78 +1,143 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="864" height="620" viewBox="0 0 864 620" fill="none">
   <defs>
     <linearGradient id="sky" x1="432" y1="0" x2="432" y2="620" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#5630D8"/>
-      <stop offset=".48" stop-color="#9277F5"/>
-      <stop offset=".78" stop-color="#E8E1FF"/>
-      <stop offset="1" stop-color="#FFFFFF"/>
+      <stop stop-color="#392080"/>
+      <stop offset=".42" stop-color="#6540C2"/>
+      <stop offset=".76" stop-color="#A994EC"/>
+      <stop offset="1" stop-color="#EDE8FF"/>
     </linearGradient>
-    <linearGradient id="hill" x1="80" y1="120" x2="760" y2="480" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#B9A8FF"/>
-      <stop offset=".55" stop-color="#7654E8"/>
-      <stop offset="1" stop-color="#4D2CC8"/>
+    <linearGradient id="distant" x1="432" y1="220" x2="432" y2="520" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A994F5"/>
+      <stop offset="1" stop-color="#7757D9"/>
     </linearGradient>
-    <linearGradient id="lavender" x1="0" y1="0" x2="1" y2="1">
-      <stop stop-color="#F4F0FF"/>
-      <stop offset="1" stop-color="#CFC2FF"/>
+    <linearGradient id="ground" x1="432" y1="380" x2="432" y2="620" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8768E6"/>
+      <stop offset="1" stop-color="#D8CEFF"/>
     </linearGradient>
-    <linearGradient id="purple" x1="0" y1="0" x2="1" y2="1">
-      <stop stop-color="#A994FF"/>
-      <stop offset="1" stop-color="#6844E8"/>
+    <linearGradient id="plum" x1="320" y1="130" x2="520" y2="500" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#9C7BF4"/>
+      <stop offset=".38" stop-color="#6945CF"/>
+      <stop offset="1" stop-color="#392078"/>
     </linearGradient>
-    <linearGradient id="fade" x1="432" y1="350" x2="432" y2="620" gradientUnits="userSpaceOnUse">
+    <linearGradient id="plumLight" x1="330" y1="220" x2="475" y2="445" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#BDAAFF" stop-opacity=".78"/>
+      <stop offset="1" stop-color="#7856D7" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="cream" x1="590" y1="200" x2="716" y2="480" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset=".55" stop-color="#EEE8FF"/>
+      <stop offset="1" stop-color="#B9A6F0"/>
+    </linearGradient>
+    <linearGradient id="creamEar" x1="630" y1="150" x2="690" y2="300" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FDFBFF"/>
+      <stop offset="1" stop-color="#CDBFF7"/>
+    </linearGradient>
+    <linearGradient id="lilac" x1="520" y1="245" x2="584" y2="390" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E3D9FF"/>
+      <stop offset="1" stop-color="#9A7BEA"/>
+    </linearGradient>
+    <linearGradient id="fade" x1="432" y1="438" x2="432" y2="620" gradientUnits="userSpaceOnUse">
       <stop stop-color="#FFFFFF" stop-opacity="0"/>
-      <stop offset=".72" stop-color="#FFFFFF" stop-opacity=".86"/>
+      <stop offset=".72" stop-color="#FFFFFF" stop-opacity=".82"/>
       <stop offset="1" stop-color="#FFFFFF"/>
     </linearGradient>
-      </defs>
-  <path fill="url(#sky)" d="M0 0h864v620H0z"/>
-  <circle cx="432" cy="178" r="168" fill="#D8CCFF" opacity=".16"/>
-  <circle cx="432" cy="178" r="118" fill="#F7F3FF" opacity=".12"/>
-  <path d="M0 258c72-68 130-65 197-10 63-92 157-90 222-10 79-91 172-72 229 4 66-54 137-41 216 22v214H0V258Z" fill="#7654E8" opacity=".42"/>
-  <path d="M0 316c89-93 157-92 233-17 69-78 159-75 224 4 75-77 164-74 232 2 60-53 119-48 175 7v184H0V316Z" fill="url(#hill)"/>
-  <g opacity=".9" fill="#4F2BC7">
-    <path d="M0 185c45-42 84-31 102 13 35-35 76-23 91 17 28-16 56-5 67 24-38 18-62 43-78 77H0V185Z"/>
-    <path d="M864 170c-42-39-83-28-99 15-38-33-75-17-87 24-29-14-57-1-65 28 39 15 66 38 84 70h167V170Z"/>
-    <circle cx="47" cy="132" r="28"/><circle cx="96" cy="105" r="20"/><circle cx="812" cy="116" r="25"/><circle cx="765" cy="143" r="17"/>
+  </defs>
+
+  <rect width="864" height="620" fill="url(#sky)"/>
+  <circle cx="430" cy="214" r="184" fill="#DCCFFF" opacity=".12"/>
+  <circle cx="430" cy="214" r="126" fill="#F3EEFF" opacity=".08"/>
+  <path d="M0 267c61-67 115-72 169-16 46-79 119-89 178-28 66-91 151-89 213-8 64-62 151-47 205 31 40-18 69-5 99 17v222H0V267Z" fill="url(#distant)" opacity=".76"/>
+  <path d="M0 354c72-72 139-77 210-13 72-81 163-81 232 1 70-72 150-71 218-2 78-56 144-50 204 7v273H0V354Z" fill="url(#ground)"/>
+
+  <!-- Soft, layered foliage framing the mascots -->
+  <g fill="#4A2AAB" opacity=".78">
+    <path d="M0 214c28-30 60-38 91-20 7-40 45-59 78-38 34-43 88-29 96 19 34 15 47 51 26 80 20 19 28 47 14 76H0V214Z"/>
+    <path d="M0 305c33-32 69-39 103-17 14-35 49-45 77-23 36-32 82-15 82 26 26 19 27 52 7 75H0v-61Z" opacity=".64"/>
+    <path d="M864 205c-31-33-65-37-96-15-11-40-48-55-80-32-32-40-84-22-89 26-35 17-45 55-21 82-18 20-23 49-7 76h293V205Z"/>
+    <path d="M864 308c-34-30-72-33-104-9-17-34-53-41-78-17-33-29-79-9-76 32-24 21-23 54 0 75h258v-81Z" opacity=".65"/>
   </g>
-  <ellipse cx="435" cy="427" rx="286" ry="34" fill="#4022A7" opacity=".2"/>
-  <!-- Floating conversation bubbles -->
-  <g transform="translate(126 166) rotate(-9)">
-    <rect width="150" height="76" rx="28" fill="#FFFFFF" opacity=".96"/>
-    <path d="M40 76 29 94l34-18" fill="#FFFFFF"/>
-    <circle cx="43" cy="38" r="8" fill="#A58EFF"/><circle cx="75" cy="38" r="8" fill="#A58EFF"/><circle cx="107" cy="38" r="8" fill="#A58EFF"/>
+  <g fill="#9C83EB" opacity=".72">
+    <path d="M26 145c20-44 57-51 82-16 21-34 52-34 70-5 16 27 4 57-24 65-33 8-95-4-128-44Z"/>
+    <path d="M837 139c-20-41-56-46-80-12-22-31-52-29-69 0-16 27-3 56 25 63 33 7 94-9 124-51Z"/>
+    <path d="M92 246c28-44 63-43 81-5 29-18 55 2 47 32-9 35-73 45-128-27Z"/>
+    <path d="M779 248c-26-43-62-40-80-2-29-16-55 5-45 35 11 34 75 40 125-33Z"/>
   </g>
-  <g transform="translate(594 145) rotate(8)">
-    <rect width="142" height="70" rx="26" fill="#E8E1FF"/>
-    <path d="m103 70 13 18-34-18" fill="#E8E1FF"/>
-    <path d="M35 35h72" stroke="#896BEF" stroke-width="9" stroke-linecap="round"/>
+
+  <!-- Main deep-violet plush mascot -->
+  <g id="purple-mascot">
+    <ellipse cx="413" cy="492" rx="173" ry="30" fill="#32166F" opacity=".27"/>
+    <!-- ears and tiny tufts behind the head -->
+    <path d="M307 220c-45-53-28-112 14-127 40-14 73 26 69 88l-13 69-70-30Z" fill="#5935BD" stroke="#3D238C" stroke-width="9" stroke-linejoin="round"/>
+    <path d="M492 219c41-57 22-116-21-128-41-12-72 31-65 92l17 68 69-32Z" fill="#7651DA" stroke="#3D238C" stroke-width="9" stroke-linejoin="round"/>
+    <path d="M319 195c-14-30-8-61 7-70 15-8 34 14 39 47-13 4-28 13-46 23Z" fill="#A58CF0" opacity=".9"/>
+    <path d="M457 171c6-30 24-51 39-42 15 9 18 40 4 70-15-13-30-22-43-28Z" fill="#A58CF0" opacity=".85"/>
+    <!-- round body silhouette -->
+    <path d="M270 366c-9-117 50-204 145-218 107-16 196 57 196 170v104c0 74-72 126-178 126-106 0-166-62-163-182Z" fill="url(#plum)" stroke="#372078" stroke-width="10"/>
+    <path d="M299 341c9-95 57-154 123-167 66-13 127 16 154 71-62-18-104-11-147 18-48 32-86 52-130 78Z" fill="url(#plumLight)"/>
+    <!-- little arms -->
+    <path d="M279 374c-48-16-78 9-72 48 5 31 39 52 78 43l29-41-35-50Z" fill="#5B39BF" stroke="#372078" stroke-width="9"/>
+    <path d="M580 372c47-17 78 8 73 47-4 32-38 53-77 44l-29-41 33-50Z" fill="#5634B9" stroke="#372078" stroke-width="9"/>
+    <!-- feet -->
+    <path d="M326 491c-30 3-55 25-51 51 4 22 34 33 77 26l39-24-65-53Z" fill="#4D2DA6" stroke="#372078" stroke-width="9"/>
+    <path d="M493 492c31 0 57 21 54 48-3 23-32 35-76 30l-40-22 62-56Z" fill="#4D2DA6" stroke="#372078" stroke-width="9"/>
+    <path d="M301 518c17-10 34-10 48 2M479 520c17-10 34-9 48 3" stroke="#A88DF3" stroke-width="6" stroke-linecap="round" opacity=".75"/>
+    <!-- face and cheeks -->
+    <ellipse cx="363" cy="352" rx="10" ry="15" fill="#25164F"/>
+    <ellipse cx="470" cy="352" rx="10" ry="15" fill="#25164F"/>
+    <path d="M404 373c8-9 18-9 26 0-2 10-8 15-13 15s-11-5-13-15Z" fill="#E8B6DD"/>
+    <path d="M417 389c-7 13-19 17-30 8M417 389c7 13 19 17 30 8" stroke="#2D185E" stroke-width="6" stroke-linecap="round"/>
+    <ellipse cx="329" cy="386" rx="21" ry="11" fill="#E9A9D2" opacity=".56"/>
+    <ellipse cx="503" cy="386" rx="21" ry="11" fill="#E9A9D2" opacity=".56"/>
+    <!-- plush belly -->
+    <path d="M346 423c24-24 119-29 146 3 15 18 8 51-13 67-34 24-105 23-133-4-19-18-18-48 0-66Z" fill="#9D81E9" opacity=".44"/>
+    <path d="M374 447c26-14 64-14 88 0" stroke="#C6B4FF" stroke-width="6" stroke-linecap="round" opacity=".5"/>
   </g>
-  <!-- Friendly character on the left -->
-  <g transform="translate(244 194)">
-    <ellipse cx="94" cy="226" rx="92" ry="22" fill="#3D21A4" opacity=".22"/>
-    <path d="M25 121c-13-48 12-96 68-105 53-8 97 30 100 83l-8 85H34l-9-63Z" fill="#F6F1FF"/>
-    <path d="M43 65c8-42 46-66 88-53 27 8 48 30 51 59-31-17-54-13-76 0-22 13-39 14-63-6Z" fill="#4C2AC4"/>
-    <path d="M45 115c-17-10-31-1-31 17 0 15 12 25 27 21M169 115c17-10 31-1 31 17 0 15-12 25-27 21" stroke="#E2D8FF" stroke-width="15" stroke-linecap="round"/>
-    <ellipse cx="76" cy="112" rx="6" ry="9" fill="#30205F"/><ellipse cx="133" cy="112" rx="6" ry="9" fill="#30205F"/>
-    <path d="M87 139c12 11 25 11 37 0" stroke="#A56A9B" stroke-width="5" stroke-linecap="round"/>
-    <circle cx="56" cy="133" r="11" fill="#F4B5D0" opacity=".75"/><circle cx="153" cy="133" r="11" fill="#F4B5D0" opacity=".75"/>
-    <path d="M55 177c24 18 80 18 104 0l16 52H38l17-52Z" fill="#B8A6FF"/>
+
+  <!-- Little lavender companion tucked beside the main mascot -->
+  <g id="little-mascot">
+    <ellipse cx="554" cy="438" rx="53" ry="13" fill="#43258F" opacity=".24"/>
+    <path d="M521 324c-20-32-12-66 11-72 23-6 39 20 34 54l-4 26-41-8Z" fill="#AB91EF" stroke="#7656CB" stroke-width="7"/>
+    <path d="M579 326c16-34 8-66-15-69-23-3-37 24-29 56l7 25 37-12Z" fill="#9170DB" stroke="#7656CB" stroke-width="7"/>
+    <path d="M509 380c0-57 28-90 63-90 37 0 66 36 63 90l-5 56c-4 29-30 43-60 43-35 0-60-18-61-48v-51Z" fill="url(#lilac)" stroke="#7150C5" stroke-width="8"/>
+    <ellipse cx="541" cy="379" rx="5.5" ry="8" fill="#35205F"/>
+    <ellipse cx="584" cy="379" rx="5.5" ry="8" fill="#35205F"/>
+    <path d="M552 395c8 8 17 8 25 0" stroke="#6745A7" stroke-width="4.5" stroke-linecap="round"/>
+    <ellipse cx="526" cy="402" rx="10" ry="6" fill="#ECAFD2" opacity=".7"/>
+    <ellipse cx="600" cy="402" rx="10" ry="6" fill="#ECAFD2" opacity=".7"/>
+    <path d="M522 429c13 12 36 16 58 7" stroke="#D8C9FF" stroke-width="5" stroke-linecap="round" opacity=".8"/>
   </g>
-  <!-- Friendly character on the right -->
-  <g transform="translate(470 186)">
-    <ellipse cx="98" cy="235" rx="100" ry="23" fill="#3D21A4" opacity=".2"/>
-    <path d="M25 119c-4-53 31-91 82-91 52 0 88 38 83 91l-10 96H35l-10-96Z" fill="#D9D0FF"/>
-    <path d="M33 82c-3-49 32-79 75-79 45 0 78 31 77 77-26-17-43-19-63-9-31 16-55 15-89 11Z" fill="#6742D8"/>
-    <path d="M28 118c-20-8-33 4-30 22 3 15 17 22 31 14M185 118c20-8 33 4 30 22-3 15-17 22-31 14" stroke="#C8B9FF" stroke-width="15" stroke-linecap="round"/>
-    <ellipse cx="73" cy="125" rx="6" ry="9" fill="#30205F"/><ellipse cx="137" cy="125" rx="6" ry="9" fill="#30205F"/>
-    <path d="M86 151c11 10 24 10 36 0" stroke="#A56A9B" stroke-width="5" stroke-linecap="round"/>
-    <circle cx="53" cy="145" r="11" fill="#F1AFCB" opacity=".78"/><circle cx="157" cy="145" r="11" fill="#F1AFCB" opacity=".78"/>
-    <path d="M49 188c26 18 80 18 106 0l16 39H34l15-39Z" fill="#9277F5"/>
+
+  <!-- Soft white-lavender companion on the right -->
+  <g id="cream-mascot">
+    <ellipse cx="704" cy="500" rx="104" ry="24" fill="#352078" opacity=".22"/>
+    <!-- floppy ears -->
+    <path d="M649 264c-28-73-6-127 34-126 38 1 52 58 34 133l-68-7Z" fill="url(#creamEar)" stroke="#9A86D5" stroke-width="8" stroke-linejoin="round"/>
+    <path d="M733 259c2-77 34-119 69-105 35 14 30 72-18 136l-51-31Z" fill="url(#creamEar)" stroke="#9A86D5" stroke-width="8" stroke-linejoin="round"/>
+    <path d="M662 234c-7-40-1-69 16-69 15 0 24 27 22 65l-38 4Z" fill="#D3C7F3"/>
+    <path d="M751 236c12-39 28-58 42-50 14 8 7 37-17 69l-25-19Z" fill="#D3C7F3"/>
+    <!-- sitting round body -->
+    <path d="M602 381c0-80 41-134 103-134 66 0 112 55 112 135 0 76-36 123-109 123-71 0-106-44-106-124Z" fill="url(#cream)" stroke="#A18BD8" stroke-width="9"/>
+    <path d="M612 367c17-61 54-94 101-95 42-1 73 19 91 57-37-19-73-14-105 6-28 18-57 31-87 32Z" fill="#FFFFFF" opacity=".7"/>
+    <!-- paws -->
+    <path d="M620 436c-37-5-58 12-52 39 5 24 33 37 72 26l27-28-47-37Z" fill="#E5DCFA" stroke="#A18BD8" stroke-width="8"/>
+    <path d="M778 435c36-5 58 12 52 39-5 24-34 37-72 26l-28-28 48-37Z" fill="#E5DCFA" stroke="#A18BD8" stroke-width="8"/>
+    <path d="M650 473c20 19 89 21 113-2" stroke="#C0B1E9" stroke-width="6" stroke-linecap="round" opacity=".85"/>
+    <!-- face -->
+    <ellipse cx="672" cy="363" rx="8" ry="12" fill="#38265F"/>
+    <ellipse cx="739" cy="363" rx="8" ry="12" fill="#38265F"/>
+    <path d="M696 382c7-8 15-8 22 0-2 8-7 12-11 12s-9-4-11-12Z" fill="#DCA6CF"/>
+    <path d="M707 395c-6 10-15 13-23 6M707 395c6 10 15 13 23 6" stroke="#6D568F" stroke-width="5" stroke-linecap="round"/>
+    <ellipse cx="648" cy="393" rx="16" ry="8" fill="#E9B3D6" opacity=".7"/>
+    <ellipse cx="761" cy="393" rx="16" ry="8" fill="#E9B3D6" opacity=".7"/>
+    <!-- soft lilac chest patch -->
+    <path d="M663 427c14-16 68-20 88-1 12 12 9 31-7 40-20 13-59 11-77-4-13-11-14-24-4-35Z" fill="#D9CEF5" opacity=".76"/>
   </g>
-  <g fill="#FFF" opacity=".88">
-    <path d="m432 94 7 17 18 7-18 7-7 18-7-18-18-7 18-7 7-17Z"/>
-    <path d="m338 260 5 12 12 5-12 5-5 12-5-12-12-5 12-5 5-12Z"/>
-    <path d="m740 276 5 12 12 5-12 5-5 12-5-12-12-5 12-5 5-12Z"/>
+
+  <!-- tiny floating glints, drawn as soft light rather than interface icons -->
+  <g fill="#F7F2FF" opacity=".8">
+    <path d="M184 150c5-13 8-13 13 0 13 5 13 8 0 13-5 13-8 13-13 0-13-5-13-8 0-13Z"/>
+    <path d="M700 100c4-10 6-10 10 0 10 4 10 6 0 10-4 10-6 10-10 0-10-4-10-6 0-10Z"/>
+    <circle cx="248" cy="286" r="5"/><circle cx="806" cy="320" r="6"/><circle cx="584" cy="178" r="4"/>
   </g>
-  <path d="M0 356c116 20 197 14 288-1 115-19 188-15 285 1 109 18 193 17 291-4v268H0V356Z" fill="url(#fade)"/>
+  <path d="M0 460c110 20 212 18 302 1 97-18 177-17 271 0 105 19 193 18 291-4v163H0V460Z" fill="url(#fade)"/>
 </svg>
