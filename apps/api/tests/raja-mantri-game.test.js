@@ -5,6 +5,8 @@ const assert = require("node:assert/strict");
 const {
   createRajaMantriGameSession,
   pickRajaMantriChit,
+  autoPickRajaMantriChit,
+  setRajaMantriPlayerConnected,
   guessRajaMantriChor,
   advanceRajaMantriRound,
   getRajaMantriGameView,
@@ -119,4 +121,44 @@ test("a bot Sipahi automatically resolves the round after all human picks", () =
   assert.equal(pickRajaMantriChit(session, host.username).ok, true);
   assert.equal(session.phase, "result");
   assert.ok(session.lastResult);
+});
+
+
+test("an offline player is auto-controlled and auto-picked after the response window", () => {
+  const session = makeSession(3);
+  const offline = session.players.find((player) => player.username === "user2");
+  assert.equal(setRajaMantriPlayerConnected(session, offline.username, false).ok, true);
+  assert.equal(offline.autoControlled, true);
+  assert.equal(offline.isConnected, false);
+  assert.equal(autoPickRajaMantriChit(session, offline.username).ok, true);
+  assert.equal(offline.picked, true);
+  assert.equal(offline.autoPicked, true);
+});
+
+test("auto-picking the final unresponsive player starts the Sipahi phase", () => {
+  const session = makeSession(3);
+  const [first, second, third] = session.players;
+  assert.equal(pickRajaMantriChit(session, first.username).ok, true);
+  assert.equal(autoPickRajaMantriChit(session, second.username).ok, true);
+  assert.equal(autoPickRajaMantriChit(session, third.username).ok, true);
+  assert.equal(session.phase, "guessing");
+  assert.ok(session.responseDeadlineAt > Date.now());
+});
+
+test("an offline Sipahi is replaced by bot control and the round resolves", () => {
+  const session = makeSession(3);
+  pickAll(session);
+  const sipahi = session.players.find((player) => player.role === "sipahi");
+  assert.equal(setRajaMantriPlayerConnected(session, sipahi.username, false).ok, true);
+  assert.equal(session.phase, "result");
+  assert.equal(session.lastResult.autoPlayed, true);
+});
+
+test("a reconnected player regains control for the next round", () => {
+  const session = makeSession(3);
+  const player = session.players[1];
+  assert.equal(setRajaMantriPlayerConnected(session, player.username, false).ok, true);
+  assert.equal(setRajaMantriPlayerConnected(session, player.username, true).ok, true);
+  assert.equal(player.autoControlled, false);
+  assert.equal(player.isConnected, true);
 });
