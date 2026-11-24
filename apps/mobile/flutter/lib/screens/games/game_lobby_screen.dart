@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -1238,12 +1239,77 @@ class _RandomMatchmakingScreen extends StatelessWidget {
   final ValueListenable<int> countdown;
   final VoidCallback onCancel;
 
+  Widget _orbitArtwork(double size) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          for (final factor in [1.0, .77, .54])
+            Container(
+              width: size * factor,
+              height: size * factor,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: const Color(0xFFBDB5F3).withValues(alpha: .45),
+                  width: 1.5,
+                ),
+              ),
+            ),
+          for (final dot in const [
+            [0.18, 0.28, 13.0, Color(0xFFD5F1E5)],
+            [0.82, 0.18, 11.0, Color(0xFFFFDCE7)],
+            [0.25, 0.82, 10.0, Color(0xFFE6E0FF)],
+            [0.84, 0.78, 14.0, Color(0xFFFFE5D4)],
+          ])
+            Positioned(
+              left: size * (dot[0] as double) - (dot[2] as double) / 2,
+              top: size * (dot[1] as double) - (dot[2] as double) / 2,
+              child: Container(
+                width: dot[2] as double,
+                height: dot[2] as double,
+                decoration: BoxDecoration(
+                  color: dot[3] as Color,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+          Container(
+            width: size * .37,
+            height: size * .37,
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E1A43),
+              shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFF6250F5), width: 5),
+              boxShadow: const [
+                BoxShadow(color: Color(0x336250F5), blurRadius: 18),
+              ],
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              '?',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: size * .16,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final background = isDark ? const Color(0xFF141026) : const Color(0xFFF5F3FC);
     final foreground = isDark ? Colors.white : const Color(0xFF1E1A43);
     final muted = isDark ? Colors.white60 : const Color(0xFF625D8C);
+    final surface = isDark ? const Color(0xFF201B36) : Colors.white;
+
     return PopScope<void>(
       canPop: false,
       child: Scaffold(
@@ -1256,7 +1322,7 @@ class _RandomMatchmakingScreen extends StatelessWidget {
                 child: Row(
                   children: [
                     Material(
-                      color: isDark ? const Color(0xFF201B36) : Colors.white,
+                      color: surface,
                       shape: const CircleBorder(),
                       child: IconButton(
                         onPressed: onCancel,
@@ -1264,114 +1330,123 @@ class _RandomMatchmakingScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 16),
-                    Expanded(child: Text(gameTitle, style: TextStyle(
-                      fontFamily: 'PlusJakartaSans',
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      color: foreground,
-                    ))),
+                    Expanded(
+                      child: Text(
+                        gameTitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: foreground,
+                        ),
+                      ),
+                    ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
                       decoration: BoxDecoration(
                         color: const Color(0xFFEDE9FC),
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Text('Random player', style: TextStyle(
-                        color: Color(0xFF403875), fontWeight: FontWeight.w700, fontSize: 12,
-                      )),
+                      child: const Text(
+                        'Random player',
+                        style: TextStyle(
+                          color: Color(0xFF403875),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
-              const Spacer(),
-              SizedBox(
-                width: 300,
-                height: 300,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    for (final size in [300.0, 230.0, 160.0])
-                      Container(
-                        width: size,
-                        height: size,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: const Color(0xFFBDB5F3).withValues(alpha: .45), width: 1.5),
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final size = math.min(
+                      300.0,
+                      math.min(
+                        constraints.maxWidth - 48,
+                        constraints.maxHeight * .48,
+                      ),
+                    ).clamp(150.0, 300.0);
+                    return Column(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _orbitArtwork(size),
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Finding a player',
+                              style: TextStyle(
+                                fontFamily: 'PlusJakartaSans',
+                                fontSize: 28,
+                                fontWeight: FontWeight.w800,
+                                color: foreground,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Matching you with someone at your level',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(fontSize: 15, color: muted),
+                            ),
+                            const SizedBox(height: 20),
+                            ValueListenableBuilder<int>(
+                              valueListenable: countdown,
+                              builder: (context, seconds, _) => Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 22,
+                                  vertical: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: surface,
+                                  borderRadius: BorderRadius.circular(28),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.access_time_rounded, color: muted, size: 20),
+                                    const SizedBox(width: 10),
+                                    Text(
+                                      '0:${(60 - seconds).clamp(0, 60).toString().padLeft(2, '0')}',
+                                      style: TextStyle(
+                                        color: foreground,
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    for (final dot in const [
-                      [0.18, 0.28, 13.0, Color(0xFFD5F1E5)],
-                      [0.82, 0.18, 11.0, Color(0xFFFFDCE7)],
-                      [0.25, 0.82, 10.0, Color(0xFFE6E0FF)],
-                      [0.84, 0.78, 14.0, Color(0xFFFFE5D4)],
-                    ])
-                      Positioned(
-                        left: 300 * (dot[0] as double) - (dot[2] as double) / 2,
-                        top: 300 * (dot[1] as double) - (dot[2] as double) / 2,
-                        child: Container(
-                          width: dot[2] as double,
-                          height: dot[2] as double,
-                          decoration: BoxDecoration(color: dot[3] as Color, shape: BoxShape.circle),
-                        ),
-                      ),
-                    Container(
-                      width: 112,
-                      height: 112,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1E1A43),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: const Color(0xFF6250F5), width: 5),
-                        boxShadow: const [BoxShadow(color: Color(0x336250F5), blurRadius: 18)],
-                      ),
-                      alignment: Alignment.center,
-                      child: const Text('?', style: TextStyle(color: Colors.white, fontSize: 48, fontWeight: FontWeight.w800)),
-                    ),
-                  ],
+                      ],
+                    );
+                  },
                 ),
               ),
-              const SizedBox(height: 50),
-              Text('Finding a player', style: TextStyle(
-                fontFamily: 'PlusJakartaSans',
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
-                color: foreground,
-              )),
-              const SizedBox(height: 8),
-              Text('Looking for an available opponent',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 15, color: muted)),
-              const SizedBox(height: 24),
-              ValueListenableBuilder<int>(
-                valueListenable: countdown,
-                builder: (context, seconds, _) => Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF201B36) : Colors.white,
-                    borderRadius: BorderRadius.circular(28),
-                  ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.access_time_rounded, color: muted, size: 20),
-                    const SizedBox(width: 10),
-                    Text('0:${(60 - seconds).clamp(0, 60).toString().padLeft(2, '0')}', style: TextStyle(
-                      color: foreground, fontWeight: FontWeight.w800, fontSize: 16,
-                    )),
-                  ]),
-                ),
-              ),
-              const Spacer(),
               Padding(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
                 child: SizedBox(
                   height: 64,
                   width: double.infinity,
                   child: FilledButton(
                     onPressed: onCancel,
                     style: FilledButton.styleFrom(
-                      backgroundColor: isDark ? const Color(0xFF282046) : const Color(0xFFEDE9FC),
+                      backgroundColor: isDark
+                          ? const Color(0xFF282046)
+                          : const Color(0xFFEDE9FC),
                       foregroundColor: const Color(0xFF5141E5),
                       shape: const StadiumBorder(),
                     ),
-                    child: const Text('Cancel search', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                    child: const Text(
+                      'Cancel search',
+                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                    ),
                   ),
                 ),
               ),
@@ -1414,7 +1489,10 @@ class _RandomMatchFoundScreenState extends State<_RandomMatchFoundScreen> {
   void initState() {
     super.initState();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) return timer.cancel();
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
       if (_seconds <= 1) {
         timer.cancel();
         widget.onStart();
@@ -1436,6 +1514,8 @@ class _RandomMatchFoundScreenState extends State<_RandomMatchFoundScreen> {
     final background = isDark ? const Color(0xFF141026) : const Color(0xFFF5F3FC);
     final foreground = isDark ? Colors.white : const Color(0xFF1E1A43);
     final muted = isDark ? Colors.white60 : const Color(0xFF625D8C);
+    final surface = isDark ? const Color(0xFF201B36) : Colors.white;
+
     return PopScope<void>(
       canPop: false,
       child: Scaffold(
@@ -1448,7 +1528,7 @@ class _RandomMatchFoundScreenState extends State<_RandomMatchFoundScreen> {
                 child: Row(
                   children: [
                     Material(
-                      color: isDark ? const Color(0xFF201B36) : Colors.white,
+                      color: surface,
                       shape: const CircleBorder(),
                       child: IconButton(
                         onPressed: widget.onLeave,
@@ -1456,67 +1536,155 @@ class _RandomMatchFoundScreenState extends State<_RandomMatchFoundScreen> {
                       ),
                     ),
                     const SizedBox(width: 16),
-                    Expanded(child: Text(widget.gameTitle, style: TextStyle(
-                      fontFamily: 'PlusJakartaSans', fontSize: 20, fontWeight: FontWeight.w800, color: foreground,
-                    ))),
+                    Expanded(
+                      child: Text(
+                        widget.gameTitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: foreground,
+                        ),
+                      ),
+                    ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
-                      decoration: BoxDecoration(color: const Color(0xFFEDE9FC), borderRadius: BorderRadius.circular(20)),
-                      child: const Text('Random player', style: TextStyle(color: Color(0xFF403875), fontWeight: FontWeight.w700, fontSize: 12)),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEDE9FC),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        'Random player',
+                        style: TextStyle(
+                          color: Color(0xFF403875),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                decoration: BoxDecoration(color: const Color(0xFFDDF3E9), borderRadius: BorderRadius.circular(22)),
-                child: const Text('Match found', style: TextStyle(color: Color(0xFF176B45), fontWeight: FontWeight.w800, fontSize: 14)),
-              ),
-              const SizedBox(height: 22),
-              Text('Get ready!', style: TextStyle(
-                fontFamily: 'PlusJakartaSans', fontSize: 30, fontWeight: FontWeight.w800, color: foreground,
-              )),
-              const SizedBox(height: 56),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _MatchPlayerBadge(name: widget.currentName, level: widget.currentLevel, color: const Color(0xFF6250F5)),
-                  Text('VS', style: TextStyle(color: muted, fontWeight: FontWeight.w900, fontSize: 20)),
-                  _MatchPlayerBadge(name: widget.opponentName, level: widget.opponentLevel, color: const Color(0xFFE32C62)),
-                ],
-              ),
-              const SizedBox(height: 72),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 48),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: LinearProgressIndicator(
-                    value: _seconds / 3,
-                    minHeight: 8,
-                    backgroundColor: const Color(0xFFE3DFF5),
-                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF6250F5)),
-                  ),
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final badgeWidth = math.min(
+                      112.0,
+                      (constraints.maxWidth - 52) / 2,
+                    );
+                    final avatarSize = math.min(100.0, badgeWidth - 12);
+                    return Column(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFDDF3E9),
+                                borderRadius: BorderRadius.circular(22),
+                              ),
+                              child: const Text(
+                                'Match found',
+                                style: TextStyle(
+                                  color: Color(0xFF176B45),
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            Text(
+                              'Get ready!',
+                              style: TextStyle(
+                                fontFamily: 'PlusJakartaSans',
+                                fontSize: 30,
+                                fontWeight: FontWeight.w800,
+                                color: foreground,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            _MatchPlayerBadge(
+                              name: widget.currentName,
+                              level: widget.currentLevel,
+                              color: const Color(0xFF6250F5),
+                              size: avatarSize,
+                            ),
+                            Text(
+                              'VS',
+                              style: TextStyle(
+                                color: muted,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 20,
+                              ),
+                            ),
+                            _MatchPlayerBadge(
+                              name: widget.opponentName,
+                              level: widget.opponentLevel,
+                              color: const Color(0xFFE32C62),
+                              size: avatarSize,
+                            ),
+                          ],
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 48),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: LinearProgressIndicator(
+                                  value: _seconds / 3,
+                                  minHeight: 8,
+                                  backgroundColor: const Color(0xFFE3DFF5),
+                                  valueColor: const AlwaysStoppedAnimation<Color>(
+                                    Color(0xFF6250F5),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Starting in $_seconds seconds',
+                                style: TextStyle(
+                                  fontFamily: 'PlusJakartaSans',
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: muted,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ),
-              const SizedBox(height: 16),
-              Text('Starting in $_seconds seconds', style: TextStyle(
-                fontFamily: 'PlusJakartaSans', fontSize: 16, fontWeight: FontWeight.w600, color: muted,
-              )),
-              const Spacer(),
               Padding(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
                 child: SizedBox(
                   height: 64,
                   width: double.infinity,
                   child: FilledButton(
                     onPressed: widget.onLeave,
                     style: FilledButton.styleFrom(
-                      backgroundColor: isDark ? const Color(0xFF282046) : const Color(0xFFEDE9FC),
+                      backgroundColor: isDark
+                          ? const Color(0xFF282046)
+                          : const Color(0xFFEDE9FC),
                       foregroundColor: const Color(0xFF5141E5),
                       shape: const StadiumBorder(),
                     ),
-                    child: const Text('Leave match', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                    child: const Text(
+                      'Leave match',
+                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                    ),
                   ),
                 ),
               ),
@@ -1529,43 +1697,77 @@ class _RandomMatchFoundScreenState extends State<_RandomMatchFoundScreen> {
 }
 
 class _MatchPlayerBadge extends StatelessWidget {
-  const _MatchPlayerBadge({required this.name, required this.level, required this.color});
+  const _MatchPlayerBadge({
+    required this.name,
+    required this.level,
+    required this.color,
+    required this.size,
+  });
+
   final String name;
   final int? level;
   final Color color;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
-    final foreground = Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF1E1A43);
+    final foreground = Theme.of(context).brightness == Brightness.dark
+        ? Colors.white
+        : const Color(0xFF1E1A43);
     return SizedBox(
-      width: 112,
+      width: math.max(80.0, size + 12),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 100,
-            height: 100,
+            width: size,
+            height: size,
             decoration: BoxDecoration(
               color: color,
               shape: BoxShape.circle,
               border: Border.all(color: color, width: 3),
-              boxShadow: [BoxShadow(color: color.withValues(alpha: .15), blurRadius: 0, spreadRadius: 5)],
+              boxShadow: [
+                BoxShadow(color: color.withValues(alpha: .15), blurRadius: 0, spreadRadius: 5),
+              ],
             ),
             alignment: Alignment.center,
             child: Text(
               name.trim().isEmpty ? '?' : name.trim().substring(0, 1).toUpperCase(),
-              style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.w800),
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: size * .38,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
           const SizedBox(height: 14),
-          Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(
-            fontFamily: 'PlusJakartaSans', fontSize: 16, fontWeight: FontWeight.w800, color: foreground,
-          )),
+          Text(
+            name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: 'PlusJakartaSans',
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: foreground,
+            ),
+          ),
           if (level != null) ...[
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-              decoration: BoxDecoration(color: const Color(0xFFEDE9FC), borderRadius: BorderRadius.circular(20)),
-              child: Text('Level $level', style: const TextStyle(color: Color(0xFF403875), fontWeight: FontWeight.w700, fontSize: 12)),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEDE9FC),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                'Level $level',
+                style: const TextStyle(
+                  color: Color(0xFF403875),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
+              ),
             ),
           ],
         ],
