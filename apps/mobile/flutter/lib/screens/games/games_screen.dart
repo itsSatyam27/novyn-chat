@@ -161,6 +161,7 @@ class _GamesScreenState extends State<GamesScreen> {
       title: game.title == 'Rock Paper' ? 'Rock Paper Scissors' : game.title,
       subtitle: game.subtitle,
       icon: game.icon,
+      playerLevel: _stats.level,
     );
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(builder: (_) => screen),
