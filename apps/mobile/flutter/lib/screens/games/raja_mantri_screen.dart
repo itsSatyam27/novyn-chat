@@ -155,6 +155,7 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
 
   // Guessing Timer (Feature 4)
   Timer? _guessTimer;
+  Timer? _roundStartTimer;
   int _guessSecondsRemaining = 15;
   bool _historyRecorded = false;
   String _historyMatchId = 'rajamantri_${DateTime.now().microsecondsSinceEpoch}';
@@ -299,6 +300,7 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
   @override
   void dispose() {
     _guessTimer?.cancel();
+    _roundStartTimer?.cancel();
     _shuffleAnimController.dispose();
     _bobAnimController.dispose();
     super.dispose();
@@ -331,10 +333,11 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
       }
     });
 
+    _roundStartTimer?.cancel();
     _shuffleAnimController.repeat(reverse: true);
 
     // After 1.2s shuffle, prompt user to pick chit
-    Timer(const Duration(milliseconds: 1200), () {
+    _roundStartTimer = Timer(const Duration(milliseconds: 1200), () {
       if (!mounted) return;
       _shuffleAnimController.stop();
       _shuffleAnimController.reset();
