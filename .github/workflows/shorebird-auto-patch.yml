@@ -45,7 +45,13 @@ jobs:
             echo "::error::No changed files found for this push."
             exit 1
           fi
-          DART_SOURCE_FILES="$(printf '%s\\n' "${CHANGED_FILES}" | grep -E '^apps/mobile/flutter/lib/.+\\.dart"$(printf '%s\n' "${CHANGED_FILES}" | grep '^apps/mobile/flutter/' | grep -Ev '^apps/mobile/flutter/lib/.+\.dart$|^apps/mobile/flutter/test/|^apps/mobile/flutter/README\.md$' || true)"
+          DART_SOURCE_FILES="$(printf '%s\n' "${CHANGED_FILES}" | grep -E '^apps/mobile/flutter/lib/.+\.dart$' || true)"
+          if [ -z "${DART_SOURCE_FILES}" ]; then
+            echo "Skipping OTA patch because this push contains no Dart source changes."
+            echo "dart_only=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          NON_DART_RUNTIME_FILES="$(printf '%s\n' "${CHANGED_FILES}" | grep '^apps/mobile/flutter/' | grep -Ev '^apps/mobile/flutter/lib/.+\.dart$|^apps/mobile/flutter/test/|^apps/mobile/flutter/README\.md$' || true)"
           if [ -n "${NON_DART_RUNTIME_FILES}" ]; then
             echo "Skipping OTA patch because this push includes Flutter platform, asset, or dependency changes:"
             printf '%s\n' "${NON_DART_RUNTIME_FILES}"
