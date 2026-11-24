@@ -108,6 +108,10 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
   void _handleSocketStateChanged() {
     if (!mounted || !_searchingRandom || _connectionReady) return;
     _queueTimer?.cancel();
+    if (_matchmakingRouteOpen) {
+      _matchmakingRouteOpen = false;
+      Navigator.of(context).pop();
+    }
     setState(() {
       _searchingRandom = false;
       _cancellingMatchmaking = false;
@@ -376,6 +380,10 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
         _secondsRemaining = 60;
         _queueDeadline = null;
       });
+      if (_matchmakingRouteOpen) {
+        _matchmakingRouteOpen = false;
+        Navigator.of(context).pop();
+      }
       if (leaveLobby) {
         if (_backgroundRouteOpen) {
           _backgroundRouteOpen = false;
@@ -532,7 +540,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
               ? _auth!.user!.displayName
               : currentUsername,
           opponentName: opponentName,
-          currentLevel: (data['level'] ?? 1) as int,
+          currentLevel: int.tryParse(data['level']?.toString() ?? '') ?? 1,
           opponentLevel: (opponent['level'] ?? 1) is int
               ? opponent['level'] as int
               : int.tryParse(opponent['level']?.toString() ?? '') ?? 1,
@@ -562,6 +570,10 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
   void _handleRandomMatchTimeout(Map data) {
     if (!mounted || !_searchingRandom || data['gameType']?.toString() != widget.gameType) return;
     _queueTimer?.cancel();
+    if (_matchmakingRouteOpen) {
+      _matchmakingRouteOpen = false;
+      Navigator.of(context).pop();
+    }
     setState(() {
       _searchingRandom = false;
       _queueDeadline = null;
