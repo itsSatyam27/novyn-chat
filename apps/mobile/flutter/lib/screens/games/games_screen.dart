@@ -173,7 +173,7 @@ class _GamesScreenState extends State<GamesScreen> {
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(builder: (_) => screen),
     );
-    if (mounted) _loadStats(_statsUsername);
+    if (mounted) _statsLoadFuture = _loadStats(_statsUsername);
   }
 
   Future<void> _openHistory(String username) async {
@@ -183,7 +183,7 @@ class _GamesScreenState extends State<GamesScreen> {
         builder: (_) => GameHistoryScreen(username: username),
       ),
     );
-    if (mounted) _loadStats(_statsUsername);
+    if (mounted) _statsLoadFuture = _loadStats(_statsUsername);
   }
 
   List<_GameOption> get _filteredGames {
