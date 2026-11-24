@@ -14,6 +14,7 @@ const { registerMessageMutationHandlers } = require("./server/realtime/message-m
 const { registerCallHandlers, cancelCallForUser } = require("./server/realtime/call-handlers");
 const { applyGameMove, createGameChallenge } = require("./server/realtime/game-rules");
 const { PublicGameMatchmaking } = require("./server/realtime/game-matchmaking");
+const { RajaMantriMatchmaking } = require("./server/realtime/raja-mantri-matchmaking");
 const { Server } = require("socket.io");
 const webpush = require("web-push");
 const { cloudinary, hasCloudinaryConfig } = require("./cloudinary");
@@ -1471,6 +1472,18 @@ const publicGameMatchmaking = new PublicGameMatchmaking({
   timeoutMs: 60_000,
   onExpired: ({ socketId, gameType }) => io.to(socketId).emit("random_match_timeout", {
     gameType, message: "No player available right now. Please try again.",
+  }),
+});
+
+const rajaMantriMatchmaking = new RajaMantriMatchmaking({
+  timeoutMs: 60_000,
+  onExpired: ({ socketId, playerCount }) => io.to(socketId).emit("rajamantri_match_timeout", {
+    playerCount,
+    message: "No full group found right now. Please try again.",
+  }),
+  onProgress: ({ socketId, playerCount, playersFound }) => io.to(socketId).emit("rajamantri_match_progress", {
+    playerCount,
+    playersFound,
   }),
 });
 
@@ -7197,6 +7210,61 @@ io.on("connection", (socket) => {
     return respond({ ok: true, cancelled: publicGameMatchmaking.cancel(userKey) });
   });
 
+  socket.on("join_rajamantri_matchmaking", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : () => {};
+    const userKey = normalizeName(socket.data.userKey || "");
+    if (!userKey || onlineUsers.get(userKey) !== socket.id) {
+      return respond({ ok: false, message: "Please sign in again before matchmaking." });
+    }
+    if (!allowSocketAction(socket, "join_rajamantri_matchmaking", 3, 60_000)) {
+      return respond({ ok: false, message: "Please wait before trying matchmaking again." });
+    }
+    const user = users.get(userKey);
+    const excludedUsers = Array.from(new Set([
+      ...Array.from(user?.friends || []),
+      ...Array.from(user?.blockedUsers || []),
+    ].map(normalizeName).filter(Boolean)));
+    const result = rajaMantriMatchmaking.join({
+      userKey,
+      displayName: toDisplayName(user?.displayName || user?.username || userKey),
+      socketId: socket.id,
+      playerCount: payload?.playerCount,
+      excludedUsers,
+    });
+    if (!result.ok) return respond(result);
+    if (!result.matched) {
+      return respond({
+        ok: true,
+        queued: true,
+        playerCount: result.playerCount,
+        playersFound: result.playersFound,
+        timeoutMs: result.timeoutMs,
+      });
+    }
+    const packet = {
+      matchId: result.matchId,
+      playerCount: result.playerCount,
+      players: result.players.map((player, index) => ({
+        username: player.username,
+        displayName: player.displayName,
+        seat: index,
+      })),
+    };
+    for (const player of result.players) {
+      io.to(player.socketId).emit("rajamantri_match_found", packet);
+    }
+    return respond({ ok: true, matched: true, ...packet });
+  });
+
+  socket.on("cancel_rajamantri_matchmaking", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : () => {};
+    const userKey = normalizeName(socket.data.userKey || "");
+    if (!userKey || onlineUsers.get(userKey) !== socket.id) {
+      return respond({ ok: false, message: "Please sign in again." });
+    }
+    return respond({ ok: true, cancelled: rajaMantriMatchmaking.cancel(userKey) });
+  });
+
   socket.on("accept_game_invite", (payload, callback) => {
     const respond = typeof callback === "function" ? callback : () => {};
     const userKey = normalizeName(socket.data.userKey || "");
@@ -10543,6 +10611,7 @@ io.on("connection", (socket) => {
     const userKey = socket.data.userKey;
     if (!userKey) return;
     publicGameMatchmaking.disconnect(userKey, socket.id);
+    rajaMantriMatchmaking.disconnect(userKey, socket.id);
 
     const existingSocketId = onlineUsers.get(userKey);
     if (existingSocketId === socket.id) {
