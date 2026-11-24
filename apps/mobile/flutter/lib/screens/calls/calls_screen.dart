@@ -1352,6 +1352,7 @@ class _CallCard extends StatelessWidget {
 
     return Slidable(
       key: ValueKey('${entry.peer.username}_${entry.createdAt.millisecondsSinceEpoch}'),
+      groupTag: 'calls',
       endActionPane: ActionPane(
         motion: const StretchMotion(),
         children: [
@@ -1364,7 +1365,10 @@ class _CallCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Semantics(
+      child: Builder(
+        builder: (slidableContext) => TapRegion(
+          onTapOutside: (_) => Slidable.of(slidableContext)?.close(),
+          child: Semantics(
         button: true,
         label: '${isMissed ? 'Missed ' : isIncoming ? 'Incoming ' : 'Outgoing '}${isVideo ? 'video' : 'voice'} call, $name, ${_formatTime(entry.createdAt)}',
         child: Builder(
@@ -1513,24 +1517,33 @@ class _CallCard extends StatelessWidget {
           ),
         ),
         ),
+        ),
       ),
     );
   }
 
   void _showHistory(BuildContext context) {
+    var favorite = isFavorite;
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (sheetContext) => _CallHistorySheet(
-        entry: entry,
-        onCall: (type) {
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, refresh) => _CallHistorySheet(
+          entry: entry,
+          isFavorite: favorite,
+          onToggleFavorite: () {
+            onToggleFavorite();
+            refresh(() => favorite = !favorite);
+          },
+          onCall: (type) {
           Navigator.pop(sheetContext);
           Navigator.push(
             context,
             NovynPageRoute<void>(child: CallScreen(peer: entry.peer, callType: type)),
           );
-        },
+          },
+        ),
       ),
     );
   }
@@ -1539,8 +1552,15 @@ class _CallCard extends StatelessWidget {
 // ── History sheet ────────────────────────────────────────────────────────────
 class _CallHistorySheet extends StatelessWidget {
   final _CallEntry entry;
+  final bool isFavorite;
+  final VoidCallback onToggleFavorite;
   final void Function(String type) onCall;
-  const _CallHistorySheet({required this.entry, required this.onCall});
+  const _CallHistorySheet({
+    required this.entry,
+    required this.isFavorite,
+    required this.onToggleFavorite,
+    required this.onCall,
+  });
 
   @override
   Widget build(BuildContext context) {
