@@ -211,7 +211,10 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
       final socket = _socket ?? context.read<SocketService>();
       final messageId =
           await socket.sendGameChallenge(widget.gameType, friend.username);
-      if (!mounted) return;
+      if (!mounted) {
+        unawaited(socket.cancelGameInvite(messageId).catchError((_) {}));
+        return;
+      }
       // Register the pending invite immediately after the server acknowledges
       // it. The recipient may accept before openChat finishes loading history.
       final opponentName = friend.name.isEmpty ? friend.username : friend.name;
