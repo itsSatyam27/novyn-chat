@@ -1026,7 +1026,7 @@ class _RMWaitingRoomSheet extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Container(
-        height: MediaQuery.of(context).size.height * .66,
+        height: MediaQuery.of(context).size.height * .58,
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF201B36) : Colors.white,
