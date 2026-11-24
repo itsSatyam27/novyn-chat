@@ -386,7 +386,6 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
       setState(() {
         _searchingRandom = false;
         _cancellingMatchmaking = false;
-        _secondsRemaining = 60;
         _queueDeadline = null;
       });
       _closeRandomSearchRoutes();
@@ -514,7 +513,6 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
       _searchingRandom = false;
       _cancellingMatchmaking = false;
       _queueDeadline = null;
-      _secondsRemaining = 60;
       _searchEndedByDisconnect = false;
     });
     if (sessionId.isEmpty || game == null) {
@@ -979,7 +977,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
           height: 64,
           width: double.infinity,
           child: FilledButton.icon(
-            onPressed: enabled && friend != null ? () => _playWithFriend(friend) : null,
+            onPressed: enabled ? () => _playWithFriend(friend) : null,
             icon: _sendingInvite
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                 : const Icon(Icons.person_add_alt_1_rounded, size: 22),
