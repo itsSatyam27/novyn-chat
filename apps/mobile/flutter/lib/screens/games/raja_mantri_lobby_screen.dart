@@ -993,21 +993,21 @@ class _RMQuickPlayTile extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(26),
         child: SizedBox(
-          height: 128,
+          height: 110,
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Container(
-                  width: 48,
-                  height: 48,
+                  width: 40,
+                  height: 40,
                   decoration: BoxDecoration(
                     color: iconBackground,
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Icon(icon, color: iconColor, size: 24),
+                  child: Icon(icon, color: iconColor, size: 21),
                 ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1019,7 +1019,7 @@ class _RMQuickPlayTile extends StatelessWidget {
                       style: TextStyle(
                         color: foreground,
                         fontWeight: FontWeight.w900,
-                        fontSize: 17,
+                        fontSize: 16,
                         letterSpacing: -.3,
                       ),
                     ),
