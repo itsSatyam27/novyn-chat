@@ -307,7 +307,10 @@ void main() {
     expect(find.text('One more round?'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Play again'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Play again'));
+    final playAgainButton = find.widgetWithText(FilledButton, 'Play again');
+    await tester.ensureVisible(playAgainButton);
+    await tester.pumpAndSettle();
+    await tester.tap(playAgainButton);
     await tester.pumpAndSettle();
 
     expect(game['state'], 'in_progress');
