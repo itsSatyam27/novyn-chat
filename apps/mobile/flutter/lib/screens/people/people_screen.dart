@@ -902,17 +902,6 @@ class _ContactRow extends StatelessWidget {
 
   String get _displayName => user.name.trim().isNotEmpty ? user.name.trim() : user.username.trim();
 
-  String _presenceLabel() {
-    if (user.isOnline) {
-      return switch (user.status.trim().toLowerCase()) {
-        'away' => 'Away',
-        'busy' || 'dnd' => 'Busy',
-        _ => 'Online',
-      };
-    }
-    return formatLastSeenLabel(user.lastSeen);
-  }
-
   Widget _avatar() {
     return UserAvatar(
       name: _displayName.isNotEmpty ? _displayName : '?',
@@ -928,9 +917,6 @@ class _ContactRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final statusColor = user.isOnline
-        ? presenceStatusColor(user.status, isOnline: user.isOnline)
-        : theme.colorScheme.onSurfaceVariant;
     return InkWell(
       onTap: onOpenChat,
       child: Padding(
@@ -989,33 +975,6 @@ class _ContactRow extends StatelessWidget {
                       fontWeight: FontWeight.w500,
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
-                  ),
-                  const SizedBox(height: 3),
-                  Row(
-                    children: [
-                      Container(
-                        width: 6,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          color: statusColor,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          _presenceLabel(),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontFamily: 'PlusJakartaSans',
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                            color: statusColor,
-                          ),
-                        ),
-                      ),
-                    ],
                   ),
                 ],
               ),
