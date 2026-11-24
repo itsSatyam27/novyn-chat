@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../services/socket_service.dart';
 import '../services/game_history_service.dart';
 import '../screens/games/game_room_screen.dart';
+import '../screens/games/raja_mantri_online_game_screen.dart';
 
 class GameMessageCard extends StatefulWidget {
   final String messageId;
@@ -426,6 +427,17 @@ class _GameMessageCardState extends State<GameMessageCard> {
       }
     }
     if (!mounted) return;
+    if (_type == 'rajamantri' && !widget.isGroup && !_isInviteOwner && !_finished) {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => RajaMantriInviteWaitingScreen(
+            messageId: widget.messageId,
+            hostName: widget.opponentDisplayName ?? widget.peerUsername,
+          ),
+        ),
+      );
+      return;
+    }
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (_) => GameRoomScreen(
