@@ -205,7 +205,7 @@ function resolveBotSipahiGuess(session) {
   const suspects = session.players.filter((player) => roles.has(player.role));
   if (!suspects.length) return;
   const index = Math.floor(session.random() * suspects.length);
-  guessRajaMantriChor(session, sipahi.username, suspects[index].username);
+  guessRajaMantriChor(session, sipahi.username, suspects[index].username, { autoPlayed: true });
 }
 
 function advanceRajaMantriRound(session, username) {
