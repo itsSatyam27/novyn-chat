@@ -18,6 +18,8 @@ const { RajaMantriMatchmaking } = require("./server/realtime/raja-mantri-matchma
 const {
   createRajaMantriGameSession,
   pickRajaMantriChit,
+  autoPickRajaMantriChit,
+  setRajaMantriPlayerConnected,
   guessRajaMantriChor,
   advanceRajaMantriRound,
   getRajaMantriGameView,
@@ -1497,6 +1499,50 @@ const rajaMantriMatchmaking = new RajaMantriMatchmaking({
 
 const rajaMantriSessions = new Map();
 const RAJA_MANTRI_SESSION_TTL_MS = 60 * 60 * 1000;
+const RAJA_MANTRI_RESPONSE_TIMEOUT_MS = 15_000;
+
+function scheduleRajaMantriPhaseTimer(entry) {
+  if (!entry?.game) return;
+  const game = entry.game;
+  if (!["picking", "guessing"].includes(game.phase)) {
+    clearTimeout(entry.responseTimer);
+    entry.responseTimer = null;
+    entry.responseTimerDeadline = 0;
+    return;
+  }
+  const deadline = Number(game.responseDeadlineAt) || (Date.now() + RAJA_MANTRI_RESPONSE_TIMEOUT_MS);
+  game.responseDeadlineAt = deadline;
+  if (entry.responseTimer && entry.responseTimerDeadline === deadline) return;
+  clearTimeout(entry.responseTimer);
+  entry.responseTimerDeadline = deadline;
+  entry.responseTimer = setTimeout(() => {
+    entry.responseTimer = null;
+    entry.responseTimerDeadline = 0;
+    if (!rajaMantriSessions.has(game.sessionId) || rajaMantriSessions.get(game.sessionId) !== entry) return;
+
+    if (game.phase === "picking") {
+      for (const player of game.players) {
+        if (!player.isBot && !player.picked) {
+          autoPickRajaMantriChit(game, player.username);
+        }
+      }
+    } else if (game.phase === "guessing") {
+      const sipahi = game.players.find((player) => player.username === game.sipahiUsername);
+      if (sipahi && !sipahi.isBot) {
+        const roles = game.playerCount === 3 ? new Set(["raja", "chor"]) : new Set(["chor", "mantri"]);
+        const suspects = game.players.filter((player) => roles.has(player.role));
+        if (suspects.length) {
+          const suspect = suspects[Math.floor(Math.random() * suspects.length)];
+          guessRajaMantriChor(game, sipahi.username, suspect.username, { autoPlayed: true });
+        }
+      }
+    }
+
+    emitRajaMantriGameUpdate(game);
+    scheduleRajaMantriPhaseTimer(entry);
+  }, Math.max(0, deadline - Date.now()));
+  if (typeof entry.responseTimer.unref === "function") entry.responseTimer.unref();
+}
 
 function emitRajaMantriGameUpdate(session) {
   if (!session) return;
@@ -1515,6 +1561,7 @@ function expireRajaMantriSession(sessionId) {
   const entry = rajaMantriSessions.get(sessionId);
   if (!entry) return;
   clearTimeout(entry.expiryTimer);
+  clearTimeout(entry.responseTimer);
   rajaMantriSessions.delete(sessionId);
 }
 
@@ -5424,6 +5471,15 @@ function finalizeSocketAuthentication(socket, user) {
   const previousSocketId = onlineUsers.get(userKey);
   onlineUsers.set(userKey, socket.id);
 
+  // Rejoining users resume their human turns in any active Raja Mantri room.
+  for (const entry of rajaMantriSessions.values()) {
+    const connection = setRajaMantriPlayerConnected(entry.game, userKey, true);
+    if (connection.ok) {
+      scheduleRajaMantriPhaseTimer(entry);
+      emitRajaMantriGameUpdate(entry.game);
+    }
+  }
+
   if (previousSocketId && previousSocketId !== socket.id) {
     const previousSocket = io.sockets.sockets.get(previousSocketId);
     if (previousSocket) {
@@ -7296,7 +7352,9 @@ io.on("connection", (socket) => {
       RAJA_MANTRI_SESSION_TTL_MS,
     );
     if (typeof expiryTimer.unref === "function") expiryTimer.unref();
-    rajaMantriSessions.set(result.matchId, { game: gameSession, expiryTimer });
+    const sessionEntry = { game: gameSession, expiryTimer, responseTimer: null, responseTimerDeadline: 0 };
+    rajaMantriSessions.set(result.matchId, sessionEntry);
+    scheduleRajaMantriPhaseTimer(sessionEntry);
     const packet = {
       matchId: result.matchId,
       sessionId: result.matchId,
@@ -7334,19 +7392,24 @@ io.on("connection", (socket) => {
     if (!leavingPlayer) {
       return respond({ ok: false, message: "You are not a player in this match." });
     }
-    expireRajaMantriSession(sessionId);
+    const connection = setRajaMantriPlayerConnected(entry.game, userKey, false);
+    if (!connection.ok) return respond({ ok: false, message: connection.reason });
+    scheduleRajaMantriPhaseTimer(entry);
+    emitRajaMantriGameUpdate(entry.game);
     for (const player of entry.game.players) {
       if (player.isBot || player.username === userKey) continue;
       const targetSocket = onlineUsers.get(player.username);
       if (targetSocket) {
-        io.to(targetSocket).emit("rajamantri_game_abandoned", {
+        io.to(targetSocket).emit("rajamantri_player_connection", {
           sessionId,
-          leftUsername: userKey,
-          leftDisplayName: leavingPlayer.displayName,
+          username: userKey,
+          displayName: leavingPlayer.displayName,
+          connected: false,
+          autoPlay: true,
         });
       }
     }
-    return respond({ ok: true });
+    return respond({ ok: true, autoPlay: true });
   });
 
   socket.on("get_rajamantri_game", (payload, callback) => {
@@ -7375,6 +7438,7 @@ io.on("connection", (socket) => {
     }
     const result = pickRajaMantriChit(entry.game, userKey);
     if (!result.ok) return respond({ ok: false, message: result.reason });
+    scheduleRajaMantriPhaseTimer(entry);
     emitRajaMantriGameUpdate(entry.game);
     return respond({ ok: true, game: getRajaMantriGameView(entry.game, userKey) });
   });
@@ -7393,6 +7457,7 @@ io.on("connection", (socket) => {
     }
     const result = guessRajaMantriChor(entry.game, userKey, suspectUsername);
     if (!result.ok) return respond({ ok: false, message: result.reason });
+    scheduleRajaMantriPhaseTimer(entry);
     emitRajaMantriGameUpdate(entry.game);
     return respond({ ok: true, game: getRajaMantriGameView(entry.game, userKey) });
   });
@@ -7410,6 +7475,7 @@ io.on("connection", (socket) => {
     }
     const result = advanceRajaMantriRound(entry.game, userKey);
     if (!result.ok) return respond({ ok: false, message: result.reason });
+    scheduleRajaMantriPhaseTimer(entry);
     emitRajaMantriGameUpdate(entry.game);
     return respond({ ok: true, game: getRajaMantriGameView(entry.game, userKey) });
   });
@@ -7560,7 +7626,9 @@ io.on("connection", (socket) => {
     }
     const expiryTimer = setTimeout(() => expireRajaMantriSession(matchId), RAJA_MANTRI_SESSION_TTL_MS);
     if (typeof expiryTimer.unref === "function") expiryTimer.unref();
-    rajaMantriSessions.set(matchId, { game, expiryTimer });
+    const sessionEntry = { game, expiryTimer, responseTimer: null, responseTimerDeadline: 0 };
+    rajaMantriSessions.set(matchId, sessionEntry);
+    scheduleRajaMantriPhaseTimer(sessionEntry);
     for (const { messageId, invite } of invites) {
       clearTimeout(invite.timer);
       pendingGameInvites.delete(messageId);
@@ -10907,23 +10975,23 @@ io.on("connection", (socket) => {
 
     const existingSocketId = onlineUsers.get(userKey);
     if (existingSocketId === socket.id) {
-      // A live RMCS game cannot keep waiting on a disconnected participant:
-      // this version has no reconnect/resume-seat protocol, so end the room
-      // and tell the remaining players instead of leaving them stuck.
+      // Keep the room alive while a disconnected participant is driven by
+      // server-side bot turns. A returning account can resume human control.
       for (const [sessionId, entry] of rajaMantriSessions) {
-        const leavingPlayer = entry.game.players.find(
-          (player) => player.username === userKey && !player.isBot,
-        );
-        if (!leavingPlayer) continue;
-        expireRajaMantriSession(sessionId);
+        const connection = setRajaMantriPlayerConnected(entry.game, userKey, false);
+        if (!connection.ok) continue;
+        scheduleRajaMantriPhaseTimer(entry);
+        emitRajaMantriGameUpdate(entry.game);
         for (const player of entry.game.players) {
           if (player.isBot || player.username === userKey) continue;
           const targetSocket = onlineUsers.get(player.username);
           if (targetSocket) {
-            io.to(targetSocket).emit("rajamantri_game_abandoned", {
+            io.to(targetSocket).emit("rajamantri_player_connection", {
               sessionId,
-              leftUsername: userKey,
-              leftDisplayName: leavingPlayer.displayName,
+              username: userKey,
+              displayName: player.displayName,
+              connected: false,
+              autoPlay: true,
               reason: "disconnected",
             });
           }
