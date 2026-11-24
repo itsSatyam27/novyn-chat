@@ -11,6 +11,7 @@ import '../../services/friend_service.dart';
 import '../../services/socket_service.dart';
 import '../../widgets/user_avatar.dart';
 import 'raja_mantri_screen.dart';
+import 'raja_mantri_online_game_screen.dart';
 
 class RajaMantriLobbyScreen extends StatefulWidget {
   const RajaMantriLobbyScreen({super.key});
@@ -490,18 +491,15 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
           players: players,
           onStart: () {
             if (!mounted) return;
-            final names = players
-                .where((player) => player['username']?.toString().toLowerCase() != _account.toLowerCase())
-                .map((player) => player['displayName']?.toString() ?? player['username']?.toString() ?? 'Player')
-                .toList();
+            final sessionId = data['sessionId']?.toString() ?? data['matchId']?.toString() ?? '';
+            if (sessionId.isEmpty) {
+              _showMessage('The match room could not be opened. Please search again.');
+              Navigator.of(context).pop();
+              return;
+            }
             Navigator.of(context).pushReplacement<void, void>(
               MaterialPageRoute<void>(
-                builder: (_) => RajaMantriScreen(
-                  currentUsername: _account,
-                  playerPhotoUrl: _auth?.user?.avatarId ?? '',
-                  customOpponents: names,
-                  playerCount: playerCount,
-                ),
+                builder: (_) => RajaMantriOnlineGameScreen(sessionId: sessionId),
               ),
             );
           },
