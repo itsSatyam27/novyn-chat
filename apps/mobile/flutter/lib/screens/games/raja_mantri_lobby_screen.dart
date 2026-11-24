@@ -57,12 +57,14 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
   final ValueNotifier<List<_RMRoomMember?>> _roomMembers =
       ValueNotifier<List<_RMRoomMember?>>(<_RMRoomMember?>[]);
   final ValueNotifier<int> _searchProgress = ValueNotifier<int>(1);
+  final ValueNotifier<int> _searchSeconds = ValueNotifier<int>(60);
   List<UserModel> _friends = [];
   final Set<String> _selectedFriends = <String>{};
   int _playerCount = 3;
   bool _loadingFriends = false;
   bool _sendingInvites = false;
   bool _searchingPlayers = false;
+  bool _searchRouteOpen = false;
   bool _cancellingSearch = false;
   bool _friendLoadFailed = false;
   Timer? _searchTimer;
@@ -97,6 +99,7 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
     _searchController.dispose();
     _roomMembers.dispose();
     _searchProgress.dispose();
+    _searchSeconds.dispose();
     if (_socket != null) {
       _socket!.removeListener(_handleSocketStateChanged);
       _socket!.onGameInviteAccepted = null;
@@ -390,6 +393,8 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
       _searchingPlayers = true;
       _cancellingSearch = false;
       _searchProgress.value = 1;
+      _searchSeconds.value = 60;
+      _searchRouteOpen = false;
       _searchDeadline = DateTime.now().add(const Duration(seconds: 60));
     });
     try {
@@ -405,7 +410,9 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
         }
         final deadline = _searchDeadline;
         if (deadline == null) return;
-        if (DateTime.now().isAfter(deadline)) {
+        final remaining = deadline.difference(DateTime.now()).inSeconds.clamp(0, 60);
+        _searchSeconds.value = remaining;
+        if (remaining <= 0) {
           timer.cancel();
           _handleRandomMatchTimeout({
             'playerCount': _playerCount,
@@ -413,16 +420,19 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
           });
         }
       });
+      _searchRouteOpen = true;
       Navigator.of(context).push<void>(
         MaterialPageRoute<void>(
           fullscreenDialog: true,
           builder: (_) => _RajaMantriSearchingScreen(
             playerCount: _playerCount,
             progress: _searchProgress,
+            secondsRemaining: _searchSeconds,
             onCancel: _cancelRandomSearch,
           ),
         ),
       ).whenComplete(() {
+        _searchRouteOpen = false;
         if (mounted && _searchingPlayers && !_cancellingSearch) {
           unawaited(_cancelRandomSearch());
         }
@@ -498,7 +508,10 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
       _searchingPlayers = false;
       _searchDeadline = null;
     });
-    if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+    if (_searchRouteOpen && Navigator.of(context).canPop()) {
+      _searchRouteOpen = false;
+      Navigator.of(context).pop();
+    }
     _showMessage(data['message']?.toString() ?? 'No complete group found. Please try again.');
   }
 
@@ -509,7 +522,10 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
       _searchingPlayers = false;
       _searchDeadline = null;
     });
-    if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+    if (_searchRouteOpen && Navigator.of(context).canPop()) {
+      _searchRouteOpen = false;
+      Navigator.of(context).pop();
+    }
     _showMessage('Connection lost. Player search was cancelled.');
   }
 
@@ -526,7 +542,10 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
       _cancellingSearch = false;
       _searchDeadline = null;
     });
-    if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+    if (_searchRouteOpen && Navigator.of(context).canPop()) {
+      _searchRouteOpen = false;
+      Navigator.of(context).pop();
+    }
   }
 
   void _showMessage(String message) {
@@ -1125,11 +1144,13 @@ class _RajaMantriSearchingScreen extends StatelessWidget {
   const _RajaMantriSearchingScreen({
     required this.playerCount,
     required this.progress,
+    required this.secondsRemaining,
     required this.onCancel,
   });
 
   final int playerCount;
   final ValueListenable<int> progress;
+  final ValueListenable<int> secondsRemaining;
   final VoidCallback onCancel;
 
   @override
@@ -1230,16 +1251,22 @@ class _RajaMantriSearchingScreen extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 18),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
-                              decoration: BoxDecoration(color: surface, borderRadius: BorderRadius.circular(28)),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.access_time_rounded, color: muted, size: 20),
-                                  const SizedBox(width: 10),
-                                  const Text('Searching…', style: TextStyle(color: Color(0xFF403875), fontWeight: FontWeight.w800, fontSize: 16)),
-                                ],
+                            ValueListenableBuilder<int>(
+                              valueListenable: secondsRemaining,
+                              builder: (context, seconds, _) => Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                                decoration: BoxDecoration(color: surface, borderRadius: BorderRadius.circular(28)),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.access_time_rounded, color: muted, size: 20),
+                                    const SizedBox(width: 10),
+                                    Text(
+                                      '0:${seconds.toString().padLeft(2, '0')}',
+                                      style: const TextStyle(color: Color(0xFF403875), fontWeight: FontWeight.w800, fontSize: 16),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ],
