@@ -676,6 +676,10 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
     final peer = friend.username;
     final opponentName = _pendingInviteOpponentName;
     final currentUser = _pendingInviteCurrentUser;
+    final sheetContext = _friendWaitingSheetContext;
+    if (sheetContext != null && sheetContext.mounted) {
+      Navigator.of(sheetContext).pop();
+    }
     _clearPendingFriendInvite();
     Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
