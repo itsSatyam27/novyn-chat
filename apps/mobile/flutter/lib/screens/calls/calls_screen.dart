@@ -696,133 +696,64 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
         .take(5)
         .toList()
       ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-
-    // Empty: one compact row instead of a tall, mostly blank card.
-    if (quickFriends.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-        child: Material(
-          color: theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(24),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(24),
-            onTap: _showQuickCallPicker,
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Row(
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: accent.withValues(alpha: .10),
-                      border: Border.all(color: accent.withValues(alpha: .48), width: 1.5),
-                    ),
-                    child: Icon(Icons.star_rounded, size: 23, color: accent),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Quick call',
-                            style: TextStyle(
-                                fontFamily: 'PlusJakartaSans',
-                                fontSize: 15.5,
-                                fontWeight: FontWeight.w700,
-                                color: theme.colorScheme.onSurface)),
-                        const SizedBox(height: 2),
-                        Text('Star people you call often (up to 5)',
-                            style: TextStyle(
-                                fontFamily: 'PlusJakartaSans',
-                                fontSize: 12.5,
-                                color: theme.colorScheme.onSurfaceVariant)),
-                      ],
-                    ),
-                  ),
-                  FilledButton.tonal(
-                    onPressed: _showQuickCallPicker,
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size(0, 44),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    ),
-                    child: const Text('Add', style: TextStyle(fontWeight: FontWeight.w700)),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
     final canAddMore = quickFriends.length < 5;
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+      margin: const EdgeInsets.fromLTRB(20, 8, 20, 10),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(26),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
+              Icon(Icons.star_rounded, color: accent, size: 19),
+              const SizedBox(width: 8),
               Text(
-                'QUICK CALL',
+                'Quick call',
                 style: TextStyle(
                   fontFamily: 'PlusJakartaSans',
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 1.2,
-                  color: theme.colorScheme.onSurfaceVariant,
+                  fontSize: 15.5,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -.25,
+                  color: theme.colorScheme.onSurface,
                 ),
               ),
-              const SizedBox(width: 8),
+              const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 4),
                 decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
+                  color: accent.withValues(alpha: .10),
+                  borderRadius: BorderRadius.circular(18),
                 ),
                 child: Text(
                   '${quickFriends.length}/5',
                   style: TextStyle(
                     fontFamily: 'PlusJakartaSans',
-                    fontSize: 10.5,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                     color: accent,
                   ),
                 ),
               ),
-              const Spacer(),
-              TextButton(
-                onPressed: _showQuickCallPicker,
-                style: TextButton.styleFrom(
-                  minimumSize: const Size(40, 32),
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: const Text('Edit', style: TextStyle(fontWeight: FontWeight.w700)),
-              ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           SizedBox(
-            height: 82,
+            height: 94,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               physics: const BouncingScrollPhysics(),
               itemCount: quickFriends.length + (canAddMore ? 1 : 0),
-              separatorBuilder: (_, __) => const SizedBox(width: 14),
+              separatorBuilder: (_, __) => const SizedBox(width: 12),
               itemBuilder: (context, index) {
                 if (index < quickFriends.length) {
                   final peer = quickFriends[index];
                   return SizedBox(
-                    width: 62,
+                    width: 72,
                     child: Semantics(
                       button: true,
                       label: 'Call ${_displayName(peer.name)}',
@@ -835,7 +766,21 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            UserAvatar(name: peer.name, photoUrl: peer.photoUrl, radius: 24),
+                            Container(
+                              width: 58,
+                              height: 58,
+                              padding: const EdgeInsets.all(3),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(color: accent, width: 2),
+                              ),
+                              child: UserAvatar(
+                                name: peer.name,
+                                photoUrl: peer.photoUrl,
+                                radius: 24,
+                                showOnlineIndicator: false,
+                              ),
+                            ),
                             const SizedBox(height: 6),
                             Text(
                               _displayName(peer.name).split(' ').first,
@@ -844,8 +789,8 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontFamily: 'PlusJakartaSans',
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w600,
                                 color: theme.colorScheme.onSurface,
                               ),
                             ),
@@ -856,32 +801,33 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
                   );
                 }
                 return SizedBox(
-                  width: 62,
+                  width: 72,
                   child: GestureDetector(
                     onTap: _showQuickCallPicker,
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Container(
-                          width: 48,
-                          height: 48,
+                          width: 58,
+                          height: 58,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            border: Border.all(color: accent.withValues(alpha: .48), width: 1.5),
+                            border: Border.all(
+                              color: accent,
+                              width: 2,
+                              style: BorderStyle.solid,
+                            ),
                           ),
-                          child: Icon(Icons.add_rounded, size: 25, color: accent),
+                          child: Icon(Icons.add_rounded, size: 27, color: accent),
                         ),
                         const SizedBox(height: 6),
                         Text(
                           'Add',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
                           style: TextStyle(
                             fontFamily: 'PlusJakartaSans',
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                            color: theme.colorScheme.onSurface,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: accent,
                           ),
                         ),
                       ],
