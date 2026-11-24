@@ -162,3 +162,11 @@ test("a reconnected player regains control for the next round", () => {
   assert.equal(player.autoControlled, false);
   assert.equal(player.isConnected, true);
 });
+
+
+test("host control transfers to an online friend when the host disconnects", () => {
+  const session = makeSession(3);
+  assert.equal(session.hostUsername, "user1");
+  assert.equal(setRajaMantriPlayerConnected(session, "user1", false).ok, true);
+  assert.equal(session.hostUsername, "user2");
+});
