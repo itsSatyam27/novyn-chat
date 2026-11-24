@@ -211,27 +211,15 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
       final socket = _socket ?? context.read<SocketService>();
       final messageId =
           await socket.sendGameChallenge(widget.gameType, friend.username);
-      final messages = await socket.openChat(friend.username, const <Message>[]);
-      Message? gameMessage;
-      for (final message in messages) {
-        if (message.id == messageId && message.game != null) {
-          gameMessage = message;
-          break;
-        }
-      }
       if (!mounted) return;
-      if (gameMessage == null) {
-        throw StateError(
-          'The invitation was sent, but the game room could not be loaded. Open the chat and try again.',
-        );
-      }
-      final initialGameData = Map<String, dynamic>.from(gameMessage.game!);
+      // Register the pending invite immediately after the server acknowledges
+      // it. The recipient may accept before openChat finishes loading history.
       final opponentName = friend.name.isEmpty ? friend.username : friend.name;
       final currentUserName = socket.myUsername ?? _auth?.user?.username ?? '';
       _friendInviteTimer?.cancel();
       _pendingFriendInviteId = messageId;
       _pendingInviteFriend = friend;
-      _pendingInviteGame = initialGameData;
+      _pendingInviteGame = null;
       _pendingInviteOpponentName = opponentName;
       _pendingInviteCurrentUser = currentUserName;
       _friendInviteCountdown.value = 60;
@@ -250,6 +238,30 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
           _handleGameInviteTimeout({'messageId': messageId, 'gameType': widget.gameType});
         }
       });
+
+      final messages = await socket.openChat(friend.username, const <Message>[]);
+      Message? gameMessage;
+      for (final message in messages) {
+        if (message.id == messageId && message.game != null) {
+          gameMessage = message;
+          break;
+        }
+      }
+      if (!mounted) return;
+      if (gameMessage == null) {
+        throw StateError(
+          'The invitation was sent, but the game room could not be loaded. Open the chat and try again.',
+        );
+      }
+      final initialGameData = Map<String, dynamic>.from(gameMessage.game!);
+      if (_pendingFriendInviteId != messageId) return;
+      _pendingInviteGame = initialGameData;
+      // An early acceptance cancels the timer before history has loaded.
+      // Preserve that state and don't start a second countdown.
+      if (_friendInviteAccepted.value) {
+        _friendInviteTimer?.cancel();
+        _friendInviteCountdown.value = 0;
+      }
 
       showModalBottomSheet<void>(
         context: context,
