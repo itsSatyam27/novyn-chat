@@ -203,7 +203,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
   }
 
   Future<void> _playWithFriend(UserModel friend) async {
-    if (_sendingInvite) return;
+    if (_sendingInvite || _searchingRandom || _pendingFriendInviteId != null) return;
     setState(() => _sendingInvite = true);
     try {
       final socket = _socket ?? context.read<SocketService>();
@@ -280,6 +280,15 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
 
   Future<void> _startRandomSearch() async {
     if (_searchingRandom || _cancellingMatchmaking) return;
+    if (_pendingFriendInviteId != null) {
+      NovynAlert.show(
+        context,
+        'Finish or cancel your pending friend invite before starting public matchmaking.',
+        title: 'Invite still active',
+        icon: Icons.people_outline_rounded,
+      );
+      return;
+    }
     final socket = _socket ?? context.read<SocketService>();
     if (!socket.isConnected || !socket.isAuthenticated) {
       NovynAlert.show(
@@ -912,7 +921,9 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
               padding: const EdgeInsets.only(bottom: 4),
               child: Material(
                 color: selected
-                    ? const Color(0xFFEEEAFE)
+                    ? (isDark
+                        ? const Color(0xFF332A57)
+                        : const Color(0xFFEEEAFE))
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(22),
                 child: InkWell(
