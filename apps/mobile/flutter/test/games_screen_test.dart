@@ -42,7 +42,7 @@ void main() {
     expect(find.byKey(const ValueKey('game-streak-rps')), findsOneWidget);
     expect(find.byKey(const ValueKey('game-streak-rajamantri')), findsOneWidget);
     expect(find.byIcon(Icons.local_fire_department_rounded), findsNWidgets(3));
-    expect(find.byTooltip('View match history'), findsOneWidget);
+    expect(find.text('Match history'), findsOneWidget);
     expect(find.text('Play with Random'), findsNothing);
     expect(tester.takeException(), isNull);
   });
