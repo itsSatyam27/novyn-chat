@@ -138,9 +138,6 @@ function setRajaMantriPlayerConnected(session, username, connected) {
     );
     if (successor) session.hostUsername = successor.username;
   }
-  if (!player.isConnected && session.phase === "guessing" && player.username === session.sipahiUsername) {
-    resolveBotSipahiGuess(session);
-  }
   return { ok: true, session };
 }
 
@@ -203,15 +200,22 @@ function guessRajaMantriChor(session, username, suspectUsername, options = {}) {
   return { ok: true, session };
 }
 
+function autoGuessRajaMantriChor(session) {
+  if (!session || session.phase !== "guessing") return { ok: false, reason: "The Sipahi is not ready to guess yet." };
+  const sipahi = session.players.find((player) => player.username === session.sipahiUsername);
+  if (!sipahi) return { ok: false, reason: "The Sipahi is not in this match." };
+  const roles = session.playerCount === 3 ? new Set(["raja", "chor"]) : new Set(["chor", "mantri"]);
+  const suspects = session.players.filter((player) => roles.has(player.role));
+  if (!suspects.length) return { ok: false, reason: "No valid suspect is available." };
+  const index = Math.floor(session.random() * suspects.length);
+  return guessRajaMantriChor(session, sipahi.username, suspects[index].username, { autoPlayed: true });
+}
+
 function resolveBotSipahiGuess(session) {
   if (!session || session.phase !== "guessing") return;
   const sipahi = session.players.find((player) => player.username === session.sipahiUsername);
-  if (!sipahi || (!sipahi.isBot && !sipahi.autoControlled)) return;
-  const roles = session.playerCount === 3 ? new Set(["raja", "chor"]) : new Set(["chor", "mantri"]);
-  const suspects = session.players.filter((player) => roles.has(player.role));
-  if (!suspects.length) return;
-  const index = Math.floor(session.random() * suspects.length);
-  guessRajaMantriChor(session, sipahi.username, suspects[index].username, { autoPlayed: true });
+  if (!sipahi?.isBot) return;
+  autoGuessRajaMantriChor(session);
 }
 
 function advanceRajaMantriRound(session, username) {
@@ -271,6 +275,7 @@ module.exports = {
   autoPickRajaMantriChit,
   setRajaMantriPlayerConnected,
   guessRajaMantriChor,
+  autoGuessRajaMantriChor,
   advanceRajaMantriRound,
   getRajaMantriGameView,
 };
