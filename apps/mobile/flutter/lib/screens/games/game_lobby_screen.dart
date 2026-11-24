@@ -50,6 +50,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
   bool _friendsLoadFailed = false;
   int _friendInviteSecondsRemaining = 60;
   final ValueNotifier<int> _friendInviteCountdown = ValueNotifier<int>(60);
+  final ValueNotifier<bool> _friendInviteAccepted = ValueNotifier<bool>(false);
   final ValueNotifier<int> _queueCountdown = ValueNotifier<int>(60);
   String? _pendingFriendInviteId;
   UserModel? _pendingInviteFriend;
@@ -89,6 +90,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
     _friendInviteTimer?.cancel();
     _searchController.dispose();
     _friendInviteCountdown.dispose();
+    _friendInviteAccepted.dispose();
     _queueCountdown.dispose();
     if (_socket != null) {
       _socket!.removeListener(_handleSocketStateChanged);
@@ -233,6 +235,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
       _pendingInviteOpponentName = opponentName;
       _pendingInviteCurrentUser = currentUserName;
       _friendInviteCountdown.value = 60;
+      _friendInviteAccepted.value = false;
       _friendInviteSecondsRemaining = 60;
       _friendInviteTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
         if (!mounted || _pendingFriendInviteId != messageId) {
@@ -259,6 +262,9 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
             friend: friend,
             currentUser: _auth?.user,
             countdown: _friendInviteCountdown,
+            accepted: _friendInviteAccepted,
+            onStart: _openPendingFriendGame,
+            onCancel: () => _cancelPendingFriendInvite(leaveLobby: false),
           );
         },
       );
@@ -632,16 +638,17 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
     final from = data['from']?.toString().toLowerCase();
     if (from != _pendingInviteFriend?.username.toLowerCase()) return;
     _friendInviteTimer?.cancel();
-    final sheetContext = _friendWaitingSheetContext;
-    if (sheetContext != null && sheetContext.mounted) {
-      Navigator.of(sheetContext).pop();
-    }
-    _friendWaitingSheetContext = null;
+    _friendInviteSecondsRemaining = 0;
+    _friendInviteCountdown.value = 0;
+    _friendInviteAccepted.value = true;
     if (_backgroundRouteOpen) {
       _backgroundRouteOpen = false;
       Navigator.of(context).pop();
     }
-    _openPendingFriendGame();
+    if (mounted) setState(() {});
+    // Keep the waiting sheet open. The host explicitly starts the match
+    // after seeing the friend in the room, rather than being navigated away
+    // as soon as the invitation is accepted.
   }
 
   void _handleGameInviteTimeout(Map data) {
@@ -694,6 +701,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
     _pendingInviteCurrentUser = '';
     _friendInviteSecondsRemaining = 60;
     _friendInviteCountdown.value = 60;
+    _friendInviteAccepted.value = false;
   }
 
   List<UserModel> get _filteredFriends {
@@ -1787,12 +1795,18 @@ class _FriendInviteWaitingSheet extends StatefulWidget {
     required this.friend,
     required this.currentUser,
     required this.countdown,
+    required this.accepted,
+    required this.onStart,
+    required this.onCancel,
   });
 
   final String gameTitle;
   final UserModel friend;
   final NovynUser? currentUser;
   final ValueListenable<int> countdown;
+  final ValueListenable<bool> accepted;
+  final VoidCallback onStart;
+  final VoidCallback onCancel;
 
   @override
   State<_FriendInviteWaitingSheet> createState() => _FriendInviteWaitingSheetState();
@@ -1821,206 +1835,203 @@ class _FriendInviteWaitingSheetState extends State<_FriendInviteWaitingSheet>
     super.dispose();
   }
 
+  Widget _memberRow({
+    required String name,
+    required String photoUrl,
+    required bool isHost,
+    required bool isDark,
+  }) {
+    final foreground = isDark ? Colors.white : const Color(0xFF1E1A43);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF28223F) : const Color(0xFFF5F3FC),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          UserAvatar(
+            name: name,
+            photoUrl: photoUrl,
+            radius: 19,
+            showOnlineIndicator: false,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              isHost ? '$name · Host' : name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: foreground,
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          ValueListenableBuilder<bool>(
+            valueListenable: widget.accepted,
+            builder: (context, accepted, _) {
+              final joined = isHost || accepted;
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+                decoration: BoxDecoration(
+                  color: joined ? const Color(0xFFDDF3E9) : const Color(0xFFFFF0C2),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.circle,
+                      size: 9,
+                      color: joined ? const Color(0xFF18A05E) : const Color(0xFFE9A400),
+                    ),
+                    const SizedBox(width: 7),
+                    Text(
+                      joined ? 'Joined' : 'Joining…',
+                      style: TextStyle(
+                        color: joined ? const Color(0xFF176B45) : const Color(0xFF8A5B00),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final foreground = isDark ? Colors.white : const Color(0xFF1E1A43);
+    final muted = isDark ? Colors.white60 : const Color(0xFF625D8C);
     final friendName = widget.friend.name.isEmpty ? widget.friend.username : widget.friend.name;
     final myName = widget.currentUser?.displayName.isNotEmpty == true
         ? widget.currentUser!.displayName
         : (widget.currentUser?.username ?? 'You');
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161522) : Colors.white,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black26,
-            blurRadius: 24,
-            offset: Offset(0, -4),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 44,
-            height: 4.5,
-            decoration: BoxDecoration(
-              color: isDark ? Colors.white24 : const Color(0xFFDDD9E8),
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-          const SizedBox(height: 22),
-          Text(
-            'Waiting for ${widget.friend.name.isEmpty ? widget.friend.username : widget.friend.name}',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              color: isDark ? Colors.white : const Color(0xFF1E1C2A),
-              letterSpacing: -.3,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            '${widget.gameTitle} invitation sent to @${widget.friend.username}',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: isDark ? Colors.white70 : const Color(0xFF7E7A9C),
-            ),
-          ),
-          const SizedBox(height: 28),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Column(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: const Color(0xFF5E44F3), width: 2.5),
-                    ),
-                    child: UserAvatar(
-                      name: myName,
-                      photoUrl: widget.currentUser?.avatarId ?? '',
-                      radius: 28,
-                      showOnlineIndicator: false,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'You',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: isDark ? Colors.white : const Color(0xFF1E1C2A),
-                    ),
-                  ),
-                ],
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(24, 14, 24, 22),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF201B36) : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+          boxShadow: const [
+            BoxShadow(color: Colors.black26, blurRadius: 24, offset: Offset(0, -4)),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 44,
+                height: 4.5,
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white24 : const Color(0xFFD4CEEF),
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
-              const SizedBox(width: 20),
-              ScaleTransition(
-                scale: _pulseAnimation,
-                child: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF5E44F3),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF5E44F3).withValues(alpha: .38),
-                        blurRadius: 14,
-                        offset: const Offset(0, 4),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'In this room',
+                        style: TextStyle(
+                          color: foreground,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      ValueListenableBuilder<bool>(
+                        valueListenable: widget.accepted,
+                        builder: (context, accepted, _) => Text(
+                          accepted ? '2 of 2 joined' : '1 of 2 joined',
+                          style: TextStyle(
+                            color: muted,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
                     ],
                   ),
-                  alignment: Alignment.center,
-                  child: const Text(
-                    'VS',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: .5,
-                    ),
-                  ),
                 ),
-              ),
-              const SizedBox(width: 20),
-              Column(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: widget.friend.isOnline ? const Color(0xFF22C55E) : const Color(0xFF8C87A6),
-                        width: 2.5,
-                      ),
-                    ),
-                    child: UserAvatar(
-                      name: friendName,
-                      photoUrl: widget.friend.photoUrl,
-                      radius: 28,
-                      isOnline: widget.friend.isOnline,
-                      presence: widget.friend.status,
-                      showOnlineIndicator: true,
-                    ),
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFEDE9FC),
+                    shape: BoxShape.circle,
                   ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: 80,
-                    child: Text(
-                      friendName,
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: isDark ? Colors.white : const Color(0xFF1E1C2A),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 26),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF221F33) : const Color(0xFFF4F2FC),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Row(
-              children: [
-                const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Color(0xFF5E44F3),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ValueListenableBuilder<int>(
-                    valueListenable: widget.countdown,
-                    builder: (context, seconds, _) => Text(
-                      'Invite sent to @${widget.friend.username}. They can join from this chat within $seconds seconds.',
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? Colors.white70 : const Color(0xFF58527A),
-                        height: 1.3,
-                      ),
-                    ),
-                  ),
+                  child: const Icon(Icons.person_add_alt_1_rounded, color: Color(0xFF5141E5)),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 22),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(
-              'Keep browsing lobby',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: isDark ? Colors.white60 : const Color(0xFF7E7A9C),
+            const SizedBox(height: 16),
+            _memberRow(
+              name: myName,
+              photoUrl: widget.currentUser?.avatarId ?? '',
+              isHost: true,
+              isDark: isDark,
+            ),
+            const SizedBox(height: 9),
+            _memberRow(
+              name: friendName,
+              photoUrl: widget.friend.photoUrl,
+              isHost: false,
+              isDark: isDark,
+            ),
+            const SizedBox(height: 20),
+            ValueListenableBuilder<bool>(
+              valueListenable: widget.accepted,
+              builder: (context, accepted, _) => SizedBox(
+                width: double.infinity,
+                height: 58,
+                child: FilledButton.icon(
+                  onPressed: accepted ? widget.onStart : null,
+                  icon: const Icon(Icons.play_arrow_rounded, size: 23),
+                  label: Text(
+                    accepted ? 'Start match' : 'Waiting for friend',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                  ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF5E4CF2),
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: const Color(0xFFE7E2F8),
+                    disabledForegroundColor: const Color(0xFF625D8C),
+                    shape: const StadiumBorder(),
+                  ),
+                ),
               ),
             ),
-          ),
-        ],
+            const SizedBox(height: 5),
+            Center(
+              child: TextButton(
+                onPressed: widget.onCancel,
+                child: Text(
+                  'Cancel invite',
+                  style: TextStyle(color: muted, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
