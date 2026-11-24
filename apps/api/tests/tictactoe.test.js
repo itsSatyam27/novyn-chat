@@ -224,3 +224,21 @@ test("Rock Paper Scissors handles best-of-three draws and rejects invalid or rep
   assert.equal(applyGameMove(game, "bob", { move: "scissors" }).ok, false);
 });
 
+
+test("leaving a two-player Tic-Tac-Toe match awards the win to the remaining player", () => {
+  const start = createFriendGame();
+  const result = applyGameMove(start, "bob", { action: "leave_room" });
+  assert.equal(result.ok, true);
+  assert.equal(result.game.state, "finished");
+  assert.equal(result.game.winner, "Alice");
+  assert.equal(result.game.turn, "");
+  assert.equal(result.game.data.forfeitedBy, "bob");
+  assert.equal(result.game.data.rematch.status, "opponent_left");
+});
+
+test("only a participant can forfeit a two-player match", () => {
+  const start = createFriendGame();
+  const result = applyGameMove(start, "charlie", { action: "leave_room" });
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /not a player/i);
+});
