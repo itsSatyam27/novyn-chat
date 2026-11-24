@@ -854,7 +854,7 @@ class _RajaMantriInviteWaitingScreenState extends State<RajaMantriInviteWaitingS
       appBar: AppBar(
         backgroundColor: background,
         leading: IconButton(
-          onPressed: _leaveRoom,
+          onPressed: _expired ? () => Navigator.of(context).pop() : _leaveRoom,
           icon: Icon(Icons.arrow_back_rounded, color: foreground),
         ),
         title: Text(
