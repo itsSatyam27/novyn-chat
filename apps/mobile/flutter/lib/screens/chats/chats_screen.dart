@@ -376,7 +376,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
           if (decoded is! Map) continue;
           final peer = decoded['username']?.toString().trim().toLowerCase() ?? '';
           final hidden = decoded['hidden'] == true;
-          if (peer.isEmpty || !await socket.setChatHidden(peer, hidden)) {
+          if (peer.isEmpty || !(await socket.setChatHidden(peer, hidden))) {
             remaining.add(raw);
           }
         } catch (_) {
