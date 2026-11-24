@@ -10415,16 +10415,21 @@ io.on("connection", (socket) => {
     }
 
     const user = users.get(userKey);
-    const peerKey = normalizeName(payload?.username || "");
-    if (!user || !peerKey || peerKey === userKey || !users.has(peerKey) ||
+    const rawPeer = toDisplayName(payload?.username || "");
+    const peerKey = normalizeName(rawPeer);
+    const groupKey = normalizeGroupId(rawPeer);
+    const isGroup = Boolean(groupKey && groups.has(groupKey));
+    const hiddenKey = isGroup ? groupKey : peerKey;
+    if (!user || !hiddenKey || hiddenKey === userKey ||
+        (!users.has(peerKey) && !isGroup) ||
         typeof payload?.hidden !== "boolean") {
       return respond({ ok: false, message: "Choose a valid chat to update." });
     }
 
     if (!(user.hiddenChats instanceof Set)) user.hiddenChats = new Set();
     const previous = new Set(user.hiddenChats);
-    if (payload.hidden) user.hiddenChats.add(peerKey);
-    else user.hiddenChats.delete(peerKey);
+    if (payload.hidden) user.hiddenChats.add(hiddenKey);
+    else user.hiddenChats.delete(hiddenKey);
 
     try {
       // Persist this small privacy action before acknowledging it. The normal
@@ -10441,7 +10446,7 @@ io.on("connection", (socket) => {
     emitFriendList(userKey);
     respond({
       ok: true,
-      username: users.get(peerKey)?.username || peerKey,
+      username: isGroup ? (groups.get(groupKey)?.name || groupKey) : (users.get(peerKey)?.username || peerKey),
       hidden: payload.hidden,
       hiddenChats,
     });
