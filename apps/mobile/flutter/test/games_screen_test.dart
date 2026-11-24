@@ -35,7 +35,8 @@ void main() {
     expect(find.text('Matches'), findsOneWidget);
     expect(find.text('Wins'), findsOneWidget);
     expect(find.text('Losses'), findsOneWidget);
-    expect(find.text('Level 1'), findsOneWidget);
+    // The compact level badge uses the UI label "Lv1".
+    expect(find.text('Lv1'), findsOneWidget);
     expect(find.text('0 total XP'), findsOneWidget);
     expect(find.textContaining('0 / 500 XP'), findsOneWidget);
     expect(find.byKey(const ValueKey('game-streak-tictactoe')), findsOneWidget);
