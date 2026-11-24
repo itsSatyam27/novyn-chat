@@ -824,7 +824,6 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
                             background: surface,
                             foreground: foreground,
                             subtitleColor: muted,
-                            playColor: const Color(0xFF5E44F3),
                             onTap: _playWithAiBot,
                           ),
                         ),
@@ -839,7 +838,6 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
                             background: const Color(0xFF5E4CF2),
                             foreground: Colors.white,
                             subtitleColor: Colors.white.withValues(alpha: .88),
-                            playColor: Colors.white,
                             onTap: connectionReady && !_searchingRandom
                                 ? _startRandomSearch
                                 : null,
@@ -1206,7 +1204,6 @@ class _QuickPlayTile extends StatelessWidget {
     required this.background,
     required this.foreground,
     required this.subtitleColor,
-    required this.playColor,
     required this.onTap,
   });
 
@@ -1218,7 +1215,6 @@ class _QuickPlayTile extends StatelessWidget {
   final Color background;
   final Color foreground;
   final Color subtitleColor;
-  final Color playColor;
   final VoidCallback? onTap;
 
   @override
