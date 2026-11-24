@@ -755,7 +755,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
         if (!didPop && !_cancellingMatchmaking) unawaited(_handleBack());
       },
       child: Scaffold(
-        backgroundColor: isDark ? const Color(0xFF141026) : const Color(0xFFF5F3FC),
+        backgroundColor: isDark ? const Color(0xFF141026) : const Color(0xFFF6F5FD),
         body: SafeArea(
           child: Column(
             children: [
@@ -908,7 +908,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
             prefixIcon: Icon(Icons.search_rounded, color: muted, size: 24),
             filled: true,
             fillColor: surface,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(28), borderSide: BorderSide.none),
             enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(28), borderSide: BorderSide.none),
             focusedBorder: OutlineInputBorder(
@@ -1116,8 +1116,14 @@ class _MatchmakingBackgroundScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final background = isDark ? const Color(0xFF141026) : const Color(0xFFF6F5FD);
     return Scaffold(
+      backgroundColor: background,
       appBar: AppBar(
+        backgroundColor: background,
+        foregroundColor: isDark ? Colors.white : const Color(0xFF1E1A43),
+        elevation: 0,
         title: const Text('Matchmaking'),
         leading: IconButton(
           tooltip: 'Return to game setup',
@@ -1224,20 +1230,20 @@ class _QuickPlayTile extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(30),
         child: SizedBox(
-          height: 188,
+          height: 150,
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  width: 58,
-                  height: 58,
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
                     color: iconBackground,
-                    borderRadius: BorderRadius.circular(19),
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Icon(icon, color: iconColor, size: 29),
+                  child: Icon(icon, color: iconColor, size: 24),
                 ),
                 const Spacer(),
                 Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
@@ -1248,14 +1254,11 @@ class _QuickPlayTile extends StatelessWidget {
                     color: foreground,
                   )),
                 const SizedBox(height: 3),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 12.5, color: subtitleColor)),
-                    ),
-                    Icon(Icons.play_arrow_rounded, color: playColor, size: 23),
-                  ],
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12.5, color: subtitleColor),
                 ),
               ],
             ),
