@@ -33,6 +33,7 @@ class _GamesScreenState extends State<GamesScreen> {
   int _rmPlayed = 0;
   int _rmHighScore = 0;
   int _statsLoadGeneration = 0;
+  Future<void>? _statsLoadFuture;
   double _prevBottomInset = 0;
 
   static const List<_GameOption> _games = <_GameOption>[
@@ -101,7 +102,7 @@ class _GamesScreenState extends State<GamesScreen> {
 
   void _onGameHistoryChanged() {
     if (mounted && _statsUsername.isNotEmpty) {
-      _loadStats(_statsUsername);
+      _statsLoadFuture = _loadStats(_statsUsername);
     }
   }
 
@@ -118,7 +119,7 @@ class _GamesScreenState extends State<GamesScreen> {
     final username = user?.username.trim() ?? '';
     if (username.toLowerCase() != _statsUsername.toLowerCase()) {
       _statsUsername = username;
-      _loadStats(username);
+      _statsLoadFuture = _loadStats(username);
     }
   }
 
@@ -140,6 +141,12 @@ class _GamesScreenState extends State<GamesScreen> {
 
   Future<void> _openGame(_GameOption game) async {
     if (!mounted) return;
+    // The game lobby displays the same XP level shown on the Games profile.
+    // Wait for the initial history/cloud refresh so a quick tap cannot send a
+    // temporary default Level 1 into random matchmaking.
+    final pendingStatsLoad = _statsLoadFuture;
+    if (pendingStatsLoad != null) await pendingStatsLoad;
+    if (!mounted) return;
     _searchFocusNode.unfocus();
     unawaited(() async {
       try {
@@ -153,7 +160,7 @@ class _GamesScreenState extends State<GamesScreen> {
           builder: (_) => const RajaMantriLobbyScreen(),
         ),
       );
-      if (mounted) _loadStats(_statsUsername);
+      if (mounted) _statsLoadFuture = _loadStats(_statsUsername);
       return;
     }
     final screen = GameLobbyScreen(
