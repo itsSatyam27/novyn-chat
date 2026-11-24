@@ -773,6 +773,21 @@ class _RajaMantriInviteWaitingScreenState extends State<RajaMantriInviteWaitingS
     setState(() => _expired = true);
   }
 
+  Future<void> _leaveRoom() async {
+    if (_opening) return;
+    try {
+      await (_socket ?? context.read<SocketService>()).leaveRajaMantriInvite(widget.messageId);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error is StateError ? error.message.toString() : 'Could not leave this room.')),
+        );
+      }
+      return;
+    }
+    if (mounted) Navigator.of(context).pop();
+  }
+
   void _openSession(String sessionId) {
     if (!mounted || _opening) return;
     _opening = true;
@@ -789,12 +804,14 @@ class _RajaMantriInviteWaitingScreenState extends State<RajaMantriInviteWaitingS
     final background = isDark ? const Color(0xFF141026) : const Color(0xFFF5F3FC);
     final foreground = isDark ? Colors.white : const Color(0xFF1E1A43);
     final muted = isDark ? Colors.white60 : const Color(0xFF625D8C);
-    return Scaffold(
+    return PopScope<void>(
+      canPop: false,
+      child: Scaffold(
       backgroundColor: background,
       appBar: AppBar(
         backgroundColor: background,
         leading: IconButton(
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: _leaveRoom,
           icon: Icon(Icons.arrow_back_rounded, color: foreground),
         ),
         title: Text(
@@ -855,6 +872,7 @@ class _RajaMantriInviteWaitingScreenState extends State<RajaMantriInviteWaitingS
             ],
           ),
         ),
+      ),
       ),
     );
   }
