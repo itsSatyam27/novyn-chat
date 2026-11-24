@@ -12,6 +12,7 @@ import '../../services/socket_service.dart';
 import '../../widgets/user_avatar.dart';
 import 'raja_mantri_screen.dart';
 import 'raja_mantri_online_game_screen.dart';
+import 'raja_mantri_online_game_screen.dart';
 
 class RajaMantriLobbyScreen extends StatefulWidget {
   const RajaMantriLobbyScreen({super.key});
@@ -353,24 +354,49 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
       _roomMembers.value.every((member) =>
           member != null && (member.isJoined || member.isBot || member.isHost));
 
-  void _startLocalRoom(BuildContext sheetContext) {
-    if (!_roomReady) return;
+  Future<void> _startLocalRoom(BuildContext sheetContext) async {
+    if (!_roomReady || _sendingInvites) return;
     final members = _roomMembers.value.whereType<_RMRoomMember>().toList();
-    final opponents = members.where((member) => !member.isHost).map((m) => m.name).toList();
-    final user = _auth?.user;
-    final username = user?.username.trim() ?? '';
-    final photoUrl = user?.avatarId ?? '';
-    Navigator.of(sheetContext).pop();
-    Navigator.of(context).pushReplacement<void, void>(
-      MaterialPageRoute<void>(
-        builder: (_) => RajaMantriScreen(
-          currentUsername: username,
-          playerPhotoUrl: photoUrl,
-          customOpponents: opponents,
-          playerCount: _playerCount,
+    final inviteMessageIds = members
+        .where((member) => !member.isHost && !member.isBot && member.isJoined)
+        .map((member) => member.messageId)
+        .where((messageId) => messageId.isNotEmpty)
+        .toList(growable: false);
+    final botCount = members.where((member) => member.isBot).length;
+    if (inviteMessageIds.length + botCount != _playerCount - 1) {
+      _showMessage('Every player must be joined or filled with a bot before starting.');
+      return;
+    }
+
+    setState(() => _sendingInvites = true);
+    try {
+      final result = await (_socket ?? context.read<SocketService>()).startRajaMantriFriendRoom(
+        playerCount: _playerCount,
+        inviteMessageIds: inviteMessageIds,
+        botCount: botCount,
+      );
+      if (!mounted) return;
+      final sessionId = result['sessionId']?.toString() ?? '';
+      if (sessionId.isEmpty) {
+        throw StateError('The room was created but its session ID was missing.');
+      }
+      Navigator.of(sheetContext).pop();
+      Navigator.of(context).pushReplacement<void, void>(
+        MaterialPageRoute<void>(
+          builder: (_) => RajaMantriOnlineGameScreen(sessionId: sessionId),
         ),
-      ),
-    );
+      );
+    } catch (error) {
+      if (mounted) {
+        _showMessage(
+          error is StateError
+              ? error.message.toString()
+              : 'Could not start the room. Please retry.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _sendingInvites = false);
+    }
   }
 
   void _closeWaitingRoom(BuildContext sheetContext) {
