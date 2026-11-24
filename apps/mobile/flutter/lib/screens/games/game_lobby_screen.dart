@@ -281,10 +281,11 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
     } catch (error) {
       final pendingId = _pendingFriendInviteId;
       if (pendingId != null) {
-        unawaited((_socket ?? context.read<SocketService>())
-            .cancelGameInvite(pendingId)
-            .catchError((_) {}));
-        _clearPendingFriendInvite();
+        final inviteSocket = _socket;
+        if (inviteSocket != null) {
+          unawaited(inviteSocket.cancelGameInvite(pendingId).catchError((_) {}));
+        }
+        if (mounted) _clearPendingFriendInvite();
       }
       if (!mounted) return;
       NovynAlert.show(
