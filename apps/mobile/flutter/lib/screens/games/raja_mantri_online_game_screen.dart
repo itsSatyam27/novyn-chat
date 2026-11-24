@@ -30,6 +30,7 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
   bool _loading = true;
   bool _acting = false;
   bool _recorded = false;
+  bool _wasConnected = true;
 
   String get _username => _auth?.user?.username.trim().toLowerCase() ?? '';
   List<Map<String, dynamic>> get _players {
@@ -93,8 +94,16 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
   }
 
   void _handleSocketStateChanged() {
-    if (!mounted || _socket?.isConnected == true && _socket?.isAuthenticated == true) return;
-    _showMessage('Connection lost. Reconnect to continue this match.');
+    if (!mounted) return;
+    final connected = _socket?.isConnected == true && _socket?.isAuthenticated == true;
+    if (connected) {
+      _wasConnected = true;
+      return;
+    }
+    if (_wasConnected) {
+      _wasConnected = false;
+      _showMessage('Connection lost. Reconnect to continue this match.');
+    }
   }
 
   Future<void> _perform(
@@ -228,7 +237,6 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
     }
 
     final players = _players;
-    final me = players.where((player) => player['username']?.toString().toLowerCase() == _username).firstOrNull;
     final myRole = _myRole;
     final isPicking = _phase == 'picking';
     final isGuessing = _phase == 'guessing';
@@ -474,7 +482,7 @@ class _PhaseBanner extends StatelessWidget {
           Text(title, style: const TextStyle(color: _RajaMantriOnlineGameScreenState._purple, fontSize: 20, fontWeight: FontWeight.w900)),
           const SizedBox(height: 5),
           Text(detail, style: const TextStyle(color: Color(0xFF625D8C), fontSize: 13, fontWeight: FontWeight.w600)),
-          if (myRole.isNotEmpty && phase != 'picking') ...[
+          if (myRole.isNotEmpty) ...[
             const SizedBox(height: 10),
             Text('Your role: ${_roleLabel(myRole)}', style: const TextStyle(color: Color(0xFF403875), fontWeight: FontWeight.w900)),
           ],
