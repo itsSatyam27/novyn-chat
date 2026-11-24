@@ -36,6 +36,8 @@ class AuthScreen extends StatefulWidget {
 class _AuthScreenState extends State<AuthScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  late AnimationController _heroAnimationController;
+  late Animation<double> _heroFloat;
 
   @override
   void initState() {
@@ -48,10 +50,24 @@ class _AuthScreenState extends State<AuthScreen>
     _tabController.addListener(() {
       if (mounted) setState(() {});
     });
+
+    // Keep the hero alive and moving independently of the form/keyboard.
+    _heroAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 5200),
+    );
+    _heroFloat = Tween<double>(begin: -3.0, end: 3.0).animate(
+      CurvedAnimation(
+        parent: _heroAnimationController,
+        curve: Curves.easeInOutSine,
+      ),
+    );
+    _heroAnimationController.repeat(reverse: true);
   }
 
   @override
   void dispose() {
+    _heroAnimationController.dispose();
     _tabController.dispose();
     super.dispose();
   }
@@ -84,17 +100,33 @@ class _AuthScreenState extends State<AuthScreen>
                 children: [
                   if (!keyboardOpen)
                     Positioned(
+                      key: const ValueKey('auth-hero-artwork'),
                       left: 0,
                       right: 0,
                       top: 0,
                       height: artworkHeight,
-                      child: SvgPicture.asset(
-                        'assets/images/novyn_auth_hero.svg',
-                        fit: BoxFit.cover,
-                        alignment: Alignment.topCenter,
+                      child: RepaintBoundary(
+                        child: AnimatedBuilder(
+                          animation: _heroFloat,
+                          builder: (context, child) => Transform.translate(
+                            offset: Offset(0, _heroFloat.value),
+                            child: child,
+                          ),
+                          child: SvgPicture.asset(
+                            'assets/images/novyn_auth_hero.svg',
+                            fit: BoxFit.cover,
+                            alignment: Alignment.topCenter,
+                          ),
+                        ),
                       ),
                     ),
                   Positioned(
+                    // This stable key is essential: the artwork disappears
+                    // when the keyboard opens. Without a key, Stack child
+                    // indices shift and Flutter may reuse the artwork slot for
+                    // this panel, disposing the focused TextField and closing
+                    // the keyboard immediately.
+                    key: const ValueKey('auth-form-panel'),
                     left: 0,
                     right: 0,
                     top: panelTop,
