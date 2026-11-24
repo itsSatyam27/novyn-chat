@@ -132,6 +132,12 @@ function setRajaMantriPlayerConnected(session, username, connected) {
   if (!session || !player) return { ok: false, reason: "Player not found in this match." };
   player.isConnected = connected === true;
   player.autoControlled = connected !== true;
+  if (!player.isConnected && player.username === session.hostUsername) {
+    const successor = session.players.find(
+      (candidate) => !candidate.isBot && candidate.isConnected && candidate.username !== userKey,
+    );
+    if (successor) session.hostUsername = successor.username;
+  }
   if (!player.isConnected && session.phase === "guessing" && player.username === session.sipahiUsername) {
     resolveBotSipahiGuess(session);
   }
