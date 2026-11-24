@@ -7440,6 +7440,35 @@ io.on("connection", (socket) => {
     }
     clearTimeout(invite.timer);
     pendingGameInvites.delete(messageId);
+    if (invite.acceptedSocketId) {
+      io.to(invite.acceptedSocketId).emit("game_invite_timeout", {
+        messageId,
+        gameType: invite.gameType,
+        reason: "cancelled",
+      });
+    }
+    return respond({ ok: true });
+  });
+
+  socket.on("leave_rajamantri_invite", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : () => {};
+    const userKey = normalizeName(socket.data.userKey || "");
+    const messageId = toDisplayName(payload?.messageId).slice(0, 128);
+    const invite = pendingGameInvites.get(messageId);
+    if (!userKey || !invite || invite.gameType !== "rajamantri" ||
+        invite.toKey !== userKey || invite.acceptedSocketId !== socket.id || !invite.accepted) {
+      return respond({ ok: false, message: "This room invitation is no longer active." });
+    }
+    clearTimeout(invite.timer);
+    pendingGameInvites.delete(messageId);
+    const hostSocketId = onlineUsers.get(invite.fromKey);
+    if (hostSocketId) {
+      io.to(hostSocketId).emit("game_invite_timeout", {
+        messageId,
+        gameType: invite.gameType,
+        reason: "left",
+      });
+    }
     return respond({ ok: true });
   });
 
