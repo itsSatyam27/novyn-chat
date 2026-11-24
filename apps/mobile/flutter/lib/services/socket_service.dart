@@ -279,6 +279,7 @@ class SocketService extends ChangeNotifier {
   Function(Map)? onRajaMantriGameAbandoned;
   final Map<String, Map<String, dynamic>> _rajaMantriGames = <String, Map<String, dynamic>>{};
   final Map<String, String> _rajaMantriInviteSessions = <String, String>{};
+  final Set<String> _rajaMantriExpiredInvites = <String>{};
   final Map<String, Map<String, dynamic>> _randomGames = <String, Map<String, dynamic>>{};
   // Game moves can arrive before the corresponding chat history page.
   final Map<String, Map<String, dynamic>> _pendingGameUpdates =
@@ -1697,7 +1698,17 @@ class SocketService extends ChangeNotifier {
       if (data is Map) onGameInviteAccepted?.call(Map<String, dynamic>.from(data));
     });
     _socket!.on('game_invite_timeout', (data) {
-      if (data is Map) onGameInviteTimeout?.call(Map<String, dynamic>.from(data));
+      if (data is Map) {
+        final packet = Map<String, dynamic>.from(data);
+        final gameType = packet['gameType']?.toString().toLowerCase();
+        final messageId = packet['messageId']?.toString() ?? '';
+        if (gameType == 'rajamantri' && messageId.isNotEmpty) {
+          _rajaMantriExpiredInvites.add(messageId);
+          _rajaMantriInviteSessions.remove(messageId);
+          notifyListeners();
+        }
+        onGameInviteTimeout?.call(packet);
+      }
     });
 
     _socket!.on('rajamantri_match_progress', (data) {
@@ -1736,11 +1747,17 @@ class SocketService extends ChangeNotifier {
       if (inviteIds is List) {
         for (final value in inviteIds) {
           final id = value?.toString() ?? '';
-          if (id.isNotEmpty) _rajaMantriInviteSessions[id] = sessionId;
+          if (id.isNotEmpty) {
+            _rajaMantriExpiredInvites.remove(id);
+            _rajaMantriInviteSessions[id] = sessionId;
+          }
         }
       }
       final messageId = packet['messageId']?.toString() ?? '';
-      if (messageId.isNotEmpty) _rajaMantriInviteSessions[messageId] = sessionId;
+      if (messageId.isNotEmpty) {
+        _rajaMantriExpiredInvites.remove(messageId);
+        _rajaMantriInviteSessions[messageId] = sessionId;
+      }
       notifyListeners();
       onRajaMantriRoomStarted?.call(packet);
     });
@@ -2721,6 +2738,9 @@ class SocketService extends ChangeNotifier {
 
   String? rajaMantriSessionForInvite(String messageId) =>
       _rajaMantriInviteSessions[messageId];
+
+  bool isRajaMantriInviteExpired(String messageId) =>
+      _rajaMantriExpiredInvites.contains(messageId);
 
   Future<void> leaveRajaMantriInvite(String messageId) async {
     await _waitForSocketAuthentication();
