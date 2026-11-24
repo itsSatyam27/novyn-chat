@@ -258,7 +258,8 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
-        if (await _confirmLeave() && mounted) Navigator.of(context).pop();
+        final navigator = Navigator.of(context);
+        if (await _confirmLeave() && mounted) navigator.pop();
       },
       child: Scaffold(
         backgroundColor: background,
@@ -267,7 +268,8 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
           elevation: 0,
           leading: IconButton(
             onPressed: () async {
-              if (await _confirmLeave() && mounted) Navigator.of(context).pop();
+              final navigator = Navigator.of(context);
+              if (await _confirmLeave() && mounted) navigator.pop();
             },
             icon: Icon(Icons.arrow_back_rounded, color: foreground),
           ),
@@ -370,7 +372,6 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
                 isGuessing: isGuessing,
                 isResult: isResult,
                 isFinished: isFinished,
-                me: me,
               ),
             ],
           ),
@@ -385,10 +386,7 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
     required bool isGuessing,
     required bool isResult,
     required bool isFinished,
-    required Map<String, dynamic>? me,
   }) {
-    final foreground = isDark ? Colors.white : _ink;
-    final muted = isDark ? Colors.white60 : _muted;
     Widget child;
     if (isPicking && !_myPicked) {
       child = FilledButton.icon(
@@ -509,7 +507,6 @@ class _OnlinePlayerRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final name = player['displayName']?.toString() ?? player['username']?.toString() ?? 'Player';
     final role = player['role']?.toString();
-    final roleRevealed = player['roleRevealed'] == true;
     final score = int.tryParse(player['score']?.toString() ?? '') ?? 0;
     final delta = int.tryParse(player['roundDelta']?.toString() ?? '') ?? 0;
     final picked = player['picked'] == true;
