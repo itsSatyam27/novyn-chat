@@ -988,12 +988,12 @@ class _RMQuickPlayTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: background,
-      borderRadius: BorderRadius.circular(30),
+      borderRadius: BorderRadius.circular(26),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(30),
         child: SizedBox(
-          height: 150,
+          height: 128,
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -1142,7 +1142,7 @@ class _RMWaitingRoomSheet extends StatelessWidget {
                     final ready = member.isHost || member.isBot || member.isJoined;
                     final statusColor = ready ? const Color(0xFF18A05E) : const Color(0xFFE9A400);
                     return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(color: surface, borderRadius: BorderRadius.circular(18)),
                       child: Row(
                         children: [
