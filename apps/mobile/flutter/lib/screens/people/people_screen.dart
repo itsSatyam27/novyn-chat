@@ -165,6 +165,15 @@ class _PeopleScreenState extends State<PeopleScreen> {
     );
   }
 
+  void _openChat(UserModel user) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChatDetailScreen(peer: user),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthService>();
@@ -303,11 +312,18 @@ class _PeopleScreenState extends State<PeopleScreen> {
                     return true;
                   }).toList();
 
+                  final onlineBuddies =
+                      all.where((user) => user.isOnline).toList();
+
                   return Column(
                     children: [
                       _buildFilters(all),
                       Expanded(
-                        child: _buildContactsList(filtered, myUid),
+                        child: _buildContactsList(
+                          filtered,
+                          myUid,
+                          onlineBuddies: onlineBuddies,
+                        ),
                       ),
                     ],
                   );
@@ -456,8 +472,9 @@ class _PeopleScreenState extends State<PeopleScreen> {
 
   Widget _buildContactsList(
     List<UserModel> contacts,
-    String myUid,
-  ) {
+    String myUid, {
+    required List<UserModel> onlineBuddies,
+  }) {
     if (contacts.isEmpty) {
       return ListView(
         controller: _scrollController,
@@ -483,6 +500,8 @@ class _PeopleScreenState extends State<PeopleScreen> {
     }
     final letters = grouped.keys.toList()..sort();
     final children = <Widget>[
+      if (_filter == 'All' && _search.isEmpty && onlineBuddies.isNotEmpty)
+        _buildOnlineBuddiesStrip(onlineBuddies),
       Padding(
         padding: const EdgeInsets.fromLTRB(8, 6, 22, 10),
         child: Row(
@@ -544,12 +563,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
                       isFavourite: _favouriteUsernames
                           .contains(users[index].username.toLowerCase()),
                       onFavourite: () => _toggleFavourite(users[index]),
-                      onOpenChat: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => ChatDetailScreen(peer: users[index]),
-                        ),
-                      ),
+                      onOpenChat: () => _openChat(users[index]),
                     ),
                     if (index != users.length - 1)
                       Divider(
@@ -575,6 +589,130 @@ class _PeopleScreenState extends State<PeopleScreen> {
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 0, 0, 8),
       children: children,
+    );
+  }
+
+  Widget _buildOnlineBuddiesStrip(List<UserModel> buddies) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 10, 18, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'ONLINE NOW',
+                  style: TextStyle(
+                    fontFamily: 'PlusJakartaSans',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.1,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              Text(
+                '${buddies.length} online',
+                style: TextStyle(
+                  fontFamily: 'PlusJakartaSans',
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 82,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              itemCount: buddies.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              itemBuilder: (context, index) {
+                final user = buddies[index];
+                final displayName = user.name.trim().isNotEmpty
+                    ? user.name.trim()
+                    : user.username.trim();
+                final statusColor = presenceStatusColor(
+                  user.status,
+                  isOnline: user.isOnline,
+                );
+
+                return SizedBox(
+                  width: 62,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () => _openChat(user),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 2,
+                          vertical: 2,
+                        ),
+                        child: Column(
+                          children: [
+                            Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                UserAvatar(
+                                  name: displayName.isNotEmpty
+                                      ? displayName
+                                      : '?',
+                                  photoUrl: user.photoUrl.trim(),
+                                  radius: 24,
+                                  fallbackColor: user.avatarColor,
+                                  showOnlineIndicator: false,
+                                ),
+                                Positioned(
+                                  right: 0,
+                                  bottom: 0,
+                                  child: Container(
+                                    width: 12,
+                                    height: 12,
+                                    decoration: BoxDecoration(
+                                      color: statusColor,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: theme.colorScheme.surface,
+                                        width: 2,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              displayName.isNotEmpty
+                                  ? displayName
+                                  : '@${user.username}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontFamily: 'PlusJakartaSans',
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: theme.colorScheme.onSurface,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -832,17 +970,46 @@ class _ContactRow extends StatelessWidget {
                       ],
                     ],
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 3),
                   Text(
-                    _presenceLabel(),
+                    user.username.trim().isEmpty
+                        ? 'Novyn member'
+                        : '@${user.username.trim()}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontFamily: 'PlusJakartaSans',
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                      color: statusColor,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w500,
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
+                  ),
+                  const SizedBox(height: 3),
+                  Row(
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: statusColor,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          _presenceLabel(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'PlusJakartaSans',
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: statusColor,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
