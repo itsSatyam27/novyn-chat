@@ -2,6 +2,8 @@
 
 const crypto = require("crypto");
 
+const TURN_RESPONSE_TIMEOUT_MS = 15_000;
+
 const ROLE_SETS = Object.freeze({
   3: ["raja", "sipahi", "chor"],
   4: ["raja", "mantri", "sipahi", "chor"],
@@ -31,11 +33,14 @@ function createRajaMantriGameSession({
     username: String(player.username || "").trim().toLowerCase(),
     displayName: String(player.displayName || player.username || `Player ${index + 1}`).trim(),
     isBot: player.isBot === true,
+    autoControlled: player.isBot === true || player.isConnected === false,
+    autoPicked: false,
+    isConnected: player.isBot === true || player.isConnected !== false,
     score: 0,
     roundDelta: 0,
     role: null,
     roleRevealed: false,
-    picked: player.isBot === true,
+    picked: player.isBot === true || player.isConnected === false,
   }));
   if (normalizedPlayers.some((player) => !player.username)) {
     throw new TypeError("Each Raja Mantri player needs a username or bot id.");
@@ -58,6 +63,7 @@ function createRajaMantriGameSession({
     sipahiUsername: "",
     lastResult: null,
     random,
+    responseDeadlineAt: 0,
     createdAt: Date.now(),
   };
   assignRoundRoles(session);
@@ -69,12 +75,14 @@ function assignRoundRoles(session) {
   session.players.forEach((player, index) => {
     player.role = roles[index];
     player.roleRevealed = false;
-    player.picked = player.isBot;
+    player.picked = player.isBot || player.autoControlled;
+    player.autoPicked = false;
     player.roundDelta = 0;
   });
   session.sipahiUsername = "";
   session.lastResult = null;
   session.phase = "picking";
+  session.responseDeadlineAt = Date.now() + TURN_RESPONSE_TIMEOUT_MS;
   if (session.players.every((player) => player.picked)) {
     beginGuessing(session);
     resolveBotSipahiGuess(session);
@@ -83,6 +91,7 @@ function assignRoundRoles(session) {
 
 function beginGuessing(session) {
   session.phase = "guessing";
+  session.responseDeadlineAt = Date.now() + TURN_RESPONSE_TIMEOUT_MS;
   const raja = session.players.find((player) => player.role === "raja");
   if (session.playerCount === 4 && raja) raja.roleRevealed = true;
   const sipahi = session.players.find((player) => player.role === "sipahi");
@@ -103,7 +112,33 @@ function pickRajaMantriChit(session, username) {
   return { ok: true, session };
 }
 
-function guessRajaMantriChor(session, username, suspectUsername) {
+function autoPickRajaMantriChit(session, username) {
+  const userKey = String(username || "").trim().toLowerCase();
+  const player = session?.players.find((entry) => entry.username === userKey);
+  if (!session || session.phase !== "picking") return { ok: false, reason: "This round is no longer accepting picks." };
+  if (!player || player.isBot || player.picked) return { ok: false, reason: "This player does not need an automatic pick." };
+  player.picked = true;
+  player.autoPicked = true;
+  if (session.players.every((entry) => entry.picked)) {
+    beginGuessing(session);
+    resolveBotSipahiGuess(session);
+  }
+  return { ok: true, session };
+}
+
+function setRajaMantriPlayerConnected(session, username, connected) {
+  const userKey = String(username || "").trim().toLowerCase();
+  const player = session?.players.find((entry) => entry.username === userKey && !entry.isBot);
+  if (!session || !player) return { ok: false, reason: "Player not found in this match." };
+  player.isConnected = connected === true;
+  player.autoControlled = connected !== true;
+  if (!player.isConnected && session.phase === "guessing" && player.username === session.sipahiUsername) {
+    resolveBotSipahiGuess(session);
+  }
+  return { ok: true, session };
+}
+
+function guessRajaMantriChor(session, username, suspectUsername, options = {}) {
   const userKey = String(username || "").trim().toLowerCase();
   const suspectKey = String(suspectUsername || "").trim().toLowerCase();
   if (!session || session.phase !== "guessing") return { ok: false, reason: "The Sipahi is not ready to guess yet." };
@@ -150,7 +185,9 @@ function guessRajaMantriChor(session, username, suspectUsername) {
     player.roleRevealed = true;
   }
   session.phase = "result";
+  session.responseDeadlineAt = 0;
   session.lastResult = {
+    autoPlayed: options.autoPlayed === true,
     guesserUsername: guesser.username,
     suspectUsername: suspect.username,
     suspectRole: suspect.role,
@@ -163,7 +200,7 @@ function guessRajaMantriChor(session, username, suspectUsername) {
 function resolveBotSipahiGuess(session) {
   if (!session || session.phase !== "guessing") return;
   const sipahi = session.players.find((player) => player.username === session.sipahiUsername);
-  if (!sipahi?.isBot) return;
+  if (!sipahi || (!sipahi.isBot && !sipahi.autoControlled)) return;
   const roles = session.playerCount === 3 ? new Set(["raja", "chor"]) : new Set(["chor", "mantri"]);
   const suspects = session.players.filter((player) => roles.has(player.role));
   if (!suspects.length) return;
@@ -178,6 +215,7 @@ function advanceRajaMantriRound(session, username) {
   }
   if (session.round >= session.totalRounds) {
     session.phase = "finished";
+    session.responseDeadlineAt = 0;
     return { ok: true, session };
   }
   session.round += 1;
@@ -196,6 +234,7 @@ function getRajaMantriGameView(session, username) {
     round: session.round,
     totalRounds: session.totalRounds,
     phase: session.phase,
+    responseDeadlineAt: session.responseDeadlineAt,
     hostUsername: session.hostUsername,
     sipahiUsername: session.phase === "guessing" || session.phase === "result" || session.phase === "finished"
       ? session.sipahiUsername
@@ -212,6 +251,9 @@ function getRajaMantriGameView(session, username) {
       role: ((player.username === userKey && player.picked) || player.roleRevealed) ? player.role : null,
       roleRevealed: player.roleRevealed,
       picked: player.picked,
+      autoPicked: player.autoPicked,
+      autoControlled: player.autoControlled,
+      isConnected: player.isConnected,
       isBot: player.isBot,
     })),
   };
@@ -220,6 +262,8 @@ function getRajaMantriGameView(session, username) {
 module.exports = {
   createRajaMantriGameSession,
   pickRajaMantriChit,
+  autoPickRajaMantriChit,
+  setRajaMantriPlayerConnected,
   guessRajaMantriChor,
   advanceRajaMantriRound,
   getRajaMantriGameView,
