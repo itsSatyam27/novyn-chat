@@ -24,10 +24,7 @@
       <stop offset=".72" stop-color="#FFFFFF" stop-opacity=".86"/>
       <stop offset="1" stop-color="#FFFFFF"/>
     </linearGradient>
-    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%">
-      <feGaussianBlur stdDeviation="14"/>
-    </filter>
-  </defs>
+      </defs>
   <path fill="url(#sky)" d="M0 0h864v620H0z"/>
   <circle cx="432" cy="178" r="168" fill="#D8CCFF" opacity=".16"/>
   <circle cx="432" cy="178" r="118" fill="#F7F3FF" opacity=".12"/>
@@ -36,9 +33,9 @@
   <g opacity=".9" fill="#4F2BC7">
     <path d="M0 185c45-42 84-31 102 13 35-35 76-23 91 17 28-16 56-5 67 24-38 18-62 43-78 77H0V185Z"/>
     <path d="M864 170c-42-39-83-28-99 15-38-33-75-17-87 24-29-14-57-1-65 28 39 15 66 38 84 70h167V170Z"/>
-    <circle cx="47" cy="132" r="28"/><circle cx="96" cy="105" r="20"/><circle cx="812" cy="116" r="25/><circle cx="765" cy="143" r="17"/>
+    <circle cx="47" cy="132" r="28"/><circle cx="96" cy="105" r="20"/><circle cx="812" cy="116" r="25"/><circle cx="765" cy="143" r="17"/>
   </g>
-  <ellipse cx="435" cy="427" rx="286" ry="34" fill="#4022A7" opacity=".2" filter="url(#shadow)"/>
+  <ellipse cx="435" cy="427" rx="286" ry="34" fill="#4022A7" opacity=".2"/>
   <!-- Floating conversation bubbles -->
   <g transform="translate(126 166) rotate(-9)">
     <rect width="150" height="76" rx="28" fill="#FFFFFF" opacity=".96"/>
