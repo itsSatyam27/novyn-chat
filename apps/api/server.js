@@ -14,6 +14,16 @@ const { registerMessageMutationHandlers } = require("./server/realtime/message-m
 const { registerCallHandlers, cancelCallForUser } = require("./server/realtime/call-handlers");
 const { applyGameMove, createGameChallenge } = require("./server/realtime/game-rules");
 const { PublicGameMatchmaking } = require("./server/realtime/game-matchmaking");
+const { RajaMantriMatchmaking } = require("./server/realtime/raja-mantri-matchmaking");
+const {
+  createRajaMantriGameSession,
+  pickRajaMantriChit,
+  autoPickRajaMantriChit,
+  setRajaMantriPlayerConnected,
+  guessRajaMantriChor,
+  advanceRajaMantriRound,
+  getRajaMantriGameView,
+} = require("./server/realtime/raja-mantri-game");
 const { Server } = require("socket.io");
 const webpush = require("web-push");
 const { cloudinary, hasCloudinaryConfig } = require("./cloudinary");
@@ -1473,6 +1483,87 @@ const publicGameMatchmaking = new PublicGameMatchmaking({
     gameType, message: "No player available right now. Please try again.",
   }),
 });
+
+const rajaMantriMatchmaking = new RajaMantriMatchmaking({
+  timeoutMs: 60_000,
+  onExpired: ({ socketId, playerCount }) => io.to(socketId).emit("rajamantri_match_timeout", {
+    playerCount,
+    message: "No full group found right now. Please try again.",
+  }),
+  onProgress: ({ socketId, playerCount, playersFound, waitingPlayers }) => io.to(socketId).emit("rajamantri_match_progress", {
+    playerCount,
+    playersFound,
+    players: waitingPlayers,
+  }),
+});
+
+const rajaMantriSessions = new Map();
+const RAJA_MANTRI_SESSION_TTL_MS = 60 * 60 * 1000;
+const RAJA_MANTRI_RESPONSE_TIMEOUT_MS = 15_000;
+
+function scheduleRajaMantriPhaseTimer(entry) {
+  if (!entry?.game) return;
+  const game = entry.game;
+  if (!["picking", "guessing"].includes(game.phase)) {
+    clearTimeout(entry.responseTimer);
+    entry.responseTimer = null;
+    entry.responseTimerDeadline = 0;
+    return;
+  }
+  const deadline = Number(game.responseDeadlineAt) || (Date.now() + RAJA_MANTRI_RESPONSE_TIMEOUT_MS);
+  game.responseDeadlineAt = deadline;
+  if (entry.responseTimer && entry.responseTimerDeadline === deadline) return;
+  clearTimeout(entry.responseTimer);
+  entry.responseTimerDeadline = deadline;
+  entry.responseTimer = setTimeout(() => {
+    entry.responseTimer = null;
+    entry.responseTimerDeadline = 0;
+    if (!rajaMantriSessions.has(game.sessionId) || rajaMantriSessions.get(game.sessionId) !== entry) return;
+
+    if (game.phase === "picking") {
+      for (const player of game.players) {
+        if (!player.isBot && !player.picked) {
+          autoPickRajaMantriChit(game, player.username);
+        }
+      }
+    } else if (game.phase === "guessing") {
+      const sipahi = game.players.find((player) => player.username === game.sipahiUsername);
+      if (sipahi && !sipahi.isBot) {
+        const roles = game.playerCount === 3 ? new Set(["raja", "chor"]) : new Set(["chor", "mantri"]);
+        const suspects = game.players.filter((player) => roles.has(player.role));
+        if (suspects.length) {
+          const suspect = suspects[Math.floor(Math.random() * suspects.length)];
+          guessRajaMantriChor(game, sipahi.username, suspect.username, { autoPlayed: true });
+        }
+      }
+    }
+
+    emitRajaMantriGameUpdate(game);
+    scheduleRajaMantriPhaseTimer(entry);
+  }, Math.max(0, deadline - Date.now()));
+  if (typeof entry.responseTimer.unref === "function") entry.responseTimer.unref();
+}
+
+function emitRajaMantriGameUpdate(session) {
+  if (!session) return;
+  for (const player of session.players) {
+    if (player.isBot) continue;
+    const socketId = onlineUsers.get(player.username);
+    if (!socketId) continue;
+    io.to(socketId).emit("rajamantri_game_updated", {
+      sessionId: session.sessionId,
+      game: getRajaMantriGameView(session, player.username),
+    });
+  }
+}
+
+function expireRajaMantriSession(sessionId) {
+  const entry = rajaMantriSessions.get(sessionId);
+  if (!entry) return;
+  clearTimeout(entry.expiryTimer);
+  clearTimeout(entry.responseTimer);
+  rajaMantriSessions.delete(sessionId);
+}
 
 // Random matches are short-lived, server-authoritative sessions. They do not
 // depend on a friendship or a chat thread, and are discarded after 30 minutes.
@@ -5380,6 +5471,15 @@ function finalizeSocketAuthentication(socket, user) {
   const previousSocketId = onlineUsers.get(userKey);
   onlineUsers.set(userKey, socket.id);
 
+  // Rejoining users resume their human turns in any active Raja Mantri room.
+  for (const entry of rajaMantriSessions.values()) {
+    const connection = setRajaMantriPlayerConnected(entry.game, userKey, true);
+    if (connection.ok) {
+      scheduleRajaMantriPhaseTimer(entry);
+      emitRajaMantriGameUpdate(entry.game);
+    }
+  }
+
   if (previousSocketId && previousSocketId !== socket.id) {
     const previousSocket = io.sockets.sockets.get(previousSocketId);
     if (previousSocket) {
@@ -7146,7 +7246,8 @@ io.on("connection", (socket) => {
     ].map(normalizeName).filter(Boolean)));
     const result = publicGameMatchmaking.join({
       userKey, displayName: toDisplayName(user?.displayName || user?.username || userKey),
-      socketId: socket.id, gameType: payload?.gameType, excludedUsers,
+      socketId: socket.id, gameType: payload?.gameType,
+      level: payload?.playerLevel, excludedUsers,
     });
     if (!result.ok) return respond(result);
     if (!result.matched) return respond({ ok: true, queued: true, timeoutMs: 60_000 });
@@ -7178,7 +7279,11 @@ io.on("connection", (socket) => {
       sessionId: result.sessionId,
       gameType: result.gameType,
       game,
-      opponent: { username: opponent.userKey, displayName: opponent.displayName },
+      opponent: {
+        username: opponent.userKey,
+        displayName: opponent.displayName,
+        ...(Number.isInteger(opponent.level) ? { level: opponent.level } : {}),
+      },
     });
     io.to(first.socketId).emit("random_match_found", packet(second));
     io.to(second.socketId).emit("random_match_found", packet(first));
@@ -7192,6 +7297,189 @@ io.on("connection", (socket) => {
     return respond({ ok: true, cancelled: publicGameMatchmaking.cancel(userKey) });
   });
 
+  socket.on("join_rajamantri_matchmaking", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : () => {};
+    const userKey = normalizeName(socket.data.userKey || "");
+    if (!userKey || onlineUsers.get(userKey) !== socket.id) {
+      return respond({ ok: false, message: "Please sign in again before matchmaking." });
+    }
+    if (!allowSocketAction(socket, "join_rajamantri_matchmaking", 3, 60_000)) {
+      return respond({ ok: false, message: "Please wait before trying matchmaking again." });
+    }
+    const user = users.get(userKey);
+    const excludedUsers = Array.from(new Set([
+      ...Array.from(user?.friends || []),
+      ...Array.from(user?.blockedUsers || []),
+    ].map(normalizeName).filter(Boolean)));
+    const result = rajaMantriMatchmaking.join({
+      userKey,
+      displayName: toDisplayName(user?.displayName || user?.username || userKey),
+      socketId: socket.id,
+      playerCount: payload?.playerCount,
+      excludedUsers,
+    });
+    if (!result.ok) return respond(result);
+    if (!result.matched) {
+      return respond({
+        ok: true,
+        queued: true,
+        playerCount: result.playerCount,
+        playersFound: result.playersFound,
+        timeoutMs: result.timeoutMs,
+      });
+    }
+    let gameSession;
+    try {
+      gameSession = createRajaMantriGameSession({
+        sessionId: result.matchId,
+        playerCount: result.playerCount,
+        players: result.players.map((player) => ({
+          username: player.username,
+          displayName: player.displayName,
+        })),
+      });
+    } catch (error) {
+      for (const player of result.players) {
+        io.to(player.socketId).emit("rajamantri_match_timeout", {
+          playerCount: result.playerCount,
+          message: "A complete room could not be created. Please search again.",
+        });
+      }
+      return respond({ ok: false, message: "A complete room could not be created. Please search again." });
+    }
+    const expiryTimer = setTimeout(
+      () => expireRajaMantriSession(result.matchId),
+      RAJA_MANTRI_SESSION_TTL_MS,
+    );
+    if (typeof expiryTimer.unref === "function") expiryTimer.unref();
+    const sessionEntry = { game: gameSession, expiryTimer, responseTimer: null, responseTimerDeadline: 0 };
+    rajaMantriSessions.set(result.matchId, sessionEntry);
+    scheduleRajaMantriPhaseTimer(sessionEntry);
+    const packet = {
+      matchId: result.matchId,
+      sessionId: result.matchId,
+      playerCount: result.playerCount,
+      players: result.players.map((player, index) => ({
+        username: player.username,
+        displayName: player.displayName,
+        seat: index,
+      })),
+    };
+    for (const player of result.players) {
+      io.to(player.socketId).emit("rajamantri_match_found", packet);
+    }
+    return respond({ ok: true, matched: true, ...packet });
+  });
+
+  socket.on("cancel_rajamantri_matchmaking", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : () => {};
+    const userKey = normalizeName(socket.data.userKey || "");
+    if (!userKey || onlineUsers.get(userKey) !== socket.id) {
+      return respond({ ok: false, message: "Please sign in again." });
+    }
+    return respond({ ok: true, cancelled: rajaMantriMatchmaking.cancel(userKey) });
+  });
+
+  socket.on("leave_rajamantri_game", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : () => {};
+    const userKey = normalizeName(socket.data.userKey || "");
+    const sessionId = String(payload?.sessionId || "").trim().slice(0, 128);
+    const entry = rajaMantriSessions.get(sessionId);
+    if (!userKey || onlineUsers.get(userKey) !== socket.id || !entry) {
+      return respond({ ok: false, message: "This Raja Mantri match is no longer available." });
+    }
+    const leavingPlayer = entry.game.players.find((player) => player.username === userKey && !player.isBot);
+    if (!leavingPlayer) {
+      return respond({ ok: false, message: "You are not a player in this match." });
+    }
+    const connection = setRajaMantriPlayerConnected(entry.game, userKey, false);
+    if (!connection.ok) return respond({ ok: false, message: connection.reason });
+    scheduleRajaMantriPhaseTimer(entry);
+    emitRajaMantriGameUpdate(entry.game);
+    for (const player of entry.game.players) {
+      if (player.isBot || player.username === userKey) continue;
+      const targetSocket = onlineUsers.get(player.username);
+      if (targetSocket) {
+        io.to(targetSocket).emit("rajamantri_player_connection", {
+          sessionId,
+          username: userKey,
+          displayName: leavingPlayer.displayName,
+          connected: false,
+          autoPlay: true,
+        });
+      }
+    }
+    return respond({ ok: true, autoPlay: true });
+  });
+
+  socket.on("get_rajamantri_game", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : () => {};
+    const userKey = normalizeName(socket.data.userKey || "");
+    const sessionId = String(payload?.sessionId || "").trim().slice(0, 128);
+    const entry = rajaMantriSessions.get(sessionId);
+    if (!userKey || onlineUsers.get(userKey) !== socket.id || !entry) {
+      return respond({ ok: false, message: "This Raja Mantri match is no longer available." });
+    }
+    const game = getRajaMantriGameView(entry.game, userKey);
+    if (!game) return respond({ ok: false, message: "You are not a player in this match." });
+    return respond({ ok: true, game });
+  });
+
+  socket.on("pick_rajamantri_chit", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : () => {};
+    const userKey = normalizeName(socket.data.userKey || "");
+    const sessionId = String(payload?.sessionId || "").trim().slice(0, 128);
+    const entry = rajaMantriSessions.get(sessionId);
+    if (!userKey || onlineUsers.get(userKey) !== socket.id || !entry) {
+      return respond({ ok: false, message: "This Raja Mantri match is no longer available." });
+    }
+    if (!allowSocketAction(socket, "pick_rajamantri_chit", 8, 10_000)) {
+      return respond({ ok: false, message: "Please wait before picking again." });
+    }
+    const result = pickRajaMantriChit(entry.game, userKey);
+    if (!result.ok) return respond({ ok: false, message: result.reason });
+    scheduleRajaMantriPhaseTimer(entry);
+    emitRajaMantriGameUpdate(entry.game);
+    return respond({ ok: true, game: getRajaMantriGameView(entry.game, userKey) });
+  });
+
+  socket.on("guess_rajamantri_chor", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : () => {};
+    const userKey = normalizeName(socket.data.userKey || "");
+    const sessionId = String(payload?.sessionId || "").trim().slice(0, 128);
+    const suspectUsername = normalizeName(payload?.suspectUsername || "");
+    const entry = rajaMantriSessions.get(sessionId);
+    if (!userKey || onlineUsers.get(userKey) !== socket.id || !entry) {
+      return respond({ ok: false, message: "This Raja Mantri match is no longer available." });
+    }
+    if (!allowSocketAction(socket, "guess_rajamantri_chor", 6, 10_000)) {
+      return respond({ ok: false, message: "Please wait before guessing again." });
+    }
+    const result = guessRajaMantriChor(entry.game, userKey, suspectUsername);
+    if (!result.ok) return respond({ ok: false, message: result.reason });
+    scheduleRajaMantriPhaseTimer(entry);
+    emitRajaMantriGameUpdate(entry.game);
+    return respond({ ok: true, game: getRajaMantriGameView(entry.game, userKey) });
+  });
+
+  socket.on("advance_rajamantri_round", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : () => {};
+    const userKey = normalizeName(socket.data.userKey || "");
+    const sessionId = String(payload?.sessionId || "").trim().slice(0, 128);
+    const entry = rajaMantriSessions.get(sessionId);
+    if (!userKey || onlineUsers.get(userKey) !== socket.id || !entry) {
+      return respond({ ok: false, message: "This Raja Mantri match is no longer available." });
+    }
+    if (!allowSocketAction(socket, "advance_rajamantri_round", 5, 30_000)) {
+      return respond({ ok: false, message: "Please wait before continuing the round." });
+    }
+    const result = advanceRajaMantriRound(entry.game, userKey);
+    if (!result.ok) return respond({ ok: false, message: result.reason });
+    scheduleRajaMantriPhaseTimer(entry);
+    emitRajaMantriGameUpdate(entry.game);
+    return respond({ ok: true, game: getRajaMantriGameView(entry.game, userKey) });
+  });
+
   socket.on("accept_game_invite", (payload, callback) => {
     const respond = typeof callback === "function" ? callback : () => {};
     const userKey = normalizeName(socket.data.userKey || "");
@@ -7202,7 +7490,28 @@ io.on("connection", (socket) => {
       return respond({ ok: false, message: "This game invite has expired." });
     }
     clearTimeout(invite.timer);
-    pendingGameInvites.delete(messageId);
+    if (invite.gameType === "rajamantri") {
+      // RMCS invitations stay reserved after acceptance until the host starts
+      // the complete 3P/4P room. This keeps a joined player addressable.
+      invite.accepted = true;
+      invite.acceptedAt = Date.now();
+      invite.acceptedSocketId = socket.id;
+      invite.expiresAt = Date.now() + 5 * 60 * 1000;
+      invite.timer = setTimeout(() => {
+        if (pendingGameInvites.get(messageId) !== invite) return;
+        pendingGameInvites.delete(messageId);
+        const hostSocketId = onlineUsers.get(invite.fromKey);
+        if (hostSocketId) {
+          io.to(hostSocketId).emit("game_invite_timeout", { messageId, gameType: invite.gameType });
+        }
+        if (invite.acceptedSocketId) {
+          io.to(invite.acceptedSocketId).emit("game_invite_timeout", { messageId, gameType: invite.gameType });
+        }
+      }, 5 * 60 * 1000);
+      if (typeof invite.timer.unref === "function") invite.timer.unref();
+    } else {
+      pendingGameInvites.delete(messageId);
+    }
     const senderSocketId = onlineUsers.get(invite.fromKey);
     if (senderSocketId) {
       io.to(senderSocketId).emit("game_invite_accepted", {
@@ -7211,7 +7520,7 @@ io.on("connection", (socket) => {
         from: userKey,
       });
     }
-    return respond({ ok: true });
+    return respond({ ok: true, waitingForHost: invite.gameType === "rajamantri" });
   });
 
   socket.on("cancel_game_invite", (payload, callback) => {
@@ -7224,7 +7533,131 @@ io.on("connection", (socket) => {
     }
     clearTimeout(invite.timer);
     pendingGameInvites.delete(messageId);
+    if (invite.acceptedSocketId) {
+      io.to(invite.acceptedSocketId).emit("game_invite_timeout", {
+        messageId,
+        gameType: invite.gameType,
+        reason: "cancelled",
+      });
+    }
     return respond({ ok: true });
+  });
+
+  socket.on("leave_rajamantri_invite", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : () => {};
+    const userKey = normalizeName(socket.data.userKey || "");
+    const messageId = toDisplayName(payload?.messageId).slice(0, 128);
+    const invite = pendingGameInvites.get(messageId);
+    if (!userKey || !invite || invite.gameType !== "rajamantri" ||
+        invite.toKey !== userKey || invite.acceptedSocketId !== socket.id || !invite.accepted) {
+      return respond({ ok: false, message: "This room invitation is no longer active." });
+    }
+    clearTimeout(invite.timer);
+    pendingGameInvites.delete(messageId);
+    const hostSocketId = onlineUsers.get(invite.fromKey);
+    if (hostSocketId) {
+      io.to(hostSocketId).emit("game_invite_timeout", {
+        messageId,
+        gameType: invite.gameType,
+        reason: "left",
+      });
+    }
+    return respond({ ok: true });
+  });
+
+  socket.on("start_rajamantri_friend_room", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : () => {};
+    const userKey = normalizeName(socket.data.userKey || "");
+    if (!userKey || onlineUsers.get(userKey) !== socket.id) {
+      return respond({ ok: false, message: "Please sign in again before starting this room." });
+    }
+    if (!allowSocketAction(socket, "start_rajamantri_friend_room", 3, 60_000)) {
+      return respond({ ok: false, message: "Please wait before starting another room." });
+    }
+    const playerCount = Number(payload?.playerCount);
+    const inviteIds = Array.isArray(payload?.inviteMessageIds)
+      ? payload.inviteMessageIds.map((value) => String(value || "").trim().slice(0, 128)).filter(Boolean)
+      : [];
+    const botCount = Number(payload?.botCount);
+    if (![3, 4].includes(playerCount) || !Number.isInteger(botCount) ||
+        botCount < 0 || inviteIds.length + botCount !== playerCount - 1) {
+      return respond({ ok: false, message: "Every seat must be filled by a joined friend or a bot." });
+    }
+    if (new Set(inviteIds).size !== inviteIds.length) {
+      return respond({ ok: false, message: "Duplicate friend invitations were supplied." });
+    }
+    const invites = [];
+    for (const messageId of inviteIds) {
+      const invite = pendingGameInvites.get(messageId);
+      if (!invite || invite.fromKey !== userKey || invite.gameType !== "rajamantri" ||
+          invite.accepted !== true || invite.expiresAt <= Date.now() ||
+          onlineUsers.get(invite.toKey) !== invite.acceptedSocketId) {
+        return respond({ ok: false, message: "One of the invited friends is no longer ready. Refresh the room." });
+      }
+      invites.push({ messageId, invite });
+    }
+    const host = users.get(userKey);
+    const players = [{
+      username: userKey,
+      displayName: toDisplayName(host?.displayName || host?.username || userKey),
+      isBot: false,
+    }];
+    for (const { invite } of invites) {
+      const friend = users.get(invite.toKey);
+      players.push({
+        username: invite.toKey,
+        displayName: toDisplayName(friend?.displayName || friend?.username || invite.toKey),
+        isBot: false,
+      });
+    }
+    const matchId = crypto.randomUUID();
+    for (let index = 0; index < botCount; index += 1) {
+      players.push({
+        username: "bot_" + matchId.replace(/-/g, "").slice(0, 12) + "_" + (index + 1),
+        displayName: "Bot " + (index + 1),
+        isBot: true,
+      });
+    }
+    let game;
+    try {
+      game = createRajaMantriGameSession({ sessionId: matchId, playerCount, players });
+    } catch (_) {
+      return respond({ ok: false, message: "Could not create the Raja Mantri room." });
+    }
+    const expiryTimer = setTimeout(() => expireRajaMantriSession(matchId), RAJA_MANTRI_SESSION_TTL_MS);
+    if (typeof expiryTimer.unref === "function") expiryTimer.unref();
+    const sessionEntry = { game, expiryTimer, responseTimer: null, responseTimerDeadline: 0 };
+    rajaMantriSessions.set(matchId, sessionEntry);
+    scheduleRajaMantriPhaseTimer(sessionEntry);
+    for (const { messageId, invite } of invites) {
+      clearTimeout(invite.timer);
+      pendingGameInvites.delete(messageId);
+    }
+    const packet = {
+      sessionId: matchId,
+      playerCount,
+      players: players.map((player, seat) => ({
+        username: player.username,
+        displayName: player.displayName,
+        seat,
+        isBot: player.isBot,
+      })),
+    };
+    for (const { messageId, invite } of invites) {
+      const targetSocket = onlineUsers.get(invite.toKey);
+      if (targetSocket) {
+        io.to(targetSocket).emit("rajamantri_room_started", {
+          ...packet,
+          messageId,
+        });
+      }
+    }
+    return respond({
+      ok: true,
+      sessionId: matchId,
+      playerCount,
+      players: packet.players,
+    });
   });
 
   socket.on("random_game_move", (payload, callback) => {
@@ -10538,9 +10971,33 @@ io.on("connection", (socket) => {
     const userKey = socket.data.userKey;
     if (!userKey) return;
     publicGameMatchmaking.disconnect(userKey, socket.id);
+    rajaMantriMatchmaking.disconnect(userKey, socket.id);
 
     const existingSocketId = onlineUsers.get(userKey);
     if (existingSocketId === socket.id) {
+      // Keep the room alive while a disconnected participant is driven by
+      // server-side bot turns. A returning account can resume human control.
+      for (const [sessionId, entry] of rajaMantriSessions) {
+        const connection = setRajaMantriPlayerConnected(entry.game, userKey, false);
+        if (!connection.ok) continue;
+        scheduleRajaMantriPhaseTimer(entry);
+        emitRajaMantriGameUpdate(entry.game);
+        for (const player of entry.game.players) {
+          if (player.isBot || player.username === userKey) continue;
+          const targetSocket = onlineUsers.get(player.username);
+          if (targetSocket) {
+            io.to(targetSocket).emit("rajamantri_player_connection", {
+              sessionId,
+              username: userKey,
+              displayName: player.displayName,
+              connected: false,
+              autoPlay: true,
+              reason: "disconnected",
+            });
+          }
+        }
+      }
+
       const user = users.get(userKey);
       if (user) {
         for (const friendKey of user.friends) {

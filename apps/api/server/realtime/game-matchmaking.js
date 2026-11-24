@@ -5,10 +5,14 @@ class PublicGameMatchmaking {
     this.timeoutMs = timeoutMs; this.onExpired = onExpired; this.createSessionId = createSessionId;
     this.queues = new Map(); this.byUser = new Map();
   }
-  join({ userKey, displayName, socketId, gameType, excludedUsers = [] }) {
+  join({ userKey, displayName, socketId, gameType, level, excludedUsers = [] }) {
     const user = String(userKey || "").trim().toLowerCase();
     const socket = String(socketId || "").trim();
     const type = String(gameType || "").trim().toLowerCase();
+    const parsedLevel = Number(level);
+    const playerLevel = Number.isInteger(parsedLevel) && parsedLevel >= 1 && parsedLevel <= 10_000
+      ? parsedLevel
+      : null;
     if (!user || !socket || !["tictactoe", "rps"].includes(type)) return { ok: false, message: "Invalid matchmaking request." };
     this.cancel(user);
     const excluded = new Set(
@@ -29,10 +33,20 @@ class PublicGameMatchmaking {
       const opponent = queue.splice(index, 1)[0]; clearTimeout(opponent.timer); this.byUser.delete(opponent.userKey);
       if (queue.length) this.queues.set(type, queue); else this.queues.delete(type);
       return { ok: true, matched: true, sessionId: this.createSessionId(), gameType: type,
-        players: [{ userKey: opponent.userKey, displayName: opponent.displayName, socketId: opponent.socketId },
-          { userKey: user, displayName: String(displayName || user), socketId: socket }] };
+        players: [
+          { userKey: opponent.userKey, displayName: opponent.displayName, socketId: opponent.socketId, level: opponent.level },
+          { userKey: user, displayName: String(displayName || user), socketId: socket, level: playerLevel },
+        ] };
     }
-    const entry = { userKey: user, displayName: String(displayName || user), socketId: socket, gameType: type, excludedUsers: excluded, timer: null };
+    const entry = {
+      userKey: user,
+      displayName: String(displayName || user),
+      socketId: socket,
+      gameType: type,
+      level: playerLevel,
+      excludedUsers: excluded,
+      timer: null,
+    };
     entry.timer = setTimeout(() => { this.removeEntry(entry); this.onExpired({ userKey: user, socketId: socket, gameType: type }); }, this.timeoutMs);
     if (typeof entry.timer.unref === "function") entry.timer.unref();
     queue.push(entry); this.queues.set(type, queue); this.byUser.set(user, entry);

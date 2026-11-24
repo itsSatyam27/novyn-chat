@@ -86,6 +86,9 @@ class GameRoomScreen extends StatefulWidget {
 
 class _GameRoomScreenState extends State<GameRoomScreen> {
   SocketService? _socket;
+  bool _leaving = false;
+  bool _leftRoom = false;
+  bool _allowPop = false;
 
   @override
   void initState() {
@@ -116,7 +119,7 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
   }
 
   void _notifyLeaveRoom() {
-    if (widget.initialGame['isOfflineBot'] == true ||
+    if (_leftRoom || widget.initialGame['isOfflineBot'] == true ||
         widget.peerUsername == 'AI Bot') {
       return;
     }
@@ -130,6 +133,73 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
     final mId = widget.messageId;
     if (mId != null && mId.isNotEmpty && widget.peerUsername.isNotEmpty) {
       s.makeGameMove(mId, widget.peerUsername, const {'action': 'leave_room'}, isGroup: widget.isGroup);
+    }
+  }
+
+  Future<void> _confirmAndLeave() async {
+    if (_leaving || _leftRoom) return;
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Leave match?'),
+            content: const Text('Leaving now will end the match and award the win to the other player.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Stay'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: const Text('Leave match'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!confirmed || !mounted) return;
+
+    setState(() => _leaving = true);
+    try {
+      final socket = _socket ?? context.read<SocketService>();
+      final current = _currentGame(socket) ?? widget.initialGame;
+      if (current['state']?.toString() != 'finished') {
+        final randomId = widget.randomSessionId;
+        if (randomId != null && randomId.isNotEmpty) {
+          await socket.moveRandomGame(randomId, const {'action': 'leave_room'});
+        } else {
+          final messageId = widget.messageId;
+          if (messageId == null || messageId.isEmpty || widget.peerUsername.isEmpty) {
+            throw StateError('This game room cannot be forfeited right now.');
+          }
+          await socket.makeGameMove(
+            messageId,
+            widget.peerUsername,
+            const {'action': 'leave_room'},
+            isGroup: widget.isGroup,
+          );
+        }
+      }
+      _leftRoom = true;
+      if (!mounted) return;
+      setState(() => _allowPop = true);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+      });
+    } catch (error) {
+      if (mounted) {
+        setState(() => _leaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              error is StateError
+                  ? error.message.toString()
+                  : 'Could not leave the match. Check your connection and retry.',
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -171,7 +241,12 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
 
     final isDark = theme.brightness == Brightness.dark;
 
-    return Scaffold(
+    return PopScope<void>(
+      canPop: _allowPop,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _confirmAndLeave();
+      },
+      child: Scaffold(
       backgroundColor: isDark ? const Color(0xFF141026) : const Color(0xFFF4F2FA),
       appBar: AppBar(
         titleSpacing: 4,
@@ -203,6 +278,17 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: 'Leave match',
+            onPressed: _leaving ? null : _confirmAndLeave,
+            icon: _leaving
+                ? const SizedBox(
+                    width: 19,
+                    height: 19,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.exit_to_app_rounded),
+          ),
           Padding(
             padding: const EdgeInsets.only(right: 16),
             child: Center(
@@ -281,6 +367,7 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
                   ),
                 ],
               ),
+      ),
       ),
     );
   }

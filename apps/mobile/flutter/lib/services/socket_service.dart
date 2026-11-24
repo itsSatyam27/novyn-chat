@@ -271,6 +271,15 @@ class SocketService extends ChangeNotifier {
   Function(Map)? onRandomGameUpdated;
   Function(Map)? onGameInviteAccepted;
   Function(Map)? onGameInviteTimeout;
+  Function(Map)? onRajaMantriMatchFound;
+  Function(Map)? onRajaMantriMatchProgress;
+  Function(Map)? onRajaMantriMatchTimeout;
+  Function(Map)? onRajaMantriGameUpdated;
+  Function(Map)? onRajaMantriRoomStarted;
+  Function(Map)? onRajaMantriGameAbandoned;
+  final Map<String, Map<String, dynamic>> _rajaMantriGames = <String, Map<String, dynamic>>{};
+  final Map<String, String> _rajaMantriInviteSessions = <String, String>{};
+  final Set<String> _rajaMantriExpiredInvites = <String>{};
   final Map<String, Map<String, dynamic>> _randomGames = <String, Map<String, dynamic>>{};
   // Game moves can arrive before the corresponding chat history page.
   final Map<String, Map<String, dynamic>> _pendingGameUpdates =
@@ -1689,7 +1698,58 @@ class SocketService extends ChangeNotifier {
       if (data is Map) onGameInviteAccepted?.call(Map<String, dynamic>.from(data));
     });
     _socket!.on('game_invite_timeout', (data) {
-      if (data is Map) onGameInviteTimeout?.call(Map<String, dynamic>.from(data));
+      if (data is Map) {
+        final packet = Map<String, dynamic>.from(data);
+        final gameType = packet['gameType']?.toString().toLowerCase();
+        final messageId = packet['messageId']?.toString() ?? '';
+        if (gameType == 'rajamantri' && messageId.isNotEmpty) {
+          _rajaMantriExpiredInvites.add(messageId);
+          _rajaMantriInviteSessions.remove(messageId);
+          notifyListeners();
+        }
+        onGameInviteTimeout?.call(packet);
+      }
+    });
+
+    _socket!.on('rajamantri_match_progress', (data) {
+      if (data is Map) onRajaMantriMatchProgress?.call(Map<String, dynamic>.from(data));
+    });
+    _socket!.on('rajamantri_match_found', (data) {
+      if (data is Map) onRajaMantriMatchFound?.call(Map<String, dynamic>.from(data));
+    });
+    _socket!.on('rajamantri_match_timeout', (data) {
+      if (data is Map) onRajaMantriMatchTimeout?.call(Map<String, dynamic>.from(data));
+    });
+
+    _socket!.on('rajamantri_game_abandoned', (data) {
+      if (data is Map) {
+        onRajaMantriGameAbandoned?.call(Map<String, dynamic>.from(data));
+      }
+    });
+
+    _socket!.on('rajamantri_game_updated', (data) {
+      if (data is! Map) return;
+      final packet = Map<String, dynamic>.from(data);
+      final sessionId = packet['sessionId']?.toString() ?? '';
+      final game = packet['game'];
+      if (sessionId.isEmpty || game is! Map) return;
+      _rajaMantriGames[sessionId] = Map<String, dynamic>.from(game);
+      notifyListeners();
+      onRajaMantriGameUpdated?.call(packet);
+    });
+
+    _socket!.on('rajamantri_room_started', (data) {
+      if (data is! Map) return;
+      final packet = Map<String, dynamic>.from(data);
+      final sessionId = packet['sessionId']?.toString() ?? '';
+      if (sessionId.isEmpty) return;
+      final messageId = packet['messageId']?.toString() ?? '';
+      if (messageId.isNotEmpty) {
+        _rajaMantriExpiredInvites.remove(messageId);
+        _rajaMantriInviteSessions[messageId] = sessionId;
+      }
+      notifyListeners();
+      onRajaMantriRoomStarted?.call(packet);
     });
 
     // ── Server error messages ─────────────────────────────────────────────
@@ -2582,15 +2642,20 @@ class SocketService extends ChangeNotifier {
     }
   }
 
-  Future<Map<String, dynamic>> joinRandomGame(String gameType) async {
+  Future<Map<String, dynamic>> joinRandomGame(
+    String gameType, {
+    int? playerLevel,
+  }) async {
     await _waitForSocketAuthentication();
     final socket = _socket;
     if (socket == null || !_isConnected || !_isAuthenticated) {
       throw StateError('Connect to Novyn before starting a random game.');
     }
     final completer = Completer<Map<String, dynamic>>();
-    socket.emitWithAck('join_random_game', {'gameType': gameType},
-        ack: (dynamic result) {
+    socket.emitWithAck('join_random_game', {
+      'gameType': gameType,
+      if (playerLevel != null) 'playerLevel': playerLevel,
+    }, ack: (dynamic result) {
       if (completer.isCompleted) return;
       completer.complete(result is Map
           ? Map<String, dynamic>.from(result)
@@ -2604,6 +2669,214 @@ class SocketService extends ChangeNotifier {
       throw StateError(result['message']?.toString() ?? 'Could not join matchmaking.');
     }
     return result;
+  }
+
+  Future<Map<String, dynamic>> joinRajaMantriMatchmaking(int playerCount) async {
+    await _waitForSocketAuthentication();
+    final socket = _socket;
+    if (socket == null || !_isConnected || !_isAuthenticated) {
+      throw StateError('Connect to Novyn before searching for players.');
+    }
+    if (playerCount != 3 && playerCount != 4) {
+      throw ArgumentError.value(playerCount, 'playerCount', 'Only 3 or 4 players are supported.');
+    }
+    final completer = Completer<Map<String, dynamic>>();
+    socket.emitWithAck(
+      'join_rajamantri_matchmaking',
+      {'playerCount': playerCount},
+      ack: (dynamic result) {
+        if (completer.isCompleted) return;
+        completer.complete(result is Map
+            ? Map<String, dynamic>.from(result)
+            : <String, dynamic>{'ok': false, 'message': 'Could not join Raja Mantri matchmaking.'});
+      },
+    );
+    final result = await completer.future.timeout(
+      const Duration(seconds: 10),
+      onTimeout: () => <String, dynamic>{
+        'ok': false,
+        'message': 'Player search request timed out. Please try again.',
+      },
+    );
+    if (result['ok'] != true) {
+      throw StateError(result['message']?.toString() ?? 'Could not find players.');
+    }
+    return result;
+  }
+
+  Future<void> cancelRajaMantriMatchmaking() async {
+    await _waitForSocketAuthentication();
+    final socket = _socket;
+    if (socket == null || !_isConnected || !_isAuthenticated) {
+      throw StateError('Reconnect before cancelling player search.');
+    }
+    final completer = Completer<Map<String, dynamic>>();
+    socket.emitWithAck('cancel_rajamantri_matchmaking', {}, ack: (dynamic result) {
+      if (completer.isCompleted) return;
+      completer.complete(result is Map
+          ? Map<String, dynamic>.from(result)
+          : <String, dynamic>{'ok': false});
+    });
+    final result = await completer.future.timeout(
+      const Duration(seconds: 5),
+      onTimeout: () => <String, dynamic>{'ok': false, 'message': 'Could not cancel player search.'},
+    );
+    if (result['ok'] != true) {
+      throw StateError(result['message']?.toString() ?? 'Could not cancel player search.');
+    }
+  }
+
+  String? rajaMantriSessionForInvite(String messageId) =>
+      _rajaMantriInviteSessions[messageId];
+
+  bool isRajaMantriInviteExpired(String messageId) =>
+      _rajaMantriExpiredInvites.contains(messageId);
+
+  Future<void> leaveRajaMantriInvite(String messageId) async {
+    await _waitForSocketAuthentication();
+    final socket = _socket;
+    if (socket == null || !_isConnected || !_isAuthenticated) {
+      throw StateError('Reconnect before leaving this room.');
+    }
+    final completer = Completer<Map<String, dynamic>>();
+    socket.emitWithAck(
+      'leave_rajamantri_invite',
+      {'messageId': messageId},
+      ack: (dynamic result) {
+        if (completer.isCompleted) return;
+        completer.complete(result is Map
+            ? Map<String, dynamic>.from(result)
+            : <String, dynamic>{'ok': false});
+      },
+    );
+    final result = await completer.future.timeout(
+      const Duration(seconds: 5),
+      onTimeout: () => <String, dynamic>{'ok': false, 'message': 'Could not leave this room.'},
+    );
+    if (result['ok'] != true) {
+      throw StateError(result['message']?.toString() ?? 'This room invitation is no longer active.');
+    }
+  }
+
+  Future<Map<String, dynamic>> startRajaMantriFriendRoom({
+    required int playerCount,
+    required List<String> inviteMessageIds,
+    required int botCount,
+  }) async {
+    await _waitForSocketAuthentication();
+    final socket = _socket;
+    if (socket == null || !_isConnected || !_isAuthenticated) {
+      throw StateError('Reconnect to Novyn before starting this room.');
+    }
+    final completer = Completer<Map<String, dynamic>>();
+    socket.emitWithAck(
+      'start_rajamantri_friend_room',
+      {
+        'playerCount': playerCount,
+        'inviteMessageIds': inviteMessageIds,
+        'botCount': botCount,
+      },
+      ack: (dynamic result) {
+        if (completer.isCompleted) return;
+        completer.complete(result is Map
+            ? Map<String, dynamic>.from(result)
+            : <String, dynamic>{'ok': false, 'message': 'Could not start this room.'});
+      },
+    );
+    final result = await completer.future.timeout(
+      const Duration(seconds: 10),
+      onTimeout: () => <String, dynamic>{
+        'ok': false,
+        'message': 'Starting the room timed out. Please try again.',
+      },
+    );
+    if (result['ok'] != true) {
+      throw StateError(result['message']?.toString() ?? 'Could not start this room.');
+    }
+    return result;
+  }
+
+  Map<String, dynamic>? rajaMantriGameFor(String sessionId) {
+    final game = _rajaMantriGames[sessionId];
+    return game == null ? null : Map<String, dynamic>.from(game);
+  }
+
+  Future<Map<String, dynamic>> _rajaMantriGameAction(
+    String event,
+    Map<String, dynamic> payload, {
+    Duration timeout = const Duration(seconds: 8),
+  }) async {
+    await _waitForSocketAuthentication();
+    final socket = _socket;
+    if (socket == null || !_isConnected || !_isAuthenticated) {
+      throw StateError('Reconnect to Novyn before updating this match.');
+    }
+    final completer = Completer<Map<String, dynamic>>();
+    socket.emitWithAck(event, payload, ack: (dynamic result) {
+      if (completer.isCompleted) return;
+      completer.complete(result is Map
+          ? Map<String, dynamic>.from(result)
+          : <String, dynamic>{'ok': false, 'message': 'Unexpected match response.'});
+    });
+    final result = await completer.future.timeout(
+      timeout,
+      onTimeout: () => <String, dynamic>{'ok': false, 'message': 'The match update timed out. Please retry.'},
+    );
+    if (result['ok'] != true) {
+      throw StateError(result['message']?.toString() ?? 'Could not update this match.');
+    }
+    final game = result['game'];
+    if (game is Map && payload['sessionId'] != null) {
+      final sessionId = payload['sessionId'].toString();
+      _rajaMantriGames[sessionId] = Map<String, dynamic>.from(game);
+      notifyListeners();
+    }
+    return result;
+  }
+
+  Future<void> leaveRajaMantriGame(String sessionId) async {
+    await _waitForSocketAuthentication();
+    final socket = _socket;
+    if (socket == null || !_isConnected || !_isAuthenticated) {
+      throw StateError('Reconnect before leaving this match.');
+    }
+    final completer = Completer<Map<String, dynamic>>();
+    socket.emitWithAck('leave_rajamantri_game', {'sessionId': sessionId},
+        ack: (dynamic result) {
+      if (completer.isCompleted) return;
+      completer.complete(result is Map
+          ? Map<String, dynamic>.from(result)
+          : <String, dynamic>{'ok': false});
+    });
+    final result = await completer.future.timeout(
+      const Duration(seconds: 5),
+      onTimeout: () => <String, dynamic>{'ok': false, 'message': 'Could not leave the match.'},
+    );
+    if (result['ok'] != true) {
+      throw StateError(result['message']?.toString() ?? 'Could not leave the match.');
+    }
+  }
+
+  Future<Map<String, dynamic>> getRajaMantriGame(String sessionId) {
+    return _rajaMantriGameAction('get_rajamantri_game', {'sessionId': sessionId});
+  }
+
+  Future<Map<String, dynamic>> pickRajaMantriChit(String sessionId) {
+    return _rajaMantriGameAction('pick_rajamantri_chit', {'sessionId': sessionId});
+  }
+
+  Future<Map<String, dynamic>> guessRajaMantriChor(
+    String sessionId,
+    String suspectUsername,
+  ) {
+    return _rajaMantriGameAction('guess_rajamantri_chor', {
+      'sessionId': sessionId,
+      'suspectUsername': suspectUsername,
+    });
+  }
+
+  Future<Map<String, dynamic>> advanceRajaMantriRound(String sessionId) {
+    return _rajaMantriGameAction('advance_rajamantri_round', {'sessionId': sessionId});
   }
 
   Future<Map<String, dynamic>> moveRandomGame(

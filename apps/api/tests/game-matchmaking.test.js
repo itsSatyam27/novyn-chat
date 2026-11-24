@@ -81,3 +81,41 @@ test("one-sided or stale friend records still exclude the pair but allow a stran
   assert.equal(q.size, 1);
   q.cancel("bob");
 });
+
+test("matchmaking carries validated game levels to both matched players", () => {
+  const q = new PublicGameMatchmaking({ createSessionId: () => "levels-session" });
+  assert.equal(q.join({
+    userKey: "alice",
+    displayName: "Alice",
+    socketId: "alice_socket",
+    gameType: "tictactoe",
+    level: 4,
+  }).queued, true);
+  const match = q.join({
+    userKey: "bob",
+    displayName: "Bob",
+    socketId: "bob_socket",
+    gameType: "tictactoe",
+    level: 7,
+  });
+  assert.equal(match.matched, true);
+  assert.deepEqual(match.players.map((player) => player.level), [4, 7]);
+});
+
+test("invalid matchmaking level metadata is omitted instead of trusted", () => {
+  const q = new PublicGameMatchmaking({ createSessionId: () => "safe-level-session" });
+  q.join({
+    userKey: "alice",
+    socketId: "alice_socket",
+    gameType: "rps",
+    level: 50_000,
+  });
+  const match = q.join({
+    userKey: "bob",
+    socketId: "bob_socket",
+    gameType: "rps",
+    level: 3.5,
+  });
+  assert.equal(match.matched, true);
+  assert.deepEqual(match.players.map((player) => player.level), [null, null]);
+});
