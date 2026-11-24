@@ -33,6 +33,8 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
   bool _wasConnected = true;
   bool _matchAbandoned = false;
   String _abandonedBy = '';
+  Timer? _turnCountdownTimer;
+  int _turnSecondsRemaining = 0;
 
   String get _username => _auth?.user?.username.trim().toLowerCase() ?? '';
   List<Map<String, dynamic>> get _players {
@@ -59,12 +61,14 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
       _socket!.onRajaMantriGameUpdated = _handleGameUpdated;
       _socket!.onRajaMantriGameAbandoned = _handleGameAbandoned;
       _socket!.addListener(_handleSocketStateChanged);
+      _startTurnCountdown();
       _loadGame();
     });
   }
 
   @override
   void dispose() {
+    _turnCountdownTimer?.cancel();
     if (_socket != null) {
       _socket!.removeListener(_handleSocketStateChanged);
       _socket!.onRajaMantriGameUpdated = null;
@@ -81,6 +85,7 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
         _game = Map<String, dynamic>.from(result['game'] as Map);
         _loading = false;
       });
+      _startTurnCountdown();
     } catch (error) {
       if (!mounted) return;
       setState(() => _loading = false);
@@ -94,6 +99,7 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
       _game = Map<String, dynamic>.from(data['game'] as Map);
       _loading = false;
     });
+    _startTurnCountdown();
     _recordFinishedResult();
   }
 
@@ -112,7 +118,9 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
     if (!mounted) return;
     final connected = _socket?.isConnected == true && _socket?.isAuthenticated == true;
     if (connected) {
+      final reconnected = !_wasConnected;
       _wasConnected = true;
+      if (reconnected) _loadGame();
       return;
     }
     if (_wasConnected) {
@@ -133,6 +141,7 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
       final game = result['game'];
       if (game is Map) {
         setState(() => _game = Map<String, dynamic>.from(game));
+        _startTurnCountdown();
         _recordFinishedResult();
       }
       if (successMessage != null) _showMessage(successMessage);
@@ -143,6 +152,26 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
     } finally {
       if (mounted) setState(() => _acting = false);
     }
+  }
+
+  void _startTurnCountdown() {
+    _turnCountdownTimer?.cancel();
+    final deadline = int.tryParse(_game?['responseDeadlineAt']?.toString() ?? '') ?? 0;
+    if (deadline <= 0 || !['picking', 'guessing'].contains(_phase)) {
+      if (mounted) setState(() => _turnSecondsRemaining = 0);
+      return;
+    }
+    void updateRemaining() {
+      if (!mounted) return;
+      final remainingMs = deadline - DateTime.now().millisecondsSinceEpoch;
+      final next = remainingMs <= 0 ? 0 : (remainingMs / 1000).ceil();
+      if (_turnSecondsRemaining != next) {
+        setState(() => _turnSecondsRemaining = next);
+      }
+      if (next <= 0) _turnCountdownTimer?.cancel();
+    }
+    updateRemaining();
+    _turnCountdownTimer = Timer.periodic(const Duration(milliseconds: 250), (_) => updateRemaining());
   }
 
   Future<void> _pickChit() => _perform(
@@ -343,6 +372,7 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
                         phase: _phase,
                         myRole: myRole,
                         isSipahi: _isSipahi,
+                        secondsRemaining: _turnSecondsRemaining,
                         foreground: foreground,
                         muted: muted,
                       ),
@@ -497,6 +527,7 @@ class _PhaseBanner extends StatelessWidget {
     required this.phase,
     required this.myRole,
     required this.isSipahi,
+    required this.secondsRemaining,
     required this.foreground,
     required this.muted,
   });
@@ -504,6 +535,7 @@ class _PhaseBanner extends StatelessWidget {
   final String phase;
   final String myRole;
   final bool isSipahi;
+  final int secondsRemaining;
   final Color foreground;
   final Color muted;
 
@@ -529,6 +561,17 @@ class _PhaseBanner extends StatelessWidget {
           Text(title, style: const TextStyle(color: _RajaMantriOnlineGameScreenState._purple, fontSize: 20, fontWeight: FontWeight.w900)),
           const SizedBox(height: 5),
           Text(detail, style: const TextStyle(color: Color(0xFF625D8C), fontSize: 13, fontWeight: FontWeight.w600)),
+          if (secondsRemaining > 0 && (phase == 'picking' || phase == 'guessing')) ...[
+            const SizedBox(height: 10),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.timer_outlined, size: 16, color: Color(0xFF5E4CF2)),
+                const SizedBox(width: 6),
+                Text('$secondsRemaining sec left', style: const TextStyle(color: Color(0xFF5E4CF2), fontWeight: FontWeight.w900, fontSize: 13)),
+              ],
+            ),
+          ],
           if (myRole.isNotEmpty) ...[
             const SizedBox(height: 10),
             Text('Your role: ${_roleLabel(myRole)}', style: const TextStyle(color: Color(0xFF403875), fontWeight: FontWeight.w900)),
@@ -583,7 +626,7 @@ class _OnlinePlayerRow extends StatelessWidget {
                 Text(isMe ? '$name · You' : name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: foreground, fontWeight: FontWeight.w900, fontSize: 14)),
                 const SizedBox(height: 3),
                 Text(
-                  role != null ? _roleLabel(role) : isBot ? 'Bot player' : picked ? 'Chit picked' : 'Choosing a chit',
+                  role != null ? _roleLabel(role) : isBot ? 'Bot player' : player['autoControlled'] == true ? 'Bot taking this turn' : player['autoPicked'] == true ? 'Auto-picked this round' : picked ? 'Chit picked' : 'Choosing a chit',
                   style: TextStyle(color: muted, fontSize: 12, fontWeight: FontWeight.w600),
                 ),
               ],
