@@ -664,7 +664,7 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final background = isDark ? const Color(0xFF141026) : const Color(0xFFF5F3FC);
+    final background = isDark ? const Color(0xFF141026) : const Color(0xFFF6F5FD);
     final foreground = isDark ? Colors.white : _ink;
     final muted = isDark ? Colors.white60 : _muted;
     final friends = _filteredFriends;
@@ -804,7 +804,7 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
                       prefixIcon: Icon(Icons.search_rounded, color: muted, size: 24),
                       filled: true,
                       fillColor: isDark ? const Color(0xFF201B36) : Colors.white,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(28), borderSide: BorderSide.none),
                       enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(28), borderSide: BorderSide.none),
                       focusedBorder: OutlineInputBorder(
@@ -971,7 +971,6 @@ class _RMQuickPlayTile extends StatelessWidget {
     required this.background,
     required this.foreground,
     required this.subtitleColor,
-    required this.playColor,
     required this.onTap,
   });
 
@@ -983,7 +982,6 @@ class _RMQuickPlayTile extends StatelessWidget {
   final Color background;
   final Color foreground;
   final Color subtitleColor;
-  final Color playColor;
   final VoidCallback onTap;
 
   @override
@@ -995,7 +993,7 @@ class _RMQuickPlayTile extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(30),
         child: SizedBox(
-          height: 184,
+          height: 150,
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -1003,34 +1001,27 @@ class _RMQuickPlayTile extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Container(
-                  width: 58,
-                  height: 58,
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
                     color: iconBackground,
-                    borderRadius: BorderRadius.circular(19),
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Icon(icon, color: iconColor, size: 29),
+                  child: Icon(icon, color: iconColor, size: 24),
                 ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: foreground,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 17,
-                              letterSpacing: -.3,
-                            ),
-                          ),
-                        ),
-                        Icon(Icons.play_arrow_rounded, color: playColor, size: 24),
-                      ],
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: foreground,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 17,
+                        letterSpacing: -.3,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -1076,7 +1067,7 @@ class _RMWaitingRoomSheet extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Container(
-        height: MediaQuery.of(context).size.height * .58,
+        height: MediaQuery.of(context).size.height * .52,
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF201B36) : Colors.white,
@@ -1127,7 +1118,7 @@ class _RMWaitingRoomSheet extends StatelessWidget {
                     final member = index < values.length ? values[index] : null;
                     if (member == null) {
                       return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         decoration: BoxDecoration(
                           color: surface,
                           borderRadius: BorderRadius.circular(18),
