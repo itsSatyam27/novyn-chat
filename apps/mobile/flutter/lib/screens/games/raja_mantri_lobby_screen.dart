@@ -385,6 +385,26 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
 
     final rootNavigator = Navigator.of(context);
     final sheetNavigator = Navigator.of(sheetContext);
+    if (inviteMessageIds.isEmpty && botCount == _playerCount - 1) {
+      final user = _auth?.user;
+      final opponents = members
+          .where((member) => !member.isHost)
+          .map((member) => member.name)
+          .toList(growable: false);
+      sheetNavigator.pop();
+      rootNavigator.pushReplacement<void, void>(
+        MaterialPageRoute<void>(
+          builder: (_) => RajaMantriScreen(
+            currentUsername: user?.username ?? '',
+            playerPhotoUrl: user?.avatarId ?? '',
+            customOpponents: opponents,
+            playerCount: _playerCount,
+          ),
+        ),
+      );
+      return;
+    }
+
     setState(() => _sendingInvites = true);
     try {
       final result = await (_socket ?? context.read<SocketService>()).startRajaMantriFriendRoom(
