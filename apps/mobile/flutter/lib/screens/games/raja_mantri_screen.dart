@@ -126,12 +126,14 @@ class RajaMantriScreen extends StatefulWidget {
     this.playerPhotoUrl = '',
     this.customOpponents,
     this.isPassAndPlay = false,
+    this.playerCount = 4,
   });
 
   final String currentUsername;
   final String playerPhotoUrl;
   final List<String>? customOpponents;
   final bool isPassAndPlay;
+  final int playerCount;
 
   @override
   State<RajaMantriScreen> createState() => _RajaMantriScreenState();
@@ -173,43 +175,35 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
   }
 
   void _initPlayers() {
-    final rawOpponents = (widget.customOpponents != null &&
-            widget.customOpponents!.length >= 3)
-        ? widget.customOpponents!
-        : ['Bot 1', 'Bot 2', 'Bot 3'];
-
-    // Ensure bot names are strictly Bot 1, Bot 2, Bot 3
-    final opponentNames = List<String>.generate(3, (idx) {
-      final name = rawOpponents[idx];
-      if (name.toLowerCase().contains('bot') || name.startsWith('Player')) {
-        return 'Bot ${idx + 1}';
+    final count = widget.isPassAndPlay ? 4 : (widget.playerCount == 3 ? 3 : 4);
+    final requiredOpponents = count - 1;
+    final supplied = widget.customOpponents ?? const <String>[];
+    final opponentNames = List<String>.generate(requiredOpponents, (idx) {
+      if (idx < supplied.length && supplied[idx].trim().isNotEmpty) {
+        return supplied[idx].trim();
       }
-      return name;
+      return 'Bot ${idx + 1}';
     });
-
+    const playerColors = [
+      Color(0xFF5E44F3),
+      Color(0xFFD92D66),
+      Color(0xFFF59E0B),
+      Color(0xFF0D9488),
+    ];
     _players = [
       RMPlayer(
         id: 'user',
         name: widget.isPassAndPlay ? 'Player 1' : 'You',
-        color: const Color(0xFF5E44F3),
+        color: playerColors[0],
         photoUrl: widget.playerPhotoUrl,
         isUser: true,
       ),
-      RMPlayer(
-        id: 'p1',
-        name: widget.isPassAndPlay ? 'Player 2' : opponentNames[0],
-        color: const Color(0xFFD92D66),
-      ),
-      RMPlayer(
-        id: 'p2',
-        name: widget.isPassAndPlay ? 'Player 3' : opponentNames[1],
-        color: const Color(0xFFF59E0B),
-      ),
-      RMPlayer(
-        id: 'p3',
-        name: widget.isPassAndPlay ? 'Player 4' : opponentNames[2],
-        color: const Color(0xFF0D9488),
-      ),
+      for (int i = 0; i < requiredOpponents; i++)
+        RMPlayer(
+          id: 'p${i + 1}',
+          name: widget.isPassAndPlay ? 'Player ${i + 2}' : opponentNames[i],
+          color: playerColors[i + 1],
+        ),
     ];
   }
 
@@ -250,9 +244,7 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
 
   void _autoPickSuspect() {
     if (_gameState != RMGameState.userGuessing) return;
-    final chorIndex = _players.indexWhere((p) => p.currentRole == RMRole.chor);
-    final mantriIndex = _players.indexWhere((p) => p.currentRole == RMRole.mantri);
-    final candidates = [chorIndex, mantriIndex];
+    final candidates = _suspectIndices;
     candidates.shuffle();
     _onUserSelectSuspect(candidates.first);
   }
@@ -326,13 +318,15 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
         p.isRoleRevealed = false;
       }
 
-      // Shuffle 4 roles
-      final roles = [RMRole.raja, RMRole.mantri, RMRole.sipahi, RMRole.chor];
+      // Three-player games use Raja, Sipahi and Chor. Four-player games
+      // retain the classic Raja, Mantri, Sipahi and Chor roles.
+      final roles = widget.playerCount == 3 && !widget.isPassAndPlay
+          ? <RMRole>[RMRole.raja, RMRole.sipahi, RMRole.chor]
+          : <RMRole>[RMRole.raja, RMRole.mantri, RMRole.sipahi, RMRole.chor];
       roles.shuffle(math.Random());
       _shuffledRoles = roles;
 
-      // Assign to players
-      for (int i = 0; i < 4; i++) {
+      for (var i = 0; i < _players.length; i++) {
         _players[i].currentRole = _shuffledRoles[i];
       }
     });
@@ -366,7 +360,12 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
     final rajaIndex = _players.indexWhere((p) => p.currentRole == RMRole.raja);
     final sipahiIndex = _players.indexWhere((p) => p.currentRole == RMRole.sipahi);
 
-    _players[rajaIndex].isRoleRevealed = true;
+    // In the classic four-player variant the Raja is revealed before the
+    // Sipahi guesses between the two hidden suspects. In three-player mode
+    // both other players remain possible suspects.
+    if (_players.length == 4) {
+      _players[rajaIndex].isRoleRevealed = true;
+    }
 
     final guesserIndex = sipahiIndex;
     final guesser = _players[guesserIndex];
@@ -389,15 +388,20 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
     }
   }
 
+  List<int> get _suspectIndices {
+    final roles = _players.length == 3
+        ? const <RMRole>[RMRole.raja, RMRole.chor]
+        : const <RMRole>[RMRole.chor, RMRole.mantri];
+    return _players.asMap().entries
+        .where((entry) => roles.contains(entry.value.currentRole))
+        .map((entry) => entry.key)
+        .toList();
+  }
+
   void _botMakeGuess(int guesserIndex) {
-    final chorIndex = _players.indexWhere((p) => p.currentRole == RMRole.chor);
-    final mantriIndex = _players.indexWhere((p) => p.currentRole == RMRole.mantri);
-
-    final candidates = [chorIndex, mantriIndex];
+    final candidates = _suspectIndices;
     candidates.shuffle();
-    final pickedIndex = candidates.first;
-
-    _resolveRound(guesserIndex: guesserIndex, pickedSuspectIndex: pickedIndex);
+    _resolveRound(guesserIndex: guesserIndex, pickedSuspectIndex: candidates.first);
   }
 
   void _onUserSelectSuspect(int suspectIndex) {
@@ -426,21 +430,27 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
     }
 
     final rajaPlayer = _players.firstWhere((p) => p.currentRole == RMRole.raja);
-    final mantriPlayer = _players.firstWhere((p) => p.currentRole == RMRole.mantri);
     final sipahiPlayer = _players.firstWhere((p) => p.currentRole == RMRole.sipahi);
     final chorPlayer = _players.firstWhere((p) => p.currentRole == RMRole.chor);
 
-    // Raja always gets 1000
     rajaPlayer.roundDelta = 1000;
-
-    if (isCorrect) {
-      // Sipahi/Mantri caught the Chor!
-      sipahiPlayer.roundDelta = 500;
-      mantriPlayer.roundDelta = 800;
-      chorPlayer.roundDelta = 0;
+    if (_players.length == 3) {
+      // Three-player variant: Raja remains hidden; Sipahi gets 500 for a
+      // correct guess, while Chor escapes with 500 on a wrong guess.
+      if (isCorrect) {
+        sipahiPlayer.roundDelta = 500;
+        chorPlayer.roundDelta = 0;
+      } else {
+        sipahiPlayer.roundDelta = 0;
+        chorPlayer.roundDelta = 500;
+      }
     } else {
-      // Wrong guess! Chor escaped and takes detective's points
-      if (guesser.currentRole == RMRole.sipahi) {
+      final mantriPlayer = _players.firstWhere((p) => p.currentRole == RMRole.mantri);
+      if (isCorrect) {
+        sipahiPlayer.roundDelta = 500;
+        mantriPlayer.roundDelta = 800;
+        chorPlayer.roundDelta = 0;
+      } else if (guesser.currentRole == RMRole.sipahi) {
         sipahiPlayer.roundDelta = 0;
         chorPlayer.roundDelta = 500;
         mantriPlayer.roundDelta = 800;
@@ -450,7 +460,6 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
         sipahiPlayer.roundDelta = 500;
       }
     }
-
     // Apply scores
     for (final p in _players) {
       p.score += p.roundDelta;
@@ -1084,13 +1093,14 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
   Widget _buildChitsRow(bool isDark) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        const totalSpacing = 3 * 10.0;
-        final chitWidth = (constraints.maxWidth - totalSpacing) / 4;
+        final count = _players.length;
+        final totalSpacing = (count - 1) * 10.0;
+        final chitWidth = (constraints.maxWidth - totalSpacing) / count;
         final chitHeight = chitWidth * (4 / 3);
 
         return Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: List.generate(4, (index) {
+          children: List.generate(count, (index) {
             return _buildChit(index, chitWidth, chitHeight, isDark);
           }),
         );
@@ -1227,11 +1237,7 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
 
   Widget _buildActionButtonContent(bool isDark) {
     if (_gameState == RMGameState.userGuessing) {
-      // Suspect buttons for the 2 hidden suspects
-      final chorIndex = _players.indexWhere((p) => p.currentRole == RMRole.chor);
-      final mantriIndex = _players.indexWhere((p) => p.currentRole == RMRole.mantri);
-
-      final suspects = [_players[chorIndex], _players[mantriIndex]];
+      final suspects = _suspectIndices.map((index) => _players[index]).toList();
       suspects.sort((a, b) => a.name.compareTo(b.name));
 
       return Column(
