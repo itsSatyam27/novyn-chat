@@ -537,7 +537,7 @@ class _OnlinePlayerRow extends StatelessWidget {
                 Text(isMe ? '$name · You' : name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: foreground, fontWeight: FontWeight.w900, fontSize: 14)),
                 const SizedBox(height: 3),
                 Text(
-                  roleRevealed && role != null ? _roleLabel(role) : picked ? 'Chit picked' : isBot ? 'Bot' : 'Choosing a chit',
+                  role != null ? _roleLabel(role) : picked ? 'Chit picked' : isBot ? 'Bot' : 'Choosing a chit',
                   style: TextStyle(color: muted, fontSize: 12, fontWeight: FontWeight.w600),
                 ),
               ],
