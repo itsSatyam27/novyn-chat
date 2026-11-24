@@ -991,7 +991,7 @@ class _RMQuickPlayTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(26),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(26),
         child: SizedBox(
           height: 128,
           child: Padding(
@@ -1063,7 +1063,7 @@ class _RMWaitingRoomSheet extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final foreground = isDark ? Colors.white : const Color(0xFF1E1A43);
     final muted = isDark ? Colors.white60 : const Color(0xFF625D8C);
-    final surface = isDark ? const Color(0xFF201B36) : const Color(0xFFF5F3FC);
+    final surface = isDark ? const Color(0xFF201B36) : const Color(0xFFF6F5FD);
     return SafeArea(
       top: false,
       child: Container(
@@ -1270,7 +1270,7 @@ class _RajaMantriSearchingScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final background = isDark ? const Color(0xFF141026) : const Color(0xFFF5F3FC);
+    final background = isDark ? const Color(0xFF141026) : const Color(0xFFF6F5FD);
     final foreground = isDark ? Colors.white : const Color(0xFF1E1A43);
     final muted = isDark ? Colors.white60 : const Color(0xFF625D8C);
     final surface = isDark ? const Color(0xFF201B36) : Colors.white;
@@ -1561,7 +1561,7 @@ class _RajaMantriMatchFoundScreenState extends State<_RajaMantriMatchFoundScreen
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final background = isDark ? const Color(0xFF141026) : const Color(0xFFF5F3FC);
+    final background = isDark ? const Color(0xFF141026) : const Color(0xFFF6F5FD);
     final foreground = isDark ? Colors.white : const Color(0xFF1E1A43);
     final muted = isDark ? Colors.white60 : const Color(0xFF625D8C);
     const colors = [Color(0xFF6250F5), Color(0xFFE32C62), Color(0xFF0D9472), Color(0xFFB86A00)];
