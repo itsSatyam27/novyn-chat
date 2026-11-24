@@ -7322,6 +7322,33 @@ io.on("connection", (socket) => {
     return respond({ ok: true, cancelled: rajaMantriMatchmaking.cancel(userKey) });
   });
 
+  socket.on("leave_rajamantri_game", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : () => {};
+    const userKey = normalizeName(socket.data.userKey || "");
+    const sessionId = String(payload?.sessionId || "").trim().slice(0, 128);
+    const entry = rajaMantriSessions.get(sessionId);
+    if (!userKey || onlineUsers.get(userKey) !== socket.id || !entry) {
+      return respond({ ok: false, message: "This Raja Mantri match is no longer available." });
+    }
+    const leavingPlayer = entry.game.players.find((player) => player.username === userKey && !player.isBot);
+    if (!leavingPlayer) {
+      return respond({ ok: false, message: "You are not a player in this match." });
+    }
+    expireRajaMantriSession(sessionId);
+    for (const player of entry.game.players) {
+      if (player.isBot || player.username === userKey) continue;
+      const targetSocket = onlineUsers.get(player.username);
+      if (targetSocket) {
+        io.to(targetSocket).emit("rajamantri_game_abandoned", {
+          sessionId,
+          leftUsername: userKey,
+          leftDisplayName: leavingPlayer.displayName,
+        });
+      }
+    }
+    return respond({ ok: true });
+  });
+
   socket.on("get_rajamantri_game", (payload, callback) => {
     const respond = typeof callback === "function" ? callback : () => {};
     const userKey = normalizeName(socket.data.userKey || "");
