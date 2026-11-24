@@ -318,7 +318,7 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
     final updated = List<_RMRoomMember?>.from(_roomMembers.value);
     if (index < 1 || index >= updated.length) return;
     final member = updated[index];
-    if (member == null || member.isBot || member.isJoined) return;
+    if (member == null || member.isBot || member.isHost) return;
     if (member.messageId.isNotEmpty) {
       try {
         await (_socket ?? context.read<SocketService>()).cancelGameInvite(member.messageId);
@@ -419,7 +419,7 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
   Future<void> _closeWaitingRoom(BuildContext sheetContext) async {
     final pending = _roomMembers.value
         .whereType<_RMRoomMember>()
-        .where((member) => !member.isHost && !member.isBot && !member.isJoined)
+        .where((member) => !member.isHost && !member.isBot)
         .toList(growable: false);
     for (final member in pending) {
       if (member.messageId.isEmpty) continue;
@@ -1144,7 +1144,7 @@ class _RMWaitingRoomSheet extends StatelessWidget {
                               ],
                             ),
                           ),
-                          if (!member.isHost && !member.isBot && !member.isJoined)
+                          if (!member.isHost && !member.isBot)
                             IconButton(
                               tooltip: 'Cancel invitation',
                               onPressed: () => onCancelInvite(index),
