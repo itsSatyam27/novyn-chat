@@ -383,6 +383,8 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
       return;
     }
 
+    final rootNavigator = Navigator.of(context);
+    final sheetNavigator = Navigator.of(sheetContext);
     setState(() => _sendingInvites = true);
     try {
       final result = await (_socket ?? context.read<SocketService>()).startRajaMantriFriendRoom(
@@ -390,13 +392,13 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
         inviteMessageIds: inviteMessageIds,
         botCount: botCount,
       );
-      if (!mounted) return;
+      if (!mounted || !sheetContext.mounted) return;
       final sessionId = result['sessionId']?.toString() ?? '';
       if (sessionId.isEmpty) {
         throw StateError('The room was created but its session ID was missing.');
       }
-      Navigator.of(sheetContext).pop();
-      Navigator.of(context).pushReplacement<void, void>(
+      sheetNavigator.pop();
+      rootNavigator.pushReplacement<void, void>(
         MaterialPageRoute<void>(
           builder: (_) => RajaMantriOnlineGameScreen(sessionId: sessionId),
         ),
@@ -539,6 +541,7 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
       _searchRouteOpen = false;
       searchRoute.pop();
     }
+    final sessionId = data['sessionId']?.toString() ?? data['matchId']?.toString() ?? '';
     Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         fullscreenDialog: true,
@@ -547,7 +550,6 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
           players: players,
           onStart: () {
             if (!mounted) return;
-            final sessionId = data['sessionId']?.toString() ?? data['matchId']?.toString() ?? '';
             if (sessionId.isEmpty) {
               _showMessage('The match room could not be opened. Please search again.');
               Navigator.of(context).pop();
