@@ -242,3 +242,13 @@ test("only a participant can forfeit a two-player match", () => {
   assert.equal(result.ok, false);
   assert.match(result.reason, /not a player/i);
 });
+
+
+test("a group Tic-Tac-Toe creator can leave before a second player joins", () => {
+  const start = createGroupGame();
+  const result = applyGameMove(start, "alice", { action: "leave_room" });
+  assert.equal(result.ok, true);
+  assert.equal(result.game.state, "finished");
+  assert.equal(result.game.winner, "draw");
+  assert.equal(result.game.data.rematch.outcome, "cancelled_before_join");
+});
