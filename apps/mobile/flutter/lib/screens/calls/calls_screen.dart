@@ -1382,7 +1382,7 @@ class _CallCard extends StatelessWidget {
               _showHistory(context);
             },
             child: Padding(
-            padding: const EdgeInsets.only(left: 10, right: 14, top: 11, bottom: 11),
+            padding: const EdgeInsets.only(left: 12, right: 14, top: 12, bottom: 12),
             child: Row(
               children: [
                 PresenceIndicatorBar(
@@ -1398,7 +1398,7 @@ class _CallCard extends StatelessWidget {
                       UserAvatar(
                         name: entry.peer.name,
                         photoUrl: entry.peer.photoUrl,
-                        radius: 24,
+                        radius: 26,
                         showOnlineIndicator: false,
                         isOnline: entry.peer.isOnline,
                         presence: entry.peer.status,
@@ -1431,8 +1431,8 @@ class _CallCard extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontFamily: 'PlusJakartaSans',
-                                fontSize: 15.5,
-                                fontWeight: FontWeight.w600,
+                                fontSize: 16.5,
+                                fontWeight: FontWeight.w700,
                                 letterSpacing: -.3,
                                 color: isMissed ? statusColor : theme.colorScheme.onSurface,
                               ),
@@ -1470,7 +1470,7 @@ class _CallCard extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontFamily: 'PlusJakartaSans',
-                                fontSize: 13.5,
+                                fontSize: 14,
                                 height: 1.35,
                                 color: isMissed ? statusColor : theme.colorScheme.onSurfaceVariant,
                                 fontWeight: FontWeight.w500,
@@ -1501,8 +1501,8 @@ class _CallCard extends StatelessWidget {
                         );
                       },
                       child: SizedBox(
-                        width: 48,
-                        height: 48,
+                        width: 52,
+                        height: 52,
                         child: Icon(
                           isVideo ? Icons.videocam_rounded : Icons.call_rounded,
                           color: accent,
