@@ -288,7 +288,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
       _queueDeadline = DateTime.now().add(const Duration(seconds: 60));
     });
     try {
-      await socket.joinRandomGame(widget.gameType);
+      await socket.joinRandomGame(widget.gameType, playerLevel: widget.playerLevel);
       if (!mounted || !_searchingRandom) return;
       _queueTimer?.cancel();
       _queueTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -834,7 +834,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
                   ],
                 ),
               ),
-              _buildInviteBottomBar(),
+              _buildInviteBottomBar(connectionReady),
             ],
           ),
         ),
@@ -970,7 +970,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
     );
   }
 
-  Widget _buildInviteBottomBar() {
+  Widget _buildInviteBottomBar(bool connectionReady) {
     final friend = _selectedFriendModel;
     final enabled = connectionReady && friend != null && !_sendingInvite;
     return SafeArea(
@@ -981,7 +981,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
           height: 64,
           width: double.infinity,
           child: FilledButton.icon(
-            onPressed: enabled ? () => _playWithFriend(friend) : null,
+            onPressed: enabled && friend != null ? () => _playWithFriend(friend) : null,
             icon: _sendingInvite
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                 : const Icon(Icons.person_add_alt_1_rounded, size: 22),
