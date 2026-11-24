@@ -1221,10 +1221,10 @@ class _QuickPlayTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: background,
-      borderRadius: BorderRadius.circular(30),
+      borderRadius: BorderRadius.circular(26),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(26),
         child: SizedBox(
           height: 150,
           child: Padding(
@@ -1342,7 +1342,7 @@ class _RandomMatchmakingScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final background = isDark ? const Color(0xFF141026) : const Color(0xFFF5F3FC);
+    final background = isDark ? const Color(0xFF141026) : const Color(0xFFF6F5FD);
     final foreground = isDark ? Colors.white : const Color(0xFF1E1A43);
     final muted = isDark ? Colors.white60 : const Color(0xFF625D8C);
     final surface = isDark ? const Color(0xFF201B36) : Colors.white;
@@ -1548,7 +1548,7 @@ class _RandomMatchFoundScreenState extends State<_RandomMatchFoundScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final background = isDark ? const Color(0xFF141026) : const Color(0xFFF5F3FC);
+    final background = isDark ? const Color(0xFF141026) : const Color(0xFFF6F5FD);
     final foreground = isDark ? Colors.white : const Color(0xFF1E1A43);
     final muted = isDark ? Colors.white60 : const Color(0xFF625D8C);
     final surface = isDark ? const Color(0xFF201B36) : Colors.white;
@@ -1838,7 +1838,7 @@ class _FriendInviteWaitingSheet extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF28223F) : const Color(0xFFF5F3FC),
+        color: isDark ? const Color(0xFF28223F) : const Color(0xFFF6F5FD),
         borderRadius: BorderRadius.circular(18),
       ),
       child: Row(
