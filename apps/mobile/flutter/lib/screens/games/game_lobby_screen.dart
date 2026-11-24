@@ -1366,13 +1366,19 @@ class _QuickPlayTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: background,
-      borderRadius: BorderRadius.circular(26),
-      child: InkWell(
-        onTap: onTap,
+    return Container(
+      decoration: BoxDecoration(
+        color: background,
         borderRadius: BorderRadius.circular(26),
-        child: SizedBox(
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(26),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(26),
+          child: SizedBox(
           height: 174,
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -1440,6 +1446,7 @@ class _QuickPlayTile extends StatelessWidget {
                 ),
               ],
             ),
+          ),
           ),
         ),
       ),
