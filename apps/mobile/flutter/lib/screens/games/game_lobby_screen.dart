@@ -1226,26 +1226,26 @@ class _QuickPlayTile extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(26),
         child: SizedBox(
-          height: 150,
+          height: 142,
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  width: 48,
-                  height: 48,
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
                     color: iconBackground,
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Icon(icon, color: iconColor, size: 24),
+                  child: Icon(icon, color: iconColor, size: 23),
                 ),
                 const Spacer(),
                 Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: 'PlusJakartaSans',
-                    fontSize: 17,
+                    fontSize: 16,
                     fontWeight: FontWeight.w800,
                     color: foreground,
                   )),
