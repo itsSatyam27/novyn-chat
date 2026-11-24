@@ -115,6 +115,10 @@ class RajaMantriMatchmaking {
       playerCount,
       playersFound: entries.length,
       waitingUserKeys: entries.map((entry) => entry.userKey),
+      waitingPlayers: entries.map((entry) => ({
+        username: entry.userKey,
+        displayName: entry.displayName,
+      })),
     };
     for (const entry of entries) {
       this.onProgress({
