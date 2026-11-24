@@ -469,7 +469,10 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
       _searchDeadline = null;
     });
     final searchRoute = Navigator.of(context);
-    if (searchRoute.canPop()) searchRoute.pop();
+    if (_searchRouteOpen && searchRoute.canPop()) {
+      _searchRouteOpen = false;
+      searchRoute.pop();
+    }
     Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         fullscreenDialog: true,
