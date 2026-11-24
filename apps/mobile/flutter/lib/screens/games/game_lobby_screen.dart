@@ -20,12 +20,14 @@ class GameLobbyScreen extends StatefulWidget {
     required this.title,
     required this.subtitle,
     required this.icon,
+    this.playerLevel = 1,
   });
 
   final String gameType;
   final String title;
   final String subtitle;
   final IconData icon;
+  final int playerLevel;
 
   @override
   State<GameLobbyScreen> createState() => _GameLobbyScreenState();
@@ -540,7 +542,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
               ? _auth!.user!.displayName
               : currentUsername,
           opponentName: opponentName,
-          currentLevel: int.tryParse(data['level']?.toString() ?? ''),
+          currentLevel: widget.playerLevel,
           opponentLevel: int.tryParse(opponent['level']?.toString() ?? ''),
           onLeave: () {
             _socket?.moveRandomGame(sessionId, const {'action': 'leave_room'});
