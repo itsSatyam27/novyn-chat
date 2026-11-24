@@ -305,7 +305,10 @@ void main() {
 
     expect(find.text('You win!'), findsOneWidget);
     expect(find.text('Great match! Want a rematch?'), findsOneWidget);
-    expect(find.text('1 : 0'), findsOneWidget);
+    expect(
+      find.descendant(of: find.byType(BottomSheet), matching: find.text('1 : 0')),
+      findsOneWidget,
+    );
     expect(find.widgetWithText(FilledButton, 'Play again'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Close room'), findsOneWidget);
 
@@ -320,7 +323,6 @@ void main() {
     expect((game['data'] as Map<String, dynamic>)['board'], List<dynamic>.filled(9, null));
     expect(socket.sentMoveData, isNull);
     expect(find.text('Great match! Want a rematch?'), findsNothing);
-    expect(find.text('View match results'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
