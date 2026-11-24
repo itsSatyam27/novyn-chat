@@ -72,6 +72,7 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
   bool _searchRouteOpen = false;
   bool _cancellingSearch = false;
   bool _friendLoadFailed = false;
+  bool _roomStarted = false;
   Timer? _searchTimer;
   DateTime? _searchDeadline;
   SocketService? _socket;
@@ -106,6 +107,16 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
     _searchRoster.dispose();
     _searchSeconds.dispose();
     if (_socket != null) {
+      if (!_roomStarted) {
+        final pendingInvites = _roomMembers.value
+            .whereType<_RMRoomMember>()
+            .where((member) => !member.isHost && !member.isBot && member.messageId.isNotEmpty)
+            .map((member) => member.messageId)
+            .toSet();
+        for (final messageId in pendingInvites) {
+          unawaited(_socket!.cancelGameInvite(messageId).catchError((_) {}));
+        }
+      }
       _socket!.removeListener(_handleSocketStateChanged);
       _socket!.onGameInviteAccepted = null;
       _socket!.onGameInviteTimeout = null;
@@ -235,6 +246,10 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
         _setMembers(members);
         try {
           final messageId = await socket.sendGameChallenge('rajamantri', friend.username);
+          if (!mounted) {
+            unawaited(socket.cancelGameInvite(messageId).catchError((_) {}));
+            return;
+          }
           final acceptedEarly = _acceptedInviteIds.remove(messageId);
           members[slot] = _RMRoomMember(
             name: displayName,
@@ -245,6 +260,7 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
           );
           _setMembers(members);
         } catch (error) {
+          if (!mounted) return;
           members[slot] = null;
           _setMembers(members);
           if (mounted) {
@@ -456,6 +472,7 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
   }
 
   void _openFillBotsRoom() {
+    if (_sendingInvites || _searchingPlayers) return;
     _setMembers(_newRoom());
     unawaited(_fillOpenSlotsWithBots());
     _showWaitingRoom();
@@ -653,7 +670,16 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
     final muted = isDark ? Colors.white60 : _muted;
     final friends = _filteredFriends;
     final needed = _requiredFriends;
-    return Scaffold(
+    return PopScope<void>(
+      canPop: !_sendingInvites && !_searchingPlayers,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) {
+          _showMessage(_searchingPlayers
+              ? 'Cancel player search before leaving this screen.'
+              : 'Wait for invitations to finish before leaving.');
+        }
+      },
+      child: Scaffold(
       backgroundColor: background,
       body: SafeArea(
         child: Column(
@@ -666,7 +692,9 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
                     color: isDark ? const Color(0xFF201B36) : Colors.white,
                     shape: const CircleBorder(),
                     child: IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
+                      onPressed: _sendingInvites || _searchingPlayers
+                          ? null
+                          : () => Navigator.of(context).pop(),
                       icon: Icon(Icons.arrow_back_rounded, color: foreground, size: 26),
                       iconSize: 26,
                       padding: const EdgeInsets.all(14),
@@ -928,6 +956,7 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }
