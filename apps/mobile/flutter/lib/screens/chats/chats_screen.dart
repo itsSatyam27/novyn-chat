@@ -77,6 +77,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
   bool _hiddenChatSyncInFlight = false;
   Future<void>? _hiddenPreferencesLoadFuture;
   String? _hiddenPreferencesLoadOwner;
+  bool _hasPendingHiddenChatChanges = false;
 
   // Static cache moved to ChatsScreen widget class
 
@@ -353,6 +354,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     });
     pending.add(jsonEncode({'username': normalizedPeer, 'hidden': hidden}));
     await prefs.setStringList(key, pending);
+    _hasPendingHiddenChatChanges = true;
   }
 
   Future<void> _syncHiddenChatChangesWithServer(String username) async {
@@ -371,6 +373,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
       final prefs = await SharedPreferences.getInstance();
       final changesKey = _hiddenChatChangesPreferenceKey(username);
       final pending = prefs.getStringList(changesKey) ?? <String>[];
+      _hasPendingHiddenChatChanges = pending.isNotEmpty;
       final remaining = <String>[];
       for (final raw in pending) {
         try {
@@ -386,6 +389,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
         }
       }
       await prefs.setStringList(changesKey, remaining);
+      _hasPendingHiddenChatChanges = remaining.isNotEmpty;
       if (remaining.isNotEmpty) return;
 
       // Once queued offline changes have reached the server, its account-level
@@ -694,6 +698,18 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
         }
       }));
       return;
+    }
+
+    // Apply account-level deletions from the authenticated snapshot before
+    // publishing its conversations. A freshly installed second device has
+    // no local tombstones yet, so this prevents a one-frame cross-device flash.
+    if (!_hasPendingHiddenChatChanges) {
+      final remoteHidden = socket.hiddenChatUsernames;
+      _hiddenChatUsernames = Set<String>.from(remoteHidden);
+      _hiddenChatsOwner = owner;
+      unawaited(SharedPreferences.getInstance().then((prefs) => prefs.setStringList(
+        _hiddenChatsPreferenceKey(owner), remoteHidden.toList(),
+      )));
     }
 
     final conversations = socket.conversations;
