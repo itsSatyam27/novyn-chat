@@ -537,7 +537,6 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
       }
       setState(() => _hiddenChatUsernames = next);
       _applyFilters();
-      unawaited(_syncHiddenChatChangesWithServer(username));
     } catch (error) {
       debugPrint('Could not restore chat after a new message: $error');
     }
@@ -665,8 +664,10 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     }
 
     final conversations = socket.conversations;
-    unawaited(_syncHiddenChatChangesWithServer(owner));
-    unawaited(_unhideChatsWithNewMessages(conversations));
+    unawaited(
+      _unhideChatsWithNewMessages(conversations)
+          .then((_) => _syncHiddenChatChangesWithServer(owner)),
+    );
     if (_sameConversationReferences(_lastSocketConversations, conversations)) {
       return;
     }
@@ -797,7 +798,6 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
 
     if (hasCurrentServerSnapshot && mounted) {
       _lastSocketConversations = List<ChatPreview>.from(conversations);
-      unawaited(_syncHiddenChatChangesWithServer(myUsername.toLowerCase()));
       final previews = _withPinnedPreferences(
         List<ChatPreview>.from(conversations),
       );
