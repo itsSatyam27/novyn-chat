@@ -1031,7 +1031,9 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     final pinnedChats = activeChats.where((chat) => chat.isPinned).toList();
     final recentChats = activeChats.where((chat) => !chat.isPinned).toList();
 
-    final pageBackground = NovynTheme.pageBg(context);
+    final pageBackground = Theme.of(context).brightness == Brightness.dark
+        ? NovynTheme.pageBg(context)
+        : const Color(0xFFF3EFFA);
     final canShowNewChatFab = _showNewChatFab && !_selectionMode &&
         !_showingArchivedChats && !_showingLockedChats;
 
