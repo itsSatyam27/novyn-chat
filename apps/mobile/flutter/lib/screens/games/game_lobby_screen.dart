@@ -540,10 +540,8 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
               ? _auth!.user!.displayName
               : currentUsername,
           opponentName: opponentName,
-          currentLevel: int.tryParse(data['level']?.toString() ?? '') ?? 1,
-          opponentLevel: (opponent['level'] ?? 1) is int
-              ? opponent['level'] as int
-              : int.tryParse(opponent['level']?.toString() ?? '') ?? 1,
+          currentLevel: int.tryParse(data['level']?.toString() ?? ''),
+          opponentLevel: int.tryParse(opponent['level']?.toString() ?? ''),
           onLeave: () {
             _socket?.moveRandomGame(sessionId, const {'action': 'leave_room'});
             if (Navigator.of(context).canPop()) Navigator.of(context).pop();
@@ -2064,7 +2062,7 @@ class _RandomMatchmakingScreen extends StatelessWidget {
                 color: foreground,
               )),
               const SizedBox(height: 8),
-              Text('Matching you with someone at your level',
+              Text('Looking for an available opponent',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 15, color: muted)),
               const SizedBox(height: 24),
@@ -2079,7 +2077,7 @@ class _RandomMatchmakingScreen extends StatelessWidget {
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                     Icon(Icons.access_time_rounded, color: muted, size: 20),
                     const SizedBox(width: 10),
-                    Text('0:${seconds.toString().padLeft(2, '0')}', style: TextStyle(
+                    Text('0:${(60 - seconds).clamp(0, 60).toString().padLeft(2, '0')}', style: TextStyle(
                       color: foreground, fontWeight: FontWeight.w800, fontSize: 16,
                     )),
                   ]),
@@ -2124,8 +2122,8 @@ class _RandomMatchFoundScreen extends StatefulWidget {
   final String gameTitle;
   final String currentName;
   final String opponentName;
-  final int currentLevel;
-  final int opponentLevel;
+  final int? currentLevel;
+  final int? opponentLevel;
   final VoidCallback onLeave;
   final VoidCallback onStart;
 
@@ -2258,7 +2256,7 @@ class _RandomMatchFoundScreenState extends State<_RandomMatchFoundScreen> {
 class _MatchPlayerBadge extends StatelessWidget {
   const _MatchPlayerBadge({required this.name, required this.level, required this.color});
   final String name;
-  final int level;
+  final int? level;
   final Color color;
 
   @override
@@ -2287,12 +2285,14 @@ class _MatchPlayerBadge extends StatelessWidget {
           Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(
             fontFamily: 'PlusJakartaSans', fontSize: 16, fontWeight: FontWeight.w800, color: foreground,
           )),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-            decoration: BoxDecoration(color: const Color(0xFFEDE9FC), borderRadius: BorderRadius.circular(20)),
-            child: Text('Level $level', style: const TextStyle(color: Color(0xFF403875), fontWeight: FontWeight.w700, fontSize: 12)),
-          ),
+          if (level != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(color: const Color(0xFFEDE9FC), borderRadius: BorderRadius.circular(20)),
+              child: Text('Level $level', style: const TextStyle(color: Color(0xFF403875), fontWeight: FontWeight.w700, fontSize: 12)),
+            ),
+          ],
         ],
       ),
     );
