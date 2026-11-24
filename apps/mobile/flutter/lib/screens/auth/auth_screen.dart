@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:novyn/widgets/novyn_alert.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -77,41 +78,35 @@ class _AuthScreenState extends State<AuthScreen>
                       constraints.maxHeight * .44,
                       constraints.maxWidth * 620 / 864,
                     );
-              return Column(
+              final panelTop = keyboardOpen ? 0.0 : math.max(0.0, artworkHeight - 34);
+              return Stack(
+                fit: StackFit.expand,
                 children: [
                   if (!keyboardOpen)
-                    SizedBox(
-                      width: double.infinity,
-                      height: artworkHeight,
-                      child: Image.asset(
-                        'assets/images/novyn_auth_hero.webp',
+                    Positioned.fill(
+                      child: SvgPicture.asset(
+                        'assets/images/novyn_auth_hero.svg',
                         fit: BoxFit.cover,
                         alignment: Alignment.topCenter,
-                        errorBuilder: (_, __, ___) => const ColoredBox(
-                          color: Color(0xFFE8E0FF),
-                          child: Center(
-                            child: Icon(
-                              Icons.chat_bubble_rounded,
-                              color: _kAccent,
-                              size: 52,
-                            ),
-                          ),
-                        ),
                       ),
                     ),
-                  Expanded(
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    top: panelTop,
+                    bottom: 0,
                     child: Container(
                       width: double.infinity,
                       decoration: const BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.vertical(
-                          top: Radius.circular(38),
+                          top: Radius.circular(42),
                         ),
                         boxShadow: [
                           BoxShadow(
                             color: Color(0x1F6C4DF6),
-                            blurRadius: 24,
-                            offset: Offset(0, -7),
+                            blurRadius: 28,
+                            offset: Offset(0, -8),
                           ),
                         ],
                       ),
