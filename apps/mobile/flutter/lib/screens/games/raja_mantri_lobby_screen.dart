@@ -64,6 +64,7 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
   final ValueNotifier<int> _searchSeconds = ValueNotifier<int>(60);
   List<UserModel> _friends = [];
   final Set<String> _selectedFriends = <String>{};
+  final Set<String> _acceptedInviteIds = <String>{};
   int _playerCount = 3;
   bool _loadingFriends = false;
   bool _sendingInvites = false;
@@ -218,6 +219,7 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
     if (selected.isEmpty) return;
     setState(() => _sendingInvites = true);
     final members = _newRoom();
+    _acceptedInviteIds.clear();
     _setMembers(members);
     try {
       final socket = _socket ?? context.read<SocketService>();
@@ -233,11 +235,13 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
         _setMembers(members);
         try {
           final messageId = await socket.sendGameChallenge('rajamantri', friend.username);
+          final acceptedEarly = _acceptedInviteIds.remove(messageId);
           members[slot] = _RMRoomMember(
             name: displayName,
             username: friend.username,
             photoUrl: friend.photoUrl,
             messageId: messageId,
+            isJoined: acceptedEarly,
           );
           _setMembers(members);
         } catch (error) {
@@ -266,7 +270,12 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
     if (messageId.isEmpty) return;
     final updated = List<_RMRoomMember?>.from(_roomMembers.value);
     final index = updated.indexWhere((member) => member?.messageId == messageId);
-    if (index < 0) return;
+    if (index < 0) {
+      // The recipient can accept while the send challenge acknowledgement
+      // is still returning to this device. Cache that early acceptance.
+      _acceptedInviteIds.add(messageId);
+      return;
+    }
     updated[index] = updated[index]!.copyWith(isJoined: true);
     _setMembers(updated);
   }
@@ -313,7 +322,10 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
     if (member.messageId.isNotEmpty) {
       try {
         await (_socket ?? context.read<SocketService>()).cancelGameInvite(member.messageId);
-      } catch (_) {}
+      } catch (error) {
+        _showMessage(error is StateError ? error.message.toString() : 'Could not cancel this invite. Please retry.');
+        return;
+      }
     }
     updated[index] = null;
     _setMembers(updated);
@@ -327,7 +339,10 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
         if (member.messageId.isNotEmpty) {
           try {
             await (_socket ?? context.read<SocketService>()).cancelGameInvite(member.messageId);
-          } catch (_) {}
+          } catch (error) {
+            _showMessage(error is StateError ? error.message.toString() : 'Could not replace a pending invite with a bot.');
+            return;
+          }
         }
         updated[i] = null;
       }
@@ -399,8 +414,23 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
     }
   }
 
-  void _closeWaitingRoom(BuildContext sheetContext) {
+  Future<void> _closeWaitingRoom(BuildContext sheetContext) async {
+    final pending = _roomMembers.value
+        .whereType<_RMRoomMember>()
+        .where((member) => !member.isHost && !member.isBot && !member.isJoined)
+        .toList(growable: false);
+    for (final member in pending) {
+      if (member.messageId.isEmpty) continue;
+      try {
+        await (_socket ?? context.read<SocketService>()).cancelGameInvite(member.messageId);
+      } catch (_) {
+        // The room is leaving; the invite will still expire server-side.
+      }
+    }
+    if (!mounted || !sheetContext.mounted) return;
     Navigator.of(sheetContext).pop();
+    _setMembers(const []);
+    _acceptedInviteIds.clear();
   }
 
   void _openFillBotsRoom() {
