@@ -715,16 +715,23 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     // themselves are unchanged. A hidden_chats_updated event often changes
     // only this set; returning early on identical conversation references
     // used to leave the deleted row visible until the next friend-list update.
+    final remoteHidden = socket.hiddenChatUsernames;
+    // Keep local, not-yet-acknowledged changes visible while also applying
+    // deletions made on another device. Local pending operations are reconciled
+    // with the server immediately after its first conversation snapshot.
+    final effectiveHidden = Set<String>.from(remoteHidden);
+    if (_hasPendingHiddenChatChanges) {
+      effectiveHidden.addAll(_hiddenChatUsernames);
+    }
+    final hiddenChanged =
+        effectiveHidden.length != _hiddenChatUsernames.length ||
+        !effectiveHidden.containsAll(_hiddenChatUsernames);
+    if (hiddenChanged) {
+      _hiddenChatUsernames = effectiveHidden;
+      _hiddenChatsOwner = owner;
+      _applyFilters();
+    }
     if (!_hasPendingHiddenChatChanges) {
-      final remoteHidden = socket.hiddenChatUsernames;
-      final hiddenChanged =
-          remoteHidden.length != _hiddenChatUsernames.length ||
-          !remoteHidden.containsAll(_hiddenChatUsernames);
-      if (hiddenChanged) {
-        _hiddenChatUsernames = Set<String>.from(remoteHidden);
-        _hiddenChatsOwner = owner;
-        _applyFilters();
-      }
       unawaited(() async {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setStringList(
