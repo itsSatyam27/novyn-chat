@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -70,7 +71,6 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
   bool _friendLoadFailed = false;
   Timer? _searchTimer;
   DateTime? _searchDeadline;
-  BuildContext? _waitingSheetContext;
   SocketService? _socket;
   AuthService? _auth;
 
@@ -284,7 +284,6 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
   }
 
   void _showWaitingRoom() {
-    _waitingSheetContext = null;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -292,7 +291,6 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
       enableDrag: false,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
-        _waitingSheetContext = sheetContext;
         return _RMWaitingRoomSheet(
           playerCount: _playerCount,
           members: _roomMembers,
@@ -302,7 +300,7 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
           onClose: () => _closeWaitingRoom(sheetContext),
         );
       },
-    ).whenComplete(() => _waitingSheetContext = null);
+    );
   }
 
   Future<void> _cancelRoomInvite(int index) async {
@@ -1466,7 +1464,7 @@ class _RajaMantriMatchFoundScreenState extends State<_RajaMantriMatchFoundScreen
     final background = isDark ? const Color(0xFF141026) : const Color(0xFFF5F3FC);
     final foreground = isDark ? Colors.white : const Color(0xFF1E1A43);
     final muted = isDark ? Colors.white60 : const Color(0xFF625D8C);
-    final colors = const [Color(0xFF6250F5), Color(0xFFE32C62), Color(0xFF0D9472), Color(0xFFB86A00)];
+    const colors = [Color(0xFF6250F5), Color(0xFFE32C62), Color(0xFF0D9472), Color(0xFFB86A00)];
     return PopScope<void>(
       canPop: false,
       child: Scaffold(
