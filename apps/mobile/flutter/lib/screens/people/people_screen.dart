@@ -592,6 +592,12 @@ class _PeopleScreenState extends State<PeopleScreen> {
     );
   }
 
+  Color _avatarColorFor(UserModel user) {
+    final value = user.username.isNotEmpty ? user.username : user.name;
+    final seed = value.codeUnits.fold<int>(0, (sum, unit) => sum + unit);
+    return _avatarPalette[seed % _avatarPalette.length];
+  }
+
   Widget _buildOnlineBuddiesStrip(List<UserModel> buddies) {
     final theme = Theme.of(context);
 
@@ -666,7 +672,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
                                       : '?',
                                   photoUrl: user.photoUrl.trim(),
                                   radius: 24,
-                                  fallbackColor: user.avatarColor,
+                                  fallbackColor: _avatarColorFor(user),
                                   showOnlineIndicator: false,
                                 ),
                                 Positioned(
