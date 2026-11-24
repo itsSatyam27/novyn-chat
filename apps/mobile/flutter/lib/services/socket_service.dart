@@ -1743,16 +1743,6 @@ class SocketService extends ChangeNotifier {
       final packet = Map<String, dynamic>.from(data);
       final sessionId = packet['sessionId']?.toString() ?? '';
       if (sessionId.isEmpty) return;
-      final inviteIds = packet['inviteMessageIds'];
-      if (inviteIds is List) {
-        for (final value in inviteIds) {
-          final id = value?.toString() ?? '';
-          if (id.isNotEmpty) {
-            _rajaMantriExpiredInvites.remove(id);
-            _rajaMantriInviteSessions[id] = sessionId;
-          }
-        }
-      }
       final messageId = packet['messageId']?.toString() ?? '';
       if (messageId.isNotEmpty) {
         _rajaMantriExpiredInvites.remove(messageId);
