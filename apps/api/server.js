@@ -7568,7 +7568,6 @@ io.on("connection", (socket) => {
     const packet = {
       sessionId: matchId,
       playerCount,
-      inviteMessageIds: inviteIds,
       players: players.map((player, seat) => ({
         username: player.username,
         displayName: player.displayName,
@@ -7576,12 +7575,12 @@ io.on("connection", (socket) => {
         isBot: player.isBot,
       })),
     };
-    for (const { invite } of invites) {
+    for (const { messageId, invite } of invites) {
       const targetSocket = onlineUsers.get(invite.toKey);
       if (targetSocket) {
         io.to(targetSocket).emit("rajamantri_room_started", {
           ...packet,
-          messageId: invites.find((entry) => entry.invite === invite)?.messageId,
+          messageId,
         });
       }
     }
