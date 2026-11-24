@@ -848,7 +848,6 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
                         )),
                     const SizedBox(height: 12),
                     Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Expanded(
                           child: _QuickPlayTile(
@@ -860,8 +859,6 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
                             background: surface,
                             foreground: foreground,
                             subtitleColor: muted,
-                            buttonColor: const Color(0xFFDDF3E9),
-                            buttonForeground: const Color(0xFF176B45),
                             onTap: _pendingFriendInviteId == null
                                 ? _playWithAiBot
                                 : null,
@@ -878,8 +875,6 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
                             background: const Color(0xFF5E4CF2),
                             foreground: Colors.white,
                             subtitleColor: Colors.white.withValues(alpha: .88),
-                            buttonColor: Colors.white,
-                            buttonForeground: const Color(0xFF5141E5),
                             onTap: connectionReady &&
                                     !_searchingRandom &&
                                     _pendingFriendInviteId == null
@@ -1347,8 +1342,6 @@ class _QuickPlayTile extends StatelessWidget {
     required this.background,
     required this.foreground,
     required this.subtitleColor,
-    required this.buttonColor,
-    required this.buttonForeground,
     required this.onTap,
   });
 
@@ -1360,8 +1353,6 @@ class _QuickPlayTile extends StatelessWidget {
   final Color background;
   final Color foreground;
   final Color subtitleColor;
-  final Color buttonColor;
-  final Color buttonForeground;
   final VoidCallback? onTap;
 
   @override
@@ -1369,84 +1360,65 @@ class _QuickPlayTile extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(26),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(26),
+        borderRadius: BorderRadius.circular(24),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(26),
+          borderRadius: BorderRadius.circular(24),
           child: SizedBox(
-          height: 174,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: iconBackground,
-                    borderRadius: BorderRadius.circular(16),
+            height: 154,
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: iconBackground,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Icon(icon, color: iconColor, size: 24),
                   ),
-                  child: Icon(icon, color: iconColor, size: 23),
-                ),
-                const Spacer(),
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: 'PlusJakartaSans',
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: foreground,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 11.5, color: subtitleColor),
-                ),
-                const SizedBox(height: 9),
-                Material(
-                  color: onTap == null
-                      ? buttonColor.withValues(alpha: .58)
-                      : buttonColor,
-                  borderRadius: BorderRadius.circular(22),
-                  child: InkWell(
-                    onTap: onTap,
-                    borderRadius: BorderRadius.circular(22),
-                    child: SizedBox(
-                      height: 32,
-                      width: double.infinity,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.play_arrow_rounded,
-                              size: 19, color: buttonForeground),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Play',
-                            style: TextStyle(
-                              color: buttonForeground,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ],
-                      ),
+                  const Spacer(),
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: foreground,
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: subtitleColor,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
           ),
         ),
       ),
