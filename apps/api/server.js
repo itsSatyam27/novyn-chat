@@ -7146,7 +7146,8 @@ io.on("connection", (socket) => {
     ].map(normalizeName).filter(Boolean)));
     const result = publicGameMatchmaking.join({
       userKey, displayName: toDisplayName(user?.displayName || user?.username || userKey),
-      socketId: socket.id, gameType: payload?.gameType, excludedUsers,
+      socketId: socket.id, gameType: payload?.gameType,
+      level: payload?.playerLevel, excludedUsers,
     });
     if (!result.ok) return respond(result);
     if (!result.matched) return respond({ ok: true, queued: true, timeoutMs: 60_000 });
@@ -7178,7 +7179,11 @@ io.on("connection", (socket) => {
       sessionId: result.sessionId,
       gameType: result.gameType,
       game,
-      opponent: { username: opponent.userKey, displayName: opponent.displayName },
+      opponent: {
+        username: opponent.userKey,
+        displayName: opponent.displayName,
+        ...(Number.isInteger(opponent.level) ? { level: opponent.level } : {}),
+      },
     });
     io.to(first.socketId).emit("random_match_found", packet(second));
     io.to(second.socketId).emit("random_match_found", packet(first));
