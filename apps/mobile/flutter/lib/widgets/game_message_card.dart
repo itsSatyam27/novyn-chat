@@ -451,6 +451,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
         canJoinGroup: _canJoinGroup,
         sendingMove: _sendingMove,
         startingRematch: _startingRematch,
+        isOfflineBot: _isOfflineBot,
         onSendBoard: (board, playerX, playerO) => _move({
           'board': board,
           'playerX': playerX,
@@ -1383,6 +1384,7 @@ class _TicTacToeMatchPanel extends StatefulWidget {
     required this.canJoinGroup,
     required this.sendingMove,
     required this.startingRematch,
+    required this.isOfflineBot,
     required this.onSendBoard,
     required this.onPlayAgain,
     this.onRematchAction,
@@ -1395,6 +1397,7 @@ class _TicTacToeMatchPanel extends StatefulWidget {
   final bool canJoinGroup;
   final bool sendingMove;
   final bool startingRematch;
+  final bool isOfflineBot;
   final Future<bool> Function(List<dynamic> board, String playerX, String playerO) onSendBoard;
   final Future<void> Function() onPlayAgain;
   final Future<void> Function(String action)? onRematchAction;
@@ -1417,7 +1420,7 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
   @override
   void initState() {
     super.initState();
-    if (_finished) {
+    if (_finished && !widget.isOfflineBot) {
       _gameOverModalShown = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _showGameOver();
@@ -1433,7 +1436,7 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
       _error = null;
     }
     if (oldWidget.game['state'] != widget.game['state']) {
-      if (_finished && !_gameOverModalShown) {
+      if (_finished && !widget.isOfflineBot && !_gameOverModalShown) {
         _gameOverModalShown = true;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) _showGameOver();
@@ -1695,7 +1698,49 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
           const SizedBox(height: 10),
           const LinearProgressIndicator(minHeight: 2),
         ],
-        if (_finished) ...[
+        if (_finished && widget.isOfflineBot) ...[
+          const SizedBox(height: 18),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: dark
+                  ? const Color(0xFF282046)
+                  : const Color(0xFFF3F0FA),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: const Color(0xFF5E44F3).withValues(alpha: .22),
+              ),
+            ),
+            child: Column(
+              children: [
+                const Icon(
+                  Icons.replay_rounded,
+                  color: Color(0xFF5E44F3),
+                  size: 24,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'One more round?',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: dark ? Colors.white : const Color(0xFF1E1A33),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: widget.startingRematch ? null : widget.onPlayAgain,
+                    icon: const Icon(Icons.refresh_rounded, size: 18),
+                    label: const Text('Play again'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ] else if (_finished) ...[
           const SizedBox(height: 14),
           TextButton.icon(
             onPressed: _showGameOver,
@@ -1998,357 +2043,3 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
     final p1Move = data['p1Move']?.toString();
     final p2Move = data['p2Move']?.toString();
     if (!_moves.contains(p1Move) || !_moves.contains(p2Move)) return;
-    final resolvedAt = data['roundResolvedAt'] is num
-        ? (data['roundResolvedAt'] as num).toInt()
-        : DateTime.now().millisecondsSinceEpoch;
-    final key = '$round:$resolvedAt';
-    if (_revealKey == key) return;
-    _revealKey = key;
-    _shuffleTimer?.cancel();
-    _statusTimer?.cancel();
-    _revealTimer?.cancel();
-    _nextRoundTimer?.cancel();
-    final elapsed = (DateTime.now().millisecondsSinceEpoch - resolvedAt)
-        .clamp(0, 1740);
-    _statusIndex = (elapsed ~/ 420).clamp(0, 3);
-    _shakeController.repeat();
-    // Do NOT update displayed scores yet during shuffle/countdown!
-    setState(() {
-      _roundTransitioning = false;
-      _isCountingDown = true;
-      _revealed = false;
-      _status = _countdownWords[_statusIndex];
-      _error = null;
-    });
-    _shuffleTimer = Timer.periodic(const Duration(milliseconds: 120), (_) {
-      if (!mounted || !_isCountingDown) return;
-      setState(() {
-        _leftShuffle = _moves[math.Random().nextInt(_moves.length)];
-        _rightShuffle = _moves[math.Random().nextInt(_moves.length)];
-      });
-    });
-    _statusTimer = Timer.periodic(const Duration(milliseconds: 420), (_) {
-      if (!mounted || !_isCountingDown) return;
-      setState(() {
-        _statusIndex = (_statusIndex + 1).clamp(0, 3);
-        _status = _countdownWords[_statusIndex];
-      });
-    });
-    final remaining = math.max(0, 1740 - elapsed);
-    _revealTimer = Timer(
-      Duration(milliseconds: remaining),
-      () => _finishReveal(data, round),
-    );
-  }
-
-  void _finishReveal(Map<String, dynamic> data, int round) {
-    if (!mounted) return;
-    _shuffleTimer?.cancel();
-    _statusTimer?.cancel();
-    _shakeController.stop();
-    final p1Move = data['p1Move']?.toString() ?? '';
-    final p2Move = data['p2Move']?.toString() ?? '';
-    final winner = data['roundWinner']?.toString() ??
-        widget.game['winner']?.toString() ?? 'draw';
-    final isTie = p1Move == p2Move || winner == 'draw';
-    final iWon = winner.toLowerCase() == widget.currentUsername.toLowerCase();
-    final roundResult = isTie
-        ? 'It’s a tie'
-        : iWon
-            ? 'You take the round!'
-            : '$_opponentLabel takes the round!';
-
-    // Update displayed scores and round exactly when cards reveal!
-    setState(() {
-      _displayedP1Score = (data['p1Score'] as num?)?.toInt() ?? 0;
-      _displayedP2Score = (data['p2Score'] as num?)?.toInt() ?? 0;
-      _displayedRound = round;
-      _isCountingDown = false;
-      _revealed = true;
-      _status = _finished
-          ? (iWon ? 'You win the match!' : '$_opponentLabel wins the match!')
-          : roundResult;
-    });
-
-    if (_finished) {
-      if (!_gameOverModalShown) {
-        _gameOverModalShown = true;
-        Future.delayed(const Duration(milliseconds: 800), () {
-          if (mounted) _showGameOver();
-        });
-      }
-      return;
-    }
-
-    _nextRoundTimer = Timer(const Duration(seconds: 2), () {
-      if (!mounted) return;
-      setState(() {
-        _roundTransitioning = true;
-        _displayedRound = (data['round'] as num?)?.toInt() ?? (round + 1);
-        _revealed = false;
-        _selectedMove = null;
-        _error = null;
-        _status = 'Pick your move';
-      });
-    });
-  }
-
-  void _showGameOver() {
-    final winner = widget.game['winner']?.toString() ?? '';
-    final iWon = winner.toLowerCase() == widget.currentUsername.toLowerCase();
-    final tie = winner == 'draw';
-    final myScore = _isPlayer1 ? _displayedP1Score : _displayedP2Score;
-    final otherScore = _isPlayer1 ? _displayedP2Score : _displayedP1Score;
-
-    final rematch = widget.game['data']?['rematch'];
-    final isOpponentRequest = rematch is Map &&
-        rematch['status'] == 'pending' &&
-        rematch['requestedBy']?.toString().toLowerCase() !=
-            widget.currentUsername.toLowerCase();
-
-    final playerLeft = widget.game['data']?['playerLeft']?.toString() ??
-        (rematch is Map && rematch['status'] == 'opponent_left'
-            ? rematch['leftBy']?.toString()
-            : null);
-
-    _showGameOverModal(
-      context,
-      emoji: tie ? '🤝' : (iWon ? '🏆' : '⚡'),
-      title: tie ? 'It’s a draw' : (iWon ? 'You won!' : '$_opponentFullName wins!'),
-      subtitle: tie
-          ? 'Evenly matched. Want a rematch?'
-          : (iWon ? 'Great match! Want a rematch?' : 'So close. Want a rematch?'),
-      score: '$myScore : $otherScore',
-      onPlayAgain: widget.onPlayAgain,
-      onClose: () => Navigator.of(context).maybePop(),
-      onRematchAction: widget.onRematchAction,
-      isOpponentRequest: isOpponentRequest,
-      playerLeft: playerLeft,
-      opponentName: _opponentFullName,
-    );
-  }
-
-  Future<void> _pickMove(String move) async {
-    if (!_canPick || widget.sendingMove) return;
-    HapticFeedback.lightImpact();
-    setState(() {
-      _selectedMove = move;
-      _error = null;
-    });
-    final sent = await widget.onSendMove(move);
-    if (!mounted || sent) return;
-    setState(() {
-      _selectedMove = null;
-      _error = 'Move not sent · choose again';
-      _status = 'Could not send move. Try again.';
-    });
-  }
-
-  bool get _isPlayer1 =>
-      (_data['player1']?.toString() ?? widget.game['createdBy']?.toString() ?? '')
-          .toLowerCase() == widget.currentUsername.toLowerCase();
-  String? get _myServerMove =>
-      (_isPlayer1 ? _data['p1Move'] : _data['p2Move'])?.toString();
-  String? get _opponentServerMove =>
-      (_isPlayer1 ? _data['p2Move'] : _data['p1Move'])?.toString();
-  String? get _myMove => _roundTransitioning
-      ? _selectedMove
-      : _selectedMove ?? _myServerMove;
-  bool get _canPick => !_finished &&
-      !_isCountingDown &&
-      !_revealed &&
-      (_roundTransitioning || _data['roundResolved'] != true) &&
-      _myMove == null;
-  bool get _winnerIsMe =>
-      widget.game['winner']?.toString().toLowerCase() ==
-      widget.currentUsername.toLowerCase();
-
-  String _initial(String value) =>
-      value.trim().isEmpty ? '?' : value.trim().characters.first.toUpperCase();
-
-  String _statusFor(bool opponentLocked, String? myMove, bool bothLocked) {
-    if (_isCountingDown || _revealed) return _status;
-    if (_roundTransitioning) return 'Pick your move';
-    if (bothLocked) return 'Revealing moves…';
-    if (myMove != null) return 'Waiting for $_opponentLabel…';
-    if (opponentLocked) return '$_opponentFullName is ready. Pick your move.';
-    return 'Pick your move';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final data = _data;
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final myMove = _myMove;
-    final opponentLocked = !_roundTransitioning &&
-        !_isCountingDown &&
-        !_revealed &&
-        data['roundResolved'] != true &&
-        _opponentServerMove != null;
-    final bothLocked = !_roundTransitioning &&
-        (_isCountingDown || _revealed || data['roundResolved'] == true);
-
-    final myScore = _isPlayer1 ? _displayedP1Score : _displayedP2Score;
-    final otherScore = _isPlayer1 ? _displayedP2Score : _displayedP1Score;
-
-    final myTag = _finished
-        ? (_winnerIsMe ? 'Winner' : 'Waiting')
-        : (_revealed
-            ? 'Locked in'
-            : (myMove != null || bothLocked)
-                ? 'Locked in'
-                : 'Thinking...');
-    final myPillSolid = _finished
-        ? _winnerIsMe
-        : (myMove != null && !_revealed || bothLocked && !_revealed);
-
-    final otherTag = _finished
-        ? (!_winnerIsMe && widget.game['winner'] != 'draw' ? 'Winner' : 'Waiting')
-        : (_revealed
-            ? 'Locked in'
-            : (opponentLocked || bothLocked)
-                ? 'Locked in'
-                : 'Thinking...');
-    final otherPillSolid = _finished
-        ? (!_winnerIsMe && widget.game['winner'] != 'draw')
-        : (opponentLocked || bothLocked || !_revealed);
-
-    final showMoves = _revealed;
-    final leftMove = _isCountingDown ? _leftShuffle : showMoves ? data['p1Move']?.toString() : null;
-    final rightMove = _isCountingDown ? _rightShuffle : showMoves ? data['p2Move']?.toString() : null;
-    final roundWinner = data['roundWinner']?.toString() ?? '';
-    final leftWin = showMoves && roundWinner.toLowerCase() == (data['player1']?.toString() ?? '').toLowerCase();
-    final rightWin = showMoves && roundWinner.toLowerCase() == (data['player2']?.toString() ?? widget.opponentUsername).toLowerCase();
-    final tied = showMoves && roundWinner == 'draw';
-    final status = _error ?? (_revealed && _finished
-        ? (_winnerIsMe ? 'You win the match!' : '$_opponentFullName wins the match!')
-        : _statusFor(opponentLocked, myMove, bothLocked));
-    final enabled = _canPick && !widget.sendingMove;
-
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _RpsPlayerCard(
-                name: 'You',
-                username: '@${widget.currentUsername}',
-                mark: _initial(widget.currentUsername),
-                accent: const Color(0xFF5E44F3),
-                status: myTag,
-                active: !_finished && myMove == null,
-                isSolidPill: myPillSolid,
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: Column(
-                children: [
-                  Text(
-                    '$myScore : $otherScore',
-                    style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900,
-                      color: dark ? Colors.white : const Color(0xFF1E1A33),
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _finished ? 'Final' : 'Round $_displayedRound',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: dark ? Colors.white60 : const Color(0xFF7E7A9C),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: _RpsPlayerCard(
-                name: _opponentFullName,
-                username: '@${widget.opponentUsername}',
-                mark: _initial(_opponentFullName),
-                accent: const Color(0xFFD81E5B),
-                status: otherTag,
-                active: !_finished && opponentLocked,
-                isSolidPill: otherPillSolid,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
-        Text(
-          status,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w800,
-            color: dark ? Colors.white : const Color(0xFF1E1A33),
-          ),
-        ),
-        const SizedBox(height: 18),
-        Row(
-          children: [
-            Expanded(
-              child: _RpsPad(
-                move: leftMove,
-                accent: const Color(0xFF5E44F3),
-                shake: _isCountingDown,
-                pop: _revealed,
-                winner: leftWin,
-                loser: showMoves && !leftWin && !tied,
-                animation: _shakeController,
-              ),
-            ),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 10),
-              child: _RpsVsBadge(),
-            ),
-            Expanded(
-              child: _RpsPad(
-                move: rightMove,
-                accent: const Color(0xFFD81E5B),
-                shake: _isCountingDown,
-                pop: _revealed,
-                winner: rightWin,
-                loser: showMoves && !rightWin && !tied,
-                animation: _shakeController,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 56),
-        Row(
-          children: _moves.map((move) => Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: _RpsMoveTile(
-                move: move,
-                selected: myMove == move,
-                enabled: enabled,
-                onTap: () => _pickMove(move),
-              ),
-            ),
-          )).toList(),
-        ),
-        if (widget.sendingMove) ...[
-          const SizedBox(height: 10),
-          const LinearProgressIndicator(minHeight: 2),
-        ],
-        if (_finished) ...[
-          const SizedBox(height: 14),
-          TextButton.icon(
-            onPressed: _showGameOver,
-            icon: const Icon(Icons.analytics_outlined, size: 18),
-            label: const Text('View match results'),
-            style: TextButton.styleFrom(
-              foregroundColor: const Color(0xFF5E44F3),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-}
