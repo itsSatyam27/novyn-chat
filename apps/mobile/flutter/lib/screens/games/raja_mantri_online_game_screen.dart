@@ -168,7 +168,13 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
     final sorted = List<Map<String, dynamic>>.from(_players)
       ..sort((a, b) => (int.tryParse(b['score']?.toString() ?? '') ?? 0)
           .compareTo(int.tryParse(a['score']?.toString() ?? '') ?? 0));
-    final myScore = int.tryParse(sorted.firstWhere((p) => p['username']?.toString().toLowerCase() == _username)['score']?.toString() ?? '') ?? 0;
+    if (sorted.isEmpty) return;
+    final myPlayer = sorted.firstWhere(
+      (player) => player['username']?.toString().toLowerCase() == _username,
+      orElse: () => const <String, dynamic>{},
+    );
+    if (myPlayer.isEmpty) return;
+    final myScore = int.tryParse(myPlayer['score']?.toString() ?? '') ?? 0;
     final topScore = int.tryParse(sorted.first['score']?.toString() ?? '') ?? 0;
     final topCount = sorted.where((player) => (int.tryParse(player['score']?.toString() ?? '') ?? 0) == topScore).length;
     final result = topCount > 1 && myScore == topScore
@@ -577,7 +583,7 @@ class _OnlinePlayerRow extends StatelessWidget {
                 Text(isMe ? '$name · You' : name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: foreground, fontWeight: FontWeight.w900, fontSize: 14)),
                 const SizedBox(height: 3),
                 Text(
-                  role != null ? _roleLabel(role) : picked ? 'Chit picked' : isBot ? 'Bot' : 'Choosing a chit',
+                  role != null ? _roleLabel(role) : isBot ? 'Bot player' : picked ? 'Chit picked' : 'Choosing a chit',
                   style: TextStyle(color: muted, fontSize: 12, fontWeight: FontWeight.w600),
                 ),
               ],
