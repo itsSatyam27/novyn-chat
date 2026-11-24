@@ -710,9 +710,13 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
       final remoteHidden = socket.hiddenChatUsernames;
       _hiddenChatUsernames = Set<String>.from(remoteHidden);
       _hiddenChatsOwner = owner;
-      unawaited(SharedPreferences.getInstance().then((prefs) => prefs.setStringList(
-        _hiddenChatsPreferenceKey(owner), remoteHidden.toList(),
-      )));
+      unawaited(() async {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setStringList(
+          _hiddenChatsPreferenceKey(owner),
+          remoteHidden.toList(),
+        );
+      }());
     }
 
     final conversations = socket.conversations;
