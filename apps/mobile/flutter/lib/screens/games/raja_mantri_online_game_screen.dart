@@ -786,6 +786,10 @@ class _RajaMantriInviteWaitingScreenState extends State<RajaMantriInviteWaitingS
       _socket = context.read<SocketService>();
       _socket!.onRajaMantriRoomStarted = _handleRoomStarted;
       _socket!.onGameInviteTimeout = _handleInviteTimeout;
+      if (_socket!.isRajaMantriInviteExpired(widget.messageId)) {
+        setState(() => _expired = true);
+        return;
+      }
       final existing = _socket!.rajaMantriSessionForInvite(widget.messageId);
       if (existing != null) _openSession(existing);
     });
