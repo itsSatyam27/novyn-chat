@@ -27,17 +27,22 @@ void main() {
     expect(find.text('Doodle Duel'), findsNothing);
     expect(find.text('Number Clash'), findsNothing);
     expect(find.text('Up or Down'), findsNothing);
+
+    // The profile summary is intentionally collapsed by default.
+    expect(find.text('Matches'), findsNothing);
+    await tester.tap(find.byIcon(Icons.keyboard_arrow_down_rounded));
+    await tester.pumpAndSettle();
     expect(find.text('Matches'), findsOneWidget);
     expect(find.text('Wins'), findsOneWidget);
     expect(find.text('Losses'), findsOneWidget);
-    expect(find.text('Level 1'), findsOneWidget);
-    expect(find.text('0 total XP'), findsOneWidget);
-    expect(find.text('0 / 500 XP'), findsOneWidget);
+    // The compact level badge and progress label are the visible XP UI.
+    expect(find.text('Lv1'), findsOneWidget);
+    expect(find.textContaining('0 / 500 XP'), findsOneWidget);
     expect(find.byKey(const ValueKey('game-streak-tictactoe')), findsOneWidget);
     expect(find.byKey(const ValueKey('game-streak-rps')), findsOneWidget);
     expect(find.byKey(const ValueKey('game-streak-rajamantri')), findsOneWidget);
     expect(find.byIcon(Icons.local_fire_department_rounded), findsNWidgets(3));
-    expect(find.byTooltip('View match history'), findsOneWidget);
+    expect(find.text('Match history'), findsOneWidget);
     expect(find.text('Play with Random'), findsNothing);
     expect(tester.takeException(), isNull);
   });
