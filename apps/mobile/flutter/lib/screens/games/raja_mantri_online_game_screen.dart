@@ -715,3 +715,148 @@ String _roleLabel(String role) {
       return 'Hidden role';
   }
 }
+
+class RajaMantriInviteWaitingScreen extends StatefulWidget {
+  const RajaMantriInviteWaitingScreen({
+    super.key,
+    required this.messageId,
+    required this.hostName,
+  });
+
+  final String messageId;
+  final String hostName;
+
+  @override
+  State<RajaMantriInviteWaitingScreen> createState() => _RajaMantriInviteWaitingScreenState();
+}
+
+class _RajaMantriInviteWaitingScreenState extends State<RajaMantriInviteWaitingScreen> {
+  SocketService? _socket;
+  bool _opening = false;
+  bool _expired = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _socket = context.read<SocketService>();
+      _socket!.onRajaMantriRoomStarted = _handleRoomStarted;
+      _socket!.onGameInviteTimeout = _handleInviteTimeout;
+      final existing = _socket!.rajaMantriSessionForInvite(widget.messageId);
+      if (existing != null) _openSession(existing);
+    });
+  }
+
+  @override
+  void dispose() {
+    if (_socket != null) {
+      _socket!.onRajaMantriRoomStarted = null;
+      _socket!.onGameInviteTimeout = null;
+    }
+    super.dispose();
+  }
+
+  void _handleRoomStarted(Map packet) {
+    if (!mounted || _opening) return;
+    final messageId = packet['messageId']?.toString() ?? '';
+    final inviteIds = packet['inviteMessageIds'];
+    final matches = messageId == widget.messageId ||
+        (inviteIds is List && inviteIds.any((value) => value?.toString() == widget.messageId));
+    if (!matches) return;
+    final sessionId = packet['sessionId']?.toString() ?? '';
+    if (sessionId.isNotEmpty) _openSession(sessionId);
+  }
+
+  void _handleInviteTimeout(Map packet) {
+    if (!mounted || packet['messageId']?.toString() != widget.messageId) return;
+    setState(() => _expired = true);
+  }
+
+  void _openSession(String sessionId) {
+    if (!mounted || _opening) return;
+    _opening = true;
+    Navigator.of(context).pushReplacement<void, void>(
+      MaterialPageRoute<void>(
+        builder: (_) => RajaMantriOnlineGameScreen(sessionId: sessionId),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final background = isDark ? const Color(0xFF141026) : const Color(0xFFF5F3FC);
+    final foreground = isDark ? Colors.white : const Color(0xFF1E1A43);
+    final muted = isDark ? Colors.white60 : const Color(0xFF625D8C);
+    return Scaffold(
+      backgroundColor: background,
+      appBar: AppBar(
+        backgroundColor: background,
+        leading: IconButton(
+          onPressed: () => Navigator.of(context).pop(),
+          icon: Icon(Icons.arrow_back_rounded, color: foreground),
+        ),
+        title: Text(
+          'Raja Mantri Chor Sipahi',
+          style: TextStyle(color: foreground, fontWeight: FontWeight.w900, fontSize: 17),
+        ),
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 112,
+                height: 112,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFEDE9FC),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  _expired ? Icons.hourglass_disabled_rounded : Icons.groups_rounded,
+                  color: const Color(0xFF5E4CF2),
+                  size: 54,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                _expired ? 'Invite expired' : 'You’ve joined the room',
+                style: TextStyle(color: foreground, fontSize: 23, fontWeight: FontWeight.w900),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 9),
+              Text(
+                _expired
+                    ? 'The host did not start the match in time. Return to the chat and ask for a new invite.'
+                    : 'Waiting for ${widget.hostName} to fill the remaining seats and start the match.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: muted, fontSize: 14, height: 1.4),
+              ),
+              const SizedBox(height: 24),
+              if (!_expired)
+                const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(width: 17, height: 17, child: CircularProgressIndicator(strokeWidth: 2.2)),
+                    SizedBox(width: 10),
+                    Text('Waiting for host', style: TextStyle(color: Color(0xFF5E4CF2), fontWeight: FontWeight.w800)),
+                  ],
+                ),
+              if (_expired) ...[
+                const SizedBox(height: 5),
+                FilledButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Back to chat'),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
