@@ -10418,10 +10418,19 @@ io.on("connection", (socket) => {
     const rawPeer = toDisplayName(payload?.username || "");
     const peerKey = normalizeName(rawPeer);
     const groupKey = normalizeGroupId(rawPeer);
-    const isGroup = Boolean(groupKey && groups.has(groupKey));
+    const group = groups.get(groupKey);
+    const isGroup = Boolean(group);
     const hiddenKey = isGroup ? groupKey : peerKey;
+    const alreadyHidden = user?.hiddenChats instanceof Set &&
+      user.hiddenChats.has(hiddenKey);
+    const hasDirectChat = Boolean(
+      user?.friends?.has(peerKey) ||
+      conversations.get(getConversationKey(userKey, peerKey))?.length
+    );
+    const canUpdateGroup = isGroup && isGroupMember(group, userKey);
     if (!user || !hiddenKey || hiddenKey === userKey ||
-        (!users.has(peerKey) && !isGroup) ||
+        (!hasDirectChat && !canUpdateGroup &&
+          !(payload?.hidden === false && alreadyHidden)) ||
         typeof payload?.hidden !== "boolean") {
       return respond({ ok: false, message: "Choose a valid chat to update." });
     }
