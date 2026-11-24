@@ -264,7 +264,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('offline Tic-Tac-Toe shows Play Again card after the match ends', (tester) async {
+  testWidgets('offline Tic-Tac-Toe shows the shared game-over bottom sheet', (tester) async {
     final socket = _FakeSocketService();
     final game = <String, dynamic>{
       'gameType': 'tictactoe',
@@ -304,8 +304,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('You win!'), findsOneWidget);
-    expect(find.text('One more round?'), findsOneWidget);
+    expect(find.text('Great match! Want a rematch?'), findsOneWidget);
+    expect(find.text('1 : 0'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Play again'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Close room'), findsOneWidget);
 
     final playAgainButton = find.widgetWithText(FilledButton, 'Play again');
     await tester.ensureVisible(playAgainButton);
@@ -317,6 +319,57 @@ void main() {
     expect(game['winner'], isNull);
     expect((game['data'] as Map<String, dynamic>)['board'], List<dynamic>.filled(9, null));
     expect(socket.sentMoveData, isNull);
+    expect(find.text('Great match! Want a rematch?'), findsNothing);
+    expect(find.text('View match results'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('offline Tic-Tac-Toe opens the result sheet when a bot match finishes', (tester) async {
+    final socket = _FakeSocketService();
+    final game = <String, dynamic>{
+      'gameType': 'tictactoe',
+      'title': 'Tic-Tac-Toe',
+      'createdBy': 'alice',
+      'opponent': 'AI Bot',
+      'isOfflineBot': true,
+      'state': 'in_progress',
+      'winner': null,
+      'turn': 'alice',
+      'data': <String, dynamic>{
+        'board': ['X', 'X', null, 'O', 'O', null, null, null, null],
+        'playerX': 'alice',
+        'playerO': 'AI Bot',
+        'winsX': 0,
+        'winsO': 0,
+      },
+    };
+    await tester.pumpWidget(
+      ChangeNotifierProvider<SocketService>.value(
+        value: socket,
+        child: MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: GameMessageCard(
+                messageId: 'bot_finish_transition_test',
+                game: game,
+                currentUsername: 'alice',
+                peerUsername: 'AI Bot',
+                compact: false,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('tic-tac-toe-cell-2')));
+    await tester.pumpAndSettle();
+
+    expect(game['state'], 'finished');
+    expect(game['winner'], 'alice');
+    expect(find.text('Great match! Want a rematch?'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Play again'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Close room'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
