@@ -1913,6 +1913,7 @@ function createUserRecord(username) {
     unread: new Map(),
     blockedUsers: new Set(),
     mutedUsers: new Set(),
+    hiddenChats: new Set(),
     pushSubs: [],
     fcmToken: "",
     isRegistered: false,
@@ -1984,6 +1985,7 @@ function serializeState() {
       unread: Array.from(user.unread.entries()),
       blockedUsers: Array.from(user.blockedUsers || []),
       mutedUsers: Array.from(user.mutedUsers || []),
+      hiddenChats: Array.from(user.hiddenChats || []),
       pushSubs: Array.isArray(user.pushSubs) ? user.pushSubs : [],
       fcmToken: toDisplayName(user.fcmToken),
       notificationsEnabled: user.notificationsEnabled !== false,
@@ -2229,6 +2231,7 @@ async function persistMongoNow() {
               unread: Array.isArray(entry.unread) ? entry.unread : [],
               blockedUsers: Array.isArray(entry.blockedUsers) ? entry.blockedUsers : [],
               mutedUsers: Array.isArray(entry.mutedUsers) ? entry.mutedUsers : [],
+              hiddenChats: Array.isArray(entry.hiddenChats) ? entry.hiddenChats : [],
               pushSubs: Array.isArray(entry.pushSubs) ? entry.pushSubs : [],
               fcmToken: toDisplayName(entry.fcmToken),
               notificationsEnabled: entry.notificationsEnabled !== false,
@@ -3027,6 +3030,7 @@ function applyLoadedState(parsed) {
     user.requests = new Set((entry.requests || []).map(normalizeName).filter(Boolean));
     user.blockedUsers = new Set((entry.blockedUsers || []).map(normalizeName).filter(Boolean));
     user.mutedUsers = new Set((entry.mutedUsers || []).map(normalizeName).filter(Boolean));
+    user.hiddenChats = new Set((entry.hiddenChats || []).map(normalizeName).filter(Boolean));
     user.isRegistered = Boolean(entry.isRegistered);
     user.isSuspended = entry.isSuspended === true;
     user.passwordSalt = toDisplayName(entry.passwordSalt);
@@ -3274,6 +3278,7 @@ function toSerializedUserEntry(doc) {
     unread: Array.isArray(doc?.unread) ? doc.unread : [],
     blockedUsers: Array.isArray(doc?.blockedUsers) ? doc.blockedUsers : [],
     mutedUsers: Array.isArray(doc?.mutedUsers) ? doc.mutedUsers : [],
+    hiddenChats: Array.isArray(doc?.hiddenChats) ? doc.hiddenChats : [],
     pushSubs: Array.isArray(doc?.pushSubs) ? doc.pushSubs : [],
     fcmToken: toDisplayName(doc?.fcmToken),
     notificationsEnabled: doc?.notificationsEnabled !== false,
@@ -4854,8 +4859,10 @@ function emitFriendList(username) {
   const socketId = onlineUsers.get(userKey);
   if (!socketId) return;
 
+  const user = users.get(userKey);
   io.to(socketId).emit("friend_list_updated", {
     friends: buildFriendList(userKey),
+    hiddenChats: Array.from(user?.hiddenChats || []),
   });
 }
 
@@ -5329,6 +5336,7 @@ function buildRegisterSuccessPayload(userKey, user) {
     readReceiptsEnabled: user.readReceiptsEnabled !== false, typingIndicatorsEnabled: user.typingIndicatorsEnabled !== false,
     groupInvitePrivacy: user.groupInvitePrivacy || "friends", friendRequestPrivacy: user.friendRequestPrivacy || "everyone",
     friends: buildFriendList(userKey),
+    hiddenChats: Array.from(user.hiddenChats || []),
     requests: Array.from(user.requests).map((requesterKey) => {
       const requester = users.get(requesterKey);
       return requester?.username || requesterKey;
@@ -10393,6 +10401,64 @@ io.on("connection", (socket) => {
     emitStatusToFriends(userKey);
     emitStatusToFriends(targetKey);
     reply({ ok: true });
+  });
+
+  socket.on("set_chat_hidden", async (payload, callback) => {
+    const respond = (result) => {
+      if (typeof callback === "function") callback(result);
+      else if (result?.ok === false) socket.emit("error_message", { message: result.message });
+    };
+    const userKey = normalizeName(socket.data.userKey || "");
+    if (!userKey) return respond({ ok: false, message: "Please sign in again." });
+    if (!allowSocketAction(socket, "set_chat_hidden", 80, 60 * 1000)) {
+      return respond({ ok: false, message: "Too many chat updates. Try again shortly." });
+    }
+
+    const user = users.get(userKey);
+    const rawPeer = toDisplayName(payload?.username || "");
+    const peerKey = normalizeName(rawPeer);
+    const groupKey = normalizeGroupId(rawPeer);
+    const group = groups.get(groupKey);
+    const isGroup = Boolean(group);
+    const hiddenKey = isGroup ? groupKey : peerKey;
+    const alreadyHidden = user?.hiddenChats instanceof Set &&
+      user.hiddenChats.has(hiddenKey);
+    const hasDirectChat = Boolean(
+      user?.friends?.has(peerKey) ||
+      conversations.get(getConversationKey(userKey, peerKey))?.length
+    );
+    const canUpdateGroup = isGroup && isGroupMember(group, userKey);
+    if (!user || !hiddenKey || hiddenKey === userKey ||
+        (!hasDirectChat && !canUpdateGroup &&
+          !(payload?.hidden === false && alreadyHidden)) ||
+        typeof payload?.hidden !== "boolean") {
+      return respond({ ok: false, message: "Choose a valid chat to update." });
+    }
+
+    if (!(user.hiddenChats instanceof Set)) user.hiddenChats = new Set();
+    const previous = new Set(user.hiddenChats);
+    if (payload.hidden) user.hiddenChats.add(hiddenKey);
+    else user.hiddenChats.delete(hiddenKey);
+
+    try {
+      // Persist this small privacy action before acknowledging it. The normal
+      // debounced writer is still used for other chat activity.
+      await flushStatePersistNow();
+    } catch (error) {
+      user.hiddenChats = previous;
+      console.error("Failed to persist hidden chat state:", error);
+      return respond({ ok: false, message: "Could not save this chat update. Please try again." });
+    }
+
+    const hiddenChats = Array.from(user.hiddenChats);
+    socket.emit("hidden_chats_updated", { hiddenChats });
+    emitFriendList(userKey);
+    respond({
+      ok: true,
+      username: isGroup ? (groups.get(groupKey)?.name || groupKey) : (users.get(peerKey)?.username || peerKey),
+      hidden: payload.hidden,
+      hiddenChats,
+    });
   });
 
   socket.on("set_mute", (payload, callback) => {

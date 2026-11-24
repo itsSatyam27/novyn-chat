@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import '../../widgets/novyn_alert.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -73,6 +74,10 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
   int _loadGeneration = 0;
   List<ChatPreview> _lastSocketConversations = const [];
   bool _topChatsPreloadStarted = false;
+  bool _hiddenChatSyncInFlight = false;
+  Future<void>? _hiddenPreferencesLoadFuture;
+  String? _hiddenPreferencesLoadOwner;
+  bool _hasPendingHiddenChatChanges = false;
 
   // Static cache moved to ChatsScreen widget class
 
@@ -89,7 +94,6 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     final initialUsername = _observedUsername;
     if (initialUsername != null && initialUsername.isNotEmpty) {
       _loadPinnedChatPreferences(initialUsername);
-      _loadHiddenChatPreferences(initialUsername);
       _loadArchiveAndLockPreferences(initialUsername);
     }
 
@@ -98,12 +102,11 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     if (owner == null || ChatsScreen.cachedChatsOwner != owner) {
       ChatsScreen.resetAccountCache();
     }
-    // Show cache immediately, then refresh in background
-    if (ChatsScreen.cachedChats != null) {
-      _chats = ChatsScreen.cachedChats!;
-      _filtered = ChatsScreen.cachedChats!;
-      _loading = false;
-      _loadChats(silent: true);
+    // Load the local deletion tombstones before exposing cached rows. This is
+    // a local preferences read only; the server snapshot still refreshes later.
+    if (ChatsScreen.cachedChats != null && owner != null &&
+        ChatsScreen.cachedChatsOwner == owner) {
+      _restoreCachedChatsAfterHiddenPreferences(owner);
     } else {
       _loadChats();
     }
@@ -118,6 +121,24 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
       // The socket may have authenticated before this screen attached.
       _handleSocketUpdate();
     });
+  }
+
+  Future<void> _restoreCachedChatsAfterHiddenPreferences(String username) async {
+    await _loadHiddenChatPreferences(username);
+    if (!mounted ||
+        context.read<AuthService>().user?.username.trim().toLowerCase() != username) {
+      return;
+    }
+    final cached = ChatsScreen.cachedChats;
+    if (cached != null && ChatsScreen.cachedChatsOwner == username) {
+      final previews = _withPinnedPreferences(List<ChatPreview>.from(cached));
+      setState(() {
+        _chats = previews;
+        _loading = false;
+      });
+      _applyFilters();
+    }
+    await _loadChats(silent: true);
   }
 
   void _handleAuthChanged() {
@@ -168,7 +189,6 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
       _loading = true;
     });
     _loadPinnedChatPreferences(username);
-    _loadHiddenChatPreferences(username);
     _loadArchiveAndLockPreferences(username);
     // Non-silent load first restores this account's username-scoped local DB.
     // The authenticated friend_list event will replace it with server state.
@@ -308,7 +328,111 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
   String _hiddenChatsPreferenceKey(String username) =>
       'novyn_hidden_chats_${username.trim().toLowerCase()}';
 
-  Future<void> _loadHiddenChatPreferences(String username) async {
+  String _hiddenChatChangesPreferenceKey(String username) =>
+      'novyn_hidden_chat_changes_${username.trim().toLowerCase()}';
+
+  String _hiddenChatMigrationPreferenceKey(String username) =>
+      'novyn_hidden_chat_migrated_${username.trim().toLowerCase()}';
+
+  Future<void> _queueHiddenChatChange(
+    String username,
+    String peerUsername,
+    bool hidden,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = _hiddenChatChangesPreferenceKey(username);
+    final pending = prefs.getStringList(key) ?? <String>[];
+    final normalizedPeer = peerUsername.trim().toLowerCase();
+    pending.removeWhere((raw) {
+      try {
+        final item = jsonDecode(raw);
+        return item is Map &&
+            item['username']?.toString().toLowerCase() == normalizedPeer;
+      } catch (_) {
+        return false;
+      }
+    });
+    pending.add(jsonEncode({'username': normalizedPeer, 'hidden': hidden}));
+    await prefs.setStringList(key, pending);
+    _hasPendingHiddenChatChanges = true;
+  }
+
+  Future<void> _syncHiddenChatChangesWithServer(String username) async {
+    if (_hiddenChatSyncInFlight) return;
+    final socket = context.read<SocketService>();
+    if (!socket.isAuthenticated || !socket.hasLoadedConversations ||
+        socket.myUsername?.toLowerCase() != username.toLowerCase()) {
+      return;
+    }
+
+    _hiddenChatSyncInFlight = true;
+    try {
+      if (_hiddenChatsOwner != username) {
+        await _loadHiddenChatPreferences(username);
+      }
+      final prefs = await SharedPreferences.getInstance();
+      final changesKey = _hiddenChatChangesPreferenceKey(username);
+      final pending = prefs.getStringList(changesKey) ?? <String>[];
+      _hasPendingHiddenChatChanges = pending.isNotEmpty;
+      final remaining = <String>[];
+      for (final raw in pending) {
+        try {
+          final decoded = jsonDecode(raw);
+          if (decoded is! Map) continue;
+          final peer = decoded['username']?.toString().trim().toLowerCase() ?? '';
+          final hidden = decoded['hidden'] == true;
+          if (peer.isEmpty || !(await socket.setChatHidden(peer, hidden))) {
+            remaining.add(raw);
+          }
+        } catch (_) {
+          remaining.add(raw);
+        }
+      }
+      await prefs.setStringList(changesKey, remaining);
+      _hasPendingHiddenChatChanges = remaining.isNotEmpty;
+      if (remaining.isNotEmpty) return;
+
+      // Once queued offline changes have reached the server, its account-level
+      // set is authoritative and can hydrate this device (and future devices).
+      final remote = socket.hiddenChatUsernames;
+      await prefs.setStringList(_hiddenChatsPreferenceKey(username), remote.toList());
+      if (!mounted ||
+          context.read<AuthService>().user?.username.trim().toLowerCase() != username) {
+        return;
+      }
+      setState(() {
+        _hiddenChatUsernames = remote;
+        _hiddenChatsOwner = username;
+      });
+      _applyFilters();
+    } catch (error) {
+      debugPrint('Could not sync hidden chats: $error');
+    } finally {
+      _hiddenChatSyncInFlight = false;
+    }
+  }
+
+  Future<void> _loadHiddenChatPreferences(String username) {
+    final normalizedUsername = username.trim().toLowerCase();
+    if (_hiddenChatsOwner == normalizedUsername) return Future<void>.value();
+    final pending = _hiddenPreferencesLoadFuture;
+    if (pending != null && _hiddenPreferencesLoadOwner == normalizedUsername) {
+      return pending;
+    }
+
+    _hiddenPreferencesLoadOwner = normalizedUsername;
+    late final Future<void> tracked;
+    tracked = _loadHiddenChatPreferencesInternal(normalizedUsername).whenComplete(() {
+      if (identical(_hiddenPreferencesLoadFuture, tracked)) {
+        _hiddenPreferencesLoadFuture = null;
+        _hiddenPreferencesLoadOwner = null;
+      }
+    });
+    _hiddenPreferencesLoadFuture = tracked;
+    return tracked;
+  }
+
+  Future<void> _loadHiddenChatPreferencesInternal(String username) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final stored = prefs.getStringList(_hiddenChatsPreferenceKey(username)) ?? [];
@@ -317,11 +441,29 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
               username.trim().toLowerCase()) {
         return;
       }
+      final normalized = stored
+          .map((value) => value.trim().toLowerCase())
+          .where((value) => value.isNotEmpty)
+          .toSet();
+      // Migrate existing device-only deletions once so older installs retain
+      // their hidden chats after the account-level cloud state is introduced.
+      final migrationKey = _hiddenChatMigrationPreferenceKey(username);
+      if (!(prefs.getBool(migrationKey) ?? false)) {
+        for (final peer in normalized) {
+          await _queueHiddenChatChange(username, peer, true);
+        }
+        await prefs.setBool(migrationKey, true);
+      }
+      _hasPendingHiddenChatChanges =
+          (prefs.getStringList(_hiddenChatChangesPreferenceKey(username)) ?? [])
+              .isNotEmpty;
+      if (!mounted ||
+          context.read<AuthService>().user?.username.trim().toLowerCase() !=
+              username.trim().toLowerCase()) {
+        return;
+      }
       setState(() {
-        _hiddenChatUsernames = stored
-            .map((value) => value.trim().toLowerCase())
-            .where((value) => value.isNotEmpty)
-            .toSet();
+        _hiddenChatUsernames = normalized;
         _hiddenChatsOwner = username.trim().toLowerCase();
       });
       _applyFilters();
@@ -353,6 +495,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
 
       // Remove only this device's cached conversation. The server-side
       // friendship and the other person's chat history remain untouched.
+      await _queueHiddenChatChange(username, peerUsername, true);
       await HybridDbService.deleteChat(chat.peer.username);
       if (!mounted ||
           context.read<AuthService>().user?.username.trim().toLowerCase() !=
@@ -374,6 +517,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
       ChatsScreen.totalUnread =
           updated.fold(0, (total, item) => total + item.unreadCount);
       _applyFilters();
+      unawaited(_syncHiddenChatChangesWithServer(username));
       _showNovynAlert('Chat deleted. Friend is still in your contacts.');
     } catch (error) {
       _showNovynAlert('Could not delete chat: ${error.toString()}');
@@ -412,6 +556,9 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
         _hiddenChatsPreferenceKey(username),
         next.toList(),
       );
+      for (final peer in newlyMessaged) {
+        await _queueHiddenChatChange(username, peer, false);
+      }
       if (!mounted ||
           context.read<AuthService>().user?.username.trim().toLowerCase() !=
               username) {
@@ -544,9 +691,39 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
         socket.myUsername?.toLowerCase() != owner) {
       return;
     }
+    // A live server snapshot must never bypass the local deletion tombstones.
+    // Gate this path too, not only the explicit local-cache loader.
+    if (_hiddenChatsOwner != owner) {
+      unawaited(_loadHiddenChatPreferences(owner).then((_) {
+        if (mounted && _hiddenChatsOwner == owner &&
+            context.read<AuthService>().user?.username.trim().toLowerCase() == owner) {
+          _handleSocketUpdate();
+        }
+      }));
+      return;
+    }
+
+    // Apply account-level deletions from the authenticated snapshot before
+    // publishing its conversations. A freshly installed second device has
+    // no local tombstones yet, so this prevents a one-frame cross-device flash.
+    if (!_hasPendingHiddenChatChanges) {
+      final remoteHidden = socket.hiddenChatUsernames;
+      _hiddenChatUsernames = Set<String>.from(remoteHidden);
+      _hiddenChatsOwner = owner;
+      unawaited(() async {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setStringList(
+          _hiddenChatsPreferenceKey(owner),
+          remoteHidden.toList(),
+        );
+      }());
+    }
 
     final conversations = socket.conversations;
-    unawaited(_unhideChatsWithNewMessages(conversations));
+    unawaited(
+      _unhideChatsWithNewMessages(conversations)
+          .then((_) => _syncHiddenChatChangesWithServer(owner)),
+    );
     if (_sameConversationReferences(_lastSocketConversations, conversations)) {
       return;
     }
@@ -580,6 +757,16 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     final myUsername = auth.user?.username;
     if (myUsername == null) {
       if (!silent) setState(() => _loading = false);
+      return;
+    }
+
+    // Resolve local deletion state before reading/rendering cached chat rows.
+    // This never waits for network or server authentication.
+    if (_hiddenChatsOwner != myUsername.toLowerCase()) {
+      await _loadHiddenChatPreferences(myUsername.toLowerCase());
+    }
+    if (!mounted || generation != _loadGeneration ||
+        context.read<AuthService>().user?.username != myUsername) {
       return;
     }
 

@@ -261,7 +261,9 @@ class SocketService extends ChangeNotifier {
       ? null
       : Map<String, dynamic>.from(_latestGroupInfo!);
   List<String> _blockedUsers = [];
+  final Set<String> _hiddenChatUsernames = <String>{};
   List<String> get blockedUsers => List.unmodifiable(_blockedUsers);
+  Set<String> get hiddenChatUsernames => Set.unmodifiable(_hiddenChatUsernames);
 
   // Call event callbacks
   Function(Map)? onRandomMatchFound;
@@ -923,7 +925,7 @@ class SocketService extends ChangeNotifier {
       _socket!.on(event, (data) => contacts.applyEvent(event, data));
     }
     _socket!.on('register_success', (data) {
-      if (data is Map) _handleFriendList(data['friends']);
+      if (data is Map) _handleFriendList(data);
       _markSocketAuthenticated();
       unawaited(_registerEncryptionIdentity()
           .then((_) => _flushPendingMessageOutbox()));
@@ -931,7 +933,7 @@ class SocketService extends ChangeNotifier {
     // ── Initial data + friend list ────────────────────────────────────────
     _socket!.on('init', (data) {
       if (data is Map && data['friends'] != null) {
-        _handleFriendList(data['friends']);
+        _handleFriendList(data);
       }
       _markSocketAuthenticated();
       unawaited(
@@ -941,6 +943,15 @@ class SocketService extends ChangeNotifier {
 
     _socket!.on('friend_list', (data) => _handleFriendList(data));
     _socket!.on('friend_list_updated', (data) => _handleFriendList(data));
+    _socket!.on('hidden_chats_updated', (data) {
+      if (data is! Map || data['hiddenChats'] is! List) return;
+      _hiddenChatUsernames
+        ..clear()
+        ..addAll((data['hiddenChats'] as List)
+            .map((value) => value.toString().trim().toLowerCase())
+            .where((value) => value.isNotEmpty));
+      notifyListeners();
+    });
     _socket!.on('group_info', (data) {
       if (data is! Map || data['group'] is! Map) return;
       _latestGroupInfo = Map<String, dynamic>.from(data['group'] as Map);
@@ -1960,6 +1971,13 @@ class SocketService extends ChangeNotifier {
   }
 
   Future<void> _applyFriendList(dynamic data) async {
+    if (data is Map && data['hiddenChats'] is List) {
+      _hiddenChatUsernames
+        ..clear()
+        ..addAll((data['hiddenChats'] as List)
+            .map((value) => value.toString().trim().toLowerCase())
+            .where((value) => value.isNotEmpty));
+    }
     final rawList =
         data is List ? data : (data is Map ? data['friends'] : null);
     if (rawList is! List) return;
@@ -2128,6 +2146,45 @@ class SocketService extends ChangeNotifier {
       // Keep the last good snapshot visible; a later server event can retry.
       notifyListeners();
     }
+  }
+
+  /// Persist a chat's hidden/deleted state on the authenticated account.
+  /// Local UI state remains responsive; the caller can retry when offline.
+  Future<bool> setChatHidden(String username, bool hidden) async {
+    final connection = _socket;
+    final peer = username.trim().toLowerCase();
+    if (peer.isEmpty || peer == _myUsername?.toLowerCase() ||
+        connection == null || !_isAuthenticated || !_isConnected) {
+      return false;
+    }
+
+    final reply = Completer<Map<String, dynamic>>();
+    connection.emitWithAck(
+      'set_chat_hidden',
+      {'username': peer, 'hidden': hidden},
+      ack: (dynamic result) {
+        if (reply.isCompleted) return;
+        reply.complete(result is Map
+            ? Map<String, dynamic>.from(result)
+            : <String, dynamic>{});
+      },
+    );
+    final result = await reply.future.timeout(
+      const Duration(seconds: 6),
+      onTimeout: () => <String, dynamic>{},
+    );
+    if (result['ok'] != true) return false;
+
+    final rawHidden = result['hiddenChats'];
+    if (rawHidden is List) {
+      _hiddenChatUsernames
+        ..clear()
+        ..addAll(rawHidden
+            .map((value) => value.toString().trim().toLowerCase())
+            .where((value) => value.isNotEmpty));
+      notifyListeners();
+    }
+    return true;
   }
 
   // ── Open a chat ────────────────────────────────────────────────────────────

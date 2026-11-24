@@ -172,6 +172,35 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   const accepted = event(alice.socket, 'friend_request_accepted');
   bob.socket.emit('accept_friend', 'alice');
   assert.equal((await accepted).by, 'bob');
+  // Deleted chats are an account-level preference, not only a device cache.
+  const hiddenResult = await alice.socket.timeout(3000).emitWithAck(
+    'set_chat_hidden', { username: 'bob', hidden: true },
+  );
+  assert.equal(hiddenResult.ok, true);
+  assert.deepEqual(hiddenResult.hiddenChats, ['bob']);
+  const persistedHiddenState = JSON.parse(
+    await fs.readFile(path.join(directory, 'data', 'chat-state.json'), 'utf8'),
+  );
+  assert.deepEqual(
+    persistedHiddenState.users.find((entry) => entry.key === 'alice').hiddenChats,
+    ['bob'],
+    'hidden chat preference must be persisted with its owning account',
+  );
+
+  alice.socket.disconnect();
+  const restoredAliceHidden = await connect(alice.cookie, 'polling');
+  alice.socket = restoredAliceHidden.socket;
+  assert.deepEqual(
+    restoredAliceHidden.state.hiddenChats,
+    ['bob'],
+    'hidden chat preference must be returned during authenticated session restore',
+  );
+  const unhiddenResult = await alice.socket.timeout(3000).emitWithAck(
+    'set_chat_hidden', { username: 'bob', hidden: false },
+  );
+  assert.equal(unhiddenResult.ok, true);
+  assert.deepEqual(unhiddenResult.hiddenChats, []);
+
 
   // The server stores only the client-encrypted identity envelope, scoped
   // to the authenticated account, and retains it across a socket reconnect.
