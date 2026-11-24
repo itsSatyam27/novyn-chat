@@ -276,6 +276,7 @@ class SocketService extends ChangeNotifier {
   Function(Map)? onRajaMantriMatchTimeout;
   Function(Map)? onRajaMantriGameUpdated;
   Function(Map)? onRajaMantriRoomStarted;
+  Function(Map)? onRajaMantriGameAbandoned;
   final Map<String, Map<String, dynamic>> _rajaMantriGames = <String, Map<String, dynamic>>{};
   final Map<String, String> _rajaMantriInviteSessions = <String, String>{};
   final Map<String, Map<String, dynamic>> _randomGames = <String, Map<String, dynamic>>{};
@@ -1709,6 +1710,12 @@ class SocketService extends ChangeNotifier {
       if (data is Map) onRajaMantriMatchTimeout?.call(Map<String, dynamic>.from(data));
     });
 
+    _socket!.on('rajamantri_game_abandoned', (data) {
+      if (data is Map) {
+        onRajaMantriGameAbandoned?.call(Map<String, dynamic>.from(data));
+      }
+    });
+
     _socket!.on('rajamantri_game_updated', (data) {
       if (data is! Map) return;
       final packet = Map<String, dynamic>.from(data);
@@ -2815,6 +2822,29 @@ class SocketService extends ChangeNotifier {
       notifyListeners();
     }
     return result;
+  }
+
+  Future<void> leaveRajaMantriGame(String sessionId) async {
+    await _waitForSocketAuthentication();
+    final socket = _socket;
+    if (socket == null || !_isConnected || !_isAuthenticated) {
+      throw StateError('Reconnect before leaving this match.');
+    }
+    final completer = Completer<Map<String, dynamic>>();
+    socket.emitWithAck('leave_rajamantri_game', {'sessionId': sessionId},
+        ack: (dynamic result) {
+      if (completer.isCompleted) return;
+      completer.complete(result is Map
+          ? Map<String, dynamic>.from(result)
+          : <String, dynamic>{'ok': false});
+    });
+    final result = await completer.future.timeout(
+      const Duration(seconds: 5),
+      onTimeout: () => <String, dynamic>{'ok': false, 'message': 'Could not leave the match.'},
+    );
+    if (result['ok'] != true) {
+      throw StateError(result['message']?.toString() ?? 'Could not leave the match.');
+    }
   }
 
   Future<Map<String, dynamic>> getRajaMantriGame(String sessionId) {
