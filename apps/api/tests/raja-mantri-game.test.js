@@ -8,6 +8,7 @@ const {
   autoPickRajaMantriChit,
   setRajaMantriPlayerConnected,
   guessRajaMantriChor,
+  autoGuessRajaMantriChor,
   advanceRajaMantriRound,
   getRajaMantriGameView,
 } = require("../server/realtime/raja-mantri-game");
@@ -145,11 +146,14 @@ test("auto-picking the final unresponsive player starts the Sipahi phase", () =>
   assert.ok(session.responseDeadlineAt > Date.now());
 });
 
-test("an offline Sipahi is replaced by bot control and the round resolves", () => {
+test("an offline Sipahi gets the full response window before bot control resolves the turn", () => {
   const session = makeSession(3);
   pickAll(session);
   const sipahi = session.players.find((player) => player.role === "sipahi");
   assert.equal(setRajaMantriPlayerConnected(session, sipahi.username, false).ok, true);
+  assert.equal(session.phase, "guessing");
+  assert.ok(session.responseDeadlineAt > Date.now());
+  assert.equal(autoGuessRajaMantriChor(session).ok, true);
   assert.equal(session.phase, "result");
   assert.equal(session.lastResult.autoPlayed, true);
 });
