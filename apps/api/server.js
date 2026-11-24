@@ -10908,6 +10908,29 @@ io.on("connection", (socket) => {
 
     const existingSocketId = onlineUsers.get(userKey);
     if (existingSocketId === socket.id) {
+      // A live RMCS game cannot keep waiting on a disconnected participant:
+      // this version has no reconnect/resume-seat protocol, so end the room
+      // and tell the remaining players instead of leaving them stuck.
+      for (const [sessionId, entry] of rajaMantriSessions) {
+        const leavingPlayer = entry.game.players.find(
+          (player) => player.username === userKey && !player.isBot,
+        );
+        if (!leavingPlayer) continue;
+        expireRajaMantriSession(sessionId);
+        for (const player of entry.game.players) {
+          if (player.isBot || player.username === userKey) continue;
+          const targetSocket = onlineUsers.get(player.username);
+          if (targetSocket) {
+            io.to(targetSocket).emit("rajamantri_game_abandoned", {
+              sessionId,
+              leftUsername: userKey,
+              leftDisplayName: leavingPlayer.displayName,
+              reason: "disconnected",
+            });
+          }
+        }
+      }
+
       const user = users.get(userKey);
       if (user) {
         for (const friendKey of user.friends) {
