@@ -12,7 +12,6 @@ import '../../services/socket_service.dart';
 import '../../widgets/user_avatar.dart';
 import 'raja_mantri_screen.dart';
 import 'raja_mantri_online_game_screen.dart';
-import 'raja_mantri_online_game_screen.dart';
 
 class RajaMantriLobbyScreen extends StatefulWidget {
   const RajaMantriLobbyScreen({super.key});
