@@ -1481,9 +1481,10 @@ const rajaMantriMatchmaking = new RajaMantriMatchmaking({
     playerCount,
     message: "No full group found right now. Please try again.",
   }),
-  onProgress: ({ socketId, playerCount, playersFound }) => io.to(socketId).emit("rajamantri_match_progress", {
+  onProgress: ({ socketId, playerCount, playersFound, waitingPlayers }) => io.to(socketId).emit("rajamantri_match_progress", {
     playerCount,
     playersFound,
+    players: waitingPlayers,
   }),
 });
 
