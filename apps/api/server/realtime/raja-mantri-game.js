@@ -75,7 +75,10 @@ function assignRoundRoles(session) {
   session.sipahiUsername = "";
   session.lastResult = null;
   session.phase = "picking";
-  if (session.players.every((player) => player.picked)) beginGuessing(session);
+  if (session.players.every((player) => player.picked)) {
+    beginGuessing(session);
+    resolveBotSipahiGuess(session);
+  }
 }
 
 function beginGuessing(session) {
@@ -94,7 +97,10 @@ function pickRajaMantriChit(session, username) {
   if (player.picked) return { ok: false, reason: "You have already picked your chit." };
   player.picked = true;
   player.roleRevealed = true;
-  if (session.players.every((entry) => entry.picked)) beginGuessing(session);
+  if (session.players.every((entry) => entry.picked)) {
+    beginGuessing(session);
+    resolveBotSipahiGuess(session);
+  }
   return { ok: true, session };
 }
 
@@ -153,6 +159,17 @@ function guessRajaMantriChor(session, username, suspectUsername) {
     round: session.round,
   };
   return { ok: true, session };
+}
+
+function resolveBotSipahiGuess(session) {
+  if (!session || session.phase !== "guessing") return;
+  const sipahi = session.players.find((player) => player.username === session.sipahiUsername);
+  if (!sipahi?.isBot) return;
+  const roles = session.playerCount === 3 ? new Set(["raja", "chor"]) : new Set(["chor", "mantri"]);
+  const suspects = session.players.filter((player) => roles.has(player.role));
+  if (!suspects.length) return;
+  const index = Math.floor(session.random() * suspects.length);
+  guessRajaMantriChor(session, sipahi.username, suspects[index].username);
 }
 
 function advanceRajaMantriRound(session, username) {
