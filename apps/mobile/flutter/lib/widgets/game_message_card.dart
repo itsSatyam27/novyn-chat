@@ -1451,10 +1451,10 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
       _error = null;
     }
     if (_finished && !_gameOverModalShown) {
-        _gameOverModalShown = true;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _showGameOver();
-        });
+      _gameOverModalShown = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showGameOver();
+      });
     } else if (!_finished) {
       _gameOverModalShown = false;
     }
