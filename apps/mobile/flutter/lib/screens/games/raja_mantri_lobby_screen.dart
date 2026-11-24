@@ -57,6 +57,7 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
   final ValueNotifier<List<_RMRoomMember?>> _roomMembers =
       ValueNotifier<List<_RMRoomMember?>>(<_RMRoomMember?>[]);
   final ValueNotifier<int> _searchProgress = ValueNotifier<int>(1);
+  final ValueNotifier<List<Map<String, dynamic>>> _searchRoster = ValueNotifier<List<Map<String, dynamic>>>(const []);
   final ValueNotifier<int> _searchSeconds = ValueNotifier<int>(60);
   List<UserModel> _friends = [];
   final Set<String> _selectedFriends = <String>{};
@@ -99,6 +100,7 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
     _searchController.dispose();
     _roomMembers.dispose();
     _searchProgress.dispose();
+    _searchRoster.dispose();
     _searchSeconds.dispose();
     if (_socket != null) {
       _socket!.removeListener(_handleSocketStateChanged);
@@ -393,6 +395,7 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
       _searchingPlayers = true;
       _cancellingSearch = false;
       _searchProgress.value = 1;
+      _searchRoster.value = const [];
       _searchSeconds.value = 60;
       _searchRouteOpen = false;
       _searchDeadline = DateTime.now().add(const Duration(seconds: 60));
@@ -427,6 +430,7 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
           builder: (_) => _RajaMantriSearchingScreen(
             playerCount: _playerCount,
             progress: _searchProgress,
+            roster: _searchRoster,
             secondsRemaining: _searchSeconds,
             onCancel: _cancelRandomSearch,
           ),
@@ -453,6 +457,13 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
     if (int.tryParse(data['playerCount']?.toString() ?? '') != _playerCount) return;
     final count = int.tryParse(data['playersFound']?.toString() ?? '');
     if (count != null) _searchProgress.value = count;
+    final players = data['players'];
+    if (players is List) {
+      _searchRoster.value = players
+          .whereType<Map>()
+          .map((entry) => Map<String, dynamic>.from(entry))
+          .toList(growable: false);
+    }
   }
 
   void _handleRandomMatchFound(Map data) {
@@ -1147,12 +1158,14 @@ class _RajaMantriSearchingScreen extends StatelessWidget {
   const _RajaMantriSearchingScreen({
     required this.playerCount,
     required this.progress,
+    required this.roster,
     required this.secondsRemaining,
     required this.onCancel,
   });
 
   final int playerCount;
   final ValueListenable<int> progress;
+  final ValueListenable<List<Map<String, dynamic>>> roster;
   final ValueListenable<int> secondsRemaining;
   final VoidCallback onCancel;
 
@@ -1273,6 +1286,109 @@ class _RajaMantriSearchingScreen extends StatelessWidget {
                               ),
                             ),
                           ],
+                        ),
+                        ValueListenableBuilder<List<Map<String, dynamic>>>(
+                          valueListenable: roster,
+                          builder: (context, players, _) {
+                            final occupied = players.take(playerCount).toList();
+                            final slots = List<Map<String, dynamic>?>.generate(
+                              playerCount,
+                              (index) => index < occupied.length ? occupied[index] : null,
+                            );
+                            return Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 16),
+                              padding: const EdgeInsets.fromLTRB(12, 16, 12, 14),
+                              decoration: BoxDecoration(
+                                color: surface,
+                                borderRadius: BorderRadius.circular(24),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                children: List.generate(playerCount, (index) {
+                                  final player = slots[index];
+                                  final name = player?['displayName']?.toString() ??
+                                      player?['username']?.toString() ?? 'Searching';
+                                  final joined = player != null;
+                                  final dotColor = joined
+                                      ? const Color(0xFF18A05E)
+                                      : const Color(0xFFE9A400);
+                                  return Expanded(
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Container(
+                                            width: 54,
+                                            height: 54,
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              color: joined
+                                                  ? const [Color(0xFF1E1A43), Color(0xFFD92D66), Color(0xFF0D9472), Color(0xFFB86A00)][index]
+                                                  : Colors.transparent,
+                                              border: Border.all(
+                                                color: dotColor,
+                                                width: joined ? 3 : 2,
+                                                style: joined ? BorderStyle.solid : BorderStyle.solid,
+                                              ),
+                                            ),
+                                            alignment: Alignment.center,
+                                            child: Text(
+                                              joined && name.isNotEmpty ? name[0].toUpperCase() : '?',
+                                              style: TextStyle(
+                                                color: joined ? Colors.white : const Color(0xFF8A5B00),
+                                                fontSize: 22,
+                                                fontWeight: FontWeight.w900,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            name,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                              color: joined ? foreground : muted,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 7),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                                            decoration: BoxDecoration(
+                                              color: joined ? const Color(0xFFDDF3E9) : const Color(0xFFFFF0C2),
+                                              borderRadius: BorderRadius.circular(20),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(Icons.circle, size: 7, color: dotColor),
+                                                const SizedBox(width: 4),
+                                                Flexible(
+                                                  child: Text(
+                                                    joined ? 'Joined' : 'Joining…',
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: TextStyle(
+                                                      color: joined ? const Color(0xFF176B45) : const Color(0xFF8A5B00),
+                                                      fontSize: 10,
+                                                      fontWeight: FontWeight.w800,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                }),
+                              ),
+                            );
+                          },
                         ),
                       ],
                     );
