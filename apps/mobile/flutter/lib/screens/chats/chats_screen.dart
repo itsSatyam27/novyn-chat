@@ -682,34 +682,56 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
 
   void _handleSocketUpdate() {
     if (!mounted) return;
-    final owner = context.read<AuthService>().user?.username.toLowerCase();
-    if (owner == null) return;
+    final owner = context
+        .read<AuthService>()
+        .user
+        ?.username
+        .trim()
+        .toLowerCase();
+    if (owner == null || owner.isEmpty) return;
     final socket = context.read<SocketService>();
-    // Socket emits many unrelated notifications (typing, presence, connect).
-    // Do not let an empty, not-yet-authenticated socket snapshot erase cache.
-    if (!socket.isAuthenticated || !socket.hasLoadedConversations ||
-        socket.myUsername?.toLowerCase() != owner) {
+
+    // A reconnect can authenticate before its fresh friend-list snapshot is
+    // fully parsed/decrypted. Process the hidden-chat tombstones independently
+    // of hasLoadedConversations so they can immediately filter the cached UI.
+    if (!socket.isAuthenticated ||
+        socket.myUsername?.trim().toLowerCase() != owner) {
       return;
     }
-    // A live server snapshot must never bypass the local deletion tombstones.
-    // Gate this path too, not only the explicit local-cache loader.
+
     if (_hiddenChatsOwner != owner) {
       unawaited(_loadHiddenChatPreferences(owner).then((_) {
-        if (mounted && _hiddenChatsOwner == owner &&
-            context.read<AuthService>().user?.username.trim().toLowerCase() == owner) {
+        if (mounted &&
+            _hiddenChatsOwner == owner &&
+            context.read<AuthService>().user?.username.trim().toLowerCase() ==
+                owner) {
           _handleSocketUpdate();
         }
       }));
       return;
     }
 
-    // Apply account-level deletions from the authenticated snapshot before
-    // publishing its conversations. A freshly installed second device has
-    // no local tombstones yet, so this prevents a one-frame cross-device flash.
-    if (!_hasPendingHiddenChatChanges) {
-      final remoteHidden = socket.hiddenChatUsernames;
-      _hiddenChatUsernames = Set<String>.from(remoteHidden);
+    // Apply remote account-level deletions even when the conversation objects
+    // themselves are unchanged. A hidden_chats_updated event often changes
+    // only this set; returning early on identical conversation references
+    // used to leave the deleted row visible until the next friend-list update.
+    final remoteHidden = socket.hiddenChatUsernames;
+    // Keep local, not-yet-acknowledged changes visible while also applying
+    // deletions made on another device. Local pending operations are reconciled
+    // with the server immediately after its first conversation snapshot.
+    final effectiveHidden = Set<String>.from(remoteHidden);
+    if (_hasPendingHiddenChatChanges) {
+      effectiveHidden.addAll(_hiddenChatUsernames);
+    }
+    final hiddenChanged =
+        effectiveHidden.length != _hiddenChatUsernames.length ||
+        !effectiveHidden.containsAll(_hiddenChatUsernames);
+    if (hiddenChanged) {
+      _hiddenChatUsernames = effectiveHidden;
       _hiddenChatsOwner = owner;
+      _applyFilters();
+    }
+    if (!_hasPendingHiddenChatChanges) {
       unawaited(() async {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setStringList(
@@ -718,6 +740,10 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
         );
       }());
     }
+
+    // Never treat the previous connection's conversation cache as the new
+    // server snapshot. Hidden state above is still applied while this is false.
+    if (!socket.hasLoadedConversations) return;
 
     final conversations = socket.conversations;
     unawaited(

@@ -83,7 +83,11 @@ class _AuthScreenState extends State<AuthScreen>
                 fit: StackFit.expand,
                 children: [
                   if (!keyboardOpen)
-                    Positioned.fill(
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      top: 0,
+                      height: artworkHeight,
                       child: SvgPicture.asset(
                         'assets/images/novyn_auth_hero.svg',
                         fit: BoxFit.cover,
