@@ -275,7 +275,9 @@ class SocketService extends ChangeNotifier {
   Function(Map)? onRajaMantriMatchProgress;
   Function(Map)? onRajaMantriMatchTimeout;
   Function(Map)? onRajaMantriGameUpdated;
+  Function(Map)? onRajaMantriRoomStarted;
   final Map<String, Map<String, dynamic>> _rajaMantriGames = <String, Map<String, dynamic>>{};
+  final Map<String, String> _rajaMantriInviteSessions = <String, String>{};
   final Map<String, Map<String, dynamic>> _randomGames = <String, Map<String, dynamic>>{};
   // Game moves can arrive before the corresponding chat history page.
   final Map<String, Map<String, dynamic>> _pendingGameUpdates =
@@ -1718,6 +1720,24 @@ class SocketService extends ChangeNotifier {
       onRajaMantriGameUpdated?.call(packet);
     });
 
+    _socket!.on('rajamantri_room_started', (data) {
+      if (data is! Map) return;
+      final packet = Map<String, dynamic>.from(data);
+      final sessionId = packet['sessionId']?.toString() ?? '';
+      if (sessionId.isEmpty) return;
+      final inviteIds = packet['inviteMessageIds'];
+      if (inviteIds is List) {
+        for (final value in inviteIds) {
+          final id = value?.toString() ?? '';
+          if (id.isNotEmpty) _rajaMantriInviteSessions[id] = sessionId;
+        }
+      }
+      final messageId = packet['messageId']?.toString() ?? '';
+      if (messageId.isNotEmpty) _rajaMantriInviteSessions[messageId] = sessionId;
+      notifyListeners();
+      onRajaMantriRoomStarted?.call(packet);
+    });
+
     // ── Server error messages ─────────────────────────────────────────────
     _socket!.on('error_message', (data) {
       final message = data is Map ? data['message'] : data;
@@ -2690,6 +2710,47 @@ class SocketService extends ChangeNotifier {
     if (result['ok'] != true) {
       throw StateError(result['message']?.toString() ?? 'Could not cancel player search.');
     }
+  }
+
+  String? rajaMantriSessionForInvite(String messageId) =>
+      _rajaMantriInviteSessions[messageId];
+
+  Future<Map<String, dynamic>> startRajaMantriFriendRoom({
+    required int playerCount,
+    required List<String> inviteMessageIds,
+    required int botCount,
+  }) async {
+    await _waitForSocketAuthentication();
+    final socket = _socket;
+    if (socket == null || !_isConnected || !_isAuthenticated) {
+      throw StateError('Reconnect to Novyn before starting this room.');
+    }
+    final completer = Completer<Map<String, dynamic>>();
+    socket.emitWithAck(
+      'start_rajamantri_friend_room',
+      {
+        'playerCount': playerCount,
+        'inviteMessageIds': inviteMessageIds,
+        'botCount': botCount,
+      },
+      ack: (dynamic result) {
+        if (completer.isCompleted) return;
+        completer.complete(result is Map
+            ? Map<String, dynamic>.from(result)
+            : <String, dynamic>{'ok': false, 'message': 'Could not start this room.'});
+      },
+    );
+    final result = await completer.future.timeout(
+      const Duration(seconds: 10),
+      onTimeout: () => <String, dynamic>{
+        'ok': false,
+        'message': 'Starting the room timed out. Please try again.',
+      },
+    );
+    if (result['ok'] != true) {
+      throw StateError(result['message']?.toString() ?? 'Could not start this room.');
+    }
+    return result;
   }
 
   Map<String, dynamic>? rajaMantriGameFor(String sessionId) {
