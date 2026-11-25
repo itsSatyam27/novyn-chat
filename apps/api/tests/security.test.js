@@ -6,6 +6,7 @@ const { canReadMedia } = require('../server/security/media-access');
 const { createAuthToken, verifyAuthToken } = require('../server/auth/tokens');
 const { createPasswordSecret, verifyPassword } = require('../server/auth/password');
 const { createCsrf } = require('../server/auth/csrf');
+const { createSocketAuthMiddleware } = require('../server/realtime/socket-auth');
 
 test('production CSRF rejects missing tokens and cross-site origins', (t) => {
   const previous = process.env.NODE_ENV;
@@ -119,4 +120,46 @@ test('auth token verifier rejects correctly signed tokens with unsupported heade
     verifyAuthToken({ secret, rawToken: sign({ alg: 'HS256', typ: 'NOT-JWT' }), expectedKind: 'access' }),
     null
   );
+});
+
+ 
+test('socket middleware rejects unauthenticated sockets before event handlers', () => {
+  const middleware = createSocketAuthMiddleware({
+    isProduction: true, allowedOrigins: ['https://chat.example'],
+    resolveUserFromAuthCookies: () => ({ userKey: '', sessionId: '' }),
+    getAuthCookiesFromHeader: () => ({}), normalizeText: (value) => String(value || ''),
+  });
+  const socket = { handshake: { headers: { origin: 'https://chat.example' } }, data: {} };
+  let error;
+  middleware(socket, (err) => { error = err; });
+  assert.equal(error?.message, 'Authentication required');
+  assert.equal(socket.data.userKey, undefined);
+});
+
+test('socket middleware sets authenticated identity and session only after validation', () => {
+  const middleware = createSocketAuthMiddleware({
+    isProduction: true, allowedOrigins: ['https://chat.example'],
+    resolveUserFromAuthCookies: () => ({ userKey: 'alice', sessionId: 'session-1' }),
+    getAuthCookiesFromHeader: () => ({}), normalizeText: (value) => String(value || ''),
+  });
+  const socket = { handshake: { headers: { origin: 'https://chat.example' } }, data: {} };
+  let accepted = false;
+  middleware(socket, (err) => { assert.equal(err, undefined); accepted = true; });
+  assert.equal(accepted, true);
+  assert.equal(socket.data.userKey, 'alice');
+  assert.equal(socket.data.sessionId, 'session-1');
+});
+
+test('socket middleware rejects disallowed origins before authentication', () => {
+  let authResolved = false;
+  const middleware = createSocketAuthMiddleware({
+    isProduction: true, allowedOrigins: ['https://chat.example'],
+    resolveUserFromAuthCookies: () => { authResolved = true; return { userKey: 'alice' }; },
+    getAuthCookiesFromHeader: () => ({}), normalizeText: (value) => String(value || ''),
+  });
+  const socket = { handshake: { headers: { origin: 'https://attacker.example' } }, data: {} };
+  let error;
+  middleware(socket, (err) => { error = err; });
+  assert.equal(error?.message, 'Origin not allowed');
+  assert.equal(authResolved, false);
 });
