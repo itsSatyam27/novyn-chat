@@ -51,7 +51,7 @@ class _RMRoomMember {
 }
 
 class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
-  static const _purple = Color(0xFF5E4CF2);
+  
   static const _ink = Color(0xFF1E1A43);
   static const _muted = Color(0xFF625D8C);
 
@@ -665,7 +665,9 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
+    final isDark = theme.brightness == Brightness.dark;
     final background = isDark ? const Color(0xFF141026) : const Color(0xFFF6F5FD);
     final foreground = isDark ? Colors.white : _ink;
     final muted = isDark ? Colors.white60 : _muted;
@@ -727,7 +729,7 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF2D2648) : const Color(0xFFEDE9FC),
+                        color: isDark ? const Color(0xFF2D2648) : accent.withValues(alpha: .12),
                         borderRadius: BorderRadius.circular(24),
                       ),
                       child: Row(
@@ -772,7 +774,7 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
                           icon: Icons.public_rounded,
                           iconBackground: const Color(0xFF796CF4),
                           iconColor: Colors.white,
-                          background: _purple,
+                          background: accent,
                           foreground: Colors.white,
                           subtitleColor: Colors.white.withValues(alpha: .88),
                           onTap: _startRandomSearch,
@@ -808,7 +810,7 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
                       enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(28), borderSide: BorderSide.none),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(28),
-                        borderSide: const BorderSide(color: _purple, width: 1.5),
+                        borderSide: const BorderSide(color: accent, width: 1.5),
                       ),
                       suffixIcon: _searchController.text.isEmpty
                           ? null
@@ -897,9 +899,9 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
                                     height: 28,
                                     decoration: BoxDecoration(
                                       borderRadius: BorderRadius.circular(8),
-                                      color: selected ? _purple : Colors.transparent,
+                                      color: selected ? accent : Colors.transparent,
                                       border: Border.all(
-                                        color: selected ? _purple : const Color(0xFF9690B7),
+                                        color: selected ? accent : Theme.of(context).colorScheme.outline,
                                         width: 2,
                                       ),
                                     ),
@@ -942,7 +944,7 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
                     ),
                     style: FilledButton.styleFrom(
-                      backgroundColor: _purple,
+                      backgroundColor: accent,
                       foregroundColor: Colors.white,
                       disabledBackgroundColor: const Color(0xFFE5E0F6),
                       disabledForegroundColor: muted,
@@ -1073,7 +1075,9 @@ class _RMWaitingRoomSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
+    final isDark = theme.brightness == Brightness.dark;
     final foreground = isDark ? Colors.white : const Color(0xFF1E1A43);
     final muted = isDark ? Colors.white60 : const Color(0xFF625D8C);
     final surface = isDark ? const Color(0xFF201B36) : const Color(0xFFF6F5FD);
@@ -1142,8 +1146,8 @@ class _RMWaitingRoomSheet extends StatelessWidget {
                             Container(
                               width: 40,
                               height: 40,
-                              decoration: const BoxDecoration(color: Color(0xFFEDE9FC), shape: BoxShape.circle),
-                              child: const Icon(Icons.add_rounded, color: _RajaMantriLobbyScreenState._purple),
+                              decoration: BoxDecoration(color: accent.withValues(alpha: .12), shape: BoxShape.circle),
+                              child: Icon(Icons.add_rounded, color: accent),
                             ),
                             const SizedBox(width: 12),
                             Expanded(child: Text('Open slot', style: TextStyle(color: muted, fontWeight: FontWeight.w800))),
@@ -1174,7 +1178,7 @@ class _RMWaitingRoomSheet extends StatelessWidget {
                                 if (member.isBot)
                                   const Text('Bot player', style: TextStyle(color: Color(0xFF0D9488), fontSize: 11, fontWeight: FontWeight.w700)),
                                 if (member.isHost)
-                                  const Text('Room owner', style: TextStyle(color: Color(0xFF5E4CF2), fontSize: 11, fontWeight: FontWeight.w700)),
+                                  const Text('Room owner', style: TextStyle(color: accent, fontSize: 11, fontWeight: FontWeight.w700)),
                               ],
                             ),
                           ),
@@ -1220,8 +1224,8 @@ class _RMWaitingRoomSheet extends StatelessWidget {
                       icon: const Icon(Icons.smart_toy_outlined, size: 20),
                       label: const Text('Fill with bots', maxLines: 1, overflow: TextOverflow.ellipsis),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFF5141E5),
-                        backgroundColor: const Color(0xFFEDE9FC),
+                        foregroundColor: accent,
+                        backgroundColor: accent.withValues(alpha: .12),
                         side: BorderSide.none,
                         shape: const StadiumBorder(),
                         textStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
@@ -1244,7 +1248,7 @@ class _RMWaitingRoomSheet extends StatelessWidget {
                           icon: const Icon(Icons.play_arrow_rounded, size: 22),
                           label: const Text('Start match', maxLines: 1, overflow: TextOverflow.ellipsis),
                           style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFF5E4CF2),
+                            backgroundColor: accent,
                             foregroundColor: Colors.white,
                             disabledBackgroundColor: const Color(0xFFE5E0F6),
                             disabledForegroundColor: const Color(0xFF777195),
@@ -1284,7 +1288,9 @@ class _RajaMantriSearchingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
+    final isDark = theme.brightness == Brightness.dark;
     final background = isDark ? const Color(0xFF141026) : const Color(0xFFF6F5FD);
     final foreground = isDark ? Colors.white : const Color(0xFF1E1A43);
     final muted = isDark ? Colors.white60 : const Color(0xFF625D8C);
@@ -1312,8 +1318,8 @@ class _RajaMantriSearchingScreen extends StatelessWidget {
                     Expanded(child: Text('Raja Mantri Chor Sipahi', style: TextStyle(color: foreground, fontSize: 19, fontWeight: FontWeight.w900), maxLines: 2, overflow: TextOverflow.ellipsis)),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
-                      decoration: BoxDecoration(color: const Color(0xFFEDE9FC), borderRadius: BorderRadius.circular(22)),
-                      child: Text('$playerCount players', style: const TextStyle(color: Color(0xFF403875), fontWeight: FontWeight.w800)),
+                      decoration: BoxDecoration(color: accent.withValues(alpha: .12), borderRadius: BorderRadius.circular(22)),
+                      child: Text('$playerCount players', style: TextStyle(color: accent, fontWeight: FontWeight.w800)),
                     ),
                   ],
                 ),
@@ -1358,7 +1364,7 @@ class _RajaMantriSearchingScreen extends StatelessWidget {
                                 decoration: BoxDecoration(
                                   color: const Color(0xFF1E1A43),
                                   shape: BoxShape.circle,
-                                  border: Border.all(color: const Color(0xFF6250F5), width: 5),
+                                  border: Border.all(color: accent, width: 5),
                                 ),
                                 alignment: Alignment.center,
                                 child: Text(
@@ -1401,7 +1407,7 @@ class _RajaMantriSearchingScreen extends StatelessWidget {
                                     const SizedBox(width: 10),
                                     Text(
                                       '0:${seconds.toString().padLeft(2, '0')}',
-                                      style: const TextStyle(color: Color(0xFF403875), fontWeight: FontWeight.w800, fontSize: 16),
+                                      style: const TextStyle(color: accent, fontWeight: FontWeight.w800, fontSize: 16),
                                     ),
                                   ],
                                 ),
@@ -1538,8 +1544,8 @@ class _RajaMantriSearchingScreen extends StatelessWidget {
                   child: FilledButton(
                     onPressed: onCancel,
                     style: FilledButton.styleFrom(
-                      backgroundColor: isDark ? const Color(0xFF282046) : const Color(0xFFEDE9FC),
-                      foregroundColor: const Color(0xFF5141E5),
+                      backgroundColor: isDark ? const Color(0xFF282046) : accent.withValues(alpha: .12),
+                      foregroundColor: accent,
                       shape: const StadiumBorder(),
                     ),
                     child: const Text('Cancel search', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
@@ -1599,11 +1605,13 @@ class _RajaMantriMatchFoundScreenState extends State<_RajaMantriMatchFoundScreen
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
+    final isDark = theme.brightness == Brightness.dark;
     final background = isDark ? const Color(0xFF141026) : const Color(0xFFF6F5FD);
     final foreground = isDark ? Colors.white : const Color(0xFF1E1A43);
     final muted = isDark ? Colors.white60 : const Color(0xFF625D8C);
-    const colors = [Color(0xFF6250F5), Color(0xFFE32C62), Color(0xFF0D9472), Color(0xFFB86A00)];
+    final colors = [accent, const Color(0xFFE32C62), const Color(0xFF0D9472), const Color(0xFFB86A00)];
     return PopScope<void>(
       canPop: false,
       child: Scaffold(
@@ -1627,8 +1635,8 @@ class _RajaMantriMatchFoundScreenState extends State<_RajaMantriMatchFoundScreen
                     Expanded(child: Text('Raja Mantri Chor Sipahi', maxLines: 2, style: TextStyle(color: foreground, fontSize: 19, fontWeight: FontWeight.w900))),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
-                      decoration: BoxDecoration(color: const Color(0xFFEDE9FC), borderRadius: BorderRadius.circular(22)),
-                      child: const Text('Random players', style: TextStyle(color: Color(0xFF403875), fontWeight: FontWeight.w800)),
+                      decoration: BoxDecoration(color: accent.withValues(alpha: .12), borderRadius: BorderRadius.circular(22)),
+                      child: Text('Random players', style: TextStyle(color: accent, fontWeight: FontWeight.w800)),
                     ),
                   ],
                 ),
@@ -1702,10 +1710,10 @@ class _RajaMantriMatchFoundScreenState extends State<_RajaMantriMatchFoundScreen
                                     const SizedBox(height: 8),
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
-                                      decoration: BoxDecoration(color: const Color(0xFFEDE9FC), borderRadius: BorderRadius.circular(22)),
+                                      decoration: BoxDecoration(color: accent.withValues(alpha: .12), borderRadius: BorderRadius.circular(22)),
                                       child: Text(
                                         player['username']?.toString().toLowerCase() == widget.currentUsername.toLowerCase() ? 'You' : 'Joined',
-                                        style: const TextStyle(color: Color(0xFF403875), fontWeight: FontWeight.w800, fontSize: 11),
+                                        style: TextStyle(color: accent, fontWeight: FontWeight.w800, fontSize: 11),
                                       ),
                                     ),
                                   ],
@@ -1723,8 +1731,8 @@ class _RajaMantriMatchFoundScreenState extends State<_RajaMantriMatchFoundScreen
                                 child: LinearProgressIndicator(
                                   value: _seconds / 3,
                                   minHeight: 8,
-                                  backgroundColor: const Color(0xFFE3DFF5),
-                                  valueColor: const AlwaysStoppedAnimation<Color>(_RajaMantriLobbyScreenState._purple),
+                                  backgroundColor: accent.withValues(alpha: .14),
+                                  valueColor: AlwaysStoppedAnimation<Color>(accent),
                                 ),
                               ),
                               const SizedBox(height: 16),
@@ -1744,7 +1752,7 @@ class _RajaMantriMatchFoundScreenState extends State<_RajaMantriMatchFoundScreen
                   width: double.infinity,
                   child: FilledButton(
                     onPressed: widget.onLeave,
-                    style: FilledButton.styleFrom(backgroundColor: isDark ? const Color(0xFF282046) : const Color(0xFFEDE9FC), foregroundColor: const Color(0xFF5141E5), shape: const StadiumBorder()),
+                    style: FilledButton.styleFrom(backgroundColor: isDark ? const Color(0xFF282046) : accent.withValues(alpha: .12), foregroundColor: accent, shape: const StadiumBorder()),
                     child: const Text('Leave match', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
                   ),
                 ),
