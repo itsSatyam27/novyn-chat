@@ -686,6 +686,7 @@ class _SuspectButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     final name = player['displayName']?.toString() ?? player['username']?.toString() ?? 'Player';
     return Material(
       color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF201B36) : Colors.white,
@@ -958,7 +959,7 @@ class _RajaMantriInviteWaitingScreenState extends State<RajaMantriInviteWaitingS
               ),
               const SizedBox(height: 24),
               if (!_expired)
-                const Row(
+                Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     SizedBox(width: 17, height: 17, child: CircularProgressIndicator(strokeWidth: 2.2)),
