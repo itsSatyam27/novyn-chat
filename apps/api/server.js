@@ -1011,7 +1011,7 @@ app.post("/api/games/history", requireUser, requireCsrf, async (req, res) => {
         !Number.isFinite(playedAt.getTime()) ||
         playedAt.getTime() > Date.now() + 5 * 60 * 1000 ||
         playedAt.getTime() < Date.now() - 5 * 365 * 24 * 60 * 60 * 1000) {
-      return res.status(400).json({ error: "A completed human match must include a registered, different Novyn opponent and valid match details." });
+      return res.status(400).json({ error: "A completed human match must include registered, different Novyn opponent accounts and valid match details." });
     }
     docs.push({
       _id: req.userKey + ":" + matchId,
@@ -1042,7 +1042,7 @@ app.post("/api/games/history", requireUser, requireCsrf, async (req, res) => {
   }
 });
 
-// Leaderboards are calculated from server-verified human match history.
+// Leaderboards aggregate persisted non-bot match records for registered accounts.
 app.get("/api/games/leaderboard", requireUser, async (req, res) => {
   if (!mongoGameHistoryCollection) {
     return res.status(503).json({ error: "Cloud game history is temporarily unavailable." });
