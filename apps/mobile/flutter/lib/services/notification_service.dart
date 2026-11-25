@@ -1100,6 +1100,38 @@ class NotificationService {
         _localNotifications.resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
     await androidNotifications?.createNotificationChannel(channel);
+    // FCM may display alert payloads directly from Android while the Dart
+    // process is stopped. Pre-create every channel ID sent by the backend so
+    // the OS never falls back to a low-importance default channel.
+    for (final base in const [
+      'novyn_messages',
+      'novyn_social',
+      'novyn_games',
+      'novyn_app_updates',
+    ]) {
+      for (final sound in const [true, false]) {
+        for (final vibration in const [true, false]) {
+          final id = _notificationChannelVariant(base, sound, vibration);
+          final name = base == 'novyn_messages'
+              ? 'Messages'
+              : base == 'novyn_social'
+                  ? 'Social notifications'
+                  : base == 'novyn_games'
+                      ? 'Novyn Games'
+                      : 'App updates';
+          await androidNotifications?.createNotificationChannel(
+            AndroidNotificationChannel(
+              id,
+              name,
+              description: 'Novyn notifications',
+              importance: Importance.max,
+              playSound: sound,
+              enableVibration: vibration,
+            ),
+          );
+        }
+      }
+    }
     await androidNotifications?.createNotificationChannel(
       const AndroidNotificationChannel(
         'novyn_incoming_calls',
@@ -1445,6 +1477,9 @@ class NotificationService {
       final payload = <String, dynamic>{
         'notificationsEnabled': settings.notificationsOn,
         'messagePreviewEnabled': settings.messagePreview,
+        'hideNotificationContent': settings.hideNotificationContent,
+        'doNotDisturbEnabled': settings.doNotDisturbEnabled,
+        'favoriteChatIds': settings.favoriteChatIds,
         'groupNotificationsEnabled': settings.groupNotifications,
         ...settings.notificationPreferencesPayload(),
       };
