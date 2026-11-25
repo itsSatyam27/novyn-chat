@@ -14,6 +14,7 @@ import '../raja_mantri/raja_mantri_lobby_screen.dart';
 import '../leaderboard/leaderboard_screen.dart';
 import '../invitations/game_invitations_screen.dart';
 import '../shared/room/game_room_screen.dart';
+import '../raja_mantri/raja_mantri_online_game_screen.dart';
 
 class GamesScreen extends StatefulWidget {
   const GamesScreen({super.key});
@@ -142,8 +143,17 @@ class _GamesScreenState extends State<GamesScreen> {
             if (!mounted) return;
             Navigator.of(sheetContext).pop();
             _showingInvitePopup = false;
-            if (invitation['game'] is Map &&
-                invitation['gameType']?.toString() != 'rajamantri') {
+            if (invitation['gameType']?.toString() == 'rajamantri') {
+              await Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => RajaMantriInviteWaitingScreen(
+                    messageId: id,
+                    hostName: invitation['displayName']?.toString() ??
+                        invitation['from']?.toString() ?? 'Friend',
+                  ),
+                ),
+              );
+            } else if (invitation['game'] is Map) {
               await Navigator.of(context).push<void>(
                 MaterialPageRoute<void>(
                   builder: (_) => GameRoomScreen(
@@ -189,9 +199,16 @@ class _GamesScreenState extends State<GamesScreen> {
 
   Future<void> _openInvitations() async {
     _searchFocusNode.unfocus();
+    final socket = _invitationSocket;
+    if (socket == null || !socket.isConnected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Reconnect to view game invitations.')),
+      );
+      return;
+    }
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
-        builder: (_) => GameInvitationsScreen(socket: _invitationSocket!),
+        builder: (_) => GameInvitationsScreen(socket: socket),
       ),
     );
     if (mounted) {
