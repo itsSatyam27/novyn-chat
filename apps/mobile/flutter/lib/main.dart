@@ -138,6 +138,7 @@ class NovynApp extends StatelessWidget {
           socket.restoreSessionForRecovery =
               auth.restoreSessionForSocketRecovery;
           socket.onProfileData = auth.applyProfileUpdate;
+          socket.onSessionRevoked = () { unawaited(auth.logout()); };
           auth.addListener(() {
             final signedInUser = auth.user;
             final cloudSettings = ctx.read<SettingsCloudSyncService>();
