@@ -5466,29 +5466,55 @@ async function setUserSuspended(rawUserKey, suspended, { disconnectSockets = tru
   const user = users.get(userKey);
   if (!user?.isRegistered) throw new Error("User not found.");
 
-  if (user.isSuspended !== suspended) {
-    const previousSuspended = user.isSuspended === true;
-    user.isSuspended = suspended;
+  if (suspended) {
+    if (user.isSuspended !== true) {
+      user.isSuspended = true;
+      try {
+        await flushStatePersistNow();
+      } catch (error) {
+        user.isSuspended = false;
+        throw error;
+      }
+    }
+
+    let sessionPersistenceError = null;
+    try {
+      await revokeRefreshSessionsAndPersist(Array.from(refreshByUser.get(userKey) || []));
+    } catch (error) {
+      // Keep the account suspended and close active transports even if the
+      // auth-session store is temporarily unavailable. A later unsuspend must
+      // persist revocation again before making the account usable.
+      sessionPersistenceError = error;
+    }
+
+    const peerKey = clearCallPair(userKey);
+    if (peerKey && onlineUsers.has(peerKey)) {
+      io.to(onlineUsers.get(peerKey)).emit("call_ended", {
+        by: userKey,
+        reason: "ended",
+      });
+    }
+    if (disconnectSockets) {
+      await disconnectUserSocketsForSecurity(userKey);
+    }
+    if (sessionPersistenceError) throw sessionPersistenceError;
+    return;
+  }
+
+  if (user.isSuspended === true) {
+    // Do not reactivate old remembered-device cookies if a previous suspension
+    // could not persist its refresh-session revocations.
+    await revokeRefreshSessionsAndPersist(Array.from(refreshByUser.get(userKey) || []));
+    user.isSuspended = false;
     try {
       await flushStatePersistNow();
     } catch (error) {
-      user.isSuspended = previousSuspended;
+      user.isSuspended = true;
+      try { await flushStatePersistNow(); } catch (rollbackError) {
+        console.error("[NovynAdmin] Could not restore suspended state:", rollbackError?.message || rollbackError);
+      }
       throw error;
     }
-  }
-
-  if (!suspended) return;
-
-  await revokeRefreshSessionsAndPersist(Array.from(refreshByUser.get(userKey) || []));
-  const peerKey = clearCallPair(userKey);
-  if (peerKey && onlineUsers.has(peerKey)) {
-    io.to(onlineUsers.get(peerKey)).emit("call_ended", {
-      by: userKey,
-      reason: "ended",
-    });
-  }
-  if (disconnectSockets) {
-    await disconnectUserSocketsForSecurity(userKey);
   }
 }
 
