@@ -5391,6 +5391,25 @@ async function updatePasswordAndRevokeSessions(rawUserKey, secret) {
   }
 }
 
+async function notifyAndDisconnectSessionSockets(sessionIds, message = "Your Novyn session was revoked. Please sign in again.") {
+  const ids = new Set((Array.isArray(sessionIds) ? sessionIds : [sessionIds])
+    .map((value) => toDisplayName(value))
+    .filter(Boolean));
+  if (!ids.size) return 0;
+  const targets = Array.from(io.sockets.sockets.values())
+    .filter((socket) => ids.has(toDisplayName(socket.data?.sessionId)));
+  for (const socket of targets) {
+    socket.emit("session_revoked", { message });
+  }
+  if (targets.length) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  for (const socket of targets) {
+    if (socket.connected) socket.disconnect(true);
+  }
+  return targets.length;
+}
+
 async function disconnectUserSocketsForSecurity(rawUserKey) {
   const userKey = normalizeName(rawUserKey);
   if (!userKey) return;
@@ -5451,12 +5470,7 @@ async function setUserSuspended(rawUserKey, suspended, { disconnectSockets = tru
     });
   }
   if (disconnectSockets) {
-    for (const socket of io.sockets.sockets.values()) {
-      if (normalizeName(socket.data?.userKey) === userKey) socket.disconnect(true);
-    }
-    onlineUsers.delete(userKey);
-    emitStatusToFriends(userKey);
-    emitDiscoverOnlineToAll();
+    await disconnectUserSocketsForSecurity(userKey);
   }
   await flushAuthStatePersistNow();
 }
@@ -6919,14 +6933,15 @@ app.post("/api/auth/refresh", createIpRateLimiter({ getStore: () => httpRateLimi
   res.json({ ok: true });
 });
 
-app.post("/api/auth/logout", createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-logout", 120, 15 * 60 * 1000), requireCsrf, (req, res) => {
+app.post("/api/auth/logout", createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-logout", 120, 15 * 60 * 1000), requireCsrf, async (req, res) => {
   const cookies = getAuthCookiesFromHeader(req.headers.cookie);
   const refreshPayload = verifyAuthToken(cookies.refreshToken, "refresh");
   if (refreshPayload?.jti) {
     revokeRefreshSession(refreshPayload.jti);
-    for (const client of io.sockets.sockets.values()) {
-      if (client.data.sessionId === refreshPayload.jti) client.disconnect(true);
-    }
+    await notifyAndDisconnectSessionSockets(
+      refreshPayload.jti,
+      "You signed out of this session. Please sign in again to reconnect.",
+    );
   }
   clearAuthCookies(res);
   res.json({ ok: true });
@@ -7074,7 +7089,7 @@ app.post("/api/auth/revoke-session",
   createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-revoke-session", 30, 15 * 60 * 1000),
   requireCsrf,
   requireUser,
-  (req, res) => {
+  async (req, res) => {
     const targetId = toDisplayName(req.body?.sessionId);
     const cookies = getAuthCookiesFromHeader(req.headers.cookie);
     const access = verifyAuthToken(cookies.accessToken, "access");
@@ -7090,9 +7105,10 @@ app.post("/api/auth/revoke-session",
       return;
     }
     revokeRefreshSession(targetId);
-    for (const client of io.sockets.sockets.values()) {
-      if (client.data.sessionId === targetId) client.disconnect(true);
-    }
+    await notifyAndDisconnectSessionSockets(
+      targetId,
+      "This device session was signed out from another device. Please sign in again.",
+    );
     res.json({ ok: true });
   }
 );
@@ -7101,7 +7117,7 @@ app.post("/api/auth/revoke-sessions",
   createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-revoke-sessions", 20, 15 * 60 * 1000),
   requireCsrf,
   requireUser,
-  (req, res) => {
+  async (req, res) => {
     const cookies = getAuthCookiesFromHeader(req.headers.cookie);
     const refreshPayload = verifyAuthToken(cookies.refreshToken, "refresh");
     const currentSessionId = toDisplayName(refreshPayload?.jti);
@@ -7112,15 +7128,16 @@ app.post("/api/auth/revoke-sessions",
 
     const userKey = normalizeName(req.userKey);
     const tokenIds = Array.from(refreshByUser.get(userKey) || []);
-    let revoked = 0;
+    const revokedIds = [];
     for (const tokenId of tokenIds) {
       if (tokenId === currentSessionId) continue;
-      if (revokeRefreshSession(tokenId)) revoked += 1;
-      for (const client of io.sockets.sockets.values()) {
-        if (client.data.sessionId === tokenId) client.disconnect(true);
-      }
+      if (revokeRefreshSession(tokenId)) revokedIds.push(tokenId);
     }
-    res.json({ ok: true, revoked });
+    await notifyAndDisconnectSessionSockets(
+      revokedIds,
+      "This device session was signed out from another device. Please sign in again.",
+    );
+    res.json({ ok: true, revoked: revokedIds.length });
   }
 );
 
