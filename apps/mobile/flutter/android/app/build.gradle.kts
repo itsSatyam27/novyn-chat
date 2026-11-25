@@ -16,10 +16,11 @@ if (keystorePropertiesFile.exists()) {
     keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
 }
 
-// Flutter's --target-platform limits Flutter engine artifacts, but Android
-// plugin AARs can still contribute JNI libraries for every ABI. Mirror the
-// requested Flutter target in Gradle so an ARM64 APK cannot package x86 or
-// 32-bit native libraries. Leave the filters unset for universal builds.
+// Flutter's --target-platform limits Flutter engine artifacts. Android
+// plugin AARs can still contribute JNI libraries for other ABIs, so the
+// packaging exclusions below keep the APK aligned with the requested target.
+// Do not set ndk.abiFilters here: Flutter's --split-per-abi enables Gradle ABI
+// splits, and Android Gradle Plugin rejects combining both filter mechanisms.
 val flutterTargetAbis = mapOf(
     "android-arm" to "armeabi-v7a",
     "android-arm64" to "arm64-v8a",
@@ -56,11 +57,6 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
 
-        if (requestedAndroidAbis.isNotEmpty()) {
-            ndk {
-                abiFilters.addAll(requestedAndroidAbis)
-            }
-        }
     }
 
     packaging {
