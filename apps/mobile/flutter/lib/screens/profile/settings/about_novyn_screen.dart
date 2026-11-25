@@ -213,7 +213,8 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
   }
 
   void _showInstallingSheet() {
-    final sizeMb = ((_apkSize ?? _updateService.expectedBytes) / 1000000).toStringAsFixed(1);
+    final sizeMb =
+        ((_apkSize ?? _updateService.expectedBytes) / 1000000).toStringAsFixed(1);
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -223,14 +224,19 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black54,
       builder: (sheetContext) {
+        final sheetTheme = Theme.of(sheetContext);
+        final sheetColors = sheetTheme.colorScheme;
+        final sheetPrimary = sheetColors.primary;
+        final muted = sheetColors.onSurfaceVariant;
         return SafeArea(
           top: false,
           child: Container(
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            decoration: BoxDecoration(
+              color: sheetColors.surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              border: Border.all(color: sheetColors.outlineVariant),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -239,7 +245,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFD9D3EA),
+                    color: muted.withValues(alpha: .35),
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -248,26 +254,26 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                   width: 60,
                   height: 60,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFEDE7FF),
+                    color: sheetPrimary.withValues(alpha: .12),
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: const Center(
+                  child: Center(
                     child: SizedBox(
                       width: 24,
                       height: 24,
                       child: CircularProgressIndicator(
                         strokeWidth: 2.5,
-                        color: Color(0xFF7048F8),
+                        color: sheetPrimary,
                       ),
                     ),
                   ),
                 ),
                 const SizedBox(height: 14),
-                const Text(
+                Text(
                   'Installing update...',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Color(0xFF1D1B2B),
+                    color: sheetColors.onSurface,
                     fontSize: 20,
                     letterSpacing: -.4,
                     fontWeight: FontWeight.w900,
@@ -276,8 +282,8 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                 const SizedBox(height: 4),
                 Text(
                   'Novyn ${_releaseName ?? 'Beta v1.1'} · $sizeMb MB',
-                  style: const TextStyle(
-                    color: Color(0xFF777487),
+                  style: TextStyle(
+                    color: muted,
                     fontSize: 13.5,
                     fontWeight: FontWeight.w500,
                   ),
@@ -285,18 +291,18 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                 const SizedBox(height: 20),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(6),
-                  child: const LinearProgressIndicator(
+                  child: LinearProgressIndicator(
                     minHeight: 6,
-                    backgroundColor: Color(0xFFEDE7FF),
-                    color: Color(0xFF7048F8),
+                    backgroundColor: sheetPrimary.withValues(alpha: .14),
+                    color: sheetPrimary,
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
+                Text(
                   'Novyn will restart when this finishes',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Color(0xFF777487),
+                    color: muted,
                     fontSize: 12.5,
                   ),
                 ),
@@ -318,16 +324,26 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black54,
       builder: (sheetContext) {
-        final sizeMb = ((_apkSize ?? _updateService.expectedBytes) / 1000000)
-            .toStringAsFixed(1);
+        final sizeMb =
+            ((_apkSize ?? _updateService.expectedBytes) / 1000000).toStringAsFixed(1);
+        final theme = Theme.of(sheetContext);
+        final colors = theme.colorScheme;
+        final primary = colors.primary;
+        final muted = colors.onSurfaceVariant;
+        final buttonEnd = Color.lerp(
+          primary,
+          Colors.black,
+          theme.brightness == Brightness.dark ? .16 : .08,
+        )!;
         return SafeArea(
           top: false,
           child: Container(
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              border: Border.all(color: colors.outlineVariant),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -336,7 +352,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFD9D3EA),
+                    color: muted.withValues(alpha: .35),
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -345,27 +361,41 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                   width: 60,
                   height: 60,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFEDE7FF),
+                    color: primary.withValues(alpha: .12),
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: const Icon(Icons.install_mobile_rounded,
-                    color: Color(0xFF7048F8), size: 30),
+                  child: Icon(
+                    Icons.install_mobile_rounded,
+                    color: primary,
+                    size: 30,
+                  ),
                 ),
                 const SizedBox(height: 12),
-                const Text('Update ready to install',
+                Text(
+                  'Update ready to install',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Color(0xFF1D1B2B), fontSize: 20,
-                    letterSpacing: -.4, fontWeight: FontWeight.w900)),
+                  style: TextStyle(
+                    color: colors.onSurface,
+                    fontSize: 20,
+                    letterSpacing: -.4,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
                 const SizedBox(height: 3),
-                Text('${_releaseName ?? 'New update'} · $sizeMb MB',
-                  style: const TextStyle(color: Color(0xFF777487), fontSize: 13.5,
-                    fontWeight: FontWeight.w500)),
+                Text(
+                  '${_releaseName ?? 'New update'} · $sizeMb MB',
+                  style: TextStyle(
+                    color: muted,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
                 const SizedBox(height: 14),
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF6F3FC),
+                    color: colors.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Column(
@@ -384,13 +414,17 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                   height: 50,
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF8052FF), Color(0xFF6741F4)],
+                      gradient: LinearGradient(
+                        colors: [primary, buttonEnd],
                       ),
                       borderRadius: BorderRadius.circular(16),
-                      boxShadow: const [BoxShadow(
-                        color: Color(0x337048F8), blurRadius: 16,
-                        offset: Offset(0, 5))],
+                      boxShadow: [
+                        BoxShadow(
+                          color: primary.withValues(alpha: .22),
+                          blurRadius: 16,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
                     ),
                     child: Material(
                       color: Colors.transparent,
@@ -400,12 +434,20 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                         child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.install_mobile_rounded,
-                              color: Colors.white, size: 18),
+                            Icon(
+                              Icons.install_mobile_rounded,
+                              color: Colors.white,
+                              size: 18,
+                            ),
                             SizedBox(width: 8),
-                            Text('Install update', style: TextStyle(
-                              color: Colors.white, fontSize: 14.5,
-                              fontWeight: FontWeight.w800)),
+                            Text(
+                              'Install update',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -415,14 +457,21 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                 const SizedBox(height: 4),
                 TextButton(
                   onPressed: () => Navigator.of(sheetContext).pop(false),
-                  child: const Text('Later', style: TextStyle(
-                    color: Color(0xFF777487), fontSize: 14,
-                    fontWeight: FontWeight.w700)),
+                  child: Text(
+                    'Later',
+                    style: TextStyle(
+                      color: muted,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 4),
-                const Text('Novyn will restart after installing',
+                Text(
+                  'Novyn will restart after installing',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Color(0xFF777487), fontSize: 12.5)),
+                  style: TextStyle(color: muted, fontSize: 12.5),
+                ),
               ],
             ),
           ),
@@ -449,7 +498,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
     final muted = dark ? const Color(0xFFC4C1DD) : const Color(0xFF777487);
     final surface = dark ? const Color(0xFF171622) : Colors.white;
     final border = dark ? const Color(0xFF39345F) : const Color(0xFFE5DFFF);
-    const primary = Color(0xFF7048F8);
+    final primary = Theme.of(context).colorScheme.primary;
     final updateNotes = _displayReleaseNotes();
     final activeDownload = !_ready &&
         (_downloading || _paused || _updateService.hasPartialDownload);
@@ -591,20 +640,20 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                           borderRadius: BorderRadius.circular(15),
                         ),
                         child: (_checking || _installing)
-                            ? const Center(
+                            ? Center(
                                 child: SizedBox(
                                   width: 20,
                                   height: 20,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2.2,
-                                    color: Color(0xFF7048F8),
+                                    color: primary,
                                   ),
                                 ),
                               )
                             : (_available || activeDownload || _ready)
-                                ? const Icon(
+                                ? Icon(
                                     Icons.download_rounded,
-                                    color: Color(0xFF7048F8),
+                                    color: primary,
                                     size: 24,
                                   )
                                 : (!_checking && _status != null && !_status!.toLowerCase().contains('up to date'))
@@ -1104,20 +1153,28 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
     required Future<void> Function()? onTap,
   }) {
     final enabled = onTap != null;
+    final theme = Theme.of(context);
+    final primary = theme.colorScheme.primary;
+    final buttonColor = enabled
+        ? primary
+        : Color.lerp(primary, theme.colorScheme.surface, .42)!;
+    final buttonEnd = Color.lerp(buttonColor, Colors.black, .12)!;
     return SizedBox(
       height: 54,
       child: DecoratedBox(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: enabled
-                ? const [Color(0xFF8052FF), Color(0xFF6741F4)]
-                : const [Color(0xFFB7A7ED), Color(0xFFA895E8)],
+            colors: [buttonColor, buttonEnd],
           ),
           borderRadius: BorderRadius.circular(18),
           boxShadow: enabled
-              ? const [BoxShadow(
-                  color: Color(0x337048F8), blurRadius: 18,
-                  offset: Offset(0, 6))]
+              ? [
+                  BoxShadow(
+                    color: primary.withValues(alpha: .22),
+                    blurRadius: 18,
+                    offset: const Offset(0, 6),
+                  ),
+                ]
               : const [],
         ),
         child: Material(

@@ -1511,8 +1511,9 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
       ('groups', 'Groups'),
       ('favorites', 'Favourites'),
     ];
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    const primary = Color(0xFF5E44F3);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primary = theme.colorScheme.primary;
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -1545,7 +1546,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
                       BoxShadow(
                         color: _selectedTab == item.$1
                             ? primary.withValues(alpha: 0.28)
-                            : (isDark ? Colors.black26 : const Color(0xFF5E44F3).withValues(alpha: 0.04)),
+                            : (isDark ? Colors.black26 : primary.withValues(alpha: 0.04)),
                         blurRadius: 10,
                         offset: const Offset(0, 3),
                       ),

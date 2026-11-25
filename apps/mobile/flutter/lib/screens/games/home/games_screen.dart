@@ -7,6 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/game_history_service.dart';
 import '../../../services/socket_service.dart';
+import '../../../theme/novyn_theme.dart';
+import '../../../widgets/novyn_ui.dart';
 import '../../../widgets/user_avatar.dart';
 import '../shared/history/game_history_screen.dart';
 import '../shared/lobby/game_lobby_screen.dart';
@@ -360,7 +362,9 @@ class _GamesScreenState extends State<GamesScreen> {
           }
         },
         child: Scaffold(
-          backgroundColor: isDark ? const Color(0xFF141026) : const Color(0xFFF4F2FA),
+          backgroundColor: isDark
+              ? NovynTheme.pageBg(context)
+              : const Color(0xFFF3EFFA),
           body: SafeArea(
             child: ListView(
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -375,16 +379,19 @@ class _GamesScreenState extends State<GamesScreen> {
                           'Games',
                           style: TextStyle(
                             fontFamily: 'PlusJakartaSans',
-                            fontSize: 27,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -0.8,
-                            color: isDark ? Colors.white : const Color(0xFF1E1A33),
+                            fontSize: 36,
+                            height: 1.12,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: -1.25,
+                            color: Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
                       ),
-                      _GamesHeaderAction(
+                      NovynIconButton(
                         icon: _showSearch ? Icons.close_rounded : Icons.search_rounded,
-                        tooltip: _showSearch ? 'Close search' : 'Search games',
+                        size: 46,
+                        radius: 18,
+                        iconSize: 22,
                         onTap: () {
                           setState(() {
                             _showSearch = !_showSearch;
@@ -402,11 +409,18 @@ class _GamesScreenState extends State<GamesScreen> {
                         },
                       ),
                       const SizedBox(width: 10),
-                      _GamesHeaderAction(
-                        icon: Icons.mail_outline_rounded,
-                        tooltip: 'Game invitations',
-                        badgeCount: _pendingInviteCount,
-                        onTap: _openInvitations,
+                      _GamesOverflowMenu(
+                        pendingInviteCount: _pendingInviteCount,
+                        onInvitations: _openInvitations,
+                        onLeaderboard: () {
+                          _searchFocusNode.unfocus();
+                          Navigator.of(context).push<void>(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const LeaderboardScreen(),
+                            ),
+                          );
+                        },
+                        onHistory: () => _openHistory(username),
                       ),
                     ],
                   ),
@@ -438,11 +452,15 @@ class _GamesScreenState extends State<GamesScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Container(
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF201B36) : Colors.white,
+                        color: Theme.of(context).colorScheme.surface,
                         borderRadius: BorderRadius.circular(30),
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.outlineVariant,
+                        ),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF5E44F3).withValues(alpha: isDark ? 0.08 : 0.04),
+                            color: Theme.of(context).colorScheme.primary
+                                .withValues(alpha: isDark ? 0.08 : 0.04),
                             blurRadius: 14,
                             offset: const Offset(0, 4),
                           ),
@@ -453,20 +471,28 @@ class _GamesScreenState extends State<GamesScreen> {
                         focusNode: _searchFocusNode,
                         textInputAction: TextInputAction.search,
                         onSubmitted: (_) => _searchFocusNode.unfocus(),
-                        cursorColor: const Color(0xFF5E44F3),
+                        cursorColor: Theme.of(context).colorScheme.primary,
                         onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: isDark ? Colors.white : const Color(0xFF1E1A33),
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           isDense: true,
                           border: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                          prefixIcon: Icon(Icons.search_rounded, size: 22, color: Color(0xFF7E7A9C)),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                          prefixIcon: Icon(
+                            Icons.search_rounded,
+                            size: 22,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
                           hintText: 'Search games',
-                          hintStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF7E7A9C)),
+                          hintStyle: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
                         ),
                       ),
                     ),
@@ -550,58 +576,173 @@ class _GamesScreenState extends State<GamesScreen> {
   }
 }
 
-class _GamesHeaderAction extends StatelessWidget {
-  const _GamesHeaderAction({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-    this.badgeCount = 0,
+enum _GamesMenuAction { invitations, leaderboard, history }
+
+class _GamesOverflowMenu extends StatelessWidget {
+  const _GamesOverflowMenu({
+    required this.pendingInviteCount,
+    required this.onInvitations,
+    required this.onLeaderboard,
+    required this.onHistory,
   });
 
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-  final int badgeCount;
+  final int pendingInviteCount;
+  final VoidCallback onInvitations;
+  final VoidCallback onLeaderboard;
+  final VoidCallback onHistory;
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: isDark ? const Color(0xFF292241) : Colors.white,
-        shape: const CircleBorder(),
-        child: InkWell(
-          onTap: onTap,
-          customBorder: const CircleBorder(),
-          child: SizedBox(
-            width: 42,
-            height: 42,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Center(child: Icon(icon, size: 21, color: const Color(0xFF6848F5))),
-                if (badgeCount > 0)
-                  Positioned(
-                    top: 3,
-                    right: 2,
-                    child: Container(
-                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      alignment: Alignment.center,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFE54868),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Text(
-                        badgeCount > 9 ? '9+' : '$badgeCount',
-                        style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900),
-                      ),
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final accent = colors.primary;
+
+    Widget menuRow(IconData icon, String title, {int badge = 0}) {
+      return SizedBox(
+        width: 204,
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: .11),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              alignment: Alignment.center,
+              child: Icon(icon, size: 19, color: accent),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontFamily: 'PlusJakartaSans',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: colors.onSurface,
+                ),
+              ),
+            ),
+            if (badge > 0)
+              Container(
+                constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: accent,
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  badge > 99 ? '99+' : '$badge',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+
+    return PopupMenuButton<_GamesMenuAction>(
+      tooltip: 'More game options',
+      position: PopupMenuPosition.under,
+      offset: const Offset(0, 10),
+      padding: EdgeInsets.zero,
+      color: colors.surface,
+      surfaceTintColor: Colors.transparent,
+      elevation: 10,
+      shadowColor: Colors.black.withValues(alpha: .16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      constraints: const BoxConstraints(minWidth: 232),
+      onSelected: (action) {
+        switch (action) {
+          case _GamesMenuAction.invitations:
+            onInvitations();
+            break;
+          case _GamesMenuAction.leaderboard:
+            onLeaderboard();
+            break;
+          case _GamesMenuAction.history:
+            onHistory();
+            break;
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem<_GamesMenuAction>(
+          value: _GamesMenuAction.invitations,
+          height: 56,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: menuRow(
+            Icons.mail_outline_rounded,
+            'Game invitations',
+            badge: pendingInviteCount,
+          ),
+        ),
+        PopupMenuItem<_GamesMenuAction>(
+          value: _GamesMenuAction.leaderboard,
+          height: 56,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: menuRow(Icons.emoji_events_outlined, 'Leaderboard'),
+        ),
+        PopupMenuItem<_GamesMenuAction>(
+          value: _GamesMenuAction.history,
+          height: 56,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: menuRow(Icons.history_rounded, 'Match history'),
+        ),
+      ],
+      child: Container(
+        width: 46,
+        height: 46,
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: colors.outlineVariant),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: theme.brightness == Brightness.dark ? .12 : .035),
+              blurRadius: 12,
+              offset: const Offset(0, 7),
+            ),
+          ],
+        ),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Center(
+              child: Icon(
+                Icons.more_horiz_rounded,
+                size: 24,
+                color: colors.onSurface,
+              ),
+            ),
+            if (pendingInviteCount > 0)
+              Positioned(
+                top: 3,
+                right: 3,
+                child: Container(
+                  constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: accent,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    pendingInviteCount > 9 ? '9+' : '$pendingInviteCount',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
-              ],
-            ),
-          ),
+                ),
+              ),
+          ],
         ),
       ),
     );
