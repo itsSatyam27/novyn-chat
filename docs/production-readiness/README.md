@@ -9,6 +9,7 @@ This branch is a staged production-hardening effort. Do not treat the checklist 
 - [x] Auth token creation reserves `sub`, `kind`, `iat`, and `exp` against metadata overrides; verification explicitly requires the signed `HS256` / `JWT` header. Regression tests cover reserved-claim overrides and unsupported signed headers.
 - [x] SIGTERM/SIGINT shutdown waits for startup to settle, drains Socket.IO and HTTP, stops background timers, flushes application/auth state, then closes MongoDB. A bounded timeout forces a non-zero exit; persistence/storage failures also produce a non-zero exit. Unit and real Socket.IO/HTTP integration tests cover ordering and failure handling.
 - [x] Web SPA and legacy browser auth now coalesce concurrent refresh calls into one in-flight request, preventing duplicate submissions of a rotating refresh cookie. Tests exercise concurrent calls and retry after completion/failure.
+- [x] Encrypted identity-backup writes acknowledge success only after the state snapshot is durably flushed; failed writes restore the previous in-memory values and return an error. Integration coverage reads the persisted file immediately after the success acknowledgement.
 - [x] CI validation now runs on pushes to `production-readiness` and for pull requests targeting it.
 
 ## Release gates

@@ -243,7 +243,7 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   );
   assert.equal(bobIdentityBackup.ok, true);
   assert.equal(bobIdentityBackup.backup, null, 'a user cannot read another account?s recovery envelope');
-  await new Promise((resolve) => setTimeout(resolve, 250));
+  // The success acknowledgement is sent only after durable persistence completes.
   const persistedIdentityState = JSON.parse(
     await fs.readFile(path.join(directory, 'data', 'chat-state.json'), 'utf8'),
   );

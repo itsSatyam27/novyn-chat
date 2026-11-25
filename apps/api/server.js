@@ -10197,7 +10197,7 @@ io.on("connection", (socket) => {
     respond({ username: target?.username || targetName, publicKey });
   });
 
-  socket.on("save_e2ee_identity_backup", (payload, callback) => {
+  socket.on("save_e2ee_identity_backup", async (payload, callback) => {
     const respond = typeof callback === "function" ? callback : (data) => socket.emit("e2ee_identity_backup_saved", data);
     const userKey = socket.data.userKey;
     const user = userKey ? users.get(userKey) : null;
@@ -10233,10 +10233,21 @@ io.on("connection", (socket) => {
       respond({ ok: false, message: "The encrypted identity backup is too large." });
       return;
     }
+    const previousBackup = user.e2eeIdentityBackup;
+    const previousPublicKey = user.e2eeIdentityBackupPublicKey;
     user.e2eeIdentityBackup = serialized;
     user.e2eeIdentityBackupPublicKey = publicKey;
-    schedulePersist();
-    respond({ ok: true });
+
+    try {
+      // Do not acknowledge success until the backup is durably persisted.
+      await flushStatePersistNow();
+      respond({ ok: true });
+    } catch (error) {
+      user.e2eeIdentityBackup = previousBackup;
+      user.e2eeIdentityBackupPublicKey = previousPublicKey;
+      console.error("Failed to persist encrypted identity backup:", error?.message || error);
+      respond({ ok: false, message: "Could not save the encrypted identity backup. Please try again." });
+    }
   });
 
   socket.on("get_e2ee_identity_backup", (_payload, callback) => {
