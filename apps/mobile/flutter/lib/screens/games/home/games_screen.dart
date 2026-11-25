@@ -191,10 +191,13 @@ class _GamesScreenState extends State<GamesScreen> {
     _searchFocusNode.unfocus();
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
-        builder: (_) => const GameInvitationsScreen(),
+        builder: (_) => GameInvitationsScreen(socket: _invitationSocket!),
       ),
     );
-    if (mounted) unawaited(_loadPendingInvitations());
+    if (mounted) {
+      _invitationSocket?.onGameInvitationReceived = _handleIncomingGameInvitation;
+      unawaited(_loadPendingInvitations());
+    }
   }
 
   Future<void> _loadLastPlayed() async {
