@@ -993,17 +993,21 @@ app.post("/api/games/history", requireUser, requireCsrf, async (req, res) => {
     if (item?.isBotMatch === true || item?.opponentType === "bot") continue;
     const matchId = toDisplayName(item?.id || item?.matchId).slice(0, 160);
     const gameType = toDisplayName(item?.gameType).toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 40);
-    const opponent = toDisplayName(item?.opponent).slice(0, 64);
-    const opponentKey = normalizeName(opponent);
-    const opponentAccount = opponentKey ? users.get(opponentKey) : null;
+    const opponent = toDisplayName(item?.opponent).slice(0, 192);
+    const opponentNames = opponent.split(",").map((name) => name.trim()).filter(Boolean);
+    const opponentKeys = opponentNames.map(normalizeName);
+    const allOpponentsRegistered = opponentKeys.length > 0 &&
+      new Set(opponentKeys).size === opponentKeys.length &&
+      opponentKeys.every((opponentKey) =>
+        opponentKey !== req.userKey && users.get(opponentKey)?.isRegistered
+      );
     const result = ["win", "loss", "draw"].includes(item?.result) ? item.result : "";
     const playedAt = new Date(item?.playedAt);
-    // A client flag is not proof that a match was human-vs-human. Require the
-    // opponent to resolve to a registered Novyn account on the server.
+    // A client flag is not proof that a match was human-vs-human. Require every
+    // recorded opponent (including multiplayer opponents) to be a registered account.
     if (!matchId || !allowedGames.has(gameType) || !opponent ||
-        !opponentKey || opponentKey === req.userKey ||
-        !opponentAccount?.isRegistered || !result ||
-        /^(ai|bot)(\b|[_ -])/i.test(opponent) ||
+        !allOpponentsRegistered || !result ||
+        opponentNames.some((name) => /^(ai|bot)(\b|[_ -])/i.test(name)) ||
         !Number.isFinite(playedAt.getTime()) ||
         playedAt.getTime() > Date.now() + 5 * 60 * 1000 ||
         playedAt.getTime() < Date.now() - 5 * 365 * 24 * 60 * 60 * 1000) {
