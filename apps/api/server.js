@@ -14,6 +14,7 @@ const { registerMessageMutationHandlers } = require("./server/realtime/message-m
 const { registerCallHandlers, cancelCallForUser } = require("./server/realtime/call-handlers");
 const { applyGameMove, createGameChallenge } = require("./server/realtime/game-rules");
 const { PublicGameMatchmaking } = require("./server/realtime/game-matchmaking");
+const { buildGameLeaderboard, normalizeLeaderboardGame } = require("./game-leaderboard");
 const { RajaMantriMatchmaking } = require("./server/realtime/raja-mantri-matchmaking");
 const {
   createRajaMantriGameSession,
@@ -1034,6 +1035,85 @@ app.post("/api/games/history", requireUser, requireCsrf, async (req, res) => {
   } catch (error) {
     console.warn("[NovynGames] History write failed:", error?.message || error);
     return res.status(503).json({ error: "Cloud game history could not be saved." });
+  }
+});
+
+// Leaderboards are calculated from server-verified human match history.
+app.get("/api/games/leaderboard", requireUser, async (req, res) => {
+  if (!mongoGameHistoryCollection) {
+    return res.status(503).json({ error: "Cloud game history is temporarily unavailable." });
+  }
+
+  const scope = String(req.query.scope || "friends").toLowerCase();
+  if (!["friends", "global"].includes(scope)) {
+    return res.status(400).json({ error: "Choose Friends or Global leaderboard." });
+  }
+
+  const game = normalizeLeaderboardGame(req.query.game || "overall");
+  if (!game || !["overall", "tictactoe", "rps", "rajamantri"].includes(game)) {
+    return res.status(400).json({ error: "Choose a supported game leaderboard." });
+  }
+
+  const viewer = users.get(req.userKey);
+  if (!viewer?.isRegistered || viewer.isSuspended === true) {
+    return res.status(403).json({ error: "A registered account is required for leaderboards." });
+  }
+
+  try {
+    const eligibleUsers = new Map([[req.userKey, viewer]]);
+    if (scope === "friends") {
+      for (const rawFriendKey of viewer.friends || []) {
+        const friendKey = normalizeName(rawFriendKey);
+        const friend = users.get(friendKey);
+        if (!friendKey || !friend?.isRegistered || friend.isSuspended === true ||
+            usersAreBlocked(req.userKey, friendKey)) {
+          continue;
+        }
+        eligibleUsers.set(friendKey, friend);
+      }
+    } else {
+      for (const [userKey, user] of users.entries()) {
+        if (!user?.isRegistered || user.isSuspended === true) continue;
+        if (userKey !== req.userKey && usersAreBlocked(req.userKey, userKey)) continue;
+        eligibleUsers.set(userKey, user);
+      }
+    }
+
+    const historyQuery = { isBotMatch: { $ne: true } };
+    if (scope === "friends") {
+      historyQuery.userKey = { $in: Array.from(eligibleUsers.keys()) };
+    }
+    const matches = await mongoGameHistoryCollection
+      .find(historyQuery, {
+        projection: {
+          _id: 0,
+          userKey: 1,
+          gameType: 1,
+          result: 1,
+          playedAt: 1,
+          isBotMatch: 1,
+        },
+      })
+      .sort({ userKey: 1, playedAt: 1 })
+      .toArray();
+
+    const rankings = buildGameLeaderboard({
+      matches,
+      users: eligibleUsers,
+      viewerKey: req.userKey,
+      selectedGame: game,
+    });
+    return res.json({
+      ok: true,
+      scope,
+      game,
+      totalPlayers: rankings.length,
+      rankings: rankings.slice(0, 100),
+      myEntry: rankings.find((entry) => entry.isSelf) || null,
+    });
+  } catch (error) {
+    console.warn("[NovynGames] Leaderboard read failed:", error?.message || error);
+    return res.status(503).json({ error: "Leaderboard is temporarily unavailable." });
   }
 });
 
@@ -3591,6 +3671,16 @@ async function initializeMongo() {
     mongoAuthSessionsCollection = mongoStorage.getCollection("auth_sessions");
     mongoMediaCollection = mongoStorage.getCollection("media");
     mongoGameHistoryCollection = mongoStorage.getCollection("game_history");
+    if (mongoGameHistoryCollection?.createIndex) {
+      try {
+        await mongoGameHistoryCollection.createIndex(
+          { userKey: 1, playedAt: 1 },
+          { name: "game_history_user_played_at" }
+        );
+      } catch (error) {
+        console.warn("[NovynGames] Leaderboard index setup deferred:", error?.message || error);
+      }
+    }
     if (mongoMediaCollection) {
       const storedMedia = await mongoMediaCollection.find({}).toArray();
       for (const item of storedMedia) {
