@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import { singleFlight } from '../services/single-flight';
 import { UserProfile } from '../types';
 import { apiRequest } from '../services/api';
 import { connectSocket, disconnectSocket } from '../services/socket';
@@ -46,7 +47,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     connectSocket();
   };
 
-  const refreshSession = async () => {
+  const refreshSession = useMemo(() => singleFlight(async () => {
     setIsLoading(true);
     const maxAttempts = 10;
 
@@ -87,11 +88,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setIsLoading(false);
     }
-  };
+  }), []);
 
   useEffect(() => {
-    refreshSession();
-  }, []);
+    void refreshSession();
+  }, [refreshSession]);
 
   const login = async ({ identifier, password, remember = true }: { identifier: string; password: string; remember?: boolean }) => {
     const res = await apiRequest('/api/auth/signin', {

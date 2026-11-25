@@ -75,11 +75,22 @@
     return request("/api/auth/session", { method: "GET" });
   }
 
-  async function refreshSession() {
-    return request("/api/auth/refresh", {
+  let refreshInFlight = null;
+
+  function refreshSession() {
+    if (refreshInFlight) return refreshInFlight;
+    const pending = request("/api/auth/refresh", {
       method: "POST",
       cache: "no-store",
+    }).then((result) => {
+      if (refreshInFlight === pending) refreshInFlight = null;
+      return result;
+    }, (error) => {
+      if (refreshInFlight === pending) refreshInFlight = null;
+      throw error;
     });
+    refreshInFlight = pending;
+    return pending;
   }
 
   async function logout() {
