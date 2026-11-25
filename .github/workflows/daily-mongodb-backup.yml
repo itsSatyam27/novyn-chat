@@ -89,7 +89,7 @@ jobs:
             gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
               --decrypt --output "$VERIFY_ARCHIVE" "$ENCRYPTED_ARCHIVE"
           cmp --silent "$RAW_ARCHIVE" "$VERIFY_ARCHIVE"
-          sha256sum "$ENCRYPTED_ARCHIVE" > "$ENCRYPTED_ARCHIVE.sha256"
+          (cd "$RUNNER_TEMP" && sha256sum "$(basename "$ENCRYPTED_ARCHIVE")" > "$(basename "$ENCRYPTED_ARCHIVE").sha256")
           rm -f "$RAW_ARCHIVE" "$VERIFY_ARCHIVE"
 
       - name: Upload encrypted backup and checksum (90-day retention)
