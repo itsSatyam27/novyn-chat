@@ -6348,7 +6348,8 @@ app.post(
       return;
     }
 
-    let userChanged = false;
+    // A newly created Google account must be durably written before cookies are issued.
+    let userChanged = Boolean(createdAccount);
     if (toDisplayName(user.googleUid) !== googleUid) {
       user.googleUid = googleUid;
       userChanged = true;
