@@ -501,7 +501,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
     final muted = dark ? const Color(0xFFC4C1DD) : const Color(0xFF777487);
     final surface = dark ? const Color(0xFF171622) : Colors.white;
     final border = dark ? const Color(0xFF39345F) : const Color(0xFFE5DFFF);
-    const primary = Color(0xFF7048F8);
+    final primary = Theme.of(context).colorScheme.primary;
     final updateNotes = _displayReleaseNotes();
     final activeDownload = !_ready &&
         (_downloading || _paused || _updateService.hasPartialDownload);
@@ -643,20 +643,20 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                           borderRadius: BorderRadius.circular(15),
                         ),
                         child: (_checking || _installing)
-                            ? const Center(
+                            ? Center(
                                 child: SizedBox(
                                   width: 20,
                                   height: 20,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2.2,
-                                    color: Color(0xFF7048F8),
+                                    color: primary,
                                   ),
                                 ),
                               )
                             : (_available || activeDownload || _ready)
-                                ? const Icon(
+                                ? Icon(
                                     Icons.download_rounded,
-                                    color: Color(0xFF7048F8),
+                                    color: primary,
                                     size: 24,
                                   )
                                 : (!_checking && _status != null && !_status!.toLowerCase().contains('up to date'))
@@ -1156,20 +1156,28 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
     required Future<void> Function()? onTap,
   }) {
     final enabled = onTap != null;
+    final theme = Theme.of(context);
+    final primary = theme.colorScheme.primary;
+    final buttonColor = enabled
+        ? primary
+        : Color.lerp(primary, theme.colorScheme.surface, .42)!;
+    final buttonEnd = Color.lerp(buttonColor, Colors.black, .12)!;
     return SizedBox(
       height: 54,
       child: DecoratedBox(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: enabled
-                ? const [Color(0xFF8052FF), Color(0xFF6741F4)]
-                : const [Color(0xFFB7A7ED), Color(0xFFA895E8)],
+            colors: [buttonColor, buttonEnd],
           ),
           borderRadius: BorderRadius.circular(18),
           boxShadow: enabled
-              ? const [BoxShadow(
-                  color: Color(0x337048F8), blurRadius: 18,
-                  offset: Offset(0, 6))]
+              ? [
+                  BoxShadow(
+                    color: primary.withValues(alpha: .22),
+                    blurRadius: 18,
+                    offset: const Offset(0, 6),
+                  ),
+                ]
               : const [],
         ),
         child: Material(
@@ -1187,8 +1195,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
         ),
       ),
     );
-  }
-}
+  }}
 
 class _UpdateNote extends StatelessWidget {
   const _UpdateNote({required this.text});
