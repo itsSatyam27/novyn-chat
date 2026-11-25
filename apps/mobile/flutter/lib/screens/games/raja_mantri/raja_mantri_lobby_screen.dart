@@ -810,7 +810,7 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
                       enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(28), borderSide: BorderSide.none),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(28),
-                        borderSide: const BorderSide(color: accent, width: 1.5),
+                        borderSide: BorderSide(color: accent, width: 1.5),
                       ),
                       suffixIcon: _searchController.text.isEmpty
                           ? null
@@ -1178,7 +1178,7 @@ class _RMWaitingRoomSheet extends StatelessWidget {
                                 if (member.isBot)
                                   const Text('Bot player', style: TextStyle(color: Color(0xFF0D9488), fontSize: 11, fontWeight: FontWeight.w700)),
                                 if (member.isHost)
-                                  const Text('Room owner', style: TextStyle(color: accent, fontSize: 11, fontWeight: FontWeight.w700)),
+                                  Text('Room owner', style: TextStyle(color: accent, fontSize: 11, fontWeight: FontWeight.w700)),
                               ],
                             ),
                           ),
@@ -1407,7 +1407,7 @@ class _RajaMantriSearchingScreen extends StatelessWidget {
                                     const SizedBox(width: 10),
                                     Text(
                                       '0:${seconds.toString().padLeft(2, '0')}',
-                                      style: const TextStyle(color: accent, fontWeight: FontWeight.w800, fontSize: 16),
+                                      style: TextStyle(color: accent, fontWeight: FontWeight.w800, fontSize: 16),
                                     ),
                                   ],
                                 ),
