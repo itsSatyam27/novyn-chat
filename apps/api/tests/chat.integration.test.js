@@ -655,8 +655,9 @@ test('localhost discovery, requests, reconnect state, and private media', { time
 
   // Profile photos are private media too: Everyone must be viewable by a
   // non-friend, while Friends must allow Bob but deny Eve.
+  const avatarBytes = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX4kAAAAASUVORK5CYII=", "base64");
   const avatarForm = new FormData();
-  avatarForm.append('file', new Blob(['alice avatar bytes'], { type: 'image/png' }), 'avatar.png');
+  avatarForm.append('file', new Blob([avatarBytes], { type: 'image/png' }), 'avatar.png');
   const avatarUpload = await fetch(`${base}/upload-file`, {
     method: 'POST', headers: { Cookie: alice.cookie }, body: avatarForm,
   });
@@ -677,7 +678,7 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   assert.equal((await bobAvatarUpdated).avatarId, avatarMedia.url);
   const bobAvatar = await fetch(base + avatarMedia.url, { headers: { Cookie: bob.cookie } });
   assert.equal(bobAvatar.status, 200, await bobAvatar.clone().text());
-  assert.equal(await bobAvatar.text(), 'alice avatar bytes');
+  assert.deepEqual(Buffer.from(await bobAvatar.arrayBuffer()), avatarBytes);
 
   const ownFriendsPrivacy = event(
     alice.socket,
@@ -868,8 +869,9 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   assert.equal((await fetch(base + media.url, { headers: { Cookie: bob.cookie } })).status, 200);
 
   // Voice notes uploaded through the shared file endpoint must accept supported audio MIME types.
+  const audioBytes = Buffer.from("0000001c667479704d34412000000200", "hex");
   const audioForm = new FormData();
-  audioForm.append('file', new Blob([Buffer.from([1, 2, 3, 4])], { type: 'audio/mp4' }), 'voice_note.m4a');
+  audioForm.append('file', new Blob([audioBytes], { type: 'audio/mp4' }), 'voice_note.m4a');
   const audioUpload = await fetch(`${base}/upload-file`, { method: 'POST', headers: { Cookie: alice.cookie }, body: audioForm });
   assert.equal(audioUpload.status, 200, await audioUpload.clone().text());
   const audioMedia = await audioUpload.json();
