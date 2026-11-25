@@ -2944,6 +2944,8 @@ async function sendPushToUser(userKey, payload) {
   if (!userKey) return;
   const user = users.get(userKey);
   if (!user || user.notificationsEnabled === false) return;
+  const presenceMode = normalizePresenceMode(user.presenceMode);
+  if (presenceMode === "busy" || presenceMode === "invisible") return;
   if (!shouldDeliverNotification(user, payload)) return;
   if (["message", "game_invitation", "game_turn", "game_result"].includes(String(payload?.type || ""))) {
     const conversationKey = payload?.group === true
