@@ -30,6 +30,7 @@ const webpush = require("web-push");
 const { cloudinary, hasCloudinaryConfig } = require("./cloudinary");
 const { createChatAuthorization } = require("./server/chat/authorization");
 const { createIpRateLimiter, getSocketClientIp, pruneHttpRateLimits } = require("./server/auth/rate-limit");
+const { createShutdownHandler } = require("./server/core/shutdown");
 const { createAuthToken: signAuthToken, verifyAuthToken: verifySignedAuthToken } = require("./server/auth/tokens");
 const { createAuthSessions } = require("./server/auth/sessions");
 const { parseCookies, safeTimingEqual: csrfSafeTimingEqual, createCsrf } = require("./server/auth/csrf");
@@ -1669,6 +1670,9 @@ let persistTimer = null;
 let persistInFlight = Promise.resolve();
 let authPersistTimer = null;
 let authPersistInFlight = Promise.resolve();
+let retentionMaintenanceTimer = null;
+let bootstrapPromise = null;
+let shutdownRequested = false;
 
 const authSessions = createAuthSessions({
   refreshSessions,
@@ -4659,10 +4663,11 @@ function runRetentionMaintenance() {
 }
 
 function startRetentionMaintenanceLoop() {
+  if (retentionMaintenanceTimer) return;
   const intervalMs = 60 * 60 * 1000;
-  const timer = setInterval(runRetentionMaintenance, intervalMs);
-  if (typeof timer.unref === "function") {
-    timer.unref();
+  retentionMaintenanceTimer = setInterval(runRetentionMaintenance, intervalMs);
+  if (typeof retentionMaintenanceTimer.unref === "function") {
+    retentionMaintenanceTimer.unref();
   }
 }
 
@@ -11237,8 +11242,6 @@ async function closeStorage() {
   if (!mongoStorage) return;
   try {
     await mongoStorage.close();
-  } catch (err) {
-    console.error("Failed closing MongoDB connection:", err);
   } finally {
     mongoStorage = null;
     mongoLegacyCollection = null;
@@ -11246,38 +11249,69 @@ async function closeStorage() {
     mongoConversationsCollection = null;
     mongoMessagesCollection = null;
     mongoAuthSessionsCollection = null;
+    mongoMediaCollection = null;
+    mongoGameHistoryCollection = null;
   }
 }
 
-async function shutdown() {
-  if (persistTimer) {
-    clearTimeout(persistTimer);
-    persistTimer = null;
-  }
-  if (authPersistTimer) {
-    clearTimeout(authPersistTimer);
-    authPersistTimer = null;
-  }
-  for (const timer of scheduledMessageTimers.values()) {
-    clearTimeout(timer);
-  }
-  scheduledMessageTimers.clear();
-
-  try {
+const shutdown = createShutdownHandler({
+  waitForStartup: () => bootstrapPromise || Promise.resolve(),
+  closeTransport: () => new Promise((resolve, reject) => {
+    if (!server.listening) {
+      resolve();
+      return;
+    }
+    try {
+      io.close((error) => error ? reject(error) : resolve());
+    } catch (error) {
+      reject(error);
+    }
+  }),
+  stopBackgroundWork: () => {
+    if (retentionMaintenanceTimer) {
+      clearInterval(retentionMaintenanceTimer);
+      retentionMaintenanceTimer = null;
+    }
+    if (persistTimer) {
+      clearTimeout(persistTimer);
+      persistTimer = null;
+    }
+    if (authPersistTimer) {
+      clearTimeout(authPersistTimer);
+      authPersistTimer = null;
+    }
+    for (const timer of scheduledMessageTimers.values()) {
+      clearTimeout(timer);
+    }
+    scheduledMessageTimers.clear();
+  },
+  flushState: async () => {
     await persistInFlight.catch(() => {});
     await authPersistInFlight.catch(() => {});
     await persistNow();
     await persistAuthStateNow();
-  } catch (err) {
-    console.error("Failed to persist state during shutdown:", err);
-  } finally {
-    await closeStorage();
-    process.exit(0);
-  }
+  },
+  closeStorage,
+  timeoutMs: 25_000,
+  onTimeout: () => {
+    console.error("[NovynShutdown] Graceful shutdown timed out; forcing exit.");
+    process.exit(1);
+  },
+  logger: console,
+});
+
+function handleShutdown(signal) {
+  shutdownRequested = true;
+  void shutdown(signal).then((exitCode) => {
+    process.exit(exitCode);
+  }).catch((error) => {
+    console.error("[NovynShutdown] Unexpected shutdown failure:", error?.message || error);
+    process.exit(1);
+  });
 }
 
-process.on("SIGTERM", shutdown);
-process.on("SIGINT", shutdown);
+process.on("SIGTERM", () => handleShutdown("SIGTERM"));
+process.on("SIGINT", () => handleShutdown("SIGINT"));
 
 function parsePort(value, fallback = 3000) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
@@ -11318,6 +11352,7 @@ function listenWithPortFallback(preferredPort, options = {}) {
 
 async function bootstrap() {
   await loadState();
+  if (shutdownRequested) return;
   queueAllScheduledMessages();
   startRetentionMaintenanceLoop();
 
@@ -11333,7 +11368,7 @@ async function bootstrap() {
   );
 }
 
-bootstrap().catch((err) => {
+bootstrapPromise = bootstrap().catch((err) => {
   console.error("Failed to start server:", err);
   process.exit(1);
 });
