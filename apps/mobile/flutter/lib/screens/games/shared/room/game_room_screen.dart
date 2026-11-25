@@ -234,6 +234,7 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
     final game = _currentGame(socket);
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final accent = colors.primary;
     final title = _gameTitle(game ?? widget.initialGame);
     final opponent = widget.opponentDisplayName?.trim().isNotEmpty == true
         ? widget.opponentDisplayName!
@@ -295,7 +296,7 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF282046) : const Color(0xFFEEE9FA),
+                  color: accent.withValues(alpha: .12),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(
@@ -304,16 +305,16 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
                     Container(
                       width: 6,
                       height: 6,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF5E44F3),
+                      decoration: BoxDecoration(
+                        color: accent,
                         shape: BoxShape.circle,
                       ),
                     ),
                     const SizedBox(width: 5),
-                    const Text(
+                    Text(
                       'Live',
                       style: TextStyle(
-                        color: Color(0xFF5E44F3),
+                        color: accent,
                         fontWeight: FontWeight.w700,
                         fontSize: 11,
                       ),
