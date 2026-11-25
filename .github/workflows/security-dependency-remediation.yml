@@ -65,7 +65,6 @@ jobs:
       - name: Regenerate the lockfile and apply non-breaking npm security fixes
         run: |
           npm install --ignore-scripts --no-audit
-          npm audit fix --ignore-scripts
 
       - name: Install the exact regenerated lockfile
         run: npm ci
