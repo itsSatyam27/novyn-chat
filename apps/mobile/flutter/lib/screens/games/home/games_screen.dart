@@ -162,7 +162,7 @@ class _GamesScreenState extends State<GamesScreen> {
   List<_GameOption> get _filteredGames {
     final categoryGames = switch (_activeCategory) {
       '2 Player' => _games,
-      '3P / 4P' => <_GameOption>[_rajaMantriGame],
+      '3 P / 4 P' => <_GameOption>[_rajaMantriGame],
       _ => <_GameOption>[..._games, _rajaMantriGame],
     };
     if (_searchQuery.isEmpty) return categoryGames;
@@ -329,9 +329,9 @@ class _GamesScreenState extends State<GamesScreen> {
                       ),
                       const SizedBox(width: 9),
                       _GamesCategoryPill(
-                        label: '3P / 4P',
-                        selected: _activeCategory == '3P / 4P',
-                        onTap: () => setState(() => _activeCategory = '3P / 4P'),
+                        label: '3 P / 4 P',
+                        selected: _activeCategory == '3 P / 4 P',
+                        onTap: () => setState(() => _activeCategory = '3 P / 4 P'),
                       ),
                     ],
                   ),
