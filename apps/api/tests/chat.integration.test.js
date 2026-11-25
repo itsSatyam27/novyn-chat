@@ -300,6 +300,24 @@ test('localhost discovery, requests, reconnect state, and private media', { time
     body: JSON.stringify({ identifier: 'legacy', password: 'arbitrary-password' }),
   });
   assert.equal(legacyLogin.status, 401, 'missing password hashes must never permit login');
+  const invalidCredentialMessage = 'Invalid email/username or password.';
+  assert.equal((await legacyLogin.json()).message, invalidCredentialMessage);
+  for (const [identifier, password] of [
+    ['unknown@example.test', 'arbitrary-password'],
+    ['unknown_account', 'arbitrary-password'],
+    ['alice@example.test', 'incorrect'],
+    ['alice', 'incorrect'],
+  ]) {
+    const response = await fetch(`${base}/api/auth/signin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier, password }),
+    });
+    assert.equal(response.status, 401);
+    const result = await response.json();
+    assert.equal(result.message, invalidCredentialMessage);
+    assert.deepEqual(result.suggestions, []);
+  }
   for (const identifier of ['alice', 'alice@example.test']) {
     for (const password of ['Test-only-password-123!', 'incorrect']) {
       const response = await fetch(`${base}/api/auth/signin`, {
