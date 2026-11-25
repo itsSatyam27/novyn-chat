@@ -8201,15 +8201,31 @@ io.on("connection", (socket) => {
       socket.disconnect(true);
       return;
     }
+
     const names = mediaNames(packet.slice(1).filter((item) => typeof item !== 'function'));
-    if (names.some((filename) => !userCanReadMedia(filename, userKey))) {
-      const result = { ok: false, message: 'You do not have access to this media.' };
-      const callback = packet[packet.length - 1];
-      if (typeof callback === 'function') callback(result);
-      else socket.emit('error_message', result);
-      return;
-    }
-    next();
+    void (async () => {
+      try {
+        // Media ownership can require a MongoDB lookup on cache misses. Await
+        // every lookup before allowing the Socket.IO packet to reach handlers.
+        const access = await Promise.all(
+          names.map((filename) => userCanReadMedia(filename, userKey))
+        );
+        if (access.some((allowed) => allowed !== true)) {
+          const result = { ok: false, message: 'You do not have access to this media.' };
+          const callback = packet[packet.length - 1];
+          if (typeof callback === 'function') callback(result);
+          else socket.emit('error_message', result);
+          return;
+        }
+        next();
+      } catch (error) {
+        console.warn('[NovynMedia] Socket media authorization failed closed:', error?.message || error);
+        const result = { ok: false, message: 'Media access could not be verified. Please retry.' };
+        const callback = packet[packet.length - 1];
+        if (typeof callback === 'function') callback(result);
+        else socket.emit('error_message', result);
+      }
+    })();
   });
   const authenticatedUser = users.get(normalizeName(socket.data.userKey || ""));
   if (authenticatedUser?.isRegistered) {
