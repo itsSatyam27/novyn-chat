@@ -11,10 +11,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: accent,
-            brightness: Brightness.light,
-          ),
+          colorScheme: const ColorScheme.light(primary: accent),
         ),
         home: const Scaffold(
           body: NovynEmptyState(
@@ -35,10 +32,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: accent,
-            brightness: Brightness.light,
-          ),
+          colorScheme: const ColorScheme.light(primary: accent),
         ),
         home: const Scaffold(
           body: Center(
@@ -57,10 +51,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: accent,
-            brightness: Brightness.light,
-          ),
+          colorScheme: const ColorScheme.light(primary: accent),
         ),
         home: const Scaffold(
           body: Center(
