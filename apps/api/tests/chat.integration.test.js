@@ -131,6 +131,42 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   const bob = await signup('bob');
   const eve = await signup('eve');
 
+  const aliceCsrfCookie = alice.cookie.split('; ')
+    .find((part) => part.startsWith('novyn_csrf='))
+    ?.slice('novyn_csrf='.length);
+  assert.ok(aliceCsrfCookie, 'signup must issue the CSRF cookie');
+  const uploadHeaders = {
+    Cookie: alice.cookie,
+    Origin: origin,
+    'x-novyn-csrf': decodeURIComponent(aliceCsrfCookie),
+  };
+  const unsupportedUpload = new FormData();
+  unsupportedUpload.append('file', new Blob(['<html>not an image</html>'], { type: 'text/html' }), 'payload.html');
+  const unsupportedUploadResponse = await fetch(`${base}/upload-file`, {
+    method: 'POST', headers: uploadHeaders, body: unsupportedUpload,
+  });
+  assert.equal(unsupportedUploadResponse.status, 415);
+  assert.equal((await unsupportedUploadResponse.json()).error, 'Unsupported file type.');
+
+  const excessiveFields = new FormData();
+  excessiveFields.append('file', new Blob(['hello'], { type: 'text/plain' }), 'note.txt');
+  for (let index = 0; index < 11; index += 1) {
+    excessiveFields.append(`extra_${index}`, 'field');
+  }
+  const excessiveFieldsResponse = await fetch(`${base}/upload-file`, {
+    method: 'POST', headers: uploadHeaders, body: excessiveFields,
+  });
+  assert.equal(excessiveFieldsResponse.status, 413);
+  assert.match((await excessiveFieldsResponse.json()).error, /too much form data/i);
+
+  const oversizedField = new FormData();
+  oversizedField.append('file', new Blob(['hello'], { type: 'text/plain' }), 'note.txt');
+  oversizedField.append('metadata', 'x'.repeat(17 * 1024));
+  const oversizedFieldResponse = await fetch(`${base}/upload-file`, {
+    method: 'POST', headers: uploadHeaders, body: oversizedField,
+  });
+  assert.equal(oversizedFieldResponse.status, 413);
+
   const registerDirectly = (username, email) => fetch(`${base}/api/auth/signup`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
