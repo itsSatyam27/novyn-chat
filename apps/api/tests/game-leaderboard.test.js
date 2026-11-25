@@ -17,7 +17,7 @@ test("normalizes leaderboard game filters and aliases", () => {
   assert.equal(normalizeLeaderboardGame("made-up-game"), null);
 });
 
-test("builds overall and game-specific scores from verified human matches", () => {
+test("builds overall and game-specific scores from persisted non-bot matches", () => {
   const users = new Map([
     ["alice", account("alice")],
     ["bob", account("bob")],
