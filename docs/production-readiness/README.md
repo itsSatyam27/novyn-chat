@@ -11,6 +11,15 @@ This branch is a staged production-hardening effort. Do not treat the checklist 
 - [x] Web SPA and legacy browser auth now coalesce concurrent refresh calls into one in-flight request, preventing duplicate submissions of a rotating refresh cookie. Tests exercise concurrent calls and retry after completion/failure.
 - [x] Encrypted identity-backup writes acknowledge success only after the state snapshot is durably flushed; failed writes restore the previous in-memory values and return an error. Integration coverage reads the persisted file immediately after the success acknowledgement.
 - [x] CI validation now runs on pushes to `production-readiness` and for pull requests targeting it.
+- [x] Socket.IO now rejects unauthenticated or stale-session sockets at handshake time; integration coverage asserts revoked refresh sessions receive `connect_error` before any event handler can run.
+- [x] Device-pairing start/status/complete responses use `no-store` and `no-referrer`; status polling and primary-phone approval are rate-limited. Integration tests cover approval, status transition, encrypted identity return, session-cookie issuance and single-use completion.
+- [x] Sensitive account socket actions (password/username changes, account deletion, 2FA toggles and device-pair approval) have per-account throttles. Integration coverage verifies repeated password-change attempts are stopped.
+- [x] Signup reserves email and username while password hashing is pending. Google account creation also reserves email, username and Google UID, preventing concurrent registrations from claiming the same identity in this single-process runtime. Tests cover reservation release and concurrent password signups.
+- [x] SSRF protection blocks deprecated IPv4-compatible IPv6 destinations in addition to private IPv4/IPv6 ranges; tests include `::127.0.0.1`.
+
+## Deployment constraint
+
+The authoritative user, conversation, group, presence, session and rate-limit state currently lives in in-process maps (see `apps/api/server/core/state.js`). Deploy **one backend process/replica only**. Do not enable multiple Render instances or horizontal autoscaling until authoritative state, rate limits and registration reservations are moved to shared storage with atomic operations. The current signup reservation closes same-process races; it is not a distributed lock.
 
 ## Release gates
 
