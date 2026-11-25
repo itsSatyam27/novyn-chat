@@ -259,7 +259,43 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   assert.equal(changedPasswordLogin.status, 200, await changedPasswordLogin.clone().text());
   const changedCharlieCookie = changedPasswordLogin.headers.getSetCookie()
     .map((item) => item.split(';')[0]).join('; ');
-  const charlieResetSocket = await connect(changedCharlieCookie);
+  const charlieOldDevice = await connect(changedCharlieCookie);
+  const secondCharlieLogin = await fetch(${base}/api/auth/signin, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      identifier: 'charlie@example.test',
+      password: 'Changed-password-456!',
+    }),
+  });
+  assert.equal(secondCharlieLogin.status, 200, await secondCharlieLogin.clone().text());
+  const currentCharlieCookie = secondCharlieLogin.headers.getSetCookie()
+    .map((item) => item.split(';')[0]).join('; ');
+  const charlieCurrentDevice = await connect(currentCharlieCookie);
+  const otherDeviceRevoked = event(charlieOldDevice.socket, 'session_revoked');
+  const oldDeviceDisconnected = event(charlieOldDevice.socket, 'disconnect');
+  const currentCharlieCsrf = currentCharlieCookie.split('; ')
+    .find((part) => part.startsWith('novyn_csrf='))
+    ?.slice('novyn_csrf='.length);
+  assert.ok(currentCharlieCsrf, 'sign-in must issue a CSRF cookie');
+  const revokeOtherDevice = await fetch(${base}/api/auth/revoke-session, {
+    method: 'POST',
+    headers: {
+      Cookie: currentCharlieCookie,
+      Origin: origin,
+      'Content-Type': 'application/json',
+      'x-novyn-csrf': decodeURIComponent(currentCharlieCsrf),
+    },
+    body: JSON.stringify({ sessionId: refreshTokenId(changedCharlieCookie) }),
+  });
+  assert.equal(revokeOtherDevice.status, 200, await revokeOtherDevice.clone().text());
+  assert.match((await otherDeviceRevoked).message, /signed out from another device/i);
+  await oldDeviceDisconnected;
+  assert.equal((await fetch(${base}/api/auth/session, {
+    headers: { Cookie: changedCharlieCookie },
+  })).status, 401);
+
+  const charlieResetSocket = charlieCurrentDevice;
   const resetSentToCharlie = event(charlieResetSocket.socket, 'password_reset_sent');
   charlieResetSocket.socket.emit('request_password_reset', { identifier: 'charlie' });
   await resetSentToCharlie;
@@ -267,17 +303,13 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   assert.ok(charlieResetCode, 'test-only reset code should be logged for Charlie');
   const resetSessionRevoked = event(charlieResetSocket.socket, 'session_revoked');
   const resetSocketDisconnected = event(charlieResetSocket.socket, 'disconnect');
-  const changedCharlieCsrf = changedCharlieCookie.split('; ')
-    .find((part) => part.startsWith('novyn_csrf='))
-    ?.slice('novyn_csrf='.length);
-  assert.ok(changedCharlieCsrf, 'sign-in must issue a CSRF cookie');
-  const httpPasswordReset = await fetch(`${base}/api/auth/password-reset/confirm`, {
+  const httpPasswordReset = await fetch(${base}/api/auth/password-reset/confirm, {
     method: 'POST',
     headers: {
-      Cookie: changedCharlieCookie,
+      Cookie: currentCharlieCookie,
       Origin: origin,
       'Content-Type': 'application/json',
-      'x-novyn-csrf': decodeURIComponent(changedCharlieCsrf),
+      'x-novyn-csrf': decodeURIComponent(currentCharlieCsrf),
     },
     body: JSON.stringify({
       identifier: 'charlie@example.test',
@@ -888,7 +920,15 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   );
   assert.equal(settingsAfterRefresh.ok, true);
 
-  assert.equal((await fetch(`${base}/api/auth/logout`, { method: 'POST', headers: { Cookie: eve.cookie } })).status, 200);
+  const eveLogoutNotice = event(eve.socket, 'session_revoked');
+  const eveLogoutDisconnect = event(eve.socket, 'disconnect');
+  const eveLogoutResponse = await fetch(`${base}/api/auth/logout`, {
+    method: 'POST',
+    headers: { Cookie: eve.cookie },
+  });
+  assert.equal(eveLogoutResponse.status, 200);
+  assert.match((await eveLogoutNotice).message, /signed out of this session/i);
+  await eveLogoutDisconnect;
   assert.equal((await fetch(`${base}/api/auth/session`, { headers: { Cookie: eve.cookie } })).status, 401);
   assert.equal((await fetch(`${base}/api/import-wallpaper-url`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: 'https://example.test/photo.png' }) })).status, 401);
   const resetSent = event(bob.socket, 'password_reset_sent');
