@@ -73,10 +73,34 @@ function mapMultipartError(error) {
   return { status: 400, message: "Invalid upload payload." };
 }
 
+
+async function uploadCloudMediaWithMetadata({ upload, saveMetadata, cleanup, onCleanupError } = {}) {
+  if (typeof upload !== "function" || typeof saveMetadata !== "function") {
+    throw new TypeError("Cloud media upload and metadata persistence callbacks are required.");
+  }
+  const result = await upload();
+  try {
+    await saveMetadata(result);
+    return result;
+  } catch (error) {
+    if (typeof cleanup === "function") {
+      try {
+        await cleanup(result);
+      } catch (cleanupError) {
+        if (typeof onCleanupError === "function") {
+          try { onCleanupError(cleanupError, result); } catch (_) {}
+        }
+      }
+    }
+    throw error;
+  }
+}
+
 module.exports = {
   ALLOWED_VOICE_MIME,
   ALLOWED_FILE_MIME,
   MULTIPART_LIMITS,
   createUploadFileFilter,
   mapMultipartError,
+  uploadCloudMediaWithMetadata,
 };
