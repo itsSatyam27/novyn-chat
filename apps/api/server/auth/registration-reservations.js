@@ -16,14 +16,14 @@ function createRegistrationReservations() {
     const emailKey = normalize(email);
     const usernameKey = normalize(username);
     const externalKey = String(externalId || "").trim();
-    if (!emailKey || !usernameKey) return false;
+    if (!emailKey && !usernameKey && !externalKey) return false;
     if (
-      pendingEmails.has(emailKey) ||
-      pendingUsernames.has(usernameKey) ||
+      (emailKey && pendingEmails.has(emailKey)) ||
+      (usernameKey && pendingUsernames.has(usernameKey)) ||
       (externalKey && pendingExternalIds.has(externalKey))
     ) return false;
-    pendingEmails.add(emailKey);
-    pendingUsernames.add(usernameKey);
+    if (emailKey) pendingEmails.add(emailKey);
+    if (usernameKey) pendingUsernames.add(usernameKey);
     if (externalKey) pendingExternalIds.add(externalKey);
     return true;
   }
