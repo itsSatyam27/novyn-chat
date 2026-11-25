@@ -23,7 +23,7 @@ list management permission. Do not add `0.0.0.0/0` to the Atlas access list.
 Backups are compressed, encrypted with AES-256 using GPG, then decrypted again
 on the runner and compared byte-for-byte with the source dump before upload. The
 workflow writes a SHA-256 checksum alongside the encrypted artifact; verify it
-after downloading with `sha256sum -c novyn-mongodb-backup.archive.gz.gpg.sha256`.
+after downloading with `sha256sum -c novyn-<timestamp>.archive.gz.gpg.sha256`.
 The unencrypted dump and verification copy are removed from the runner, including
 when the backup step fails. Do not print or expose any of the secrets.
 
