@@ -198,7 +198,11 @@ function createFcmMessage(userKey, user, payload = {}) {
     android: {
       priority: silent ? "normal" : "high",
       ttl: ttlMs,
-      ...(systemVisible ? {
+      // Android must receive encrypted DMs as data-only messages. In the
+      // background, FCM auto-displays notification payloads before Flutter can
+      // decrypt the E2EE envelope. The Flutter background handler instead
+      // decrypts this data payload locally and posts the finished notification.
+      ...(systemVisible && !encryptedDirectMessage ? {
         notification: {
           channelId,
           ...(payload.tag ? { tag: String(payload.tag).slice(0, 100) } : {}),
@@ -220,7 +224,13 @@ function createFcmMessage(userKey, user, payload = {}) {
       },
     },
   };
-  if (systemVisible) message.notification = { title, body };
+  // Do not attach a top-level notification to E2EE DMs: that would make
+  // Android display the generic body itself and bypass the Dart background
+  // handler. The APNs alert above remains generic for iOS; Android receives
+  // high-priority data-only delivery and renders a decrypted local preview.
+  if (systemVisible && !encryptedDirectMessage) {
+    message.notification = { title, body };
+  }
   return message;
 }
 
