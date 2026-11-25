@@ -14,7 +14,7 @@ This branch is a staged production-hardening effort. Do not treat the checklist 
 - [x] Socket.IO now rejects unauthenticated or stale-session sockets at handshake time; integration coverage asserts revoked refresh sessions receive `connect_error` before any event handler can run.
 - [x] Device-pairing start/status/complete responses use `no-store` and `no-referrer`; status polling and primary-phone approval are rate-limited. Integration tests cover approval, status transition, encrypted identity return, session-cookie issuance and single-use completion.
 - [x] Sensitive account socket actions (password/username changes, account deletion, 2FA toggles and device-pair approval) have per-account throttles. Integration coverage verifies repeated password-change attempts are stopped.
-- [x] Signup reserves email and username while password hashing is pending. Google account creation also reserves email, username and Google UID, preventing concurrent registrations from claiming the same identity in this single-process runtime. Tests cover reservation release and concurrent password signups.
+- [x] Signup reserves email and username while password hashing is pending. Google account creation reserves email, username and Google UID; linking an existing account also reserves its Google UID, preventing concurrent registrations/link operations from claiming the same identity in this single-process runtime. Tests cover reservation release and concurrent password signups.
 - [x] SSRF protection blocks deprecated IPv4-compatible IPv6 destinations in addition to private IPv4/IPv6 ranges; tests include `::127.0.0.1`.
 
 ## Deployment constraint
