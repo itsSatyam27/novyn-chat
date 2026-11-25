@@ -714,7 +714,6 @@ class _GameProfileHeroCardState extends State<_GameProfileHeroCard> {
                         ],
                       ),
                       const SizedBox(height: 14),
-                      const SizedBox(height: 14),
                       SizedBox(
                         width: double.infinity,
                         child: FilledButton.icon(
