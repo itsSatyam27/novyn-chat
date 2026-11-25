@@ -17,6 +17,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:gal/gal.dart';
 import '../../services/auth_service.dart';
+import '../../services/app_update_service.dart';
 import '../auth/onboarding_screen.dart';
 import '../security/setup_pin_screen.dart';
 import 'widgets/profile_widgets.dart';
@@ -278,12 +279,21 @@ class ProfileScreen extends StatelessWidget {
                     accent: const Color(0xFF7257F4),
                     onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FeedbackScreen())),
                   ),
-                  _NovynSettingsTile(
-                    icon: Icons.info_outline_rounded,
-                    title: 'About Novyn',
-                    accent: const Color(0xFF7E7A94),
-                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutNovynScreen())),
-                    showDivider: false,
+                  AnimatedBuilder(
+                    animation: AppUpdateService.instance,
+                    builder: (context, _) => _NovynSettingsTile(
+                      icon: Icons.info_outline_rounded,
+                      title: 'About Novyn',
+                      accent: const Color(0xFF7E7A94),
+                      showDot: AppUpdateService.instance.hasAvailableUpdate,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AboutNovynScreen(),
+                        ),
+                      ),
+                      showDivider: false,
+                    ),
                   ),
                 ]),
                 const SizedBox(height: 24),
@@ -2709,6 +2719,7 @@ class _NovynSettingsTile extends StatelessWidget {
     required this.accent,
     required this.onTap,
     this.showDivider = true,
+    this.showDot = false,
   });
 
   final IconData icon;
@@ -2717,6 +2728,7 @@ class _NovynSettingsTile extends StatelessWidget {
   final Color accent;
   final VoidCallback onTap;
   final bool showDivider;
+  final bool showDot;
 
   @override
   Widget build(BuildContext context) {
@@ -2743,7 +2755,30 @@ class _NovynSettingsTile extends StatelessWidget {
                       color: iconBg,
                       borderRadius: BorderRadius.circular(13),
                     ),
-                    child: Icon(icon, color: accent, size: 20),
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Icon(icon, color: accent, size: 20),
+                        if (showDot)
+                          Positioned(
+                            top: -3,
+                            right: -4,
+                            child: Container(
+                              key: const ValueKey('about-update-badge'),
+                              width: 9,
+                              height: 9,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE34D73),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Theme.of(context).colorScheme.surface,
+                                  width: 1.5,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
