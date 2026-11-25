@@ -91,6 +91,7 @@ class SocketService extends ChangeNotifier {
   Completer<List<Message>>? _chatHistoryCompleter;
   String? _chatHistoryTarget;
   VoidCallback? onAuthenticated;
+  VoidCallback? onSessionRevoked;
   final Map<String, String> _peerKeys = {};
   final Map<String, Future<String>> _inFlightMessageDecryptions = {};
   final BackendContacts contacts = BackendContacts();
@@ -923,6 +924,22 @@ class SocketService extends ChangeNotifier {
 
   // ── Register all incoming event handlers ─────────────────────────────────
   void _registerEventHandlers() {
+    _socket!.on('session_revoked', (data) {
+      // Explicit server-side revocation is not a transient network failure.
+      // Stop reconnect/refresh retries and let AuthService clear local state.
+      _manualDisconnect = true;
+      _reconnectTimer?.cancel();
+      _socketAuthRetryTimer?.cancel();
+      _socketAuthRetryTimer = null;
+      _stopPendingOutboxRetry();
+      _isConnecting = false;
+      _isConnected = false;
+      _isAuthenticated = false;
+      _authenticationReady = null;
+      _registeredIdentityAccount = null;
+      notifyListeners();
+      onSessionRevoked?.call();
+    });
     for (final event in [
       'register_success',
       'init',
