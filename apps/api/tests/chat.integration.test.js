@@ -333,6 +333,58 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   });
   assert.equal(resetPasswordLogin.status, 200, await resetPasswordLogin.clone().text());
 
+  const resetCharlieCookie = resetPasswordLogin.headers.getSetCookie()
+    .map((item) => item.split(';')[0]).join('; ');
+  const bulkRevokedDevice = await connect(resetCharlieCookie);
+  const resetCharlieSecondLogin = await fetch(`${base}/api/auth/signin`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      identifier: 'charlie@example.test',
+      password: 'Reset-password-789!',
+    }),
+  });
+  assert.equal(resetCharlieSecondLogin.status, 200, await resetCharlieSecondLogin.clone().text());
+  const resetCharlieCurrentCookie = resetCharlieSecondLogin.headers.getSetCookie()
+    .map((item) => item.split(';')[0]).join('; ');
+  const resetCharlieCurrentCsrf = resetCharlieCurrentCookie.split('; ')
+    .find((part) => part.startsWith('novyn_csrf='))
+    ?.slice('novyn_csrf='.length);
+  assert.ok(resetCharlieCurrentCsrf);
+  const bulkSessionRevoked = event(bulkRevokedDevice.socket, 'session_revoked');
+  const bulkSocketDisconnected = event(bulkRevokedDevice.socket, 'disconnect');
+  const revokeOtherSessions = await fetch(`${base}/api/auth/revoke-sessions`, {
+    method: 'POST',
+    headers: {
+      Cookie: resetCharlieCurrentCookie,
+      Origin: origin,
+      'Content-Type': 'application/json',
+      'x-novyn-csrf': decodeURIComponent(resetCharlieCurrentCsrf),
+    },
+  });
+  assert.equal(revokeOtherSessions.status, 200, await revokeOtherSessions.clone().text());
+  assert.ok((await revokeOtherSessions.json()).revoked >= 1);
+  assert.match((await bulkSessionRevoked).message, /signed out from another device/i);
+  await bulkSocketDisconnected;
+  assert.equal((await fetch(`${base}/api/auth/session`, {
+    headers: { Cookie: resetCharlieCookie },
+  })).status, 401);
+
+  const dave = await signup('dave');
+  const accountDeleted = event(dave.socket, 'account_deleted');
+  const deleteSessionRevoked = event(dave.socket, 'session_revoked');
+  const deleteSocketDisconnected = event(dave.socket, 'disconnect');
+  dave.socket.emit('delete_account', {
+    confirmationText: '@dave',
+    currentPassword: 'Test-only-password-123!',
+  });
+  assert.equal((await accountDeleted).success, true);
+  assert.match((await deleteSessionRevoked).message, /credentials changed/i);
+  await deleteSocketDisconnected;
+  assert.equal((await fetch(`${base}/api/auth/session`, {
+    headers: { Cookie: dave.cookie },
+  })).status, 401);
+
   // Device-pairing secrets and resulting login cookies must never be cached.
   const pairingCsrfCookie = alice.cookie.split('; ')
     .find((part) => part.startsWith('novyn_csrf='))
