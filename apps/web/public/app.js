@@ -11733,6 +11733,22 @@ socket.on("auth_failed", (data) => {
   showToast(message, "error");
 });
 
+socket.on("session_revoked", (data) => {
+  resumeSocketSession._pending = false;
+  if (!isDashboardPage) return;
+  const message = data?.message || "Your session was revoked. Please sign in again.";
+  if (!logoutInProgress) showToast(message, "error");
+  if (typeof window._novynLogoutAndRedirect === "function") {
+    window._novynLogoutAndRedirect();
+    return;
+  }
+  clearStoredSession();
+  if (typeof window._novynPrepareLogout === "function") {
+    try { window._novynPrepareLogout(); } catch (_) {}
+  }
+  redirectToLogin();
+});
+
 socket.on("friend_suggestions", (data) => {
   const query = String(data?.query || "").trim();
   const suggestions = data?.suggestions || [];
