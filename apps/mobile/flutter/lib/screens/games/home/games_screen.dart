@@ -39,6 +39,7 @@ class _GamesScreenState extends State<GamesScreen> {
   SocketService? _invitationSocket;
   int _pendingInviteCount = 0;
   bool _showingInvitePopup = false;
+  bool _wasSocketConnected = false;
   final Set<String> _shownInvitationIds = <String>{};
 
   static const List<_GameOption> _games = <_GameOption>[
@@ -236,6 +237,11 @@ class _GamesScreenState extends State<GamesScreen> {
         socket.onGameInvitationReceived = _handleIncomingGameInvitation;
       }
     }
+    final connected = socket?.isConnected == true;
+    if (connected && !_wasSocketConnected) {
+      unawaited(_loadPendingInvitations(showLatest: true));
+    }
+    _wasSocketConnected = connected;
     final user = Provider.of<AuthService?>(context)?.user;
     final username = user?.username.trim() ?? '';
     if (username.toLowerCase() != _statsUsername.toLowerCase()) {
