@@ -8597,6 +8597,11 @@ io.on("connection", (socket) => {
     try {
     const userKey = socket.data.userKey;
     if (!userKey) return;
+    if (!allowSocketAction(socket, "change_username", 5, 60 * 60 * 1000)) {
+      socket.emit("username_change_failed", { message: "Too many username changes. Please try again later." });
+      return;
+    }
+    if (!userKey) return;
     const user = users.get(userKey);
     if (!user) {
       socket.emit("username_change_failed", { message: "User not found." });
@@ -8687,6 +8692,10 @@ io.on("connection", (socket) => {
   socket.on("change_password", async (payload) => {
     const userKey = socket.data.userKey;
     if (!userKey) return;
+    if (!allowSocketAction(socket, "change_password", 5, 15 * 60 * 1000)) {
+      socket.emit("password_change_failed", { message: "Too many password change attempts. Please try again later." });
+      return;
+    }
     const user = users.get(userKey);
     if (!user) {
       socket.emit("password_change_failed", { message: "User not found." });
@@ -8722,6 +8731,10 @@ io.on("connection", (socket) => {
   socket.on("delete_account", async (payload) => {
     const userKey = socket.data.userKey;
     if (!userKey) return;
+    if (!allowSocketAction(socket, "delete_account", 3, 60 * 60 * 1000)) {
+      socket.emit("account_deletion_failed", { message: "Too many account deletion attempts. Please try again later." });
+      return;
+    }
     const user = users.get(userKey);
     if (!user) {
       socket.emit("account_deletion_failed", { message: "User not found." });
@@ -8767,6 +8780,10 @@ io.on("connection", (socket) => {
   socket.on("enable_2fa", async (payload) => {
     const userKey = socket.data.userKey;
     if (!userKey) return;
+    if (!allowSocketAction(socket, "enable_2fa", 10, 15 * 60 * 1000)) {
+      socket.emit("2fa_error", { message: "Too many verification attempts. Please try again later." });
+      return;
+    }
     const user = users.get(userKey);
     if (!user) {
       socket.emit("2fa_error", { message: "User not found." });
@@ -8793,6 +8810,10 @@ io.on("connection", (socket) => {
   socket.on("disable_2fa", async (payload) => {
     const userKey = socket.data.userKey;
     if (!userKey) return;
+    if (!allowSocketAction(socket, "disable_2fa", 5, 15 * 60 * 1000)) {
+      socket.emit("2fa_error", { message: "Too many security setting attempts. Please try again later." });
+      return;
+    }
     const user = users.get(userKey);
     if (!user) {
       socket.emit("2fa_error", { message: "User not found." });
@@ -10131,6 +10152,10 @@ io.on("connection", (socket) => {
   socket.on("register_public_key", (payload, callback) => {
     const respond = typeof callback === "function" ? callback : (d) => socket.emit("public_key_registered", d);
     const userKey = socket.data.userKey;
+    if (userKey && !allowSocketAction(socket, "register_public_key", 20, 60 * 1000)) {
+      respond({ ok: false, message: "Too many key updates. Please try again later." });
+      return;
+    }
     if (!userKey) {
       respond({ ok: false, message: "Unauthorized" });
       return;
@@ -10161,6 +10186,9 @@ io.on("connection", (socket) => {
   socket.on("approve_device_pairing", (payload, callback) => {
     const respond = typeof callback === "function" ? callback : () => {};
     const userKey = normalizeName(socket.data.userKey || "");
+    if (userKey && !allowSocketAction(socket, "approve_device_pairing", 10, 15 * 60 * 1000)) {
+      return respond({ ok: false, message: "Too many device pairing approvals. Please try again later." });
+    }
     const id = toDisplayName(payload?.id);
     const secret = toDisplayName(payload?.secret);
     const pairing = runtimeState.devicePairings.get(id);
