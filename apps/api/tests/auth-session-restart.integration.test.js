@@ -213,5 +213,10 @@ test('newly issued auth session survives an immediate backend process restart', 
       password: 'Persistent-session-test-123!',
     }),
   });
-  assert.equal(suspendedSignin.status, 403, await suspendedSignin.clone().text());
+  assert.equal(suspendedSignin.status, 401, await suspendedSignin.clone().text());
+  assert.equal(
+    (await suspendedSignin.json()).message,
+    'Invalid email/username or password.',
+    'suspended accounts must not be distinguishable from other sign-in failures',
+  );
 });
