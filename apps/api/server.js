@@ -10,6 +10,7 @@ const { registerHealthRoutes } = require("./server/routes/health");
 const { createSocketAuthMiddleware } = require("./server/realtime/socket-auth");
 const { isAllowedSocketOrigin } = require("./server/security/origins");
 const { mediaNames, canReadMedia } = require("./server/security/media-access");
+const { ALLOWED_VOICE_MIME, ALLOWED_FILE_MIME, MULTIPART_LIMITS, createUploadFileFilter, mapMultipartError } = require("./server/security/uploads");
 const { registerMessageMutationHandlers } = require("./server/realtime/message-mutations");
 const { registerCallHandlers, cancelCallForUser } = require("./server/realtime/call-handlers");
 const { applyGameMove, createGameChallenge } = require("./server/realtime/game-rules");
@@ -114,14 +115,18 @@ if (!hasCloudinaryConfig && process.env.NODE_ENV === "production" && !configured
 const uploadVoice = multer({
   dest: uploadsDir,
   limits: {
+    ...MULTIPART_LIMITS,
     fileSize: 6 * 1024 * 1024,
   },
+  fileFilter: createUploadFileFilter(ALLOWED_VOICE_MIME),
 });
 const uploadFile = multer({
   dest: uploadsDir,
   limits: {
+    ...MULTIPART_LIMITS,
     fileSize: 15 * 1024 * 1024,
   },
+  fileFilter: createUploadFileFilter(ALLOWED_FILE_MIME),
 });
 const uploadTokenSecret =
   process.env.UPLOAD_TOKEN_SECRET ||
@@ -774,11 +779,12 @@ app.post(
         next();
         return;
       }
-      if (err?.code === "LIMIT_FILE_SIZE") {
-        res.status(413).json({ error: "Voice file is too large." });
-        return;
-      }
-      res.status(400).json({ error: "Invalid upload payload." });
+      const failure = mapMultipartError(err);
+      res.status(failure.status).json({
+        error: failure.status === 413 && err?.code === "LIMIT_FILE_SIZE"
+          ? "Voice file is too large."
+          : failure.message,
+      });
     });
   },
   async (req, res) => {
@@ -846,11 +852,8 @@ app.post(
         next();
         return;
       }
-      if (err?.code === "LIMIT_FILE_SIZE") {
-        res.status(413).json({ error: "File is too large." });
-        return;
-      }
-      res.status(400).json({ error: "Invalid upload payload." });
+      const failure = mapMultipartError(err);
+      res.status(failure.status).json({ error: failure.message });
     });
   },
   async (req, res) => {
@@ -1426,44 +1429,6 @@ const GROUP_ID_PREFIX = "grp_";
 const GROUP_CONVERSATION_PREFIX = "__group__:";
 const SCHEDULE_MIN_DELAY_MS = 30 * 1000;
 const SCHEDULE_MAX_DELAY_MS = 45 * 24 * 60 * 60 * 1000;
-const ALLOWED_VOICE_MIME = new Set([
-  "audio/webm",
-  "audio/wav",
-  "audio/mpeg",
-  "audio/ogg",
-  "audio/mp4",
-  "audio/aac",
-]);
-const ALLOWED_FILE_MIME = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-  "video/mp4",
-  "video/webm",
-  "video/quicktime",
-  "image/bmp",
-  "image/heic",
-  "audio/webm",
-  "audio/wav",
-  "audio/mpeg",
-  "audio/ogg",
-  "audio/mp4",
-  "audio/aac",
-  "application/pdf",
-  "text/plain",
-  "text/csv",
-  "application/zip",
-  "application/x-zip-compressed",
-  "application/x-rar-compressed",
-  "application/x-7z-compressed",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.ms-powerpoint",
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-]);
 const DEFAULT_RTC_ICE_SERVERS = [
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun1.l.google.com:19302" },
