@@ -1,5 +1,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const http = require("node:http");
+const { Server } = require("socket.io");
+const { io: createSocketClient } = require("socket.io-client");
 const { createShutdownHandler } = require("../server/core/shutdown");
 
 test("graceful shutdown drains startup, transport, timers, persistence, and storage in order", async () => {
@@ -59,4 +62,57 @@ test("graceful shutdown invokes the hard-timeout handler when a drain step stall
   assert.equal(timedOut, true);
   releaseTransport();
   assert.equal(await completion, 1);
+});
+
+test("graceful shutdown closes real Socket.IO clients and the HTTP listener before persistence", async (t) => {
+  const httpServer = http.createServer((req, res) => res.end("ok"));
+  const socketServer = new Server(httpServer);
+  await new Promise((resolve, reject) => {
+    httpServer.once("error", reject);
+    httpServer.listen(0, "127.0.0.1", resolve);
+  });
+
+  const client = createSocketClient(
+    `http://127.0.0.1:${httpServer.address().port}`,
+    { transports: ["websocket"], reconnection: false }
+  );
+  t.after(async () => {
+    client.close();
+    if (httpServer.listening) {
+      await new Promise((resolve) => socketServer.close(resolve));
+    }
+  });
+
+  await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error("Socket.IO client connection timed out.")), 3000);
+    client.once("connect", () => {
+      clearTimeout(timeout);
+      resolve();
+    });
+    client.once("connect_error", (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+  });
+
+  let clientDisconnected = false;
+  client.once("disconnect", () => {
+    clientDisconnected = true;
+  });
+
+  const shutdown = createShutdownHandler({
+    closeTransport: () => new Promise((resolve, reject) => {
+      socketServer.close((error) => error ? reject(error) : resolve());
+    }),
+    flushState: async () => {
+      assert.equal(httpServer.listening, false);
+      assert.equal(client.connected, false);
+      assert.equal(clientDisconnected, true);
+    },
+    timeoutMs: 3000,
+    logger: { error() {} },
+  });
+
+  assert.equal(await shutdown("SIGTERM"), 0);
+  assert.equal(httpServer.listening, false);
 });
