@@ -18,6 +18,9 @@ This branch is a staged production-hardening effort. Do not treat the checklist 
 - [x] SSRF protection blocks deprecated IPv4-compatible IPv6 destinations in addition to private IPv4/IPv6 ranges; tests include `::127.0.0.1`.
 - [x] Sign-in now returns the same generic credential-failure response for unknown email/username, incorrect password, passwordless legacy accounts and suspended accounts. Missing-account attempts also execute a dummy PBKDF2 verification to reduce timing-based account enumeration. Integration tests cover equivalent responses.
 - [x] Voice and file uploads now reject unsupported MIME headers in Multer before staging files and cap multipart files, fields, field size and total parts. Tests cover unsupported types and multipart abuse limits. File-signature verification and malware scanning are not yet implemented.
+- [x] HTTP rate limits cover GIPHY, game-history reads/writes, game leaderboard, call-log reads/writes, public stats, RTC ICE configuration, push public-key retrieval, account-settings reads/writes and the 2FA setup/enable/disable endpoints. Integration coverage checks the 2FA setup and public-stats limits.
+- [x] Socket action rate-limit bucket cleanup now sweeps the global map at most once per minute while checking and enforcing each active bucket on every protected action.
+- [x] Local voice/file uploads and wallpaper imports remove the final on-disk file when metadata persistence fails, preventing inaccessible orphaned media.
 
 ## Deployment constraint
 
