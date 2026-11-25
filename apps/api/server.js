@@ -51,6 +51,11 @@ const {
   normalizeGroupId,
 } = require("./server/core/normalization");
 require("dotenv").config({ path: process.env.NOVYN_ENV_FILE || path.resolve(__dirname, '../../.env') });
+const { validateProductionStorageConfig } = require("./server/config/production-storage");
+const productionStorageIssues = validateProductionStorageConfig(process.env);
+if (productionStorageIssues.length) {
+  throw new Error(`Production storage configuration is unsafe:\n- ${productionStorageIssues.join("\n- ")}`);
+}
 const { admin, firebaseAdmin, firebaseLegacyAdmin, verifyFirebaseIdToken } = require("./server/config/firebase-admin");
 let nodemailer = null;
 try {
@@ -94,6 +99,9 @@ let uploadsDir = configuredUploadsDir ? path.resolve(configuredUploadsDir) : def
 try {
   fs.mkdirSync(uploadsDir, { recursive: true });
 } catch (err) {
+  if (configuredUploadsDir && process.env.NODE_ENV === "production") {
+    throw new Error(`Configured UPLOADS_DIR "${configuredUploadsDir}" is not writable: ${err?.message || err}`);
+  }
   if (configuredUploadsDir) {
     console.warn(
       `UPLOADS_DIR "${configuredUploadsDir}" is not writable. Falling back to "${defaultUploadsDir}".`,
