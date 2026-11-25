@@ -13,11 +13,14 @@ function createSocketAuthMiddleware({ isProduction, allowedOrigins, resolveUserF
       { allowRefreshFallback: true }
     );
 
-    if (auth.userKey) {
-      socket.data.userKey = auth.userKey;
-      socket.data.sessionId = auth.sessionId;
+    // Socket connections must be authenticated before any event handlers can run.
+    // Individual events still perform authorization for their specific resources.
+    if (!auth?.userKey) {
+      return next(new Error("Authentication required"));
     }
 
+    socket.data.userKey = auth.userKey;
+    socket.data.sessionId = auth.sessionId || null;
     next();
   };
 }
