@@ -16,6 +16,8 @@ This branch is a staged production-hardening effort. Do not treat the checklist 
 - [x] Sensitive account socket actions (password/username changes, account deletion, 2FA toggles and device-pair approval) have per-account throttles. Integration coverage verifies repeated password-change attempts are stopped.
 - [x] Signup reserves email and username while password hashing is pending. Google account creation reserves email, username and Google UID; linking an existing account also reserves its Google UID, preventing concurrent registrations/link operations from claiming the same identity in this single-process runtime. Tests cover reservation release and concurrent password signups.
 - [x] SSRF protection blocks deprecated IPv4-compatible IPv6 destinations in addition to private IPv4/IPv6 ranges; tests include `::127.0.0.1`.
+- [x] Sign-in now returns the same generic credential-failure response for unknown email/username, incorrect password, passwordless legacy accounts and suspended accounts. Missing-account attempts also execute a dummy PBKDF2 verification to reduce timing-based account enumeration. Integration tests cover equivalent responses.
+- [x] Voice and file uploads now reject unsupported MIME headers in Multer before staging files and cap multipart files, fields, field size and total parts. Tests cover unsupported types and multipart abuse limits. File-signature verification and malware scanning are not yet implemented.
 
 ## Deployment constraint
 
