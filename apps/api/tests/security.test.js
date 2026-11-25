@@ -174,4 +174,10 @@ test('signup reservations block duplicate email and username while hashing is pe
   reservations.release('ALICE@example.test', 'alice');
   assert.equal(reservations.reserve('alice@example.test', 'alice'), true, 'released identities can be retried');
   reservations.release('alice@example.test', 'alice');
+
+  assert.equal(reservations.reserve('google@example.test', 'google_user', 'GoogleUID'), true);
+  assert.equal(reservations.reserve('different@example.test', 'other_user', 'GoogleUID'), false);
+  assert.equal(reservations.reserve('different@example.test', 'other_user', 'googleuid'), true, 'external IDs remain case-sensitive');
+  reservations.release('google@example.test', 'google_user', 'GoogleUID');
+  reservations.release('different@example.test', 'other_user', 'googleuid');
 });
