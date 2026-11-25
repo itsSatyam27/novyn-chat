@@ -131,6 +131,22 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   const bob = await signup('bob');
   const eve = await signup('eve');
 
+  // Repeated expensive password-verification requests are throttled by account.
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const rejected = event(alice.socket, 'password_change_failed');
+    alice.socket.emit('change_password', {
+      currentPassword: 'Wrong-password-for-rate-limit',
+      newPassword: 'New-test-password-123!',
+    });
+    assert.match((await rejected).message, /Incorrect current password/i);
+  }
+  const passwordRateLimited = event(alice.socket, 'password_change_failed');
+  alice.socket.emit('change_password', {
+    currentPassword: 'Wrong-password-for-rate-limit',
+    newPassword: 'New-test-password-123!',
+  });
+  assert.match((await passwordRateLimited).message, /Too many password change attempts/i);
+
   // Device-pairing secrets and resulting login cookies must never be cached.
   const pairingCsrfCookie = alice.cookie.split('; ')
     .find((part) => part.startsWith('novyn_csrf='))
