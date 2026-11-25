@@ -211,3 +211,27 @@ keeps the scheduled item in durable state and retries it with capped exponential
 backoff. Normal delivery rejections remain terminal and are reported to the
 sender. Overdue deliveries use tracked timers so shutdown can cancel them
 before the final persistence flush.
+
+
+## Phase 5 performance groundwork
+
+MongoDB connection setup now exposes the `game_history` collection and creates
+its user/time compound index before storage becomes available. This supports
+account-scoped recent-history reads and the existing user-ordered leaderboard
+scan. Feedback also has a descending `createdAt` index for the admin dashboard.
+The previous API startup-only game-history index attempt has been moved into
+the connection's required index setup, so a missing collection handle or failed
+index can no longer be silently treated as a connected database.
+
+Media metadata is now fetched on demand from MongoDB (or asynchronously from
+the local metadata file) instead of loading the complete MongoDB metadata
+collection into RAM at startup. The in-process metadata cache is LRU-bounded to
+5,000 entries. Legacy local metadata migration uses a completion marker written
+only after the scan finishes, making restarts skip the full directory scan once
+migration has completed. Cache eviction does not affect access: a miss reloads
+the authoritative metadata from storage.
+
+These changes reduce startup I/O and keep media-metadata memory bounded, but
+they do not change the one-replica/whole-state snapshot architecture. Run the
+backend tests and CI build after changes; measure real production latency and
+MongoDB query plans before increasing replica count or changing pool limits.
