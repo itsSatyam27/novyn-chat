@@ -213,7 +213,8 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
             : 'loss';
     final opponents = sorted
         .where((player) => player['username']?.toString().toLowerCase() != _username)
-        .map((player) => player['displayName']?.toString() ?? player['username']?.toString() ?? 'Player')
+        .map((player) => player['username']?.toString() ?? '')
+        .where((username) => username.isNotEmpty)
         .join(', ');
     unawaited(GameHistoryService.recordFinishedMatch(
       username: _username,
