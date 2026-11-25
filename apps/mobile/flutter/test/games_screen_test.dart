@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:novyn/screens/games/games_screen.dart';
+import 'package:novyn/screens/games/home/games_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -42,7 +42,9 @@ void main() {
     expect(find.byKey(const ValueKey('game-streak-rps')), findsOneWidget);
     expect(find.byKey(const ValueKey('game-streak-rajamantri')), findsOneWidget);
     expect(find.byIcon(Icons.local_fire_department_rounded), findsNWidgets(3));
-    expect(find.text('Match history'), findsOneWidget);
+    expect(find.text('Game History'), findsOneWidget);
+    expect(find.text('Leaderboard'), findsOneWidget);
+    expect(find.byIcon(Icons.mail_outline_rounded), findsOneWidget);
     expect(find.text('Play with Random'), findsNothing);
     expect(tester.takeException(), isNull);
   });

@@ -11,7 +11,7 @@ function createFriendGame() {
     to: "bob",
     toType: "friend",
     game: { gameType: "tictactoe" },
-  });
+  }, { randomInt: () => 0 });
   assert.equal(result.ok, true);
   return result.game;
 }
@@ -38,7 +38,7 @@ test("friend Tic-Tac-Toe assigns X and O and alternates turns", () => {
   const start = createFriendGame();
   assert.equal(start.turn, "Alice");
   assert.equal(start.data.playerX, "Alice");
-  assert.equal(start.data.playerO, undefined);
+  assert.equal(start.data.playerO, "bob");
 
   const first = move(start, "alice", 0, "X");
   assert.equal(first.ok, true);

@@ -271,6 +271,7 @@ class SocketService extends ChangeNotifier {
   Function(Map)? onRandomGameUpdated;
   Function(Map)? onGameInviteAccepted;
   Function(Map)? onGameInviteTimeout;
+  Function(Map)? onGameInvitationReceived;
   Function(Map)? onRajaMantriMatchFound;
   Function(Map)? onRajaMantriMatchProgress;
   Function(Map)? onRajaMantriMatchTimeout;
@@ -312,12 +313,12 @@ class SocketService extends ChangeNotifier {
   bool get isConnected => _isConnected;
   bool get isConnecting => _isConnecting;
   bool get isAuthenticated => _isAuthenticated;
+  String? get myUsername => _myUsername;
   bool get hasLoadedConversations => _hasLoadedConversations;
   bool get peerIsTyping => _peerIsTyping;
   bool get peerIsRecordingVoice => _peerIsRecordingVoice;
   String? get currentChatWith => _currentChatWith;
   bool get activeChatCaptureProtected => _activeChatCaptureProtected;
-  String? get myUsername => _myUsername;
 
   Map<String, dynamic>? randomGameFor(String sessionId) {
     final game = _randomGames[sessionId];
@@ -1697,6 +1698,11 @@ class SocketService extends ChangeNotifier {
     _socket!.on('game_invite_accepted', (data) {
       if (data is Map) onGameInviteAccepted?.call(Map<String, dynamic>.from(data));
     });
+    _socket!.on('game_invitation_received', (data) {
+      if (data is Map) {
+        onGameInvitationReceived?.call(Map<String, dynamic>.from(data));
+      }
+    });
     _socket!.on('game_invite_timeout', (data) {
       if (data is Map) {
         final packet = Map<String, dynamic>.from(data);
@@ -2959,6 +2965,55 @@ class SocketService extends ChangeNotifier {
     );
     if (result['ok'] != true) {
       throw StateError(result['message']?.toString() ?? 'This game invite has expired.');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getPendingGameInvitations() async {
+    await _waitForSocketAuthentication();
+    final socket = _socket;
+    if (socket == null || !_isConnected || !_isAuthenticated) {
+      throw StateError('Reconnect to load game invitations.');
+    }
+    final completer = Completer<Map<String, dynamic>>();
+    socket.emitWithAck('get_pending_game_invites', const <String, dynamic>{},
+        ack: (dynamic result) {
+      if (completer.isCompleted) return;
+      completer.complete(result is Map
+          ? Map<String, dynamic>.from(result)
+          : <String, dynamic>{'ok': false});
+    });
+    final result = await completer.future.timeout(
+      const Duration(seconds: 6),
+      onTimeout: () => throw StateError('Game invitations could not be loaded.'),
+    );
+    if (result['ok'] != true) {
+      throw StateError(result['message']?.toString() ?? 'Game invitations could not be loaded.');
+    }
+    final raw = result['invitations'];
+    if (raw is! List) return <Map<String, dynamic>>[];
+    return raw.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
+  }
+
+  Future<void> rejectGameInvite(String messageId) async {
+    await _waitForSocketAuthentication();
+    final socket = _socket;
+    if (socket == null || !_isConnected || !_isAuthenticated) {
+      throw StateError('Reconnect before rejecting this invite.');
+    }
+    final completer = Completer<Map<String, dynamic>>();
+    socket.emitWithAck('reject_game_invite', {'messageId': messageId},
+        ack: (dynamic result) {
+      if (completer.isCompleted) return;
+      completer.complete(result is Map
+          ? Map<String, dynamic>.from(result)
+          : <String, dynamic>{'ok': false});
+    });
+    final result = await completer.future.timeout(
+      const Duration(seconds: 5),
+      onTimeout: () => throw StateError('Invitation rejection timed out.'),
+    );
+    if (result['ok'] != true) {
+      throw StateError(result['message']?.toString() ?? 'This invite is no longer active.');
     }
   }
 

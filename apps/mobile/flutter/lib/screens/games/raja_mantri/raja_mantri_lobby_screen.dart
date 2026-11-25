@@ -5,11 +5,11 @@ import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../models/user_model.dart';
-import '../../services/auth_service.dart';
-import '../../services/friend_service.dart';
-import '../../services/socket_service.dart';
-import '../../widgets/user_avatar.dart';
+import '../../../models/user_model.dart';
+import '../../../services/auth_service.dart';
+import '../../../services/friend_service.dart';
+import '../../../services/socket_service.dart';
+import '../../../widgets/user_avatar.dart';
 import 'raja_mantri_screen.dart';
 import 'raja_mantri_online_game_screen.dart';
 

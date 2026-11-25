@@ -4,12 +4,17 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../services/auth_service.dart';
-import '../../services/game_history_service.dart';
-import '../../widgets/user_avatar.dart';
-import 'game_history_screen.dart';
-import 'game_lobby_screen.dart';
-import 'raja_mantri_lobby_screen.dart';
+import '../../../services/auth_service.dart';
+import '../../../services/game_history_service.dart';
+import '../../../services/socket_service.dart';
+import '../../../widgets/user_avatar.dart';
+import '../shared/history/game_history_screen.dart';
+import '../shared/lobby/game_lobby_screen.dart';
+import '../raja_mantri/raja_mantri_lobby_screen.dart';
+import '../leaderboard/leaderboard_screen.dart';
+import '../invitations/game_invitations_screen.dart';
+import '../shared/room/game_room_screen.dart';
+import '../raja_mantri/raja_mantri_online_game_screen.dart';
 
 class GamesScreen extends StatefulWidget {
   const GamesScreen({super.key});
@@ -24,14 +29,18 @@ class _GamesScreenState extends State<GamesScreen> {
   final FocusNode _searchFocusNode = FocusNode();
 
   String _searchQuery = '';
+  bool _showSearch = false;
   String _activeCategory = 'All';
   String _statsUsername = '';
   GameStatsSnapshot _stats = GameStatsSnapshot.empty;
-  int _rmPlayed = 0;
-  int _rmHighScore = 0;
   int _statsLoadGeneration = 0;
   Future<void>? _statsLoadFuture;
   double _prevBottomInset = 0;
+  SocketService? _invitationSocket;
+  int _pendingInviteCount = 0;
+  bool _showingInvitePopup = false;
+  bool _wasSocketConnected = false;
+  final Set<String> _shownInvitationIds = <String>{};
 
   static const List<_GameOption> _games = <_GameOption>[
     _GameOption(
@@ -63,11 +72,17 @@ class _GamesScreenState extends State<GamesScreen> {
     super.initState();
     unawaited(_loadLastPlayed());
     GameHistoryService.revision.addListener(_onGameHistoryChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadPendingInvitations(showLatest: true);
+    });
   }
 
   @override
   void dispose() {
     GameHistoryService.revision.removeListener(_onGameHistoryChanged);
+    if (_invitationSocket != null) {
+      _invitationSocket!.onGameInvitationReceived = null;
+    }
     _searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
@@ -76,6 +91,130 @@ class _GamesScreenState extends State<GamesScreen> {
   void _onGameHistoryChanged() {
     if (mounted && _statsUsername.isNotEmpty) {
       _statsLoadFuture = _loadStats(_statsUsername);
+    }
+  }
+
+  Future<void> _loadPendingInvitations({bool showLatest = false}) async {
+    final socket = _invitationSocket;
+    if (socket == null || !socket.isConnected) return;
+    try {
+      final invitations = await socket.getPendingGameInvitations();
+      if (!mounted) return;
+      setState(() => _pendingInviteCount = invitations.length);
+      if (showLatest && invitations.isNotEmpty) {
+        final latest = invitations.last;
+        final id = latest['messageId']?.toString() ?? '';
+        if (id.isNotEmpty && !_shownInvitationIds.contains(id)) {
+          _showIncomingInvitation(latest);
+        }
+      }
+    } catch (_) {
+      // A transient socket reconnect must not block the Games screen.
+    }
+  }
+
+  void _handleIncomingGameInvitation(Map invitation) {
+    if (!mounted) return;
+    final packet = Map<String, dynamic>.from(invitation);
+    final id = packet['messageId']?.toString() ?? '';
+    if (id.isEmpty) return;
+    setState(() => _pendingInviteCount++);
+    _showIncomingInvitation(packet);
+  }
+
+  Future<void> _showIncomingInvitation(Map<String, dynamic> invitation) async {
+    final id = invitation['messageId']?.toString() ?? '';
+    final socket = _invitationSocket;
+    if (!mounted || id.isEmpty || socket == null || !socket.isConnected ||
+        _showingInvitePopup || _shownInvitationIds.contains(id)) return;
+    final route = ModalRoute.of(context);
+    if (route != null && !route.isCurrent) return;
+    _shownInvitationIds.add(id);
+    _showingInvitePopup = true;
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: false,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => _IncomingGameInviteSheet(
+        invitation: invitation,
+        onAccept: () async {
+          try {
+            await socket.acceptGameInvite(id);
+            if (!mounted) return;
+            Navigator.of(sheetContext).pop();
+            _showingInvitePopup = false;
+            if (invitation['gameType']?.toString() == 'rajamantri') {
+              await Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => RajaMantriInviteWaitingScreen(
+                    messageId: id,
+                    hostName: invitation['displayName']?.toString() ??
+                        invitation['from']?.toString() ?? 'Friend',
+                  ),
+                ),
+              );
+            } else if (invitation['game'] is Map) {
+              await Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => GameRoomScreen(
+                    currentUsername: _statsUsername,
+                    initialGame: Map<String, dynamic>.from(invitation['game'] as Map),
+                    messageId: id,
+                    peerUsername: invitation['from']?.toString() ?? '',
+                    opponentDisplayName: invitation['displayName']?.toString(),
+                  ),
+                ),
+              );
+            }
+            unawaited(_loadPendingInvitations());
+          } catch (error) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(error.toString().replaceFirst('Bad state: ', ''))),
+            );
+          }
+        },
+        onReject: () async {
+          try {
+            await socket.rejectGameInvite(id);
+            if (!mounted) return;
+            Navigator.of(sheetContext).pop();
+            _showingInvitePopup = false;
+            if (_pendingInviteCount > 0) {
+              setState(() => _pendingInviteCount--);
+            }
+            unawaited(_loadPendingInvitations());
+          } catch (error) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(error.toString().replaceFirst('Bad state: ', ''))),
+            );
+          }
+        },
+      ),
+    );
+    _showingInvitePopup = false;
+    if (mounted) unawaited(_loadPendingInvitations());
+  }
+
+  Future<void> _openInvitations() async {
+    _searchFocusNode.unfocus();
+    final socket = _invitationSocket;
+    if (socket == null || !socket.isConnected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Reconnect to view game invitations.')),
+      );
+      return;
+    }
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => GameInvitationsScreen(socket: socket),
+      ),
+    );
+    if (mounted) {
+      _invitationSocket?.onGameInvitationReceived = _handleIncomingGameInvitation;
+      unawaited(_loadPendingInvitations());
     }
   }
 
@@ -88,6 +227,21 @@ class _GamesScreenState extends State<GamesScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final socket = Provider.of<SocketService?>(context);
+    if (!identical(socket, _invitationSocket)) {
+      if (_invitationSocket != null) {
+        _invitationSocket!.onGameInvitationReceived = null;
+      }
+      _invitationSocket = socket;
+      if (socket != null) {
+        socket.onGameInvitationReceived = _handleIncomingGameInvitation;
+      }
+    }
+    final connected = socket?.isConnected == true;
+    if (connected && !_wasSocketConnected) {
+      unawaited(_loadPendingInvitations(showLatest: true));
+    }
+    _wasSocketConnected = connected;
     final user = Provider.of<AuthService?>(context)?.user;
     final username = user?.username.trim() ?? '';
     if (username.toLowerCase() != _statsUsername.toLowerCase()) {
@@ -101,14 +255,9 @@ class _GamesScreenState extends State<GamesScreen> {
     if (mounted) setState(() => _stats = GameStatsSnapshot.empty);
     if (username.isEmpty) return;
     final snapshot = await GameHistoryService.load(username);
-    final prefs = await SharedPreferences.getInstance();
-    final rmPlayed = prefs.getInt('rm_played') ?? 0;
-    final rmHigh = prefs.getInt('rm_highscore') ?? 0;
     if (!mounted || generation != _statsLoadGeneration) return;
     setState(() {
       _stats = snapshot;
-      _rmPlayed = rmPlayed;
-      _rmHighScore = rmHigh;
     });
   }
 
@@ -162,7 +311,7 @@ class _GamesScreenState extends State<GamesScreen> {
   List<_GameOption> get _filteredGames {
     final categoryGames = switch (_activeCategory) {
       '2 Player' => _games,
-      '3P / 4P' => <_GameOption>[_rajaMantriGame],
+      '3 P / 4 P' => <_GameOption>[_rajaMantriGame],
       _ => <_GameOption>[..._games, _rajaMantriGame],
     };
     if (_searchQuery.isEmpty) return categoryGames;
@@ -217,6 +366,51 @@ class _GamesScreenState extends State<GamesScreen> {
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               padding: const EdgeInsets.only(top: 16, bottom: 116),
               children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Games',
+                          style: TextStyle(
+                            fontFamily: 'PlusJakartaSans',
+                            fontSize: 27,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.8,
+                            color: isDark ? Colors.white : const Color(0xFF1E1A33),
+                          ),
+                        ),
+                      ),
+                      _GamesHeaderAction(
+                        icon: _showSearch ? Icons.close_rounded : Icons.search_rounded,
+                        tooltip: _showSearch ? 'Close search' : 'Search games',
+                        onTap: () {
+                          setState(() {
+                            _showSearch = !_showSearch;
+                            if (!_showSearch) {
+                              _searchController.clear();
+                              _searchQuery = '';
+                              _searchFocusNode.unfocus();
+                            }
+                          });
+                          if (_showSearch) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (mounted) _searchFocusNode.requestFocus();
+                            });
+                          }
+                        },
+                      ),
+                      const SizedBox(width: 10),
+                      _GamesHeaderAction(
+                        icon: Icons.mail_outline_rounded,
+                        tooltip: 'Game invitations',
+                        badgeCount: _pendingInviteCount,
+                        onTap: _openInvitations,
+                      ),
+                    ],
+                  ),
+                ),
                 // Hero Profile & Stats Card
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -225,77 +419,60 @@ class _GamesScreenState extends State<GamesScreen> {
                     username: username,
                     photoUrl: user?.photoUrl ?? '',
                     stats: _stats,
-                    rmPlayed: _rmPlayed,
-                    rmHighScore: _rmHighScore,
                     onHistoryTap: () => _openHistory(username),
+                    onLeaderboardTap: () {
+                      _searchFocusNode.unfocus();
+                      Navigator.of(context).push<void>(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const LeaderboardScreen(),
+                        ),
+                      );
+                    },
                     isDark: isDark,
                   ),
                 ),
                 const SizedBox(height: 20),
 
-                // Search Bar
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF201B36) : Colors.white,
-                      borderRadius: BorderRadius.circular(30),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF5E44F3).withValues(alpha: isDark ? 0.08 : 0.04),
-                          blurRadius: 14,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: TextField(
-                      controller: _searchController,
-                      focusNode: _searchFocusNode,
-                      textInputAction: TextInputAction.search,
-                      onSubmitted: (_) => _searchFocusNode.unfocus(),
-                      cursorColor: const Color(0xFF5E44F3),
-                      onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? Colors.white : const Color(0xFF1E1A33),
+                if (_showSearch) ...[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF201B36) : Colors.white,
+                        borderRadius: BorderRadius.circular(30),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF5E44F3).withValues(alpha: isDark ? 0.08 : 0.04),
+                            blurRadius: 14,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
-                      decoration: InputDecoration(
-                        isDense: true,
-                        filled: false,
-                        fillColor: Colors.transparent,
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        errorBorder: InputBorder.none,
-                        focusedErrorBorder: InputBorder.none,
-                        disabledBorder: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                        prefixIcon: const Icon(
-                          Icons.search_rounded,
-                          size: 22,
-                          color: Color(0xFF7E7A9C),
-                        ),
-                        suffixIcon: _searchQuery.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF7E7A9C)),
-                                onPressed: () {
-                                  _searchController.clear();
-                                  setState(() => _searchQuery = '');
-                                  _searchFocusNode.unfocus();
-                                },
-                              )
-                            : null,
-                        hintText: 'Search games',
-                        hintStyle: const TextStyle(
+                      child: TextField(
+                        controller: _searchController,
+                        focusNode: _searchFocusNode,
+                        textInputAction: TextInputAction.search,
+                        onSubmitted: (_) => _searchFocusNode.unfocus(),
+                        cursorColor: const Color(0xFF5E44F3),
+                        onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
+                        style: TextStyle(
                           fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF7E7A9C),
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? Colors.white : const Color(0xFF1E1A33),
+                        ),
+                        decoration: const InputDecoration(
+                          isDense: true,
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                          prefixIcon: Icon(Icons.search_rounded, size: 22, color: Color(0xFF7E7A9C)),
+                          hintText: 'Search games',
+                          hintStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF7E7A9C)),
                         ),
                       ),
                     ),
                   ),
-                ),
+                  const SizedBox(height: 20),
+                ],
                 const SizedBox(height: 20),
                 SizedBox(
                   height: 42,
@@ -316,9 +493,9 @@ class _GamesScreenState extends State<GamesScreen> {
                       ),
                       const SizedBox(width: 9),
                       _GamesCategoryPill(
-                        label: '3P / 4P',
-                        selected: _activeCategory == '3P / 4P',
-                        onTap: () => setState(() => _activeCategory = '3P / 4P'),
+                        label: '3 P / 4 P',
+                        selected: _activeCategory == '3 P / 4 P',
+                        onTap: () => setState(() => _activeCategory = '3 P / 4 P'),
                       ),
                     ],
                   ),
@@ -373,15 +550,72 @@ class _GamesScreenState extends State<GamesScreen> {
   }
 }
 
+class _GamesHeaderAction extends StatelessWidget {
+  const _GamesHeaderAction({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+    this.badgeCount = 0,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  final int badgeCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: isDark ? const Color(0xFF292241) : Colors.white,
+        shape: const CircleBorder(),
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: SizedBox(
+            width: 42,
+            height: 42,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Center(child: Icon(icon, size: 21, color: const Color(0xFF6848F5))),
+                if (badgeCount > 0)
+                  Positioned(
+                    top: 3,
+                    right: 2,
+                    child: Container(
+                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      alignment: Alignment.center,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFE54868),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        badgeCount > 9 ? '9+' : '$badgeCount',
+                        style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _GameProfileHeroCard extends StatefulWidget {
   const _GameProfileHeroCard({
     required this.displayName,
     required this.username,
     required this.photoUrl,
     required this.stats,
-    this.rmPlayed = 0,
-    this.rmHighScore = 0,
     required this.onHistoryTap,
+    required this.onLeaderboardTap,
     required this.isDark,
   });
 
@@ -389,9 +623,8 @@ class _GameProfileHeroCard extends StatefulWidget {
   final String username;
   final String photoUrl;
   final GameStatsSnapshot stats;
-  final int rmPlayed;
-  final int rmHighScore;
   final VoidCallback onHistoryTap;
+  final VoidCallback onLeaderboardTap;
   final bool isDark;
 
   @override
@@ -663,66 +896,43 @@ class _GameProfileHeroCardState extends State<_GameProfileHeroCard> {
                           ),
                         ],
                       ),
-                      if (widget.rmPlayed > 0 || widget.rmHighScore > 0) ...[
-                        const SizedBox(height: 14),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
-                          decoration: BoxDecoration(
-                            color: softSurface,
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.military_tech_rounded, color: const Color(0xFF5E44F3), size: 19),
-                              const SizedBox(width: 9),
-                              Text(
-                                'Raja Mantri',
-                                style: TextStyle(
-                                  fontFamily: 'PlusJakartaSans',
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w800,
-                                  color: foreground,
-                                ),
-                              ),
-                              const Spacer(),
-                              Flexible(
-                                child: Text(
-                                  '${widget.rmPlayed} played${widget.rmHighScore > 0 ? ' · Best: ${widget.rmHighScore} pts' : ''}',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  textAlign: TextAlign.end,
-                                  style: const TextStyle(
-                                    fontFamily: 'PlusJakartaSans',
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF5E44F3),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
                       const SizedBox(height: 14),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton.icon(
-                          onPressed: widget.onHistoryTap,
-                          icon: const Icon(Icons.history_rounded, size: 20),
-                          label: const Text('Match history'),
-                          style: FilledButton.styleFrom(
-                            foregroundColor: const Color(0xFF5E44F3),
-                            backgroundColor: softSurface,
-                            elevation: 0,
-                            minimumSize: const Size.fromHeight(48),
-                            shape: const StadiumBorder(),
-                            textStyle: const TextStyle(
-                              fontFamily: 'PlusJakartaSans',
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: widget.onHistoryTap,
+                              icon: const Icon(Icons.history_rounded, size: 19),
+                              label: const Text('Game History'),
+                              style: FilledButton.styleFrom(
+                                foregroundColor: const Color(0xFF5E44F3),
+                                backgroundColor: softSurface,
+                                elevation: 0,
+                                minimumSize: const Size.fromHeight(46),
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                shape: const StadiumBorder(),
+                                textStyle: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12, fontWeight: FontWeight.w800),
+                              ),
                             ),
                           ),
-                        ),
+                          const SizedBox(width: 9),
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: widget.onLeaderboardTap,
+                              icon: const Icon(Icons.emoji_events_rounded, size: 19),
+                              label: const Text('Leaderboard'),
+                              style: FilledButton.styleFrom(
+                                foregroundColor: const Color(0xFF5E44F3),
+                                backgroundColor: softSurface,
+                                elevation: 0,
+                                minimumSize: const Size.fromHeight(46),
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                shape: const StadiumBorder(),
+                                textStyle: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12, fontWeight: FontWeight.w800),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   )
@@ -1091,3 +1301,85 @@ class _GameOption {
   final IconData icon;
   final List<Color> gradient;
 }
+
+class _IncomingGameInviteSheet extends StatelessWidget {
+  const _IncomingGameInviteSheet({
+    required this.invitation,
+    required this.onAccept,
+    required this.onReject,
+  });
+
+  final Map<String, dynamic> invitation;
+  final VoidCallback onAccept;
+  final VoidCallback onReject;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final name = invitation['displayName']?.toString().trim().isNotEmpty == true
+        ? invitation['displayName'].toString()
+        : invitation['from']?.toString() ?? 'A friend';
+    final gameType = invitation['gameType']?.toString().toLowerCase() ?? '';
+    final gameName = gameType == 'tictactoe'
+        ? 'Tic-Tac-Toe'
+        : gameType == 'rps'
+            ? 'Rock Paper Scissors'
+            : gameType == 'rajamantri'
+                ? 'Raja Mantri'
+                : 'a game';
+    final gameDetails = gameType == 'tictactoe'
+        ? '2 players · Classic match'
+        : gameType == 'rps'
+            ? '2 players · First to 3 wins'
+            : gameType == 'rajamantri'
+                ? '3–4 players · Chor Sipahi'
+                : 'Live multiplayer match';
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF211B37) : Colors.white,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: const Color(0xFF8B78F5).withValues(alpha: .22)),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .16), blurRadius: 24, offset: const Offset(0, -5))],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(width: 38, height: 4, decoration: BoxDecoration(color: isDark ? Colors.white24 : const Color(0xFFD8D2EA), borderRadius: BorderRadius.circular(4))),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              UserAvatar(name: name, photoUrl: invitation['avatarId']?.toString() ?? '', radius: 26, fallbackColor: const Color(0xFF6848F5)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface)),
+                    const SizedBox(height: 3),
+                    Text('invited you to play $gameName', style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
+                    const SizedBox(height: 4),
+                    Text(gameDetails, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: const Color(0xFF8B78F5))),
+                  ],
+                ),
+              ),
+              const Icon(Icons.sports_esports_rounded, color: Color(0xFF6848F5), size: 25),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              Expanded(child: OutlinedButton(onPressed: onReject, style: OutlinedButton.styleFrom(foregroundColor: theme.colorScheme.onSurfaceVariant, minimumSize: const Size.fromHeight(44), shape: const StadiumBorder()), child: const Text('Reject'))),
+              const SizedBox(width: 10),
+              Expanded(child: FilledButton(onPressed: onAccept, style: FilledButton.styleFrom(backgroundColor: const Color(0xFF6848F5), foregroundColor: Colors.white, minimumSize: const Size.fromHeight(44), shape: const StadiumBorder()), child: const Text('Accept'))),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+

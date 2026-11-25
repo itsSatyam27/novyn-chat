@@ -13,7 +13,7 @@
 
 **Implementation evidence**
 
-- Screens and match UI: `apps/mobile/flutter/lib/screens/games/games_screen.dart`, `apps/mobile/flutter/lib/screens/games/game_lobby_screen.dart`, `apps/mobile/flutter/lib/widgets/game_message_card.dart`, and `apps/mobile/flutter/lib/screens/games/game_history_screen.dart`.
+- Screens and match UI: `apps/mobile/flutter/lib/screens/games/home/games_screen.dart`, `apps/mobile/flutter/lib/screens/games/shared/lobby/game_lobby_screen.dart`, `apps/mobile/flutter/lib/widgets/game_message_card.dart`, and `apps/mobile/flutter/lib/screens/games/shared/history/game_history_screen.dart`.
 - Implementation screenshot: not captured. No emulator/device was available.
 - State intended for comparison: signed-in user, light theme, Games tab at rest; then Tic-Tac-Toe lobby with friend search visible.
 - Viewport intended: 390 x 844 dp. Source screenshots are @2x; a rendered capture would need normalization to this logical size.

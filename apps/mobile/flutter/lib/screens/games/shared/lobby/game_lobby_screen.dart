@@ -5,14 +5,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../models/chat_models.dart';
-import '../../models/user_model.dart';
-import '../../services/auth_service.dart';
-import '../../services/friend_service.dart';
-import '../../services/socket_service.dart';
-import '../../widgets/novyn_alert.dart';
-import '../../widgets/user_avatar.dart';
-import 'game_room_screen.dart';
+import '../../../../models/chat_models.dart';
+import '../../../../models/user_model.dart';
+import '../../../../services/auth_service.dart';
+import '../../../../services/friend_service.dart';
+import '../../../../services/socket_service.dart';
+import '../../../../widgets/novyn_alert.dart';
+import '../../../../widgets/user_avatar.dart';
+import '../room/game_room_screen.dart';
 
 class GameLobbyScreen extends StatefulWidget {
   const GameLobbyScreen({

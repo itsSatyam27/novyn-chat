@@ -1787,6 +1787,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         }
         final msgIndex = timelineItem;
         final current = messages[msgIndex];
+        final game = current.game;
+        final isPendingDirectGameInvite = !widget.isGroup &&
+            game is Map &&
+            (game as Map)['state']?.toString() == 'in_progress' &&
+            (game as Map)['lastMoveBy'] == null;
+        if (isPendingDirectGameInvite) return const SizedBox.shrink();
         final next = msgIndex + 1 < messages.length ? messages[msgIndex + 1] : null;
         // last bubble of a run from the same sender
         final lastInGroup = next == null ||
@@ -5412,7 +5418,10 @@ class _MessageBubble extends StatelessWidget {
                               ],
                             ),
                           ),
-                        if (message.game is Map) ...[
+                        if (message.game is Map &&
+                            !( !isGroup &&
+                               (message.game as Map)['state']?.toString() == 'in_progress' &&
+                               (message.game as Map)['lastMoveBy'] == null)) ...[
                           GameMessageCard(
                             messageId: message.id.toString(),
                             game:

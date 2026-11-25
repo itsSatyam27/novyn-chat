@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
-import 'game_lobby_screen.dart';
 
-class TicTacToeScreen extends StatelessWidget {
-  const TicTacToeScreen({super.key});
+import '../../shared/lobby/game_lobby_screen.dart';
+
+/// Tic-Tac-Toe-specific lobby entry point.
+/// Shared matchmaking mechanics stay in the shared lobby engine.
+class TicTacToeLobbyScreen extends StatelessWidget {
+  const TicTacToeLobbyScreen({super.key});
 
   @override
   Widget build(BuildContext context) {

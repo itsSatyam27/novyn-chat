@@ -3,9 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../services/auth_service.dart';
-import '../../services/game_history_service.dart';
-import '../../services/socket_service.dart';
+import '../../../services/auth_service.dart';
+import '../../../services/game_history_service.dart';
+import '../../../services/socket_service.dart';
 
 class RajaMantriOnlineGameScreen extends StatefulWidget {
   const RajaMantriOnlineGameScreen({
@@ -213,7 +213,8 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
             : 'loss';
     final opponents = sorted
         .where((player) => player['username']?.toString().toLowerCase() != _username)
-        .map((player) => player['displayName']?.toString() ?? player['username']?.toString() ?? 'Player')
+        .map((player) => player['username']?.toString() ?? '')
+        .where((username) => username.isNotEmpty)
         .join(', ');
     unawaited(GameHistoryService.recordFinishedMatch(
       username: _username,

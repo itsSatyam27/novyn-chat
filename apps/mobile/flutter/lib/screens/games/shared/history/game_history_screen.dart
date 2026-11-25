@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../services/game_history_service.dart';
+import '../../../../services/game_history_service.dart';
 
 enum _HistoryFilter { all, wins, losses }
 

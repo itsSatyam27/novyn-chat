@@ -8,7 +8,7 @@ import 'calls/calls_screen.dart';
 import 'calls/call_screen.dart';
 import 'auth/auth_screen.dart';
 import 'people/people_screen.dart';
-import 'games/games_screen.dart';
+import 'games/home/games_screen.dart';
 import 'profile/profile_screen.dart';
 import '../services/auth_service.dart';
 import '../services/socket_service.dart';

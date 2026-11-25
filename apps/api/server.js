@@ -14,6 +14,7 @@ const { registerMessageMutationHandlers } = require("./server/realtime/message-m
 const { registerCallHandlers, cancelCallForUser } = require("./server/realtime/call-handlers");
 const { applyGameMove, createGameChallenge } = require("./server/realtime/game-rules");
 const { PublicGameMatchmaking } = require("./server/realtime/game-matchmaking");
+const { buildGameLeaderboard, normalizeLeaderboardGame } = require("./game-leaderboard");
 const { RajaMantriMatchmaking } = require("./server/realtime/raja-mantri-matchmaking");
 const {
   createRajaMantriGameSession,
@@ -992,21 +993,25 @@ app.post("/api/games/history", requireUser, requireCsrf, async (req, res) => {
     if (item?.isBotMatch === true || item?.opponentType === "bot") continue;
     const matchId = toDisplayName(item?.id || item?.matchId).slice(0, 160);
     const gameType = toDisplayName(item?.gameType).toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 40);
-    const opponent = toDisplayName(item?.opponent).slice(0, 64);
-    const opponentKey = normalizeName(opponent);
-    const opponentAccount = opponentKey ? users.get(opponentKey) : null;
+    const opponent = toDisplayName(item?.opponent).slice(0, 192);
+    const opponentNames = opponent.split(",").map((name) => name.trim()).filter(Boolean);
+    const opponentKeys = opponentNames.map(normalizeName);
+    const allOpponentsRegistered = opponentKeys.length > 0 &&
+      new Set(opponentKeys).size === opponentKeys.length &&
+      opponentKeys.every((opponentKey) =>
+        opponentKey !== req.userKey && users.get(opponentKey)?.isRegistered
+      );
     const result = ["win", "loss", "draw"].includes(item?.result) ? item.result : "";
     const playedAt = new Date(item?.playedAt);
-    // A client flag is not proof that a match was human-vs-human. Require the
-    // opponent to resolve to a registered Novyn account on the server.
+    // A client flag is not proof that a match was human-vs-human. Require every
+    // recorded opponent (including multiplayer opponents) to be a registered account.
     if (!matchId || !allowedGames.has(gameType) || !opponent ||
-        !opponentKey || opponentKey === req.userKey ||
-        !opponentAccount?.isRegistered || !result ||
-        /^(ai|bot)(\b|[_ -])/i.test(opponent) ||
+        !allOpponentsRegistered || !result ||
+        opponentNames.some((name) => /^(ai|bot)(\b|[_ -])/i.test(name)) ||
         !Number.isFinite(playedAt.getTime()) ||
         playedAt.getTime() > Date.now() + 5 * 60 * 1000 ||
         playedAt.getTime() < Date.now() - 5 * 365 * 24 * 60 * 60 * 1000) {
-      return res.status(400).json({ error: "A completed human match must include a registered, different Novyn opponent and valid match details." });
+      return res.status(400).json({ error: "A completed human match must include registered, different Novyn opponent accounts and valid match details." });
     }
     docs.push({
       _id: req.userKey + ":" + matchId,
@@ -1034,6 +1039,85 @@ app.post("/api/games/history", requireUser, requireCsrf, async (req, res) => {
   } catch (error) {
     console.warn("[NovynGames] History write failed:", error?.message || error);
     return res.status(503).json({ error: "Cloud game history could not be saved." });
+  }
+});
+
+// Leaderboards aggregate persisted non-bot match records for registered accounts.
+app.get("/api/games/leaderboard", requireUser, async (req, res) => {
+  if (!mongoGameHistoryCollection) {
+    return res.status(503).json({ error: "Cloud game history is temporarily unavailable." });
+  }
+
+  const scope = String(req.query.scope || "friends").toLowerCase();
+  if (!["friends", "global"].includes(scope)) {
+    return res.status(400).json({ error: "Choose Friends or Global leaderboard." });
+  }
+
+  const game = normalizeLeaderboardGame(req.query.game || "overall");
+  if (!game || !["overall", "tictactoe", "rps", "rajamantri"].includes(game)) {
+    return res.status(400).json({ error: "Choose a supported game leaderboard." });
+  }
+
+  const viewer = users.get(req.userKey);
+  if (!viewer?.isRegistered || viewer.isSuspended === true) {
+    return res.status(403).json({ error: "A registered account is required for leaderboards." });
+  }
+
+  try {
+    const eligibleUsers = new Map([[req.userKey, viewer]]);
+    if (scope === "friends") {
+      for (const rawFriendKey of viewer.friends || []) {
+        const friendKey = normalizeName(rawFriendKey);
+        const friend = users.get(friendKey);
+        if (!friendKey || !friend?.isRegistered || friend.isSuspended === true ||
+            usersAreBlocked(req.userKey, friendKey)) {
+          continue;
+        }
+        eligibleUsers.set(friendKey, friend);
+      }
+    } else {
+      for (const [userKey, user] of users.entries()) {
+        if (!user?.isRegistered || user.isSuspended === true) continue;
+        if (userKey !== req.userKey && usersAreBlocked(req.userKey, userKey)) continue;
+        eligibleUsers.set(userKey, user);
+      }
+    }
+
+    const historyQuery = { isBotMatch: { $ne: true } };
+    if (scope === "friends") {
+      historyQuery.userKey = { $in: Array.from(eligibleUsers.keys()) };
+    }
+    const matches = await mongoGameHistoryCollection
+      .find(historyQuery, {
+        projection: {
+          _id: 0,
+          userKey: 1,
+          gameType: 1,
+          result: 1,
+          playedAt: 1,
+          isBotMatch: 1,
+        },
+      })
+      .sort({ userKey: 1, playedAt: 1 })
+      .toArray();
+
+    const rankings = buildGameLeaderboard({
+      matches,
+      users: eligibleUsers,
+      viewerKey: req.userKey,
+      selectedGame: game,
+    });
+    return res.json({
+      ok: true,
+      scope,
+      game,
+      totalPlayers: rankings.length,
+      rankings: rankings.slice(0, 100),
+      myEntry: rankings.find((entry) => entry.isSelf) || null,
+    });
+  } catch (error) {
+    console.warn("[NovynGames] Leaderboard read failed:", error?.message || error);
+    return res.status(503).json({ error: "Leaderboard is temporarily unavailable." });
   }
 });
 
@@ -3591,6 +3675,16 @@ async function initializeMongo() {
     mongoAuthSessionsCollection = mongoStorage.getCollection("auth_sessions");
     mongoMediaCollection = mongoStorage.getCollection("media");
     mongoGameHistoryCollection = mongoStorage.getCollection("game_history");
+    if (mongoGameHistoryCollection?.createIndex) {
+      try {
+        await mongoGameHistoryCollection.createIndex(
+          { userKey: 1, playedAt: 1 },
+          { name: "game_history_user_played_at" }
+        );
+      } catch (error) {
+        console.warn("[NovynGames] Leaderboard index setup deferred:", error?.message || error);
+      }
+    }
     if (mongoMediaCollection) {
       const storedMedia = await mongoMediaCollection.find({}).toArray();
       for (const item of storedMedia) {
@@ -4627,7 +4721,17 @@ function getConversationSummaryByKey(conversationKey) {
     };
   }
 
-  const message = messages[messages.length - 1];
+  const message = [...messages].reverse().find((candidate) => {
+    const game = candidate?.game;
+    return !(game && game.state === "in_progress" && game.lastMoveBy == null);
+  });
+  if (!message) {
+    return {
+      lastMessage: "",
+      lastTimestamp: null,
+      lastFrom: "",
+    };
+  }
   const text = message.deletedAt ? DELETED_MESSAGE_TEXT : toDisplayName(message.text);
   const compact = text.length > 52 ? `${text.slice(0, 49)}...` : text;
 
@@ -7480,6 +7584,31 @@ io.on("connection", (socket) => {
     return respond({ ok: true, game: getRajaMantriGameView(entry.game, userKey) });
   });
 
+  socket.on("get_pending_game_invites", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : () => {};
+    const userKey = normalizeName(socket.data.userKey || "");
+    if (!userKey || onlineUsers.get(userKey) !== socket.id) {
+      return respond({ ok: false, message: "Reconnect to load game invitations." });
+    }
+    const invitations = [];
+    for (const [messageId, invite] of pendingGameInvites.entries()) {
+      if (invite.toKey !== userKey || invite.accepted === true || invite.expiresAt <= Date.now()) continue;
+      const inviter = users.get(invite.fromKey);
+      if (!inviter || usersAreBlocked(invite.fromKey, userKey)) continue;
+      invitations.push({
+        messageId,
+        from: inviter.username || invite.fromKey,
+        displayName: inviter.displayName || inviter.username || invite.fromKey,
+        avatarId: inviter.avatarId || "",
+        gameType: invite.gameType,
+        game: invite.game || null,
+        expiresAt: invite.expiresAt,
+      });
+    }
+    invitations.sort((a, b) => a.expiresAt - b.expiresAt);
+    return respond({ ok: true, invitations });
+  });
+
   socket.on("accept_game_invite", (payload, callback) => {
     const respond = typeof callback === "function" ? callback : () => {};
     const userKey = normalizeName(socket.data.userKey || "");
@@ -7521,6 +7650,27 @@ io.on("connection", (socket) => {
       });
     }
     return respond({ ok: true, waitingForHost: invite.gameType === "rajamantri" });
+  });
+
+  socket.on("reject_game_invite", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : () => {};
+    const userKey = normalizeName(socket.data.userKey || "");
+    const messageId = toDisplayName(payload?.messageId).slice(0, 128);
+    const invite = pendingGameInvites.get(messageId);
+    if (!userKey || !invite || invite.toKey !== userKey || invite.expiresAt <= Date.now()) {
+      return respond({ ok: false, message: "This game invite is no longer active." });
+    }
+    clearTimeout(invite.timer);
+    pendingGameInvites.delete(messageId);
+    const senderSocketId = onlineUsers.get(invite.fromKey);
+    if (senderSocketId) {
+      io.to(senderSocketId).emit("game_invite_rejected", {
+        messageId,
+        gameType: invite.gameType,
+        by: userKey,
+      });
+    }
+    return respond({ ok: true });
   });
 
   socket.on("cancel_game_invite", (payload, callback) => {
@@ -9852,6 +10002,8 @@ io.on("connection", (socket) => {
         fromKey: normalizeName(userKey),
         toKey: normalizeName(to),
         gameType: game.gameType,
+        game: result.message.game || game,
+        messageId: inviteId,
         expiresAt: Date.now() + 60_000,
         timer: null,
       };
@@ -9863,6 +10015,19 @@ io.on("connection", (socket) => {
       }, 60_000);
       if (typeof invite.timer.unref === "function") invite.timer.unref();
       pendingGameInvites.set(inviteId, invite);
+      const recipientSocketId = onlineUsers.get(invite.toKey);
+      const inviter = users.get(invite.fromKey);
+      if (recipientSocketId && inviter) {
+        io.to(recipientSocketId).emit("game_invitation_received", {
+          messageId: inviteId,
+          from: inviter.username || invite.fromKey,
+          displayName: inviter.displayName || inviter.username || invite.fromKey,
+          avatarId: inviter.avatarId || "",
+          gameType: invite.gameType,
+          game: invite.game,
+          expiresAt: invite.expiresAt,
+        });
+      }
     }
     respond({ ok: true, id: result.message.id });
     if (result.existing) {
