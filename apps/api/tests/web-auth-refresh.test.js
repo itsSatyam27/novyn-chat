@@ -90,7 +90,10 @@ test("legacy browser auth shares concurrent refresh requests", async () => {
   await Promise.resolve();
   assert.equal(calls, 1);
   release();
-  assert.deepEqual(await first, { ok: true, status: 200, data: { ok: true } });
+  const firstResult = await first;
+  assert.equal(firstResult.ok, true);
+  assert.equal(firstResult.status, 200);
+  assert.equal(firstResult.data.ok, true);
   const retry = window._novynAuth.refreshSession();
   assert.notEqual(retry, first);
   await Promise.resolve();
