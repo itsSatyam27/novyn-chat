@@ -41,6 +41,7 @@ function createIpRateLimiter(
     getStore,
     getClientIp = getRequestClientIp,
     normalizeIp = (value) => String(value || "unknown"),
+    maxEntries = 100_000,
   } = {},
   bucket,
   maxRequests,
@@ -53,17 +54,32 @@ function createIpRateLimiter(
   const safeBucket = String(bucket || "default").trim() || "default";
   const max = Math.max(1, Number(maxRequests) || 1);
   const windowDuration = Math.max(1000, Number(windowMs) || DEFAULT_WINDOW_MS);
+  const entryLimit = Math.max(1, Math.floor(Number(maxEntries) || 100_000));
+  const unavailable = () => ({
+    error: "Rate limiting is temporarily unavailable. Please try again later.",
+  });
 
   return (req, res, next) => {
     const activeStore = resolveStore();
     if (!activeStore || typeof activeStore.get !== "function" || typeof activeStore.set !== "function") {
-      res.status(503).json({ error: "Rate limiting is temporarily unavailable. Please try again later." });
+      res.status(503).json(unavailable());
       return;
     }
     const ip = String(normalizeIp(getClientIp(req)) || "unknown");
     const now = Date.now();
     const key = safeBucket + ":" + ip;
     const current = activeStore.get(key);
+
+    // A Map-backed per-IP store can otherwise grow without bound when requests
+    // arrive from many distinct IPs. Prune expired buckets before refusing a
+    // new key, and fail closed rather than allocating beyond the configured cap.
+    if (!current && Number.isFinite(activeStore.size) && activeStore.size >= entryLimit) {
+      pruneHttpRateLimits(activeStore, now);
+      if (activeStore.size >= entryLimit) {
+        res.status(503).json(unavailable());
+        return;
+      }
+    }
     const active = current && now <= Number(current.resetAt)
       ? current
       : { count: 0, resetAt: now + windowDuration };
@@ -79,9 +95,8 @@ function createIpRateLimiter(
   };
 }
 
-function pruneHttpRateLimits(store) {
-  if (!store || typeof store.entries !== "function") return;
-  const now = Date.now();
+function pruneHttpRateLimits(store, now = Date.now()) {
+  if (!store || typeof store.entries !== "function" || typeof store.delete !== "function") return;
   for (const [key, entry] of store.entries()) {
     if (!entry || Number(entry.resetAt) <= now) {
       store.delete(key);
