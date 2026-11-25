@@ -259,3 +259,21 @@ inside the MongoDB pipeline after alias normalization. This avoids aggregating
 other game types when the client asks for one game; the overall leaderboard
 continues to aggregate all supported game types so per-game streak bonuses are
 preserved.
+
+### Read-only leaderboard query-plan diagnostic
+
+Run the explain diagnostic from a trusted staging shell (or during a low-traffic
+window on production) to inspect the actual MongoDB plan without changing data:
+
+```sh
+npm run explain:leaderboard
+LEADERBOARD_GAME=tictactoe npm run explain:leaderboard
+LEADERBOARD_GAME=rps LEADERBOARD_USER_KEYS=user_key_1,user_key_2 npm run explain:leaderboard
+```
+
+It reports explain wall time, cursor documents/keys examined, pipeline return
+count, and index names. It never prints the MongoDB URI or supplied user keys.
+The diagnostic is read-only, but `executionStats` can still consume database
+CPU and scan history; start with staging or a low-traffic window. Use
+`LEADERBOARD_EXPLAIN_MAX_TIME_MS` to bound the explain command (1,000–120,000 ms).
+Compare overall and game-specific plans before changing indexes or pool limits.

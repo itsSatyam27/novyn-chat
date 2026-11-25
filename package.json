@@ -12,6 +12,7 @@
     "preview": "vite preview --config apps/web/vite.config.ts",
     "start": "node apps/api/server.js",
     "migrate:state": "node scripts/migrate-state-to-mongo.js",
+    "explain:leaderboard": "node apps/api/scripts/explain-game-leaderboard.js",
     "clear:data": "node scripts/clear-users.js",
     "cap:sync": "npm run build && npx cap sync",
     "cap:sync:android": "npm run build && npx cap sync android",
