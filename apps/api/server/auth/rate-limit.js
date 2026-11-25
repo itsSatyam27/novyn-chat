@@ -26,6 +26,15 @@ function getRequestClientIp(req) {
   return validIp(req?.ip) || validIp(req?.socket?.remoteAddress) || "unknown";
 }
 
+function getSocketClientIp(socket) {
+  const address = socket?.handshake?.address;
+  return getRequestClientIp({
+    headers: socket?.handshake?.headers,
+    ip: address,
+    socket: { remoteAddress: address },
+  });
+}
+
 function createIpRateLimiter(
   {
     store,
@@ -83,5 +92,6 @@ function pruneHttpRateLimits(store) {
 module.exports = {
   createIpRateLimiter,
   getRequestClientIp,
+  getSocketClientIp,
   pruneHttpRateLimits,
 };

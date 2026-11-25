@@ -91,3 +91,37 @@ test("invalid Express IP values fall back to a validated socket peer", (t) => {
     "2001:db8::42"
   );
 });
+
+test("Render Socket.IO rate limits use the canonical Cloudflare client IP", (t) => {
+  setRenderEnvironment(t, "true");
+
+  const socket = (clientIp) => ({
+    handshake: {
+      address: "10.0.0.9",
+      headers: {
+        "cf-connecting-ip": clientIp,
+        "x-forwarded-for": "198.51.100.99",
+      },
+    },
+  });
+
+  assert.equal(getSocketClientIp(socket("203.0.113.20")), "203.0.113.20");
+  assert.equal(getSocketClientIp(socket("203.0.113.21")), "203.0.113.21");
+});
+
+test("Render Socket.IO rate limits ignore forwarded headers if the trusted edge IP is invalid", (t) => {
+  setRenderEnvironment(t, "true");
+
+  assert.equal(
+    getSocketClientIp({
+      handshake: {
+        address: "10.0.0.9",
+        headers: {
+          "cf-connecting-ip": "203.0.113.20, 198.51.100.4",
+          "x-forwarded-for": "198.51.100.77",
+        },
+      },
+    }),
+    "10.0.0.9"
+  );
+});

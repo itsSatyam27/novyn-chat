@@ -29,7 +29,7 @@ const { Server } = require("socket.io");
 const webpush = require("web-push");
 const { cloudinary, hasCloudinaryConfig } = require("./cloudinary");
 const { createChatAuthorization } = require("./server/chat/authorization");
-const { createIpRateLimiter, pruneHttpRateLimits } = require("./server/auth/rate-limit");
+const { createIpRateLimiter, getSocketClientIp, pruneHttpRateLimits } = require("./server/auth/rate-limit");
 const { createAuthToken: signAuthToken, verifyAuthToken: verifySignedAuthToken } = require("./server/auth/tokens");
 const { createAuthSessions } = require("./server/auth/sessions");
 const { parseCookies, safeTimingEqual: csrfSafeTimingEqual, createCsrf } = require("./server/auth/csrf");
@@ -5611,7 +5611,8 @@ function allowSocketAction(socket, key, maxPerWindow, windowMs) {
   const windowDuration = Math.max(1000, Number(windowMs) || 1000);
   const now = Date.now();
   const userKey = normalizeName(socket.data?.userKey || "");
-  const globalKey = userKey ? `${userKey}:${key}` : `anonymous:${socket.handshake?.address || "unknown"}:${key}`;
+  const socketIp = getSocketClientIp(socket);
+  const globalKey = userKey ? `${userKey}:${key}` : `anonymous:${socketIp}:${key}`;
   const globalStore = runtimeState.socketRateLimits;
 
   // Prune expired global buckets opportunistically so long-lived servers do
