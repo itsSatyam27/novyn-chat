@@ -809,7 +809,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   if (_checking)
-                                    const SizedBox(
+                                    SizedBox(
                                       width: 16,
                                       height: 16,
                                       child: CircularProgressIndicator(
@@ -963,8 +963,8 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           child: Text(
             label,
-            style: const TextStyle(
-              color: primary,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.primary,
               fontSize: 14,
               fontWeight: FontWeight.w600,
             ),
@@ -1029,7 +1029,9 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
   }
 
   void _showWhatsNewSheet() {
-    final dark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+    final accent = theme.colorScheme.primary;
     final surface = dark ? const Color(0xFF1F1D2C) : Colors.white;
     final ink = dark ? const Color(0xFFF0EFFF) : const Color(0xFF1D1B2B);
     final notes = _displayReleaseNotes();
