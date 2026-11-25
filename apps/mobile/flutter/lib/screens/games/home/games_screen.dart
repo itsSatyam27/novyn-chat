@@ -10,6 +10,7 @@ import '../../../widgets/user_avatar.dart';
 import '../shared/history/game_history_screen.dart';
 import '../shared/lobby/game_lobby_screen.dart';
 import '../raja_mantri/raja_mantri_lobby_screen.dart';
+import '../leaderboard/leaderboard_screen.dart';
 
 class GamesScreen extends StatefulWidget {
   const GamesScreen({super.key});
@@ -24,6 +25,7 @@ class _GamesScreenState extends State<GamesScreen> {
   final FocusNode _searchFocusNode = FocusNode();
 
   String _searchQuery = '';
+  bool _showSearch = false;
   String _activeCategory = 'All';
   String _statsUsername = '';
   GameStatsSnapshot _stats = GameStatsSnapshot.empty;
@@ -219,15 +221,53 @@ class _GamesScreenState extends State<GamesScreen> {
               children: [
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-                  child: Text(
-                    'Games',
-                    style: TextStyle(
-                      fontFamily: 'PlusJakartaSans',
-                      fontSize: 27,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.8,
-                      color: isDark ? Colors.white : const Color(0xFF1E1A33),
-                    ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Games',
+                          style: TextStyle(
+                            fontFamily: 'PlusJakartaSans',
+                            fontSize: 27,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.8,
+                            color: isDark ? Colors.white : const Color(0xFF1E1A33),
+                          ),
+                        ),
+                      ),
+                      _GamesHeaderAction(
+                        icon: _showSearch ? Icons.close_rounded : Icons.search_rounded,
+                        tooltip: _showSearch ? 'Close search' : 'Search games',
+                        onTap: () {
+                          setState(() {
+                            _showSearch = !_showSearch;
+                            if (!_showSearch) {
+                              _searchController.clear();
+                              _searchQuery = '';
+                              _searchFocusNode.unfocus();
+                            }
+                          });
+                          if (_showSearch) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (mounted) _searchFocusNode.requestFocus();
+                            });
+                          }
+                        },
+                      ),
+                      const SizedBox(width: 10),
+                      _GamesHeaderAction(
+                        icon: Icons.emoji_events_rounded,
+                        tooltip: 'Leaderboard',
+                        onTap: () {
+                          _searchFocusNode.unfocus();
+                          Navigator.of(context).push<void>(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const LeaderboardScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                   ),
                 ),
                 // Hero Profile & Stats Card
@@ -246,69 +286,46 @@ class _GamesScreenState extends State<GamesScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // Search Bar
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF201B36) : Colors.white,
-                      borderRadius: BorderRadius.circular(30),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF5E44F3).withValues(alpha: isDark ? 0.08 : 0.04),
-                          blurRadius: 14,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: TextField(
-                      controller: _searchController,
-                      focusNode: _searchFocusNode,
-                      textInputAction: TextInputAction.search,
-                      onSubmitted: (_) => _searchFocusNode.unfocus(),
-                      cursorColor: const Color(0xFF5E44F3),
-                      onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? Colors.white : const Color(0xFF1E1A33),
+                if (_showSearch) ...[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF201B36) : Colors.white,
+                        borderRadius: BorderRadius.circular(30),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF5E44F3).withValues(alpha: isDark ? 0.08 : 0.04),
+                            blurRadius: 14,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
-                      decoration: InputDecoration(
-                        isDense: true,
-                        filled: false,
-                        fillColor: Colors.transparent,
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        errorBorder: InputBorder.none,
-                        focusedErrorBorder: InputBorder.none,
-                        disabledBorder: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                        prefixIcon: const Icon(
-                          Icons.search_rounded,
-                          size: 22,
-                          color: Color(0xFF7E7A9C),
-                        ),
-                        suffixIcon: _searchQuery.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF7E7A9C)),
-                                onPressed: () {
-                                  _searchController.clear();
-                                  setState(() => _searchQuery = '');
-                                  _searchFocusNode.unfocus();
-                                },
-                              )
-                            : null,
-                        hintText: 'Search games',
-                        hintStyle: const TextStyle(
+                      child: TextField(
+                        controller: _searchController,
+                        focusNode: _searchFocusNode,
+                        textInputAction: TextInputAction.search,
+                        onSubmitted: (_) => _searchFocusNode.unfocus(),
+                        cursorColor: const Color(0xFF5E44F3),
+                        onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
+                        style: TextStyle(
                           fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF7E7A9C),
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? Colors.white : const Color(0xFF1E1A33),
+                        ),
+                        decoration: const InputDecoration(
+                          isDense: true,
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                          prefixIcon: Icon(Icons.search_rounded, size: 22, color: Color(0xFF7E7A9C)),
+                          hintText: 'Search games',
+                          hintStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF7E7A9C)),
                         ),
                       ),
                     ),
                   ),
-                ),
+                  const SizedBox(height: 20),
+                ],
                 const SizedBox(height: 20),
                 SizedBox(
                   height: 42,
@@ -383,6 +400,39 @@ class _GamesScreenState extends State<GamesScreen> {
     ),
   ),
 );
+  }
+}
+
+class _GamesHeaderAction extends StatelessWidget {
+  const _GamesHeaderAction({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: isDark ? const Color(0xFF292241) : Colors.white,
+        shape: const CircleBorder(),
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: SizedBox(
+            width: 42,
+            height: 42,
+            child: Icon(icon, size: 21, color: const Color(0xFF6848F5)),
+          ),
+        ),
+      ),
+    );
   }
 }
 
