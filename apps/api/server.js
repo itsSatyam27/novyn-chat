@@ -98,6 +98,7 @@ const configuredUploadsDir = String(process.env.UPLOADS_DIR || "").trim();
 let uploadsDir = configuredUploadsDir ? path.resolve(configuredUploadsDir) : defaultUploadsDir;
 try {
   fs.mkdirSync(uploadsDir, { recursive: true });
+  fs.accessSync(uploadsDir, fs.constants.W_OK);
 } catch (err) {
   if (configuredUploadsDir && process.env.NODE_ENV === "production") {
     throw new Error(`Configured UPLOADS_DIR "${configuredUploadsDir}" is not writable: ${err?.message || err}`);
@@ -1405,6 +1406,10 @@ app.get(
 const conversationWallpapers = new Map();
 
 const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(__dirname, "runtime", "data"));
+if (process.env.NODE_ENV === "production" && !MONGODB_URI) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.accessSync(DATA_DIR, fs.constants.R_OK | fs.constants.W_OK);
+}
 const DATA_FILE = path.join(DATA_DIR, "chat-state.json");
 const AUTH_STATE_FILE = path.join(DATA_DIR, "auth-state.json");
 const ABUSE_REPORT_FILE = path.join(DATA_DIR, "abuse-reports.log");
