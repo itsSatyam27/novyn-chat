@@ -35,9 +35,8 @@ function createRequestObservability({
       const routePath = req.route && typeof req.route.path === "string"
         ? req.route.path
         : "unmatched";
-      const route = req.baseUrl
-        ? `${req.baseUrl}${routePath === "unmatched" ? "" : routePath}`
-        : routePath;
+      // Route templates are application-defined; never log raw URLs, query strings, or params.
+      const route = routePath;
       const statusCode = Number(res.statusCode) || 0;
       const event = {
         event: "http_request",
