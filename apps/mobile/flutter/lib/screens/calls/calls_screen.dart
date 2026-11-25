@@ -722,17 +722,104 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
         .take(5)
         .toList()
       ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-    final canAddMore = quickFriends.length < 5;
+
+    Widget contactSlot(UserModel peer) {
+      return Semantics(
+        button: true,
+        label: 'Call ${_displayName(peer.name)}',
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => Navigator.push(
+            context,
+            NovynPageRoute<void>(
+              child: CallScreen(peer: peer, callType: 'voice'),
+            ),
+          ),
+          onLongPress: () => _toggleFavorite(peer),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: accent, width: 2),
+                ),
+                child: UserAvatar(
+                  name: peer.name,
+                  photoUrl: peer.photoUrl,
+                  radius: 21,
+                  showOnlineIndicator: false,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 1),
+                child: Text(
+                  _displayName(peer.name).split(' ').first,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: 'PlusJakartaSans',
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    Widget addSlot() {
+      return Semantics(
+        button: true,
+        label: 'Edit quick call contacts',
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _showQuickCallPicker,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CustomPaint(
+                size: const Size(52, 52),
+                painter: _QuickCallDashedCirclePainter(accent),
+                child: Center(
+                  child: Icon(Icons.add_rounded, size: 26, color: accent),
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                'Add',
+                style: TextStyle(
+                  fontFamily: 'PlusJakartaSans',
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w600,
+                  color: accent,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 8, 20, 10),
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(26),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: [
@@ -765,102 +852,36 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
                   ),
                 ),
               ),
+              const SizedBox(width: 2),
+              IconButton(
+                tooltip: 'Edit quick call contacts',
+                visualDensity: VisualDensity.compact,
+                constraints: const BoxConstraints.tightFor(width: 34, height: 34),
+                padding: EdgeInsets.zero,
+                onPressed: _showQuickCallPicker,
+                icon: Icon(Icons.edit_outlined, size: 18, color: accent),
+              ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           SizedBox(
-            height: 94,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              itemCount: quickFriends.length + (canAddMore ? 1 : 0),
-              separatorBuilder: (_, __) => const SizedBox(width: 12),
-              itemBuilder: (context, index) {
+            height: 78,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: List.generate(5, (index) {
+                Widget? slot;
                 if (index < quickFriends.length) {
-                  final peer = quickFriends[index];
-                  return SizedBox(
-                    width: 72,
-                    child: Semantics(
-                      button: true,
-                      label: 'Call ${_displayName(peer.name)}',
-                      child: GestureDetector(
-                        onTap: () => Navigator.push(
-                          context,
-                          NovynPageRoute<void>(child: CallScreen(peer: peer, callType: 'voice')),
-                        ),
-                        onLongPress: () => _toggleFavorite(peer),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 58,
-                              height: 58,
-                              padding: const EdgeInsets.all(3),
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(color: accent, width: 2),
-                              ),
-                              child: UserAvatar(
-                                name: peer.name,
-                                photoUrl: peer.photoUrl,
-                                radius: 24,
-                                showOnlineIndicator: false,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              _displayName(peer.name).split(' ').first,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontFamily: 'PlusJakartaSans',
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w600,
-                                color: theme.colorScheme.onSurface,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
+                  slot = contactSlot(quickFriends[index]);
+                } else if (index == quickFriends.length &&
+                    quickFriends.length < 5) {
+                  slot = addSlot();
                 }
-                return SizedBox(
-                  width: 72,
-                  child: GestureDetector(
-                    onTap: _showQuickCallPicker,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 58,
-                          height: 58,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: accent,
-                              width: 2,
-                              style: BorderStyle.solid,
-                            ),
-                          ),
-                          child: Icon(Icons.add_rounded, size: 27, color: accent),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Add',
-                          style: TextStyle(
-                            fontFamily: 'PlusJakartaSans',
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                            color: accent,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                return Expanded(
+                  child: slot == null
+                      ? const SizedBox.shrink()
+                      : Center(child: slot),
                 );
-              },
+              }),
             ),
           ),
         ],
@@ -874,9 +895,9 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
     final theme = Theme.of(context);
     final accent = theme.colorScheme.primary;
     final isDark = theme.brightness == Brightness.dark;
-    final missedCount = _calls.fold<int>(
-      0,
-      (sum, c) => sum + c.history.where((l) => l['status'] == 'missed').length,
+    final missedCount = countUnreadMissedCallLogs(
+      _calls.expand((entry) => entry.history),
+      _readMissedCallIds,
     );
     const icons = {
       'All': null,
@@ -920,9 +941,6 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
                   border: Border.all(
                     color: selected ? accent : accent.withValues(alpha: isDark ? .18 : .14),
                   ),
-                  boxShadow: selected
-                      ? [BoxShadow(color: accent.withValues(alpha: .28), blurRadius: 10, offset: const Offset(0, 3))]
-                      : null,
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
