@@ -125,3 +125,28 @@ test("Render Socket.IO rate limits ignore forwarded headers if the trusted edge 
     "10.0.0.9"
   );
 });
+
+test("HTTP rate limiting fails closed when its store is unavailable", () => {
+  const limiter = createIpRateLimiter({ getStore: () => null }, "signin", 5, 60_000);
+  const result = invokeLimiter(limiter, {
+    ip: "192.0.2.10",
+    socket: { remoteAddress: "192.0.2.10" },
+  });
+
+  assert.equal(result.nextCalled, false);
+  assert.equal(result.status, 503);
+  assert.deepEqual(result.body, {
+    error: "Rate limiting is temporarily unavailable. Please try again later.",
+  });
+});
+
+test("HTTP rate limiting fails closed when the configured store is malformed", () => {
+  const limiter = createIpRateLimiter({ store: {} }, "signin", 5, 60_000);
+  const result = invokeLimiter(limiter, {
+    ip: "192.0.2.10",
+    socket: { remoteAddress: "192.0.2.10" },
+  });
+
+  assert.equal(result.nextCalled, false);
+  assert.equal(result.status, 503);
+});

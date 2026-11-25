@@ -57,7 +57,7 @@ function createIpRateLimiter(
   return (req, res, next) => {
     const activeStore = resolveStore();
     if (!activeStore || typeof activeStore.get !== "function" || typeof activeStore.set !== "function") {
-      next();
+      res.status(503).json({ error: "Rate limiting is temporarily unavailable. Please try again later." });
       return;
     }
     const ip = String(normalizeIp(getClientIp(req)) || "unknown");

@@ -5,6 +5,7 @@ This branch is a staged production-hardening effort. Do not treat the checklist 
 ## Implemented changes
 
 - [x] Render HTTP and unauthenticated Socket.IO rate limits use a syntactically valid `CF-Connecting-IP` value for client identity. If that trusted edge header is missing or malformed, the limiter falls back to the socket peer rather than trusting potentially client-supplied `X-Forwarded-For` values. Regression tests cover HTTP throttling, HTTP client isolation, and Socket.IO identity.
+- [x] HTTP rate limiting fails closed with `503` when the configured counter store is unavailable or malformed instead of silently bypassing the protection. Regression tests cover both cases.
 - [x] Auth token creation reserves `sub`, `kind`, `iat`, and `exp` against metadata overrides; verification explicitly requires the signed `HS256` / `JWT` header. Regression tests cover reserved-claim overrides and unsupported signed headers.
 - [x] SIGTERM/SIGINT shutdown waits for startup to settle, drains Socket.IO and HTTP, stops background timers, flushes application/auth state, then closes MongoDB. A bounded timeout forces a non-zero exit; persistence/storage failures also produce a non-zero exit. Unit and real Socket.IO/HTTP integration tests cover ordering and failure handling.
 - [x] Web SPA and legacy browser auth now coalesce concurrent refresh calls into one in-flight request, preventing duplicate submissions of a rotating refresh cookie. Tests exercise concurrent calls and retry after completion/failure.
