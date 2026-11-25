@@ -70,9 +70,28 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   const connect = async (cookie, transport = 'websocket') => {
     const socket = io(base, { autoConnect: false, transports: [transport], extraHeaders: { Cookie: cookie, Origin: origin }, reconnection: false });
     sockets.push(socket);
-    const ready = event(socket, 'register_success');
-    socket.connect();
-    const state = await ready;
+    const state = await new Promise((resolve, reject) => {
+      const cleanup = () => {
+        clearTimeout(timer);
+        socket.off('register_success', onReady);
+        socket.off('connect_error', onConnectError);
+      };
+      const onReady = (value) => {
+        cleanup();
+        resolve(value);
+      };
+      const onConnectError = (error) => {
+        cleanup();
+        reject(new Error(`Socket connection rejected: ${error?.message || error}`));
+      };
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(new Error(`Timed out waiting for register_success (connected=${socket.connected})`));
+      }, 5000);
+      socket.once('register_success', onReady);
+      socket.once('connect_error', onConnectError);
+      socket.connect();
+    });
     return { socket, state };
   };
   const refreshTokenId = (cookie) => {
