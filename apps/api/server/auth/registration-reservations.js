@@ -31,7 +31,7 @@ function createRegistrationReservations() {
   function release(email, username, externalId = "") {
     const emailKey = normalize(email);
     const usernameKey = normalize(username);
-    const externalKey = normalize(externalId);
+    const externalKey = String(externalId || "").trim();
     if (emailKey) pendingEmails.delete(emailKey);
     if (usernameKey) pendingUsernames.delete(usernameKey);
     if (externalKey) pendingExternalIds.delete(externalKey);
