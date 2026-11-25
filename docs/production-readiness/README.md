@@ -5,6 +5,7 @@ This branch is a staged production-hardening effort. Do not treat the checklist 
 ## Implemented changes
 
 - [x] Render HTTP and unauthenticated Socket.IO rate limits use a syntactically valid `CF-Connecting-IP` value for client identity. If that trusted edge header is missing or malformed, the limiter falls back to the socket peer rather than trusting potentially client-supplied `X-Forwarded-For` values. Regression tests cover HTTP throttling, HTTP client isolation, and Socket.IO identity.
+- [x] Auth token creation reserves `sub`, `kind`, `iat`, and `exp` against metadata overrides; verification explicitly requires the signed `HS256` / `JWT` header. Regression tests cover reserved-claim overrides and unsupported signed headers.
 - [x] CI validation now runs on pushes to `production-readiness` and for pull requests targeting it.
 
 ## Release gates

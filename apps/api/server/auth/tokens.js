@@ -17,12 +17,14 @@ function fromBase64Url(value) {
 function createAuthToken({ secret, kind, userKey, ttlMs, extra = {} }) {
   if (!secret) throw new Error("Auth secret is required.");
   const now = Date.now();
+  // Callers may add token-specific metadata, but identity and lifetime claims
+  // are owned by this helper and must never be overridden by extra fields.
   const payload = {
+    ...extra,
     sub: normalizeName(userKey),
     kind: toDisplayName(kind),
     iat: now,
     exp: now + Math.max(1000, Number(ttlMs) || 0),
-    ...extra,
   };
   const headerPart = toBase64Url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
   const payloadPart = toBase64Url(JSON.stringify(payload));
@@ -52,14 +54,19 @@ function verifyAuthToken({ secret, rawToken, expectedKind }) {
   if (actualSig.length !== expectedSig.length) return null;
   if (!crypto.timingSafeEqual(actualSig, expectedSig)) return null;
 
+  let header;
   let payload;
   try {
+    header = JSON.parse(fromBase64Url(headerPart).toString("utf8"));
     payload = JSON.parse(fromBase64Url(payloadPart).toString("utf8"));
   } catch (_) {
     return null;
   }
 
-  if (!payload || typeof payload !== "object") return null;
+  // This is a fixed HS256 token format, not an algorithm-negotiating JWT
+  // verifier. Reject any other signed header format explicitly.
+  if (!header || Array.isArray(header) || header.alg !== "HS256" || header.typ !== "JWT") return null;
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
   if (expectedKind && payload.kind !== expectedKind) return null;
 
   const subjectKey = normalizeName(payload.sub);

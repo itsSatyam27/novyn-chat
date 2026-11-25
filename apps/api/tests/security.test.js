@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const { isAllowedSocketOrigin } = require('../server/security/origins');
 const { canReadMedia } = require('../server/security/media-access');
 const { createAuthToken, verifyAuthToken } = require('../server/auth/tokens');
@@ -68,4 +69,54 @@ test('signed auth tokens reject tampering and the wrong token kind', () => {
   assert.equal(verifyAuthToken({ secret, rawToken: token, expectedKind: 'access' }).sub, 'alice');
   assert.equal(verifyAuthToken({ secret, rawToken: token, expectedKind: 'refresh' }), null);
   assert.equal(verifyAuthToken({ secret: 'wrong', rawToken: token, expectedKind: 'access' }), null);
+});
+
+test('auth token helper protects reserved identity and lifetime claims from extra fields', () => {
+  const secret = 'test-secret';
+  const issuedAt = Date.now();
+  const token = createAuthToken({
+    secret,
+    kind: 'access',
+    userKey: 'alice',
+    ttlMs: 10_000,
+    extra: {
+      sub: 'mallory',
+      kind: 'refresh',
+      iat: 1,
+      exp: Date.now() + 60 * 60 * 1000,
+      sid: 'session-1',
+    },
+  });
+  const payload = verifyAuthToken({ secret, rawToken: token, expectedKind: 'access' });
+  assert.ok(payload);
+  assert.equal(payload.sub, 'alice');
+  assert.equal(payload.kind, 'access');
+  assert.ok(payload.iat >= issuedAt);
+  assert.ok(payload.exp <= issuedAt + 11_000);
+  assert.equal(payload.sid, 'session-1');
+});
+
+test('auth token verifier rejects correctly signed tokens with unsupported headers', () => {
+  const secret = 'test-secret';
+  const payload = {
+    sub: 'alice',
+    kind: 'access',
+    iat: Date.now(),
+    exp: Date.now() + 10_000,
+  };
+  const encode = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const sign = (header) => {
+    const body = encode(header) + '.' + encode(payload);
+    const signature = crypto.createHmac('sha256', secret).update(body).digest('base64url');
+    return body + '.' + signature;
+  };
+
+  assert.equal(
+    verifyAuthToken({ secret, rawToken: sign({ alg: 'none', typ: 'JWT' }), expectedKind: 'access' }),
+    null
+  );
+  assert.equal(
+    verifyAuthToken({ secret, rawToken: sign({ alg: 'HS256', typ: 'NOT-JWT' }), expectedKind: 'access' }),
+    null
+  );
 });
