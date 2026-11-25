@@ -131,6 +131,42 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   const bob = await signup('bob');
   const eve = await signup('eve');
 
+  // Device-pairing secrets and resulting login cookies must never be cached.
+  const pairingCsrfCookie = alice.cookie.split('; ')
+    .find((part) => part.startsWith('novyn_csrf='))
+    ?.slice('novyn_csrf='.length);
+  assert.ok(pairingCsrfCookie, 'signup must issue the CSRF cookie');
+  const pairingStart = await fetch(`${base}/api/device-pairing/start`, {
+    method: 'POST',
+    headers: {
+      Cookie: alice.cookie,
+      Origin: origin,
+      'Content-Type': 'application/json',
+      'x-novyn-csrf': decodeURIComponent(pairingCsrfCookie),
+    },
+    body: JSON.stringify({
+      publicKey: {
+        kty: 'EC', crv: 'P-256',
+        x: 'A'.repeat(43), y: 'B'.repeat(43),
+      },
+    }),
+  });
+  assert.equal(pairingStart.status, 200, await pairingStart.clone().text());
+  assert.match(pairingStart.headers.get('cache-control') || '', /no-store/i);
+  assert.equal(pairingStart.headers.get('referrer-policy'), 'no-referrer');
+  const pairing = await pairingStart.json();
+  assert.ok(pairing.id);
+  assert.ok(pairing.secret);
+  const pairingStatusUrl = new URL('/api/device-pairing/status', base);
+  pairingStatusUrl.searchParams.set('id', pairing.id);
+  pairingStatusUrl.searchParams.set('secret', pairing.secret);
+  const pairingStatus = await fetch(pairingStatusUrl, { headers: { Origin: origin } });
+  assert.equal(pairingStatus.status, 200);
+  assert.match(pairingStatus.headers.get('cache-control') || '', /no-store/i);
+  assert.equal((await pairingStatus.json()).status, 'waiting');
+  pairingStatusUrl.searchParams.set('secret', 'incorrect-secret');
+  assert.equal((await fetch(pairingStatusUrl)).status, 404);
+
   // A refresh response must not expose the rotated cookie until its new
   // allow-list entry is durably persisted and the old one is revoked.
   const oldRefreshJti = refreshTokenId(alice.cookie);
