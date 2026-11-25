@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
-const { isAllowedSocketOrigin } = require('../server/security/origins');
+const { isAllowedSocketOrigin, parseAllowedSocketOrigins } = require('../server/security/origins');
 const { canReadMedia } = require('../server/security/media-access');
 const { createAuthToken, verifyAuthToken } = require('../server/auth/tokens');
 const { createPasswordSecret, verifyPassword } = require('../server/auth/password');
@@ -186,4 +186,37 @@ test('signup reservations block duplicate email and username while hashing is pe
   reservations.release('', '', 'link-only-uid');
   assert.equal(reservations.reserve('', '', 'link-only-uid'), true, 'UID-only reservations can be released and retried');
   reservations.release('', '', 'link-only-uid');
+});
+
+
+test('production socket origin configuration requires exact HTTPS origins', () => {
+  assert.deepEqual(
+    parseAllowedSocketOrigins('https://chat.example, https://admin.example', { isProduction: true }),
+    ['https://chat.example', 'https://admin.example'],
+  );
+  assert.throws(
+    () => parseAllowedSocketOrigins('', { isProduction: true }),
+    /ALLOWED_ORIGIN must contain at least one exact HTTPS browser origin/i,
+  );
+  for (const invalid of [
+    'http://chat.example',
+    'https://chat.example/',
+    'https://chat.example/app',
+    'https://chat.example?mode=app',
+    'https://user:pass@chat.example',
+    'not-an-origin',
+  ]) {
+    assert.throws(
+      () => parseAllowedSocketOrigins(invalid, { isProduction: true }),
+      /exact HTTPS origins/i,
+      invalid,
+    );
+  }
+});
+
+test('development socket origin configuration remains permissive for local setup', () => {
+  assert.deepEqual(
+    parseAllowedSocketOrigins(' http://localhost:5173, ,https://preview.example/ ', { isProduction: false }),
+    ['http://localhost:5173', 'https://preview.example/'],
+  );
 });
