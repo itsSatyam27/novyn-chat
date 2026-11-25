@@ -108,6 +108,20 @@ have not been implemented in this patch.
 
 Set `NODE_ENV=production`, `AUTH_SECRET`, `UPLOAD_TOKEN_SECRET`, and
 `ALLOWED_ORIGIN=https://your-chat-host`. Terminate HTTPS at your hosting platform.
+
+API HTTP requests emit structured JSON log events to the hosting platform's
+standard output. Each response includes a generated `X-Request-Id`; the same
+identifier appears in that request's log event for support and incident
+correlation. Events include the HTTP method, registered route template, status
+code, and duration in milliseconds. Server errors are logged at error level;
+slow requests and aborted responses are logged at warning level. The default
+slow-request threshold is 1000 ms and can be changed with
+`SLOW_REQUEST_LOG_THRESHOLD_MS`.
+
+Request logs intentionally omit raw URLs, query strings, route parameter
+values, request bodies, cookies, authorization headers, and client-provided
+request IDs. Do not add secrets or personal data to log fields when extending
+this middleware.
 When MongoDB is configured, refresh sessions are stored in its `auth_sessions`
 collection and existing `auth-state.json` sessions are migrated automatically.
 Without MongoDB, set `DATA_DIR` to a persistent volume so refresh sessions
