@@ -570,18 +570,29 @@ test('localhost discovery, requests, reconnect state, and private media', { time
     reconnection: false,
   });
   sockets.push(staleSocket);
-  const staleConnected = event(staleSocket, 'connect');
-  staleSocket.connect();
-  await staleConnected;
-  const staleAuthFailed = event(staleSocket, 'auth_failed');
-  staleSocket.emit('resume_session');
-  assert.match((await staleAuthFailed).message, /Session expired/);
-  const rejectedStaleMessage = await staleSocket.timeout(3000).emitWithAck(
-    'private_message',
-    { to: 'eve', text: 'must not send from an unauthenticated socket' },
-  );
-  assert.equal(rejectedStaleMessage.ok, false);
-  assert.match(rejectedStaleMessage.message, /sign in again/i);
+  const staleHandshakeRejected = new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      staleSocket.off('connect_error', onConnectError);
+      staleSocket.off('connect', onConnect);
+      reject(new Error('Timed out waiting for stale session handshake rejection.'));
+    }, 5000);
+    const onConnectError = (error) => {
+      clearTimeout(timer);
+      staleSocket.off('connect', onConnect);
+      resolve(error);
+    };
+    const onConnect = () => {
+      clearTimeout(timer);
+      staleSocket.off('connect_error', onConnectError);
+      reject(new Error('A revoked refresh session must not establish a socket connection.'));
+    };
+    staleSocket.once('connect_error', onConnectError);
+    staleSocket.once('connect', onConnect);
+    staleSocket.connect();
+  });
+  const staleHandshakeError = await staleHandshakeRejected;
+  assert.match(staleHandshakeError.message, /Authentication required/i);
+  assert.equal(staleSocket.connected, false);
   staleSocket.disconnect();
 
   const refreshedEve = await connect(refreshedEveCookie);
