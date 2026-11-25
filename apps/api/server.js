@@ -7574,6 +7574,31 @@ io.on("connection", (socket) => {
     return respond({ ok: true, game: getRajaMantriGameView(entry.game, userKey) });
   });
 
+  socket.on("get_pending_game_invites", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : () => {};
+    const userKey = normalizeName(socket.data.userKey || "");
+    if (!userKey || onlineUsers.get(userKey) !== socket.id) {
+      return respond({ ok: false, message: "Reconnect to load game invitations." });
+    }
+    const invitations = [];
+    for (const [messageId, invite] of pendingGameInvites.entries()) {
+      if (invite.toKey !== userKey || invite.expiresAt <= Date.now()) continue;
+      const inviter = users.get(invite.fromKey);
+      if (!inviter || usersAreBlocked(invite.fromKey, userKey)) continue;
+      invitations.push({
+        messageId,
+        from: inviter.username || invite.fromKey,
+        displayName: inviter.displayName || inviter.username || invite.fromKey,
+        avatarId: inviter.avatarId || "",
+        gameType: invite.gameType,
+        game: invite.game || null,
+        expiresAt: invite.expiresAt,
+      });
+    }
+    invitations.sort((a, b) => a.expiresAt - b.expiresAt);
+    return respond({ ok: true, invitations });
+  });
+
   socket.on("accept_game_invite", (payload, callback) => {
     const respond = typeof callback === "function" ? callback : () => {};
     const userKey = normalizeName(socket.data.userKey || "");
@@ -7615,6 +7640,27 @@ io.on("connection", (socket) => {
       });
     }
     return respond({ ok: true, waitingForHost: invite.gameType === "rajamantri" });
+  });
+
+  socket.on("reject_game_invite", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : () => {};
+    const userKey = normalizeName(socket.data.userKey || "");
+    const messageId = toDisplayName(payload?.messageId).slice(0, 128);
+    const invite = pendingGameInvites.get(messageId);
+    if (!userKey || !invite || invite.toKey !== userKey || invite.expiresAt <= Date.now()) {
+      return respond({ ok: false, message: "This game invite is no longer active." });
+    }
+    clearTimeout(invite.timer);
+    pendingGameInvites.delete(messageId);
+    const senderSocketId = onlineUsers.get(invite.fromKey);
+    if (senderSocketId) {
+      io.to(senderSocketId).emit("game_invite_rejected", {
+        messageId,
+        gameType: invite.gameType,
+        by: userKey,
+      });
+    }
+    return respond({ ok: true });
   });
 
   socket.on("cancel_game_invite", (payload, callback) => {
@@ -9946,6 +9992,8 @@ io.on("connection", (socket) => {
         fromKey: normalizeName(userKey),
         toKey: normalizeName(to),
         gameType: game.gameType,
+        game: result.message.game || game,
+        messageId: inviteId,
         expiresAt: Date.now() + 60_000,
         timer: null,
       };
@@ -9957,6 +10005,19 @@ io.on("connection", (socket) => {
       }, 60_000);
       if (typeof invite.timer.unref === "function") invite.timer.unref();
       pendingGameInvites.set(inviteId, invite);
+      const recipientSocketId = onlineUsers.get(invite.toKey);
+      const inviter = users.get(invite.fromKey);
+      if (recipientSocketId && inviter) {
+        io.to(recipientSocketId).emit("game_invitation_received", {
+          messageId: inviteId,
+          from: inviter.username || invite.fromKey,
+          displayName: inviter.displayName || inviter.username || invite.fromKey,
+          avatarId: inviter.avatarId || "",
+          gameType: invite.gameType,
+          game: invite.game,
+          expiresAt: invite.expiresAt,
+        });
+      }
     }
     respond({ ok: true, id: result.message.id });
     if (result.existing) {
