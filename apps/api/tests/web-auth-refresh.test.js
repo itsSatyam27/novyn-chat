@@ -37,8 +37,12 @@ test("web single-flight shares concurrent work and permits a later refresh", asy
   assert.equal(calls, 1);
   release(200);
   assert.equal(await first, 200);
-  assert.equal(await refresh(), 200);
+  const later = refresh();
+  assert.notEqual(later, first);
+  await Promise.resolve();
   assert.equal(calls, 2);
+  release(201);
+  assert.equal(await later, 201);
 });
 
 test("web single-flight clears a rejected request so refresh can be retried", async () => {
