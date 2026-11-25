@@ -383,7 +383,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         Message decrypted;
         // Android may schedule the FCM isolate while the app process is gone.
         // Give the keystore-backed identity a short bounded warm-up window.
-        const retryDelays = [350, 700, 1200];
+        final retryDelays = <int>[350, 700, 1200];
         Object? lastDecryptError;
         while (true) {
           try {
