@@ -98,7 +98,8 @@ function createIpRateLimiter(
 function pruneHttpRateLimits(store, now = Date.now()) {
   if (!store || typeof store.entries !== "function" || typeof store.delete !== "function") return;
   for (const [key, entry] of store.entries()) {
-    if (!entry || Number(entry.resetAt) <= now) {
+    const resetAt = Number(entry?.resetAt);
+    if (!entry || !Number.isFinite(resetAt) || resetAt <= now) {
       store.delete(key);
     }
   }
