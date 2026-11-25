@@ -7024,12 +7024,16 @@ app.post("/api/auth/password-reset/confirm",
       return;
     }
     const secret = await createPasswordSecret(newPassword);
-    user.passwordSalt = secret.passwordSalt;
-    user.passwordHash = secret.passwordHash;
-    user.isRegistered = true;
-    revokeAllRefreshSessionsForUser(userKey);
+    try {
+      await updatePasswordAndRevokeSessions(userKey, secret);
+    } catch (error) {
+      console.error("[NovynAuth] Password reset persistence failed:", error?.message || error);
+      res.status(503).json({ ok: false, message: "Password update is temporarily unavailable. Please try again." });
+      return;
+    }
     dropPasswordResetTokenById(tokenId);
-    schedulePersist();
+    disconnectUserSocketsForSecurity(userKey);
+    clearAuthCookies(res);
     res.json({ ok: true, message: "Password updated. Please sign in." });
   }
 );
@@ -8360,15 +8364,16 @@ io.on("connection", (socket) => {
     }
 
     const secret = await createPasswordSecret(newPassword);
-    user.passwordSalt = secret.passwordSalt;
-    user.passwordHash = secret.passwordHash;
-    user.isRegistered = true;
-    revokeAllRefreshSessionsForUser(userKey);
-
+    try {
+      await updatePasswordAndRevokeSessions(userKey, secret);
+    } catch (error) {
+      console.error("[NovynAuth] Socket password reset persistence failed:", error?.message || error);
+      socket.emit("password_reset_failed", { message: "Password update is temporarily unavailable. Please try again." });
+      return;
+    }
     dropPasswordResetTokenById(tokenId);
-    schedulePersist();
-
     socket.emit("password_reset_success", { message: "Password updated. Please sign in." });
+    setTimeout(() => disconnectUserSocketsForSecurity(userKey), 100);
   });
 
   socket.on("request_email_change_code", async (payload, respond) => {
@@ -8917,12 +8922,16 @@ io.on("connection", (socket) => {
     }
 
     const secret = await createPasswordSecret(nextPassword);
-    user.passwordSalt = secret.passwordSalt;
-    user.passwordHash = secret.passwordHash;
-    revokeAllRefreshSessionsForUser(userKey);
-    schedulePersist();
+    try {
+      await updatePasswordAndRevokeSessions(userKey, secret);
+    } catch (error) {
+      console.error("[NovynAuth] Password change persistence failed:", error?.message || error);
+      socket.emit("password_change_failed", { message: "Password update is temporarily unavailable. Please try again." });
+      return;
+    }
 
-    socket.emit("password_changed", { hasPassword: true });
+    socket.emit("password_changed", { hasPassword: true, sessionRevoked: true });
+    setTimeout(() => disconnectUserSocketsForSecurity(userKey), 100);
   });
 
   socket.on("delete_account", async (payload) => {
