@@ -78,14 +78,14 @@ jobs:
           mongodump --uri="$MONGODB_URI" --archive="$RAW_ARCHIVE" --gzip
 
           # Keep the passphrase off the process argument list.
-          printf '%s\\n' "$BACKUP_ENCRYPTION_PASSPHRASE" | \
+          printf '%s\n' "$BACKUP_ENCRYPTION_PASSPHRASE" | \
             gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
               --symmetric --cipher-algo AES256 \
               --output "$ENCRYPTED_ARCHIVE" "$RAW_ARCHIVE"
 
           # Prove that the uploaded encrypted artifact can be decrypted with
           # the configured recovery passphrase and reproduces the dump exactly.
-          printf '%s\\n' "$BACKUP_ENCRYPTION_PASSPHRASE" | \
+          printf '%s\n' "$BACKUP_ENCRYPTION_PASSPHRASE" | \
             gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
               --decrypt --output "$VERIFY_ARCHIVE" "$ENCRYPTED_ARCHIVE"
           cmp --silent "$RAW_ARCHIVE" "$VERIFY_ARCHIVE"
