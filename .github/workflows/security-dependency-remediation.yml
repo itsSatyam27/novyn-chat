@@ -1,0 +1,95 @@
+name: Novyn security dependency remediation
+
+on:
+  push:
+    branches:
+      - security/dependency-remediation
+    paths:
+      - ".github/workflows/security-dependency-remediation.yml"
+      - "package.json"
+      - "package-lock.json"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: novyn-security-dependency-remediation
+  cancel-in-progress: false
+
+jobs:
+  remediate-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout remediation branch
+        uses: actions/checkout@v4
+        with:
+          ref: security/dependency-remediation
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Move native build tooling out of the server runtime dependency set and pin patched ranges
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          packageJson.devDependencies ||= {};
+          packageJson.dependencies ||= {};
+
+          for (const [name, version] of Object.entries(packageJson.dependencies)) {
+            if (name.startsWith('@capacitor/')) {
+              packageJson.devDependencies[name] = name === '@capacitor/android' ? '^6.2.2' : version;
+              delete packageJson.dependencies[name];
+            }
+          }
+
+          packageJson.dependencies.multer = '^2.5.0';
+          packageJson.dependencies.nodemailer = '^10.1.4';
+          packageJson.overrides ||= {};
+          packageJson.overrides.qs = '^6.16.2';
+          packageJson.overrides['@fastify/busboy'] = '^3.2.2';
+          packageJson.overrides['@grpc/grpc-js'] = '^1.14.7';
+          packageJson.overrides['fast-xml-parser'] = '^5.12.1';
+
+          fs.writeFileSync('package.json', JSON.stringify(packageJson, null, 2) + '\n');
+          NODE
+
+      - name: Regenerate the lockfile and apply non-breaking npm security fixes
+        run: |
+          npm install --package-lock-only --ignore-scripts --no-audit
+          npm audit fix --package-lock-only
+
+      - name: Install the exact regenerated lockfile
+        run: npm ci
+
+      - name: Enforce the production dependency security gate
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Report remaining development-only advisories without hiding them
+        if: always()
+        run: npm audit --audit-level=high || true
+
+      - name: Check the API entry point
+        run: node --check apps/api/server.js
+
+      - name: Run the backend and API security tests
+        run: npm test
+
+      - name: Build the web application
+        run: npm run build
+
+      - name: Commit verified dependency updates
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          if git diff --cached --quiet; then
+            echo "No dependency changes were required."
+            exit 0
+          fi
+          git commit -m "security(deps): update vulnerable runtime dependencies"
+          git push origin HEAD:security/dependency-remediation
