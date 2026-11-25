@@ -1178,6 +1178,45 @@ class ApiService {
     }
   }
 
+  /// Fetch authenticated Friends or Global rankings from server-verified matches.
+  static Future<Map<String, dynamic>> getGameLeaderboard({
+    String scope = 'friends',
+    String game = 'overall',
+  }) async {
+    await initializeSessionStorage();
+    if (_cookieHeader.isEmpty) {
+      throw StateError('Sign in to view the leaderboard.');
+    }
+
+    Future<http.Response> request() => http
+        .get(
+          Uri.parse('$baseUrl/api/games/leaderboard').replace(
+            queryParameters: {'scope': scope, 'game': game},
+          ),
+          headers: _authHeaders,
+        )
+        .timeout(const Duration(seconds: 15));
+
+    var response = await request();
+    if (response.statusCode == 401) {
+      final refreshed = await refreshSessionStatus();
+      if (refreshed == 200) response = await request();
+    }
+
+    Map<String, dynamic> body = {};
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map) body = Map<String, dynamic>.from(decoded);
+    } catch (_) {}
+
+    if (response.statusCode != 200 || body['ok'] != true) {
+      throw StateError(
+        body['error']?.toString() ?? 'Leaderboard could not be loaded.',
+      );
+    }
+    return body;
+  }
+
   // ── Friend search ─────────────────────────────────────────────────────────
   static Future<List<Map<String, dynamic>>> searchUsers(String query) async {
     final normalized = query.trim().replaceFirst(RegExp(r'^@'), '');
