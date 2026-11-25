@@ -313,6 +313,7 @@ class SocketService extends ChangeNotifier {
   bool get isConnected => _isConnected;
   bool get isConnecting => _isConnecting;
   bool get isAuthenticated => _isAuthenticated;
+  String? get myUsername => _myUsername;
   bool get hasLoadedConversations => _hasLoadedConversations;
   bool get peerIsTyping => _peerIsTyping;
   bool get peerIsRecordingVoice => _peerIsRecordingVoice;
