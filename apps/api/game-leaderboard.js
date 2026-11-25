@@ -161,6 +161,7 @@ function buildGameLeaderboard({
 function buildMongoGameLeaderboardPipeline(userKeys = null) {
   const match = {
     isBotMatch: { $ne: true },
+    opponentType: { $ne: "bot" },
     userKey: { $type: "string", $ne: "" },
     playedAt: { $type: "string", $ne: "" },
     result: { $in: ["win", "loss", "draw"] },
@@ -179,16 +180,28 @@ function buildMongoGameLeaderboardPipeline(userKeys = null) {
             rawGameType,
           ],
         },
+        parsedPlayedAt: {
+          $dateFromString: {
+            dateString: "$playedAt",
+            onError: null,
+            onNull: null,
+          },
+        },
       },
     },
-    { $match: { normalizedGameType: { $in: [...VALID_GAME_TYPES].filter((game) => game !== "rockpaperscissors") } } },
+    {
+      $match: {
+        normalizedGameType: { $in: [...VALID_GAME_TYPES].filter((game) => game !== "rockpaperscissors") },
+        parsedPlayedAt: { $ne: null },
+      },
+    },
     // userKey + playedAt matches the storage compound index. The window stage
     // partitions by game so a loss/draw resets only that game's win streak.
     { $sort: { userKey: 1, playedAt: 1, _id: 1 } },
     {
       $setWindowFields: {
         partitionBy: { userKey: "$userKey", gameType: "$normalizedGameType" },
-        sortBy: { playedAt: 1, _id: 1 },
+        sortBy: { parsedPlayedAt: 1, _id: 1 },
         output: {
           streakSegment: {
             $sum: {
@@ -211,7 +224,7 @@ function buildMongoGameLeaderboardPipeline(userKeys = null) {
         losses: { $sum: { $cond: [{ $eq: ["$result", "loss"] }, 1, 0] } },
         draws: { $sum: { $cond: [{ $eq: ["$result", "draw"] }, 1, 0] } },
         runWins: { $sum: { $cond: [{ $eq: ["$result", "win"] }, 1, 0] } },
-        lastPlayedAt: { $max: "$playedAt" },
+        lastPlayedAt: { $max: "$parsedPlayedAt" },
       },
     },
     {
@@ -272,9 +285,35 @@ function buildMongoGameLeaderboardPipeline(userKeys = null) {
           losses: "$overallLosses",
           draws: "$overallDraws",
           score: "$overallScore",
-          lastPlayedAt: "$overallLastPlayedAt",
+          lastPlayedAt: {
+            $dateToString: {
+              date: "$overallLastPlayedAt",
+              format: "%Y-%m-%dT%H:%M:%S.%LZ",
+              timezone: "UTC",
+            },
+          },
         },
-        games: 1,
+        games: {
+          $map: {
+            input: "$games",
+            as: "game",
+            in: {
+              gameType: "$game.gameType",
+              matches: "$game.matches",
+              wins: "$game.wins",
+              losses: "$game.losses",
+              draws: "$game.draws",
+              score: "$game.score",
+              lastPlayedAt: {
+                $dateToString: {
+                  date: "$game.lastPlayedAt",
+                  format: "%Y-%m-%dT%H:%M:%S.%LZ",
+                  timezone: "UTC",
+                },
+              },
+            },
+          },
+        },
       },
     },
   ];

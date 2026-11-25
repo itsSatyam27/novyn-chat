@@ -235,3 +235,14 @@ These changes reduce startup I/O and keep media-metadata memory bounded, but
 they do not change the one-replica/whole-state snapshot architecture. Run the
 backend tests and CI build after changes; measure real production latency and
 MongoDB query plans before increasing replica count or changing pool limits.
+
+
+The Games leaderboard now requests server-side per-user/per-game aggregates
+instead of downloading every historical match into Node.js. MongoDB computes
+win/loss/draw totals, XP, and consecutive-win bonuses; the API only joins the
+small aggregate result to the in-memory registered-account directory and ranks
+it. The aggregate uses `$setWindowFields` (MongoDB 5.0+); if the configured
+cluster does not support that stage, the endpoint logs the compatibility
+fallback and uses the previous query path without changing scoring rules.
+Malformed timestamps and bot matches are excluded consistently with the
+in-memory implementation.

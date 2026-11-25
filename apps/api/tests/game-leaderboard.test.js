@@ -78,8 +78,10 @@ test("keeps the signed-in account visible without completed matches", () => {
 test("Mongo leaderboard aggregation filters bots, normalizes aliases and groups streaks in storage", () => {
   const globalPipeline = buildMongoGameLeaderboardPipeline();
   assert.deepEqual(globalPipeline[0].$match.isBotMatch, { $ne: true });
+  assert.deepEqual(globalPipeline[0].$match.opponentType, { $ne: "bot" });
   assert.equal(globalPipeline[0].$match.userKey.$type, "string");
   assert.deepEqual(globalPipeline[0].$match.result.$in, ["win", "loss", "draw"]);
+  assert.ok(globalPipeline.some((stage) => stage.$addFields?.parsedPlayedAt?.$dateFromString));
   assert.ok(globalPipeline.some((stage) => stage.$setWindowFields));
   assert.ok(globalPipeline.some((stage) => stage.$group?._id?.streakSegment));
   assert.ok(globalPipeline.some((stage) => stage.$group?.overallScore));
