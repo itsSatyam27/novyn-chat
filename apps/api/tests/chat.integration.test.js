@@ -321,7 +321,7 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   assert.match((await resetSessionRevoked).message, /credentials changed/i);
   await resetSocketDisconnected;
   assert.equal((await fetch(`${base}/api/auth/session`, {
-    headers: { Cookie: changedCharlieCookie },
+    headers: { Cookie: currentCharlieCookie },
   })).status, 401);
   const resetPasswordLogin = await fetch(`${base}/api/auth/signin`, {
     method: 'POST',
