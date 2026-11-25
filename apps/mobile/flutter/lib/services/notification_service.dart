@@ -327,8 +327,25 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   final previewEnabled = (prefs.getBool('message_preview') ?? true) &&
       data['previewEnabled']?.toString() != '0';
   final hideContent = prefs.getBool('hide_notification_content') ?? false;
-  final notificationAccount =
-      (prefs.getString('novyn_notification_account') ?? '').trim();
+  final storedNotificationAccount =
+      (prefs.getString('novyn_notification_account') ?? '').trim().toLowerCase();
+  final pushRecipient = data['recipient']?.toString().trim().toLowerCase() ?? '';
+  if (storedNotificationAccount.isNotEmpty &&
+      pushRecipient.isNotEmpty &&
+      storedNotificationAccount != pushRecipient) {
+    debugPrint(
+        '[NovynNotifications] Ignored message push for a different signed-in account.');
+    return;
+  }
+  // The recipient in the signed FCM payload is the server-authenticated
+  // username for this device token. It safely repairs an absent local account
+  // marker without ever selecting another account's E2EE identity.
+  final notificationAccount = storedNotificationAccount.isNotEmpty
+      ? storedNotificationAccount
+      : pushRecipient;
+  if (notificationAccount.isNotEmpty && storedNotificationAccount.isEmpty) {
+    await prefs.setString('novyn_notification_account', notificationAccount);
+  }
   if (sender.isEmpty) {
     debugPrint(
         '[NovynNotifications] Background message has no sender chat id.');
@@ -363,32 +380,57 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
           iv: iv,
         );
         final encryption = MessageEncryptionService();
-        var decrypted =
-            await encryption.decrypt(encrypted, notificationAccount, peerKey);
-        // Secure storage can take longer to become available in Android's
-        // background isolate. Retry with bounded backoff; never expose
-        // ciphertext or fall back to plaintext from the server.
+        Message decrypted;
+        // Android may schedule the FCM isolate while the app process is gone.
+        // Give the keystore-backed identity a short bounded warm-up window.
         const retryDelays = [350, 700, 1200];
-        for (final delay in retryDelays) {
-          if (!decrypted.needsMessageKey) break;
-          await Future<void>.delayed(Duration(milliseconds: delay));
-          decrypted =
-              await encryption.decrypt(encrypted, notificationAccount, peerKey);
+        Object? lastDecryptError;
+        while (true) {
+          try {
+            decrypted = await encryption.decryptForNotification(
+              encrypted,
+              notificationAccount,
+              peerKey,
+            );
+            lastDecryptError = null;
+            break;
+          } catch (error) {
+            lastDecryptError = error;
+            if (retryDelays.isEmpty) rethrow;
+            final delay = retryDelays.first;
+            retryDelays.removeAt(0);
+            await Future<void>.delayed(Duration(milliseconds: delay));
+          }
         }
         if (!decrypted.needsMessageKey &&
             decrypted.text != '🔒 Encrypted message' &&
             decrypted.text.trim().isNotEmpty) {
           body = decrypted.text.trim();
+          await prefs.remove('novyn_notification_preview_last_failure');
           debugPrint(
-              '[NovynNotifications] Background message preview decrypted successfully.');
+              '[NovynNotifications] Background E2EE preview decrypted locally.');
         } else {
-          debugPrint(
-              '[NovynNotifications] Message preview key unavailable for this sender/account.');
+          throw lastDecryptError ??
+              StateError('Background E2EE preview remained encrypted.');
         }
       } catch (error) {
+        final failureCode = error is StateError
+            ? 'local_identity_or_conversation_key_unavailable'
+            : error is FormatException
+                ? 'invalid_encryption_envelope'
+                : error.runtimeType.toString();
+        await prefs.setString(
+          'novyn_notification_preview_last_failure',
+          failureCode,
+        );
+        await prefs.setInt(
+          'novyn_notification_preview_last_failure_at',
+          DateTime.now().millisecondsSinceEpoch,
+        );
         debugPrint(
-            '[NovynNotifications] Background preview decryption failed: $error');
-        // Never expose ciphertext; fall back to a private generic alert.
+          '[NovynNotifications] Background E2EE preview could not be decrypted '
+          'locally ($failureCode). The notification remains private.');
+        // Never expose ciphertext or server-side plaintext as a fallback.
       }
     } else {
       debugPrint(
