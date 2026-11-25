@@ -8601,7 +8601,6 @@ io.on("connection", (socket) => {
       socket.emit("username_change_failed", { message: "Too many username changes. Please try again later." });
       return;
     }
-    if (!userKey) return;
     const user = users.get(userKey);
     if (!user) {
       socket.emit("username_change_failed", { message: "User not found." });
