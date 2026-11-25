@@ -1406,14 +1406,14 @@ app.get(
 const conversationWallpapers = new Map();
 
 const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(__dirname, "runtime", "data"));
-if (process.env.NODE_ENV === "production" && !MONGODB_URI) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.accessSync(DATA_DIR, fs.constants.R_OK | fs.constants.W_OK);
-}
 const DATA_FILE = path.join(DATA_DIR, "chat-state.json");
 const AUTH_STATE_FILE = path.join(DATA_DIR, "auth-state.json");
 const ABUSE_REPORT_FILE = path.join(DATA_DIR, "abuse-reports.log");
 const MONGODB_URI = toDisplayName(process.env.MONGODB_URI);
+if (process.env.NODE_ENV === "production" && !MONGODB_URI) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.accessSync(DATA_DIR, fs.constants.R_OK | fs.constants.W_OK);
+}
 const MONGODB_DB = toDisplayName(process.env.MONGODB_DB) || "novyn";
 const MONGODB_LEGACY_COLLECTION = toDisplayName(process.env.MONGODB_COLLECTION) || "chat_state";
 const MONGODB_USERS_COLLECTION = toDisplayName(process.env.MONGODB_USERS_COLLECTION) || "users";
