@@ -886,7 +886,7 @@ class _GameOverModalContentState extends State<_GameOverModalContent> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: const accent.withValues(alpha: isDark ? 0.2 : 0.1),
+                color: accent.withValues(alpha: isDark ? 0.2 : 0.1),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Row(
@@ -931,7 +931,7 @@ class _GameOverModalContentState extends State<_GameOverModalContent> {
                   child: FilledButton(
                     onPressed: _loading ? null : _handleAccept,
                     style: FilledButton.styleFrom(
-                      backgroundColor: const accent,
+                      backgroundColor: accent,
                       foregroundColor: Colors.white,
                       minimumSize: const Size(double.infinity, 52),
                       shape: RoundedRectangleBorder(
@@ -1696,7 +1696,7 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
                           child: child,
                         ),
                         child: value == 'X'
-                            ? const Text(
+                            ? Text(
                                 'X',
                                 key: ValueKey('x'),
                                 style: TextStyle(
