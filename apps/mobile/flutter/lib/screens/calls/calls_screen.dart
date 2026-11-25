@@ -268,9 +268,6 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.sizeOf(context).height * .62,
-      ),
       builder: (sheetContext) => StatefulBuilder(
         builder: (context, refresh) {
           final theme = Theme.of(context);
@@ -930,6 +927,7 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
                 if (_filter == option) return;
                 HapticService.vibrate(NovynHapticType.light, category: HapticCategory.calls);
                 setState(() => _filter = option);
+                if (option == 'Missed') unawaited(_markMissedCallsRead());
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
@@ -1606,6 +1604,9 @@ class _CallCard extends StatelessWidget {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * .62,
+      ),
       builder: (sheetContext) => StatefulBuilder(
         builder: (sheetContext, refresh) => _CallHistorySheet(
           entry: entry,
