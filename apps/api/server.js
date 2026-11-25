@@ -6302,8 +6302,34 @@ app.post(
         });
         return;
       }
-      user = getOrCreateUser(requestedUsername);
-      createdAccount = true;
+      if (!registrationReservations.reserve(email, requestedUsername, googleUid)) {
+        res.status(409).json({
+          message: "This Google account, email, or username is already being registered. Please try again.",
+        });
+        return;
+      }
+      try {
+        const emailOwner = findUserByEmail(email);
+        const googleOwner = findUserByGoogleUid(googleUid);
+        if (emailOwner?.isRegistered || googleOwner?.isRegistered || isUsernameTaken(requestedUsername)) {
+          res.status(409).json({
+            message: "This Google account or username was just registered. Please try again.",
+          });
+          return;
+        }
+        user = getOrCreateUser(requestedUsername);
+        user.googleUid = googleUid;
+        user.email = email;
+        user.isRegistered = true;
+        if (!user.createdAt) user.createdAt = nowIso();
+        if (!toDisplayName(user.displayName) && googleDisplayName) {
+          user.displayName = googleDisplayName;
+        }
+        schedulePersist();
+        createdAccount = true;
+      } finally {
+        registrationReservations.release(email, requestedUsername, googleUid);
+      }
     }
 
     const currentUserGoogleUid = toDisplayName(user.googleUid);
