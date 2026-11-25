@@ -67,22 +67,42 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
             children: [
               _buildHeader(context),
               Expanded(
-                child: ListView(
+                child: CustomScrollView(
                   keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                   physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(24, 18, 24, 12),
-                  children: [
-                    _buildGroupNameInput(context),
-                    const SizedBox(height: 20),
-                    _buildMembersHeading(context),
+                  slivers: [
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(24, 18, 24, 0),
+                      sliver: SliverToBoxAdapter(
+                        child: _buildGroupNameInput(context),
+                      ),
+                    ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 20)),
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      sliver: SliverToBoxAdapter(
+                        child: _buildMembersHeading(context),
+                      ),
+                    ),
                     if (_selected.isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      _buildSelectedMembers(context),
+                      const SliverToBoxAdapter(child: SizedBox(height: 10)),
+                      SliverPadding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        sliver: SliverToBoxAdapter(
+                          child: _buildSelectedMembers(context),
+                        ),
+                      ),
                     ],
-                    const SizedBox(height: 12),
-                    _buildSearchInput(context),
-                    const SizedBox(height: 6),
-                    _buildFriendList(friends),
+                    const SliverToBoxAdapter(child: SizedBox(height: 12)),
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      sliver: SliverToBoxAdapter(
+                        child: _buildSearchInput(context),
+                      ),
+                    ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 6)),
+                    _buildFriendListSliver(friends),
+                    const SliverToBoxAdapter(child: SizedBox(height: 12)),
                   ],
                 ),
               ),
@@ -380,26 +400,30 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     );
   }
 
-  Widget _buildFriendList(FriendService service) {
+  Widget _buildFriendListSliver(FriendService service) {
     final colors = Theme.of(context).colorScheme;
     return StreamBuilder<List<UserModel>>(
       stream: service.friendsStream(widget.myUid),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting &&
             snapshot.data == null) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 42),
-            child: Center(
-              child: CircularProgressIndicator(color: colors.primary),
+          return SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 42),
+              child: Center(
+                child: CircularProgressIndicator(color: colors.primary),
+              ),
             ),
           );
         }
         if (snapshot.hasError) {
-          return _buildListMessage(
-            context,
-            icon: Icons.cloud_off_rounded,
-            title: 'Could not load friends',
-            subtitle: 'Check your connection and try again.',
+          return SliverToBoxAdapter(
+            child: _buildListMessage(
+              context,
+              icon: Icons.cloud_off_rounded,
+              title: 'Could not load friends',
+              subtitle: 'Check your connection and try again.',
+            ),
           );
         }
 
@@ -411,22 +435,27 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
         }).toList();
 
         if (filtered.isEmpty) {
-          return _buildListMessage(
-            context,
-            icon: Icons.group_outlined,
-            title: _search.isEmpty ? 'No friends yet' : 'No friends found',
-            subtitle: _search.isEmpty
-                ? 'Add friends before starting a group.'
-                : 'Try another name or username.',
+          return SliverToBoxAdapter(
+            child: _buildListMessage(
+              context,
+              icon: Icons.group_outlined,
+              title: _search.isEmpty ? 'No friends yet' : 'No friends found',
+              subtitle: _search.isEmpty
+                  ? 'Add friends before starting a group.'
+                  : 'Try another name or username.',
+            ),
           );
         }
 
-        return Padding(
+        return SliverPadding(
           padding: const EdgeInsets.only(top: 6),
-          child: Column(
-            children: [
-              for (final user in filtered) _buildFriendRow(context, user),
-            ],
+          sliver: SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) => _buildFriendRow(context, filtered[index]),
+              childCount: filtered.length,
+              addAutomaticKeepAlives: false,
+              addRepaintBoundaries: true,
+            ),
           ),
         );
       },
