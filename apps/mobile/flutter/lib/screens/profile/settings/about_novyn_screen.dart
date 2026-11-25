@@ -213,9 +213,6 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
   }
 
   void _showInstallingSheet() {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    final primary = colors.primary;
     final sizeMb =
         ((_apkSize ?? _updateService.expectedBytes) / 1000000).toStringAsFixed(1);
     showModalBottomSheet<void>(
@@ -1195,7 +1192,8 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
         ),
       ),
     );
-  }}
+  }
+}
 
 class _UpdateNote extends StatelessWidget {
   const _UpdateNote({required this.text});
