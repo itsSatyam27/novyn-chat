@@ -7606,6 +7606,38 @@ if (fs.existsSync(distDir)) {
 }
 app.use(express.static(publicDir));
 
+// Central HTTP error boundary: normalize unexpected route/middleware errors into
+// a safe response and correlate server-side logs with the request observability ID.
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+
+  const status = Number(err?.status || err?.statusCode);
+  const clientError = Number.isInteger(status) && status >= 400 && status < 500;
+  const safeStatus = clientError ? status : 500;
+  const event = {
+    event: "http_error",
+    requestId: req.requestId || null,
+    method: String(req.method || "UNKNOWN").toUpperCase(),
+    route: req.route && typeof req.route.path === "string" ? req.route.path : "unmatched",
+    statusCode: safeStatus,
+    errorCode: typeof err?.code === "string" && /^[A-Z0-9_]{1,64}$/.test(err.code) ? err.code : undefined,
+  };
+
+  try {
+    const message = JSON.stringify(event);
+    if (safeStatus >= 500) console.error(message);
+    else console.warn(message);
+  } catch (_) {
+    // Error reporting must not mask the original HTTP error.
+  }
+
+  if (res.writableEnded) return;
+  res.status(safeStatus).json({
+    error: safeStatus >= 500 ? "Internal server error" : (err?.message || "Request failed"),
+    requestId: req.requestId || undefined,
+  });
+});
+
 app.use("/api", (req, res) => {
   res.status(404).json({ error: "Not found" });
 });
