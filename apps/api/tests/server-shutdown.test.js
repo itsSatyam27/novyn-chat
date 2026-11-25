@@ -106,13 +106,22 @@ test("graceful shutdown closes real Socket.IO clients and the HTTP listener befo
     }),
     flushState: async () => {
       assert.equal(httpServer.listening, false);
-      assert.equal(client.connected, false);
-      assert.equal(clientDisconnected, true);
+      assert.equal(socketServer.of("/").sockets.size, 0);
     },
     timeoutMs: 3000,
-    logger: { error() {} },
   });
 
   assert.equal(await shutdown("SIGTERM"), 0);
   assert.equal(httpServer.listening, false);
+  if (!clientDisconnected) {
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error("Socket.IO client did not receive the disconnect.")), 1000);
+      client.once("disconnect", () => {
+        clearTimeout(timeout);
+        resolve();
+      });
+    });
+  }
+  assert.equal(client.connected, false);
+  assert.equal(clientDisconnected, true);
 });
