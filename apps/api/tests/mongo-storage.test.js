@@ -74,7 +74,8 @@ test("concurrent MongoDB connect calls share one client and one index setup", as
   assert.equal(metrics.connectCalls, 1);
   assert.equal(metrics.indexCalls, 5);
   assert.equal(storage.isConnected(), true);
-  assert.equal(storage.db, storage.client.db("novyn"));
+  assert.ok(storage.db);
+  assert.deepEqual(metrics.databaseNames, ["novyn"]);
   await storage.close();
   assert.equal(metrics.closeCalls, 1);
   assert.equal(storage.isConnected(), false);
