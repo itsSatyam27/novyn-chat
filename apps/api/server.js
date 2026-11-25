@@ -2939,9 +2939,15 @@ async function sendPushToUser(userKey, payload) {
     const conversationKey = payload?.group === true
       ? normalizeGroupId(payload?.groupId || payload?.chat)
       : normalizeName(payload?.chat || payload?.from);
-    if (conversationKey && isMutedBy(user, conversationKey)) return;
+    if (conversationKey) {
+      const hiddenChats = user.hiddenChats instanceof Set
+        ? user.hiddenChats
+        : new Set(Array.isArray(user.hiddenChats) ? user.hiddenChats : []);
+      if (hiddenChats.has(conversationKey) || isMutedBy(user, conversationKey)) return;
+    }
   }
-  const previewEnabled = user.messagePreviewEnabled !== false;
+  const previewEnabled = user.messagePreviewEnabled !== false &&
+    user.hideNotificationContent !== true;
   const safePayload = {
     ...payload,
     soundEnabled: user.notificationSoundEnabled !== false,
@@ -2996,11 +3002,17 @@ async function sendPushToUser(userKey, payload) {
         // The mobile app renders data-only notifications so category,
         // quiet-hours, mute, preview, sound and vibration preferences are
         // applied consistently in foreground and background states.
-        const isManagedDataPush = [
-          "message", "friend_request", "friend_request_accepted",
-          "friend_request_declined", "group_invite",
-          "game_invitation", "game_turn", "game_result",
-        ].includes(safePayload.type);
+        // Visible alerts carry a notification + data payload. Android can
+        // render them from the system tray even when Flutter is not running.
+        // Only explicit silent events and calls remain data-only.
+        const isManagedDataPush = safePayload.silent === true;
+        const notificationChannelBase =
+          safePayload.type === "message" ? "novyn_messages" :
+          String(safePayload.type || "").startsWith("game_") ? "novyn_games" :
+          safePayload.type === "app_update" ? "novyn_app_updates" : "novyn_social";
+        const notificationChannelId = notificationChannelBase + "_" +
+          (safePayload.soundEnabled ? "sound" : "silent") + "_" +
+          (safePayload.vibrationEnabled ? "vibrate" : "no_vibrate");
         const data = {
           type: toDisplayName(safePayload.type) || "message",
           url: toDisplayName(safePayload.url),
@@ -3055,8 +3067,9 @@ async function sendPushToUser(userKey, payload) {
             ...(isCallPush ? { ttl: 45000 } : {}),
             ...(!isManagedDataPush && !isCallPush ? {
               notification: {
+                channelId: notificationChannelId,
                 tag: toDisplayName(safePayload.tag) || undefined,
-                ...(safePayload.silent ? {} : { sound: "default" }),
+                ...(safePayload.soundEnabled === false ? {} : { sound: "default" }),
               },
             } : {}),
           },
@@ -3065,7 +3078,10 @@ async function sendPushToUser(userKey, payload) {
               "apns-push-type": "background",
               "apns-priority": "5",
               ...(isCallPush ? { "apns-expiration": String(Math.floor(Date.now() / 1000) + 45) } : {}),
-            } : undefined,
+            } : {
+              "apns-push-type": "alert",
+              "apns-priority": "10",
+            },
             payload: {
               aps: (isManagedDataPush || isCallPush)
                 ? { "content-available": 1 }
@@ -3074,7 +3090,7 @@ async function sendPushToUser(userKey, payload) {
                       title: toDisplayName(safePayload.title) || "Novyn",
                       body: toDisplayName(safePayload.body) || "You have a new message",
                     },
-                    ...(safePayload.silent ? {} : { sound: "default" }),
+                    ...(safePayload.soundEnabled === false ? {} : { sound: "default" }),
                   },
             },
           },
