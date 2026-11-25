@@ -765,7 +765,7 @@ class NovynDock extends StatelessWidget {
                 color: const Color(0xFFE34D73),
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: Theme.of(context).colorScheme.surface,
+                  color: Colors.white,
                   width: 1.5,
                 ),
               ),
