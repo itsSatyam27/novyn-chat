@@ -6335,69 +6335,89 @@ app.post(
       return;
     }
 
-    const existingGoogleOwner = findUserByGoogleUid(googleUid);
-    if (existingGoogleOwner && normalizeName(existingGoogleOwner.username) !== normalizeName(user.username)) {
+    // Existing password accounts may be linked to Google concurrently from
+    // separate sign-in requests. Reserve the external identity until its owner
+    // is durably updated so the same Google UID cannot attach to two accounts.
+    const needsGoogleUidReservation = !currentUserGoogleUid;
+    if (
+      needsGoogleUidReservation &&
+      !registrationReservations.reserve("", "", googleUid)
+    ) {
       res.status(409).json({
-        message: "This Google account is already linked to another user.",
+        message: "This Google account is already being linked. Please try again.",
       });
       return;
     }
 
-    // A newly created Google account must be durably written before cookies are issued.
-    let userChanged = Boolean(createdAccount);
-    if (toDisplayName(user.googleUid) !== googleUid) {
-      user.googleUid = googleUid;
-      userChanged = true;
-    }
-    if (!user.isRegistered) {
-      user.isRegistered = true;
-      userChanged = true;
-    }
-    if (!user.createdAt) {
-      user.createdAt = nowIso();
-      userChanged = true;
-    }
-    if (!normalizeEmail(user.email || "")) {
-      user.email = email;
-      userChanged = true;
-    }
-    if (!toDisplayName(user.displayName) && googleDisplayName) {
-      user.displayName = googleDisplayName;
-      userChanged = true;
-    }
-    if (userChanged) {
-      schedulePersist();
-    }
+    try {
+      const existingGoogleOwner = findUserByGoogleUid(googleUid);
+      if (existingGoogleOwner && normalizeName(existingGoogleOwner.username) !== normalizeName(user.username)) {
+        res.status(409).json({
+          message: "This Google account is already linked to another user.",
+        });
+        return;
+      }
 
-    if (user.twoFactorEnabled) {
-      const challengeToken = createAuthToken("2fa_challenge", user.username, 5 * 60 * 1000, {
-        remember: remember ? 1 : 0,
-        nonce: crypto.randomBytes(16).toString("hex"),
+      // A newly created Google account must be durably written before cookies are issued.
+      let userChanged = Boolean(createdAccount);
+      if (toDisplayName(user.googleUid) !== googleUid) {
+        user.googleUid = googleUid;
+        userChanged = true;
+      }
+      if (!user.isRegistered) {
+        user.isRegistered = true;
+        userChanged = true;
+      }
+      if (!user.createdAt) {
+        user.createdAt = nowIso();
+        userChanged = true;
+      }
+      if (!normalizeEmail(user.email || "")) {
+        user.email = email;
+        userChanged = true;
+      }
+      if (!toDisplayName(user.displayName) && googleDisplayName) {
+        user.displayName = googleDisplayName;
+        userChanged = true;
+      }
+      if (userChanged) {
+        schedulePersist();
+      }
+
+      if (user.twoFactorEnabled) {
+        const challengeToken = createAuthToken("2fa_challenge", user.username, 5 * 60 * 1000, {
+          remember: remember ? 1 : 0,
+          nonce: crypto.randomBytes(16).toString("hex"),
+        });
+        res.json({
+          requiresTwoFactor: true,
+          challengeToken,
+          username: user.username,
+          email: user.email || "",
+          message: "Enter the 6-digit code from your authenticator app.",
+        });
+        return;
+      }
+
+      const tokens = await issueAuthTokensForUser(user.username, remember, req, {
+        persistUserState: userChanged,
       });
+      if (!tokens) {
+        res.status(500).json({ message: "Unable to create session." });
+        return;
+      }
+      applyAuthCookies(res, tokens);
       res.json({
-        requiresTwoFactor: true,
-        challengeToken,
         username: user.username,
         email: user.email || "",
-        message: "Enter the 6-digit code from your authenticator app.",
+        linkedExisting: Boolean(linkedExisting),
+        createdAccount: Boolean(createdAccount),
       });
-      return;
+    } finally {
+      if (needsGoogleUidReservation) {
+        registrationReservations.release("", "", googleUid);
+      }
     }
-
-    const tokens = await issueAuthTokensForUser(user.username, remember, req, {
-      persistUserState: userChanged,
-    });
-    if (!tokens) {
-      res.status(500).json({ message: "Unable to create session." });
-      return;
-    }
-    applyAuthCookies(res, tokens);
-    res.json({
-      username: user.username,
-      email: user.email || "",
-      linkedExisting: Boolean(linkedExisting),
-      createdAccount: Boolean(createdAccount),
-    });
   }
 );
 
