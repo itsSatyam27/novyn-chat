@@ -164,6 +164,66 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   assert.equal(pairingStatus.status, 200);
   assert.match(pairingStatus.headers.get('cache-control') || '', /no-store/i);
   assert.equal((await pairingStatus.json()).status, 'waiting');
+
+  const primaryPhonePublicKey = JSON.stringify({
+    kty: 'EC', crv: 'P-256',
+    x: 'C'.repeat(43), y: 'D'.repeat(43),
+  });
+  const approval = await alice.socket.timeout(3000).emitWithAck(
+    'approve_device_pairing',
+    {
+      id: pairing.id,
+      secret: pairing.secret,
+      browserPublicKey: JSON.stringify({
+        kty: 'EC', crv: 'P-256',
+        x: 'A'.repeat(43), y: 'B'.repeat(43),
+      }),
+      encryptedIdentity: {
+        senderPublicKey: primaryPhonePublicKey,
+        iv: Buffer.alloc(12, 1).toString('base64'),
+        ciphertext: Buffer.alloc(48, 2).toString('base64'),
+      },
+    },
+  );
+  assert.equal(approval.ok, true);
+  const approvedStatus = await fetch(pairingStatusUrl);
+  assert.equal(approvedStatus.status, 200);
+  assert.equal((await approvedStatus.json()).status, 'approved');
+
+  const pairingComplete = await fetch(`${base}/api/device-pairing/complete`, {
+    method: 'POST',
+    headers: {
+      Cookie: alice.cookie,
+      Origin: origin,
+      'Content-Type': 'application/json',
+      'x-novyn-csrf': decodeURIComponent(pairingCsrfCookie),
+    },
+    body: JSON.stringify({ id: pairing.id, secret: pairing.secret }),
+  });
+  assert.equal(pairingComplete.status, 200, await pairingComplete.clone().text());
+  assert.match(pairingComplete.headers.get('cache-control') || '', /no-store/i);
+  assert.equal(pairingComplete.headers.get('referrer-policy'), 'no-referrer');
+  assert.ok(pairingComplete.headers.getSetCookie().some((cookie) => cookie.startsWith('novyn_at=')));
+  assert.ok(pairingComplete.headers.getSetCookie().some((cookie) => cookie.startsWith('novyn_rt=')));
+  const pairedAccount = await pairingComplete.json();
+  assert.equal(pairedAccount.username, 'alice');
+  assert.deepEqual(pairedAccount.encryptedIdentity, {
+    senderPublicKey: primaryPhonePublicKey,
+    iv: Buffer.alloc(12, 1).toString('base64'),
+    ciphertext: Buffer.alloc(48, 2).toString('base64'),
+  });
+  const pairingReplay = await fetch(`${base}/api/device-pairing/complete`, {
+    method: 'POST',
+    headers: {
+      Cookie: alice.cookie,
+      Origin: origin,
+      'Content-Type': 'application/json',
+      'x-novyn-csrf': decodeURIComponent(pairingCsrfCookie),
+    },
+    body: JSON.stringify({ id: pairing.id, secret: pairing.secret }),
+  });
+  assert.equal(pairingReplay.status, 409, 'a completed pairing secret must be single-use');
+
   pairingStatusUrl.searchParams.set('secret', 'incorrect-secret');
   assert.equal((await fetch(pairingStatusUrl)).status, 404);
 
