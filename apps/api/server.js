@@ -680,7 +680,10 @@ app.delete(
 
 // ── Feedback Endpoint ─────────────────────────────────────────────────────
 
-app.get("/api/giphy", requireUser, async (req, res) => {
+app.get("/api/giphy",
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "giphy-search", 30, 60 * 1000),
+  requireUser,
+  async (req, res) => {
   if (!GIPHY_API_KEY) {
     res.status(503).json({ error: "GIF search is not configured.", code: "GIPHY_NOT_CONFIGURED" });
     return;
@@ -945,7 +948,9 @@ app.get(["/login", "/login.html"], (req, res) => {
   res.redirect(302, "/");
 });
 
-app.get("/api/push/public-key", (req, res) => {
+app.get("/api/push/public-key",
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "push-public-key", 60, 60 * 1000),
+  (req, res) => {
   if (!pushEnabled) {
     res.status(503).json({ error: "Push notifications are not configured." });
     return;
@@ -953,7 +958,9 @@ app.get("/api/push/public-key", (req, res) => {
   res.json({ publicKey: vapidKeys.publicKey });
 });
 
-app.get("/api/rtc/ice", (req, res) => {
+app.get("/api/rtc/ice",
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "rtc-ice-config", 30, 60 * 1000),
+  (req, res) => {
   const auth = resolveUserFromAuthCookies(getAuthCookiesFromHeader(req.headers.cookie), {
     allowRefreshFallback: true,
   });
@@ -966,7 +973,9 @@ app.get("/api/rtc/ice", (req, res) => {
 });
 
 // Game history is account-scoped in MongoDB. Bot matches are deliberately never stored.
-app.get("/api/games/history", requireUser, async (req, res) => {
+app.get("/api/games/history", requireUser,
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "games-history-read", 60, 60 * 1000),
+  async (req, res) => {
   if (!mongoGameHistoryCollection) {
     return res.status(503).json({ error: "Cloud game history is temporarily unavailable." });
   }
@@ -983,7 +992,9 @@ app.get("/api/games/history", requireUser, async (req, res) => {
   }
 });
 
-app.post("/api/games/history", requireUser, requireCsrf, async (req, res) => {
+app.post("/api/games/history", requireUser, requireCsrf,
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "games-history-write", 20, 15 * 60 * 1000),
+  async (req, res) => {
   if (!mongoGameHistoryCollection) {
     return res.status(503).json({ error: "Cloud game history is temporarily unavailable." });
   }
@@ -1048,7 +1059,9 @@ app.post("/api/games/history", requireUser, requireCsrf, async (req, res) => {
 });
 
 // Leaderboards aggregate persisted non-bot match records for registered accounts.
-app.get("/api/games/leaderboard", requireUser, async (req, res) => {
+app.get("/api/games/leaderboard", requireUser,
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "games-leaderboard", 60, 60 * 1000),
+  async (req, res) => {
   if (!mongoGameHistoryCollection) {
     return res.status(503).json({ error: "Cloud game history is temporarily unavailable." });
   }
@@ -1127,13 +1140,17 @@ app.get("/api/games/leaderboard", requireUser, async (req, res) => {
 });
 
 // Call history is scoped to the authenticated account. callId makes retries idempotent.
-app.get("/api/calls", requireUser, (req, res) => {
+app.get("/api/calls", requireUser,
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "calls-read", 60, 60 * 1000),
+  (req, res) => {
   const user = users.get(req.userKey);
   const logs = Array.isArray(user?.callLogs) ? user.callLogs : [];
   res.json(logs.slice(0, 500));
 });
 
-app.post("/api/calls", requireUser, requireCsrf, (req, res) => {
+app.post("/api/calls", requireUser, requireCsrf,
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "calls-write", 30, 15 * 60 * 1000),
+  (req, res) => {
   const callerId = toDisplayName(req.body?.callerId).slice(0, 64);
   const receiverId = toDisplayName(req.body?.receiverId).slice(0, 64);
   const callId = toDisplayName(req.body?.callId).slice(0, 128);
@@ -1166,7 +1183,9 @@ app.post("/api/calls", requireUser, requireCsrf, (req, res) => {
   res.json({ ok: true });
 });
 
-app.get("/api/stats", (req, res) => {
+app.get("/api/stats",
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "public-stats", 60, 60 * 1000),
+  (req, res) => {
   const totalUsers = Array.from(users.values()).filter((user) => user?.isRegistered).length;
   const onlineCount = onlineUsers.size;
   const now = Date.now();
@@ -6461,7 +6480,9 @@ const ACCOUNT_SETTINGS_ALLOWED_KEYS = new Set([
   "doNotDisturbEnabled", "quickToggleIds",
 ]);
 
-app.get("/api/settings/account", requireUser, async (req, res) => {
+app.get("/api/settings/account", requireUser,
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "account-settings-read", 60, 60 * 1000),
+  async (req, res) => {
   if (!firebaseAdmin) {
     return res.status(503).json({ ok: false, message: "Cloud settings are temporarily unavailable." });
   }
@@ -6483,7 +6504,9 @@ app.get("/api/settings/account", requireUser, async (req, res) => {
   }
 });
 
-app.put("/api/settings/account", requireUser, requireCsrf, async (req, res) => {
+app.put("/api/settings/account", requireUser, requireCsrf,
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "account-settings-write", 30, 15 * 60 * 1000),
+  async (req, res) => {
   if (!firebaseAdmin) {
     return res.status(503).json({ ok: false, message: "Cloud settings are temporarily unavailable." });
   }
