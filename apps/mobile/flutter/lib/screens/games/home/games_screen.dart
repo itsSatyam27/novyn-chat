@@ -29,8 +29,6 @@ class _GamesScreenState extends State<GamesScreen> {
   String _activeCategory = 'All';
   String _statsUsername = '';
   GameStatsSnapshot _stats = GameStatsSnapshot.empty;
-  int _rmPlayed = 0;
-  int _rmHighScore = 0;
   int _statsLoadGeneration = 0;
   Future<void>? _statsLoadFuture;
   double _prevBottomInset = 0;
@@ -103,14 +101,9 @@ class _GamesScreenState extends State<GamesScreen> {
     if (mounted) setState(() => _stats = GameStatsSnapshot.empty);
     if (username.isEmpty) return;
     final snapshot = await GameHistoryService.load(username);
-    final prefs = await SharedPreferences.getInstance();
-    final rmPlayed = prefs.getInt('rm_played') ?? 0;
-    final rmHigh = prefs.getInt('rm_highscore') ?? 0;
     if (!mounted || generation != _statsLoadGeneration) return;
     setState(() {
       _stats = snapshot;
-      _rmPlayed = rmPlayed;
-      _rmHighScore = rmHigh;
     });
   }
 
@@ -278,8 +271,6 @@ class _GamesScreenState extends State<GamesScreen> {
                     username: username,
                     photoUrl: user?.photoUrl ?? '',
                     stats: _stats,
-                    rmPlayed: _rmPlayed,
-                    rmHighScore: _rmHighScore,
                     onHistoryTap: () => _openHistory(username),
                     isDark: isDark,
                   ),
@@ -442,8 +433,6 @@ class _GameProfileHeroCard extends StatefulWidget {
     required this.username,
     required this.photoUrl,
     required this.stats,
-    this.rmPlayed = 0,
-    this.rmHighScore = 0,
     required this.onHistoryTap,
     required this.isDark,
   });
@@ -452,8 +441,6 @@ class _GameProfileHeroCard extends StatefulWidget {
   final String username;
   final String photoUrl;
   final GameStatsSnapshot stats;
-  final int rmPlayed;
-  final int rmHighScore;
   final VoidCallback onHistoryTap;
   final bool isDark;
 
@@ -726,8 +713,7 @@ class _GameProfileHeroCardState extends State<_GameProfileHeroCard> {
                           ),
                         ],
                       ),
-                      if (widget.rmPlayed > 0 || widget.rmHighScore > 0) ...[
-                        const SizedBox(height: 14),
+                      const SizedBox(height: 14),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
                           decoration: BoxDecoration(
