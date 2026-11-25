@@ -319,7 +319,6 @@ class SocketService extends ChangeNotifier {
   bool get peerIsRecordingVoice => _peerIsRecordingVoice;
   String? get currentChatWith => _currentChatWith;
   bool get activeChatCaptureProtected => _activeChatCaptureProtected;
-  String? get myUsername => _myUsername;
 
   Map<String, dynamic>? randomGameFor(String sessionId) {
     final game = _randomGames[sessionId];
