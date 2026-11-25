@@ -38,6 +38,7 @@ const { createSocketActionRateLimiter } = require("./server/auth/socket-rate-lim
 const { createShutdownHandler } = require("./server/core/shutdown");
 const { createResilientPersistenceQueue } = require("./server/core/persistence-queue");
 const { createBackgroundTask } = require("./server/core/background-task");
+const { createBoundedCache } = require("./server/core/bounded-cache");
 const { createAuthToken: signAuthToken, verifyAuthToken: verifySignedAuthToken } = require("./server/auth/tokens");
 const { createAuthSessions } = require("./server/auth/sessions");
 const { createRegistrationReservations } = require("./server/auth/registration-reservations");
@@ -262,15 +263,31 @@ async function requireAdmin(req, res, next) {
   }
 }
 
-function mediaMetadata(filename) {
+async function mediaMetadata(filename) {
   if (!/^[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+$/.test(filename)) return null;
   const cached = mediaMetadataCache.get(filename);
   if (cached) return cached;
   try {
-    const metadata = JSON.parse(fs.readFileSync(path.join(uploadsDir, `${filename}.metadata.json`), 'utf8'));
-    mediaMetadataCache.set(filename, metadata);
-    return metadata;
-  } catch { return null; }
+    let metadata = null;
+    if (mongoMediaCollection) {
+      const stored = await mongoMediaCollection.findOne(
+        { _id: filename },
+        { projection: { ownerKey: 1, remote: 1 } }
+      );
+      if (stored?.ownerKey) {
+        metadata = { ownerKey: stored.ownerKey, remote: stored.remote || null };
+      }
+    } else {
+      metadata = JSON.parse(
+        await fsp.readFile(path.join(uploadsDir, `${filename}.metadata.json`), "utf8")
+      );
+    }
+    if (metadata?.ownerKey) mediaMetadataCache.set(filename, metadata);
+    return metadata?.ownerKey ? metadata : null;
+  } catch {
+    // Missing metadata and transient database errors both fail closed.
+    return null;
+  }
 }
 
 async function saveMediaMetadata(filename, ownerKey, remote = null) {
@@ -288,8 +305,8 @@ async function saveMediaMetadata(filename, ownerKey, remote = null) {
   mediaMetadataCache.set(filename, metadata);
 }
 
-function userCanReadMedia(filename, userKey) {
-  const metadata = mediaMetadata(filename);
+async function userCanReadMedia(filename, userKey, knownMetadata = null) {
+  const metadata = knownMetadata || await mediaMetadata(filename);
   const ownerKey = resolveCurrentUserKey(metadata?.ownerKey);
   if (ownerKey && ownerKey !== userKey) {
     const owner = users.get(ownerKey);
@@ -771,11 +788,15 @@ app.get("/api/giphy",
 app.get("/uploads/:file", requireUser, async (req, res) => {
   const filename = path.basename(req.params.file || "");
   const token = String(req.query.token || "");
-  if (!/^[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+$/.test(filename) || !safeTimingEqual(token, signUploadToken(filename)) || !userCanReadMedia(filename, req.userKey)) {
+  if (!/^[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+$/.test(filename) || !safeTimingEqual(token, signUploadToken(filename))) {
     res.status(403).json({ error: "Unauthorized" });
     return;
   }
-  const metadata = mediaMetadata(filename);
+  const metadata = await mediaMetadata(filename);
+  if (!metadata || !(await userCanReadMedia(filename, req.userKey, metadata))) {
+    res.status(403).json({ error: "Unauthorized" });
+    return;
+  }
   if (metadata?.remote) {
     res.set('Cache-Control', 'private, no-store');
     res.set('Referrer-Policy', 'no-referrer');
@@ -1332,7 +1353,7 @@ app.get(
   "/api/public/profile/:username/avatar",
   (req, res, next) => { setPublicProfileCors(req, res); next(); },
   createIpRateLimiter({ getStore: () => httpRateLimits }, "public-profile-avatar", 90, 60 * 1000),
-  (req, res) => {
+  async (req, res) => {
     setPublicProfileCors(req, res);
     res.set("Cache-Control", "private, no-store");
     res.set("Referrer-Policy", "no-referrer");
@@ -1355,7 +1376,7 @@ app.get(
       return;
     }
 
-    const metadata = mediaMetadata(filename);
+    const metadata = await mediaMetadata(filename);
     if (!metadata || resolveCurrentUserKey(metadata.ownerKey) !== key) {
       res.status(404).end();
       return;
@@ -1707,7 +1728,7 @@ let mongoMessagesCollection = null;
 let mongoAuthSessionsCollection = null;
 let mongoMediaCollection = null;
 let mongoGameHistoryCollection = null;
-const mediaMetadataCache = new Map();
+const mediaMetadataCache = createBoundedCache(5000);
 
 const statePersistence = createResilientPersistenceQueue({
   write: () => persistNow(),
@@ -3696,39 +3717,42 @@ async function initializeMongo() {
     mongoAuthSessionsCollection = mongoStorage.getCollection("auth_sessions");
     mongoMediaCollection = mongoStorage.getCollection("media");
     mongoGameHistoryCollection = mongoStorage.getCollection("game_history");
-    if (mongoGameHistoryCollection?.createIndex) {
-      try {
-        await mongoGameHistoryCollection.createIndex(
-          { userKey: 1, playedAt: 1 },
-          { name: "game_history_user_played_at" }
-        );
-      } catch (error) {
-        console.warn("[NovynGames] Leaderboard index setup deferred:", error?.message || error);
-      }
-    }
-    if (mongoMediaCollection) {
-      const storedMedia = await mongoMediaCollection.find({}).toArray();
-      for (const item of storedMedia) {
-        if (item?._id && item?.ownerKey) {
-          mediaMetadataCache.set(String(item._id), { ownerKey: item.ownerKey, remote: item.remote || null });
-        }
-      }
-      // Migrate legacy metadata files when an earlier deployment used a persistent uploads volume.
-      const legacyFiles = await fsp.readdir(uploadsDir).catch(() => []);
-      for (const name of legacyFiles.filter((entry) => entry.endsWith(".metadata.json"))) {
-        const filename = name.slice(0, -".metadata.json".length);
-        if (mediaMetadataCache.has(filename)) continue;
-        try {
-          const legacy = JSON.parse(await fsp.readFile(path.join(uploadsDir, name), "utf8"));
+    if (mongoMediaCollection && mongoLegacyCollection) {
+      // Migrate old disk metadata once. The marker is written only after the
+      // entire scan succeeds, so interrupted migrations can safely resume.
+      const migrationId = "media_metadata_files_v1";
+      const migration = await mongoLegacyCollection.findOne(
+        { _id: migrationId },
+        { projection: { completedAt: 1 } }
+      );
+      if (!migration) {
+        const legacyFiles = await fsp.readdir(uploadsDir).catch(() => []);
+        let migratedCount = 0;
+        for (const name of legacyFiles) {
+          if (!name.endsWith(".metadata.json")) continue;
+          const filename = name.slice(0, -".metadata.json".length);
+          let legacy;
+          try {
+            legacy = JSON.parse(await fsp.readFile(path.join(uploadsDir, name), "utf8"));
+          } catch (error) {
+            console.warn("[NovynMedia] Legacy media metadata could not be read:", name, error?.message || error);
+            continue;
+          }
           if (!legacy?.ownerKey) continue;
           await mongoMediaCollection.updateOne(
             { _id: filename },
             { $setOnInsert: { ownerKey: legacy.ownerKey, remote: legacy.remote || null, updatedAt: new Date() } },
             { upsert: true }
           );
-          mediaMetadataCache.set(filename, { ownerKey: legacy.ownerKey, remote: legacy.remote || null });
-        } catch (error) {
-          console.warn("[NovynMedia] Legacy media metadata migration skipped:", name, error?.message || error);
+          migratedCount += 1;
+        }
+        await mongoLegacyCollection.updateOne(
+          { _id: migrationId },
+          { $setOnInsert: { completedAt: new Date(), migratedCount } },
+          { upsert: true }
+        );
+        if (migratedCount) {
+          console.log(`[NovynMedia] Migrated ${migratedCount} legacy media metadata records.`);
         }
       }
     }
@@ -5524,7 +5548,7 @@ async function removeUserMedia(rawUserKey) {
 
   for (const metadataFilename of filenames.filter((name) => name.endsWith(".metadata.json"))) {
     const filename = metadataFilename.slice(0, -".metadata.json".length);
-    const metadata = mediaMetadata(filename);
+    const metadata = await mediaMetadata(filename);
     if (resolveCurrentUserKey(normalizeName(metadata?.ownerKey)) !== userKey) continue;
 
     if (metadata.remote?.publicId) {

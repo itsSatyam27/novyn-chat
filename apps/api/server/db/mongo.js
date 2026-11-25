@@ -9,6 +9,7 @@ function createMongoStorage(options = {}) {
   const usersCollectionName = String(options.usersCollectionName || "users").trim() || "users";
   const conversationsCollectionName = String(options.conversationsCollectionName || "conversations").trim() || "conversations";
   const messagesCollectionName = String(options.messagesCollectionName || "messages").trim() || "messages";
+  const gameHistoryCollectionName = String(options.gameHistoryCollectionName || "game_history").trim() || "game_history";
   const MongoClientClass = options.MongoClientClass || MongoClient;
 
   let client = null;
@@ -24,7 +25,9 @@ function createMongoStorage(options = {}) {
       collections?.conversations &&
       collections?.messages &&
       collections?.auth_sessions &&
-      collections?.media
+      collections?.media &&
+      collections?.game_history &&
+      collections?.feedback
     );
   }
 
@@ -40,6 +43,11 @@ function createMongoStorage(options = {}) {
       ),
       targetCollections.messages.createIndex({ messageId: 1 }, { name: "message_id_idx" }),
       targetCollections.media.createIndex({ ownerKey: 1 }, { name: "media_owner_idx" }),
+      targetCollections.feedback.createIndex({ createdAt: -1 }, { name: "feedback_created_at_idx" }),
+      targetCollections.game_history.createIndex(
+        { userKey: 1, playedAt: 1 },
+        { name: "game_history_user_played_at" }
+      ),
     ];
 
     // Wait for every index operation to settle before closing a failed client.
@@ -80,6 +88,7 @@ function createMongoStorage(options = {}) {
           auth_sessions: nextDb.collection(options.authSessionsCollectionName || "auth_sessions"),
           feedback: nextDb.collection("feedback"),
           media: nextDb.collection(options.mediaCollectionName || "media_metadata"),
+          game_history: nextDb.collection(gameHistoryCollectionName),
         };
 
         // Publish the client only after all required indexes are ready. Health
