@@ -391,7 +391,7 @@ function buildGameLeaderboardFromAggregates({
 function isMongoWindowStageUnsupportedError(error) {
   if (Number(error?.code) === 40324) return true;
   const message = String(error?.message || "");
-  return /unrecognized pipeline stage name:\\s*['"`]?\\$setWindowFields['"`]?/i.test(message);
+  return /unrecognized pipeline stage name:\s*['"]?\$setWindowFields['"]?/i.test(message);
 }
 
 module.exports = {
