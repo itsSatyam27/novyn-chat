@@ -5,6 +5,9 @@ const crypto = require("node:crypto");
 const DEFAULT_SLOW_REQUEST_MS = 1_000;
 
 function normalizeThreshold(value) {
+  if (value == null || (typeof value === "string" && value.trim() === "")) {
+    return DEFAULT_SLOW_REQUEST_MS;
+  }
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0
     ? parsed
