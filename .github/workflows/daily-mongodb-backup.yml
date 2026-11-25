@@ -61,7 +61,7 @@ jobs:
             "https://cloud.mongodb.com/api/atlas/v2/groups/$ATLAS_PROJECT_ID/accessList"
           echo "runner_ip=$RUNNER_IP" >> "$GITHUB_OUTPUT"
 
-      - name: Dump and encrypt Novyn database
+      - name: Dump, encrypt, and verify Novyn database backup
         shell: bash
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
@@ -69,20 +69,36 @@ jobs:
         run: |
           set -euo pipefail
           BACKUP_DATE="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
+          RAW_ARCHIVE="$RUNNER_TEMP/novyn-$BACKUP_DATE.archive.gz"
+          ENCRYPTED_ARCHIVE="$RAW_ARCHIVE.gpg"
+          VERIFY_ARCHIVE="$RUNNER_TEMP/novyn-$BACKUP_DATE.verify.archive.gz"
+          trap 'rm -f "$RAW_ARCHIVE" "$VERIFY_ARCHIVE"' EXIT
           echo "backup_date=$BACKUP_DATE" >> "$GITHUB_ENV"
-          mongodump --uri="$MONGODB_URI" --archive="$RUNNER_TEMP/novyn-$BACKUP_DATE.archive.gz" --gzip
-          gpg --batch --yes --pinentry-mode loopback \
-            --passphrase "$BACKUP_ENCRYPTION_PASSPHRASE" \
-            --symmetric --cipher-algo AES256 \
-            --output "$RUNNER_TEMP/novyn-$BACKUP_DATE.archive.gz.gpg" \
-            "$RUNNER_TEMP/novyn-$BACKUP_DATE.archive.gz"
-          rm -f "$RUNNER_TEMP/novyn-$BACKUP_DATE.archive.gz"
 
-      - name: Upload encrypted backup (90-day retention)
+          mongodump --uri="$MONGODB_URI" --archive="$RAW_ARCHIVE" --gzip
+
+          # Keep the passphrase off the process argument list.
+          printf '%s\\n' "$BACKUP_ENCRYPTION_PASSPHRASE" | \
+            gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
+              --symmetric --cipher-algo AES256 \
+              --output "$ENCRYPTED_ARCHIVE" "$RAW_ARCHIVE"
+
+          # Prove that the uploaded encrypted artifact can be decrypted with
+          # the configured recovery passphrase and reproduces the dump exactly.
+          printf '%s\\n' "$BACKUP_ENCRYPTION_PASSPHRASE" | \
+            gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
+              --decrypt --output "$VERIFY_ARCHIVE" "$ENCRYPTED_ARCHIVE"
+          cmp --silent "$RAW_ARCHIVE" "$VERIFY_ARCHIVE"
+          sha256sum "$ENCRYPTED_ARCHIVE" > "$ENCRYPTED_ARCHIVE.sha256"
+          rm -f "$RAW_ARCHIVE" "$VERIFY_ARCHIVE"
+
+      - name: Upload encrypted backup and checksum (90-day retention)
         uses: actions/upload-artifact@v4
         with:
           name: novyn-mongodb-backup-${{ env.backup_date }}
-          path: ${{ runner.temp }}/novyn-${{ env.backup_date }}.archive.gz.gpg
+          path: |
+            ${{ runner.temp }}/novyn-${{ env.backup_date }}.archive.gz.gpg
+            ${{ runner.temp }}/novyn-${{ env.backup_date }}.archive.gz.gpg.sha256
           if-no-files-found: error
           retention-days: 90
 
