@@ -34,7 +34,7 @@ void main() {
         theme: ThemeData(
           colorScheme: const ColorScheme.light(primary: accent),
         ),
-        home: const Scaffold(
+        home: Scaffold(
           body: Center(
             child: NovynEmptyIllustrations.peopleGroupPlus(),
           ),
@@ -53,7 +53,7 @@ void main() {
         theme: ThemeData(
           colorScheme: const ColorScheme.light(primary: accent),
         ),
-        home: const Scaffold(
+        home: Scaffold(
           body: Center(
             child: NovynEmptyIllustrations.speechBubblesCheck(),
           ),
