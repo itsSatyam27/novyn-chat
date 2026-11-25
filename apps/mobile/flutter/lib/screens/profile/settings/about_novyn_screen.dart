@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -74,6 +75,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
   void initState() {
     super.initState();
     _updateService.addListener(_handleDownloadStateChanged);
+    unawaited(_updateService.markUpdateNotificationOpened());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _checkForUpdates();
     });
