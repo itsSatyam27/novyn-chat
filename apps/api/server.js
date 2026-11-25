@@ -6571,10 +6571,20 @@ app.get("/api/auth/session", async (req, res) => {
   });
 });
 
+// Pairing responses contain short-lived secrets and may set authentication
+// cookies. Never allow browsers or shared proxies to cache or refer these URLs.
+function setPairingNoStoreHeaders(_req, res, next) {
+  res.set("Cache-Control", "no-store, max-age=0");
+  res.set("Pragma", "no-cache");
+  res.set("Referrer-Policy", "no-referrer");
+  next();
+}
+
 // QR-linked web sessions are short-lived, single-use and approved from the
 // authenticated primary phone. E2EE material stays inside the encrypted
 // envelope and is only ever returned to the browser presenting the secret.
 app.post("/api/device-pairing/start",
+  setPairingNoStoreHeaders,
   createIpRateLimiter({ getStore: () => httpRateLimits }, "device-pair-start", 12, 15 * 60 * 1000),
   requireCsrf,
   (req, res) => {
@@ -6604,7 +6614,10 @@ app.post("/api/device-pairing/start",
     return res.json({ ok: true, id, secret, origin, expiresAt: now + 2 * 60 * 1000 });
   });
 
-app.get("/api/device-pairing/status", (req, res) => {
+app.get("/api/device-pairing/status",
+  setPairingNoStoreHeaders,
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "device-pair-status", 120, 60 * 1000),
+  (req, res) => {
   const id = toDisplayName(req.query?.id);
   const secret = toDisplayName(req.query?.secret);
   const pairing = runtimeState.devicePairings.get(id);
@@ -6617,6 +6630,7 @@ app.get("/api/device-pairing/status", (req, res) => {
 });
 
 app.post("/api/device-pairing/complete",
+  setPairingNoStoreHeaders,
   createIpRateLimiter({ getStore: () => httpRateLimits }, "device-pair-complete", 12, 15 * 60 * 1000),
   requireCsrf,
   async (req, res) => {
