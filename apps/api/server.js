@@ -6307,7 +6307,11 @@ app.post(
   }
 );
 
-app.post("/api/auth/signin", createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-signin", 25, 15 * 60 * 1000), requireCsrf, createIdentityRateLimiter({ getStore: () => httpRateLimits, getIdentity: (req) => req.body?.identifier || req.body?.email || req.body?.username }, "auth-signin-identity", 12, 15 * 60 * 1000), async (req, res) => {
+app.post("/api/auth/signin", createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-signin", 25, 15 * 60 * 1000), requireCsrf, createIdentityRateLimiter({ getStore: () => httpRateLimits, getIdentity: (req) => {
+    const identifier = toDisplayName(req.body?.identifier || req.body?.email || req.body?.username);
+    const account = identifier.includes("@") ? findUserByEmail(identifier) : users.get(normalizeName(identifier));
+    return account?.username ? normalizeName(account.username) : identifier;
+  } }, "auth-signin-identity", 12, 15 * 60 * 1000), async (req, res) => {
   try {
     const result = await authenticateSigninPayload(req.body || {});
     if (!result.ok) {

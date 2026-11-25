@@ -54,9 +54,10 @@ test("socket rate-limit store prunes expired entries and remains bounded", () =>
     maxEntries: 2,
     pruneIntervalMs: 60_000,
   });
-  assert.equal(allow(makeSocket("new-user"), "send_message", 5, 60_000), false);
-  assert.equal(store.size, 1);
+  assert.equal(allow(makeSocket("new-user"), "send_message", 5, 60_000), true);
+  assert.equal(store.size, 2);
   assert.ok(store.has("active:send_message"));
+  assert.ok(store.has("new-user:send_message"));
   assert.ok(!store.has("expired:send_message"));
 });
 
