@@ -6062,6 +6062,9 @@ async function authenticateSigninPayload(payload) {
   if (!password) {
     return { ok: false, status: 400, message: "Password is required.", suggestions: [] };
   }
+  if (Buffer.byteLength(identifier, "utf8") > 254 || Buffer.byteLength(password, "utf8") > 1024) {
+    return { ok: false, status: 400, message: "Credentials exceed the supported length.", suggestions: [] };
+  }
 
   if (isEmail) {
     const user = findUserByEmail(identifier);
@@ -6098,6 +6101,9 @@ async function authenticateSignupPayload(payload) {
 
   if (!email) {
     return { ok: false, status: 400, message: "Email is required to sign up." };
+  }
+  if (Buffer.byteLength(email, "utf8") > 254 || Buffer.byteLength(displayName, "utf8") > 80 || Buffer.byteLength(password, "utf8") > 1024) {
+    return { ok: false, status: 400, message: "One or more account fields exceed the supported length." };
   }
   if (isEmailTaken(email)) {
     return { ok: false, status: 409, message: "Email already registered. Sign in." };
@@ -6433,6 +6439,9 @@ app.post(
 
     const idToken = toDisplayName(req.body?.idToken || "");
     const remember = readRememberFlag(req.body?.remember);
+    if (Buffer.byteLength(idToken, "utf8") > 8192) {
+      return res.status(400).json({ message: "Google sign-in token is too large." });
+    }
     if (!idToken) {
       res.status(400).json({ message: "Google sign-in token is required." });
       return;
@@ -6463,6 +6472,9 @@ app.post(
     const googleDisplayName = toDisplayName(decoded.name || decoded.displayName || email.split("@")[0] || "");
     const linkIdentifier = toDisplayName(req.body?.identifier || "");
     const linkPassword = toDisplayName(req.body?.password || "");
+    if (Buffer.byteLength(linkIdentifier, "utf8") > 254 || Buffer.byteLength(linkPassword, "utf8") > 1024) {
+      return res.status(400).json({ message: "Account-link credentials exceed the supported length." });
+    }
 
     let user = findUserByGoogleUid(googleUid) || findUserByEmail(email);
     let linkedExisting = Boolean(user);
@@ -6499,6 +6511,9 @@ app.post(
     let createdAccount = false;
     if (!user) {
       const requestedUsername = normalizeHandleInput(req.body?.username || "");
+      if (Buffer.byteLength(googleDisplayName, "utf8") > 80) {
+        return res.status(400).json({ message: "Google profile name is too long." });
+      }
       if (!requestedUsername) {
         res.json({
           requiresUsername: true,

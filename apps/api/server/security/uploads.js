@@ -183,19 +183,23 @@ async function isUtf8TextFile(filePath) {
 // Multipart Content-Type is client-controlled. Confirm the staged bytes match
 // the declared allowlisted type before storing anything in Cloudinary or disk.
 async function validateUploadFileContent(filePath, rawMime) {
-  const mime = String(rawMime || "").trim().toLowerCase();
-  if (!ALLOWED_FILE_MIME.has(mime) && !ALLOWED_VOICE_MIME.has(mime)) return false;
-  const stat = await fs.promises.stat(filePath);
-  if (!stat.isFile() || stat.size <= 0 || stat.size > 15 * 1024 * 1024) return false;
-  if (mime === "text/plain" || mime === "text/csv") return isUtf8TextFile(filePath);
-
-  const handle = await fs.promises.open(filePath, "r");
   try {
-    const buffer = Buffer.alloc(64);
-    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
-    return matchesUploadSignature(buffer.subarray(0, bytesRead), mime);
-  } finally {
-    await handle.close();
+    const mime = String(rawMime || "").trim().toLowerCase();
+    if (!ALLOWED_FILE_MIME.has(mime) && !ALLOWED_VOICE_MIME.has(mime)) return false;
+    const stat = await fs.promises.stat(filePath);
+    if (!stat.isFile() || stat.size <= 0 || stat.size > 15 * 1024 * 1024) return false;
+    if (mime === "text/plain" || mime === "text/csv") return isUtf8TextFile(filePath);
+
+    const handle = await fs.promises.open(filePath, "r");
+    try {
+      const buffer = Buffer.alloc(64);
+      const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
+      return matchesUploadSignature(buffer.subarray(0, bytesRead), mime);
+    } finally {
+      await handle.close();
+    }
+  } catch (_) {
+    return false;
   }
 }
 

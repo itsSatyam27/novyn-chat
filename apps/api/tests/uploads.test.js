@@ -145,3 +145,7 @@ test("plain text and CSV uploads must be valid UTF-8 and cannot contain NUL byte
   assert.equal(await validateUploadFileContent(invalid, "text/plain"), false);
   assert.equal(await validateUploadFileContent(valid, "text/html"), false);
 });
+
+test("upload content validation fails closed for missing or unreadable files", async () => {
+  assert.equal(await validateUploadFileContent("/path/that/does/not/exist/novyn.bin", "image/png"), false);
+});
