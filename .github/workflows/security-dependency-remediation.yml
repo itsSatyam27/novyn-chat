@@ -49,6 +49,7 @@ jobs:
 
           packageJson.dependencies.multer = '^2.5.0';
           packageJson.dependencies.nodemailer = '^10.1.4';
+          packageJson.devDependencies.vite = '^8.3.8';
           packageJson.overrides ||= {};
           packageJson.overrides.qs = '^6.16.2';
           packageJson.overrides['@fastify/busboy'] = '^3.2.2';
