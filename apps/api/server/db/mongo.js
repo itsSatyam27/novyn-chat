@@ -92,11 +92,8 @@ function createMongoStorage(options = {}) {
       } catch (error) {
         try {
           await nextClient.close();
-        } catch (closeError) {
-          // Preserve the initialization error while retaining cleanup context.
-          if (error && typeof error === "object" && !error.closeError) {
-            error.closeError = closeError;
-          }
+        } catch (_) {
+          // Preserve the original initialization error if cleanup also fails.
         }
         throw error;
       }
