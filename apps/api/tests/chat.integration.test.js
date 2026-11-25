@@ -260,7 +260,7 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   const changedCharlieCookie = changedPasswordLogin.headers.getSetCookie()
     .map((item) => item.split(';')[0]).join('; ');
   const charlieOldDevice = await connect(changedCharlieCookie);
-  const secondCharlieLogin = await fetch(${base}/api/auth/signin, {
+  const secondCharlieLogin = await fetch(`${base}/api/auth/signin`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -278,7 +278,7 @@ test('localhost discovery, requests, reconnect state, and private media', { time
     .find((part) => part.startsWith('novyn_csrf='))
     ?.slice('novyn_csrf='.length);
   assert.ok(currentCharlieCsrf, 'sign-in must issue a CSRF cookie');
-  const revokeOtherDevice = await fetch(${base}/api/auth/revoke-session, {
+  const revokeOtherDevice = await fetch(`${base}/api/auth/revoke-session`, {
     method: 'POST',
     headers: {
       Cookie: currentCharlieCookie,
@@ -291,7 +291,7 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   assert.equal(revokeOtherDevice.status, 200, await revokeOtherDevice.clone().text());
   assert.match((await otherDeviceRevoked).message, /signed out from another device/i);
   await oldDeviceDisconnected;
-  assert.equal((await fetch(${base}/api/auth/session, {
+  assert.equal((await fetch(`${base}/api/auth/session`, {
     headers: { Cookie: changedCharlieCookie },
   })).status, 401);
 
@@ -303,7 +303,7 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   assert.ok(charlieResetCode, 'test-only reset code should be logged for Charlie');
   const resetSessionRevoked = event(charlieResetSocket.socket, 'session_revoked');
   const resetSocketDisconnected = event(charlieResetSocket.socket, 'disconnect');
-  const httpPasswordReset = await fetch(${base}/api/auth/password-reset/confirm, {
+  const httpPasswordReset = await fetch(`${base}/api/auth/password-reset/confirm`, {
     method: 'POST',
     headers: {
       Cookie: currentCharlieCookie,
