@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'game_lobby_screen.dart';
+import '../shared/lobby/game_lobby_screen.dart';
 
 class TicTacToeScreen extends StatelessWidget {
   const TicTacToeScreen({super.key});

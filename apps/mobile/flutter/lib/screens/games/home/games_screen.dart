@@ -4,12 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../services/auth_service.dart';
-import '../../services/game_history_service.dart';
-import '../../widgets/user_avatar.dart';
-import 'game_history_screen.dart';
-import 'game_lobby_screen.dart';
-import 'raja_mantri_lobby_screen.dart';
+import '../../../services/auth_service.dart';
+import '../../../services/game_history_service.dart';
+import '../../../widgets/user_avatar.dart';
+import '../shared/history/game_history_screen.dart';
+import '../shared/lobby/game_lobby_screen.dart';
+import '../raja_mantri/raja_mantri_lobby_screen.dart';
 
 class GamesScreen extends StatefulWidget {
   const GamesScreen({super.key});
@@ -217,6 +217,19 @@ class _GamesScreenState extends State<GamesScreen> {
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               padding: const EdgeInsets.only(top: 16, bottom: 116),
               children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                  child: Text(
+                    'Games',
+                    style: TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize: 27,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.8,
+                      color: isDark ? Colors.white : const Color(0xFF1E1A33),
+                    ),
+                  ),
+                ),
                 // Hero Profile & Stats Card
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
