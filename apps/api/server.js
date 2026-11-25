@@ -8,7 +8,7 @@ const multer = require("multer");
 const { createMongoStorage } = require("./server/db/mongo");
 const { registerHealthRoutes } = require("./server/routes/health");
 const { createSocketAuthMiddleware } = require("./server/realtime/socket-auth");
-const { isAllowedSocketOrigin } = require("./server/security/origins");
+const { isAllowedSocketOrigin, parseAllowedSocketOrigins } = require("./server/security/origins");
 const { mediaNames, canReadMedia } = require("./server/security/media-access");
 const { ALLOWED_VOICE_MIME, ALLOWED_FILE_MIME, MULTIPART_LIMITS, createUploadFileFilter, mapMultipartError, uploadCloudMediaWithMetadata } = require("./server/security/uploads");
 const { registerMessageMutationHandlers } = require("./server/realtime/message-mutations");
@@ -954,10 +954,9 @@ app.post(
   }
 );
 
-const allowedSocketOrigins = toDisplayName(process.env.ALLOWED_ORIGIN)
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+const allowedSocketOrigins = parseAllowedSocketOrigins(process.env.ALLOWED_ORIGIN, {
+  isProduction: process.env.NODE_ENV === "production",
+});
 
 const socketCorsOrigin = (origin, callback) => {
   if (isAllowedSocketOrigin(origin, {
