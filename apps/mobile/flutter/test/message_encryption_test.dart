@@ -76,6 +76,17 @@ void main() {
       expect(decrypted.ciphertext, raw['ciphertext']);
       expect(decrypted.copyWith(edited: true).iv, raw['iv']);
       expect(decrypted.needsMessageKey, isFalse);
+
+      // Existing imported chat-key backups must also work in the background
+      // notification path when no modern per-device public key is present.
+      final legacyNotificationPreview =
+          await service.decryptForNotification(
+        encrypted(raw),
+        'interop-alice',
+        '',
+      );
+      expect(legacyNotificationPreview.text, raw['text']);
+      expect(legacyNotificationPreview.needsMessageKey, isFalse);
     }
     final restarted = MessageEncryptionService(
         read: (key) async => storage[key], write: (_, __) async {});
