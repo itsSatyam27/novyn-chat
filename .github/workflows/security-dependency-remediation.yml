@@ -8,6 +8,7 @@ on:
       - ".github/workflows/security-dependency-remediation.yml"
       - "package.json"
       - "package-lock.json"
+      - "apps/api/tests/**"
 
 permissions:
   contents: write

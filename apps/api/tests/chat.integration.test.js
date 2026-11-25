@@ -655,8 +655,9 @@ test('localhost discovery, requests, reconnect state, and private media', { time
 
   // Profile photos are private media too: Everyone must be viewable by a
   // non-friend, while Friends must allow Bob but deny Eve.
+  const avatarBytes = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX4kAAAAASUVORK5CYII=", "base64");
   const avatarForm = new FormData();
-  avatarForm.append('file', new Blob(['alice avatar bytes'], { type: 'image/png' }), 'avatar.png');
+  avatarForm.append('file', new Blob([avatarBytes], { type: 'image/png' }), 'avatar.png');
   const avatarUpload = await fetch(`${base}/upload-file`, {
     method: 'POST', headers: { Cookie: alice.cookie }, body: avatarForm,
   });
@@ -677,7 +678,7 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   assert.equal((await bobAvatarUpdated).avatarId, avatarMedia.url);
   const bobAvatar = await fetch(base + avatarMedia.url, { headers: { Cookie: bob.cookie } });
   assert.equal(bobAvatar.status, 200, await bobAvatar.clone().text());
-  assert.equal(await bobAvatar.text(), 'alice avatar bytes');
+  assert.deepEqual(Buffer.from(await bobAvatar.arrayBuffer()), avatarBytes);
 
   const ownFriendsPrivacy = event(
     alice.socket,
