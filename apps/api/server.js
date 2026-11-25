@@ -36,6 +36,7 @@ const { parseCookies, safeTimingEqual: csrfSafeTimingEqual, createCsrf } = requi
 const runtimeState = require("./server/core/state");
 const { buildUserSearchResults } = require("./server/users/search");
 const { isQuietHoursActive, shouldDeliverNotification } = require("./server/notification-policy");
+const { createFcmMessage } = require("./server/notification-utils");
 const {
   normalizeName,
   toDisplayName,
@@ -2961,6 +2962,7 @@ async function sendPushToUser(userKey, payload) {
     ...payload,
     soundEnabled: user.notificationSoundEnabled !== false,
     vibrationEnabled: user.notificationVibrationEnabled !== false,
+    previewEnabled,
     ...(payload?.type === "message" && !previewEnabled
       ? { body: payload?.group === true ? "New group message" : "You have a new message" }
       : {}),
@@ -2998,112 +3000,7 @@ async function sendPushToUser(userKey, payload) {
     try {
       const token = toDisplayName(user.fcmToken);
       if (token) {
-        const isEncryptedDirectMessage =
-          safePayload.type === "message" &&
-          safePayload.group !== true &&
-          typeof safePayload.ciphertext === "string" &&
-          typeof safePayload.iv === "string" &&
-          typeof safePayload.senderPublicKey === "string";
-        // Encrypted direct messages use data-only delivery. The recipient app
-        // decrypts locally and creates the visible notification; plaintext
-        // never passes through FCM or this server.
-        const isCallPush = safePayload.type === "call";
-        // The mobile app renders data-only notifications so category,
-        // quiet-hours, mute, preview, sound and vibration preferences are
-        // applied consistently in foreground and background states.
-        // Visible alerts carry a notification + data payload. Android can
-        // render them from the system tray even when Flutter is not running.
-        // Only explicit silent events and calls remain data-only.
-        const isManagedDataPush = safePayload.silent === true;
-        const notificationChannelBase =
-          safePayload.type === "message" ? "novyn_messages" :
-          String(safePayload.type || "").startsWith("game_") ? "novyn_games" :
-          safePayload.type === "app_update" ? "novyn_app_updates" : "novyn_social";
-        const notificationChannelId = notificationChannelBase + "_" +
-          (safePayload.soundEnabled ? "sound" : "silent") + "_" +
-          (safePayload.vibrationEnabled ? "vibrate" : "no_vibrate");
-        const data = {
-          type: toDisplayName(safePayload.type) || "message",
-          url: toDisplayName(safePayload.url),
-          tag: toDisplayName(safePayload.tag),
-          recipient: toDisplayName(user.username) || userKey,
-          eventId: toDisplayName(safePayload.eventId) ||
-            (String(safePayload.type || "notification") + ":" + String(Date.now())),
-          chat: toDisplayName(payload?.group === true ? payload?.groupId : payload?.chat) || "",
-          kind: payload?.group === true ? "group" : "friend",
-          from: toDisplayName(safePayload.from),
-          ...(safePayload.gameId ? { gameId: toDisplayName(safePayload.gameId) } : {}),
-          ...(safePayload.gameType ? { gameType: toDisplayName(safePayload.gameType) } : {}),
-          mentionOrReply: safePayload.mentionOrReply ? "1" : "0",
-          soundEnabled: safePayload.soundEnabled === false ? "0" : "1",
-          vibrationEnabled: safePayload.vibrationEnabled === false ? "0" : "1",
-          // Keep a data-payload copy so Flutter can honor local preview/privacy
-          // preferences and show plaintext previews when the app is backgrounded.
-          ...(!isCallPush ? {
-            title: toDisplayName(safePayload.title) || "Novyn",
-            body: toDisplayName(safePayload.body) || "You have a new message",
-            previewEnabled: previewEnabled ? "1" : "0",
-          } : {}),
-          ...(isCallPush ? {
-            // Bind every call alert to the account whose token received it.
-            recipient: toDisplayName(user.username) || userKey,
-            callStatus: toDisplayName(safePayload.callStatus) || "missed",
-            callId: toDisplayName(safePayload.callId),
-            isVideo: safePayload.isVideo ? "1" : "0",
-            title: toDisplayName(safePayload.title) || "Incoming call",
-            body: toDisplayName(safePayload.body) || "You have an incoming call",
-          } : {}),
-        };
-        if (isEncryptedDirectMessage) {
-          data.title = toDisplayName(safePayload.title) || "Novyn";
-          data.ciphertext = safePayload.ciphertext;
-          data.iv = safePayload.iv;
-          data.senderPublicKey = safePayload.senderPublicKey;
-          data.messageId = toDisplayName(safePayload.messageId);
-          data.previewEnabled = previewEnabled ? "1" : "0";
-        }
-        const message = {
-          token,
-          ...(!isManagedDataPush && !isCallPush ? {
-            notification: {
-              title: toDisplayName(safePayload.title) || "Novyn",
-              body: toDisplayName(safePayload.body) || "You have a new message",
-            },
-          } : {}),
-          data,
-          android: {
-            priority: safePayload.silent ? "normal" : "high",
-            ...(isCallPush ? { ttl: 45000 } : {}),
-            ...(!isManagedDataPush && !isCallPush ? {
-              notification: {
-                channelId: notificationChannelId,
-                tag: toDisplayName(safePayload.tag) || undefined,
-                ...(safePayload.soundEnabled === false ? {} : { sound: "default" }),
-              },
-            } : {}),
-          },
-          apns: {
-            headers: (isManagedDataPush || isCallPush) ? {
-              "apns-push-type": "background",
-              "apns-priority": "5",
-              ...(isCallPush ? { "apns-expiration": String(Math.floor(Date.now() / 1000) + 45) } : {}),
-            } : {
-              "apns-push-type": "alert",
-              "apns-priority": "10",
-            },
-            payload: {
-              aps: (isManagedDataPush || isCallPush)
-                ? { "content-available": 1 }
-                : {
-                    alert: {
-                      title: toDisplayName(safePayload.title) || "Novyn",
-                      body: toDisplayName(safePayload.body) || "You have a new message",
-                    },
-                    ...(safePayload.soundEnabled === false ? {} : { sound: "default" }),
-                  },
-            },
-          },
-        };
+        const message = createFcmMessage(userKey, user, safePayload);
         try {
           await admin.messaging(firebaseAdmin).send(message);
         } catch (error) {
