@@ -812,6 +812,7 @@ app.post(
       return;
     }
 
+    let finalPath = "";
     try {
       if (hasCloudinaryConfig) {
         const url = await storeCloudMedia(req.file, auth.userKey, 'novyn_voice');
@@ -834,11 +835,13 @@ app.post(
       const filename = `voice-${Date.now()}-${crypto.randomBytes(3).toString("hex")}${safeExt}`;
       const destPath = path.join(uploadsDir, filename);
       fs.renameSync(req.file.path, destPath);
+      finalPath = destPath;
       await saveMediaMetadata(filename, auth.userKey);
       const token = signUploadToken(filename);
       res.json({ url: `/uploads/${filename}?token=${token}` });
     } catch (error) {
       fs.unlink(req.file.path, () => {});
+      if (finalPath) fs.unlink(finalPath, () => {});
       console.error(error);
       res.status(500).json({ error: "Upload failed" });
     }
@@ -885,6 +888,7 @@ app.post(
     const kind = resolveAttachmentKind(mime);
     const size = Math.max(0, Number(req.file.size) || 0);
 
+    let finalPath = "";
     try {
       if (hasCloudinaryConfig) {
         const url = await storeCloudMedia(req.file, auth.userKey, kind === 'image' ? 'novyn_images' : 'novyn_files');
@@ -903,6 +907,7 @@ app.post(
       const filename = `file-${Date.now()}-${crypto.randomBytes(3).toString("hex")}${ext}`;
       const destPath = path.join(uploadsDir, filename);
       fs.renameSync(req.file.path, destPath);
+      finalPath = destPath;
       await saveMediaMetadata(filename, auth.userKey);
       const token = signUploadToken(filename);
       res.json({
@@ -914,6 +919,7 @@ app.post(
       });
     } catch (error) {
       fs.unlink(req.file.path, () => {});
+      if (finalPath) fs.unlink(finalPath, () => {});
       console.error(error);
       res.status(500).json({ error: "File upload failed." });
     }
@@ -7090,6 +7096,7 @@ app.post(
         return { response, safeUrl: new URL(rawUrl) };
     };
 
+    let importedFilePath = "";
     try {
       let directImageUrl = targetUrl;
 
@@ -7157,11 +7164,13 @@ app.post(
 
       const filename = `wallpaper-${Date.now()}-${crypto.randomBytes(3).toString("hex")}${ext}`;
       const destPath = path.join(uploadsDir, filename);
+      importedFilePath = destPath;
       fs.writeFileSync(destPath, buffer);
       await saveMediaMetadata(filename, req.userKey);
       const token = signUploadToken(filename);
       return res.json({ url: `/uploads/${filename}?token=${token}`, source: finalUrl.href });
     } catch (err) {
+      if (importedFilePath) fs.unlink(importedFilePath, () => {});
       const message = String(err?.message || "");
       const clientError = /Unsafe destination|Unsupported URL|credentials|Redirects|Response too large|Unsupported URL port/.test(message);
       return res.status(clientError ? 400 : 500).json({
