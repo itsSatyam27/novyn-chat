@@ -98,7 +98,7 @@ const configuredUploadsDir = String(process.env.UPLOADS_DIR || "").trim();
 let uploadsDir = configuredUploadsDir ? path.resolve(configuredUploadsDir) : defaultUploadsDir;
 try {
   fs.mkdirSync(uploadsDir, { recursive: true });
-  fs.accessSync(uploadsDir, fs.constants.W_OK);
+  fs.accessSync(uploadsDir, fs.constants.W_OK | fs.constants.X_OK);
 } catch (err) {
   if (configuredUploadsDir && process.env.NODE_ENV === "production") {
     throw new Error(`Configured UPLOADS_DIR "${configuredUploadsDir}" is not writable: ${err?.message || err}`);
@@ -1412,7 +1412,7 @@ const ABUSE_REPORT_FILE = path.join(DATA_DIR, "abuse-reports.log");
 const MONGODB_URI = toDisplayName(process.env.MONGODB_URI);
 if (process.env.NODE_ENV === "production" && !MONGODB_URI) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.accessSync(DATA_DIR, fs.constants.R_OK | fs.constants.W_OK);
+  fs.accessSync(DATA_DIR, fs.constants.R_OK | fs.constants.W_OK | fs.constants.X_OK);
 }
 const MONGODB_DB = toDisplayName(process.env.MONGODB_DB) || "novyn";
 const MONGODB_LEGACY_COLLECTION = toDisplayName(process.env.MONGODB_COLLECTION) || "chat_state";
