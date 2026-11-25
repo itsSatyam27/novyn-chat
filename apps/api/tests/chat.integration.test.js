@@ -271,7 +271,6 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   assert.equal(secondCharlieLogin.status, 200, await secondCharlieLogin.clone().text());
   const currentCharlieCookie = secondCharlieLogin.headers.getSetCookie()
     .map((item) => item.split(';')[0]).join('; ');
-  const charlieCurrentDevice = await connect(currentCharlieCookie);
   const otherDeviceRevoked = event(charlieOldDevice.socket, 'session_revoked');
   const oldDeviceDisconnected = event(charlieOldDevice.socket, 'disconnect');
   const currentCharlieCsrf = currentCharlieCookie.split('; ')
@@ -295,6 +294,7 @@ test('localhost discovery, requests, reconnect state, and private media', { time
     headers: { Cookie: changedCharlieCookie },
   })).status, 401);
 
+  const charlieCurrentDevice = await connect(currentCharlieCookie);
   const charlieResetSocket = charlieCurrentDevice;
   const resetSentToCharlie = event(charlieResetSocket.socket, 'password_reset_sent');
   charlieResetSocket.socket.emit('request_password_reset', { identifier: 'charlie' });
