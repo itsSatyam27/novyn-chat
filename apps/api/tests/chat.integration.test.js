@@ -140,6 +140,28 @@ test('localhost discovery, requests, reconnect state, and private media', { time
     Origin: origin,
     'x-novyn-csrf': decodeURIComponent(aliceCsrfCookie),
   };
+
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const setup = await fetch(`${base}/api/auth/2fa/setup`, {
+      method: 'POST',
+      headers: { ...uploadHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    assert.equal(setup.status, 200, await setup.clone().text());
+  }
+  const twoFactorSetupLimited = await fetch(`${base}/api/auth/2fa/setup`, {
+    method: 'POST',
+    headers: { ...uploadHeaders, 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  });
+  assert.equal(twoFactorSetupLimited.status, 429, '2FA setup attempts must be throttled by IP');
+
+  let statsResponse;
+  for (let attempt = 0; attempt < 61; attempt += 1) {
+    statsResponse = await fetch(`${base}/api/stats`);
+  }
+  assert.equal(statsResponse.status, 429, 'public stats aggregation must be rate limited');
+
   const unsupportedUpload = new FormData();
   unsupportedUpload.append('file', new Blob(['<html>not an image</html>'], { type: 'text/html' }), 'payload.html');
   const unsupportedUploadResponse = await fetch(`${base}/upload-file`, {
