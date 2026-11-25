@@ -840,8 +840,8 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                     child: Text('•', style: TextStyle(color: muted.withValues(alpha: 0.5), fontSize: 12)),
                   ),
                   GestureDetector(
-                    onTap: () => _openLegalLink('https://chat-novyn.web.app/'),
-                    child: Text('Website', style: TextStyle(color: muted, fontSize: 12.5, fontWeight: FontWeight.w600)),
+                    onTap: () => _openLegalLink('https://chat-novyn.web.app/support.html'),
+                    child: Text('Support', style: TextStyle(color: muted, fontSize: 12.5, fontWeight: FontWeight.w600)),
                   ),
                 ],
               ),

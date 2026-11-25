@@ -148,10 +148,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
     final uri = newBug
         ? Uri.https('github.com', '/itsSatyam27/novyn-chat/issues/new',
             {'title': 'Novyn app bug report'})
-        : Uri(
-            scheme: 'mailto',
-            path: _appSupportEmail,
-            queryParameters: {'subject': 'Novyn support request'});
+        : Uri.parse('https://chat-novyn.web.app/support.html');
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication) && mounted) {
       context.showNovynAlert(
           const SnackBar(content: Text('Could not open the support page.')));
