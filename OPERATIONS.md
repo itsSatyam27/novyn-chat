@@ -122,6 +122,11 @@ Request logs intentionally omit raw URLs, query strings, route parameter
 values, request bodies, cookies, authorization headers, and client-provided
 request IDs. Do not add secrets or personal data to log fields when extending
 this middleware.
+
+Unexpected HTTP errors are handled centrally. Server-side failures return a generic
+500 response and the request correlation ID, while valid client errors preserve
+their 4xx status and message. Detailed internal exception messages and stack
+traces are not sent to clients; correlate the request ID with the server logs.
 When MongoDB is configured, refresh sessions are stored in its `auth_sessions`
 collection and existing `auth-state.json` sessions are migrated automatically.
 Without MongoDB, set `DATA_DIR` to a persistent volume so refresh sessions
