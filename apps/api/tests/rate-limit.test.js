@@ -206,3 +206,26 @@ test("rate limiter prunes expired buckets before refusing a new IP", (t) => {
   assert.ok(!store.has("signin:192.0.2.10"));
 });
 
+test("rate limiter prunes malformed entries before allocating a new IP bucket", (t) => {
+  setRenderEnvironment(t, undefined);
+
+  const store = new Map([
+    ["signin:malformed", { count: 99 }],
+  ]);
+  const limiter = createIpRateLimiter(
+    { store, maxEntries: 1, getClientIp: (req) => req.ip },
+    "signin",
+    3,
+    60_000,
+  );
+
+  const result = invokeLimiter(limiter, {
+    ip: "192.0.2.12",
+    socket: { remoteAddress: "192.0.2.12" },
+  });
+  assert.equal(result.nextCalled, true);
+  assert.equal(store.size, 1);
+  assert.ok(store.has("signin:192.0.2.12"));
+  assert.ok(!store.has("signin:malformed"));
+});
+
