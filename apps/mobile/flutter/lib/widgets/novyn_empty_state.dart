@@ -53,7 +53,7 @@ class _NovynEmptyStateState extends State<NovynEmptyState>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    const primary = Color(0xFF5E44F3);
+    final primary = theme.colorScheme.primary;
 
     return Center(
       child: Padding(
@@ -119,7 +119,10 @@ class _NovynEmptyStateState extends State<NovynEmptyState>
               const SizedBox(height: 24),
               Material(
                 color: widget.isSecondaryButton
-                    ? (isDark ? const Color(0xFF262143) : const Color(0xFFF1EEFC))
+                    ? Color.alphaBlend(
+                        primary.withValues(alpha: .11),
+                        theme.colorScheme.surface,
+                      )
                     : primary,
                 borderRadius: BorderRadius.circular(26),
                 child: InkWell(
@@ -165,173 +168,200 @@ class _NovynEmptyStateState extends State<NovynEmptyState>
 class NovynEmptyIllustrations {
   const NovynEmptyIllustrations._();
 
-  static Widget speechBubblesDots({bool isDark = false}) {
-    return _SpeechBubblesBase(
-      isDark: isDark,
-      badge: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: List.generate(
-          3,
-          (i) => Padding(
-            padding: EdgeInsets.only(left: i == 0 ? 0 : 5),
-            child: Container(
-              width: 7,
-              height: 7,
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  static Widget speechBubblesCheck({bool isDark = false}) {
-    return const _SpeechBubblesBase(
-      badge: Icon(Icons.check_rounded, color: Colors.white, size: 36),
-    );
-  }
-
-  static Widget speechBubblesStar({bool isDark = false}) {
-    return const _SpeechBubblesBase(
-      badge: Icon(Icons.star_rounded, color: Colors.white, size: 38),
-    );
-  }
-
-  static Widget peopleGroupPlus({bool isDark = false}) {
-    return _PeopleGroupBase(
-      isDark: isDark,
-      badge: Container(
-        width: 32,
-        height: 32,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.12),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: const Icon(
-          Icons.add_rounded,
-          color: Color(0xFF5E44F3),
-          size: 22,
-        ),
-      ),
-    );
-  }
-
-  static Widget peopleGroupHeart({bool isDark = false}) {
-    return _PeopleGroupBase(
-      isDark: isDark,
-      badge: Container(
-        width: 34,
-        height: 34,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.12),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: const Icon(
-          Icons.favorite_rounded,
-          color: Color(0xFFE53935),
-          size: 19,
-        ),
-      ),
-    );
-  }
-
-  static Widget personOffline({bool isDark = false}) {
-    return SizedBox(
-      width: 170,
-      height: 140,
-      child: Stack(
-        alignment: Alignment.center,
-        clipBehavior: Clip.none,
-        children: [
-          // Sparkle left
-          Positioned(
-            left: 18,
-            top: 10,
-            child: CustomPaint(
-              size: const Size(11, 11),
-              painter: _SparklePainter(
-                color: isDark ? const Color(0xFF4C4372) : const Color(0xFFC7BFF5),
-              ),
-            ),
-          ),
-          // Sparkle right
-          Positioned(
-            right: 22,
-            top: 18,
-            child: CustomPaint(
-              size: const Size(11, 11),
-              painter: _SparklePainter(
-                color: isDark ? const Color(0xFF4C4372) : const Color(0xFFC7BFF5),
-              ),
-            ),
-          ),
-          // Shadow
-          Positioned(
-            bottom: 2,
-            child: Container(
-              width: 86,
-              height: 14,
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF221C38) : const Color(0xFFE8E5F7),
-                borderRadius: const BorderRadius.all(Radius.elliptical(86, 14)),
-              ),
-            ),
-          ),
-          // Main Person Silhouette
-          Positioned(
-            bottom: 8,
-            child: Stack(
-              clipBehavior: Clip.none,
-              alignment: Alignment.center,
-              children: [
-                const _PersonSilhouette(
-                  headRadius: 20,
-                  bodyWidth: 76,
-                  bodyHeight: 38,
-                  color: Color(0xFF5E44F3),
+  static Widget speechBubblesDots({bool isDark = false, Color? accent}) {
+    return Builder(
+      builder: (context) => _SpeechBubblesBase(
+        accent: accent ?? Theme.of(context).colorScheme.primary,
+        isDark: isDark,
+        badge: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(
+            3,
+            (i) => Padding(
+              padding: EdgeInsets.only(left: i == 0 ? 0 : 5),
+              child: Container(
+                width: 7,
+                height: 7,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
                 ),
-                // Offline dot badge
-                Positioned(
-                  right: -6,
-                  bottom: 6,
-                  child: Container(
-                    width: 24,
-                    height: 24,
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                    ),
-                    padding: const EdgeInsets.all(4),
-                    child: Container(
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF9E9AA8),
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  static Widget speechBubblesCheck({bool isDark = false, Color? accent}) {
+    return Builder(
+      builder: (context) => _SpeechBubblesBase(
+        accent: accent ?? Theme.of(context).colorScheme.primary,
+        isDark: isDark,
+        badge: const Icon(Icons.check_rounded, color: Colors.white, size: 36),
+      ),
+    );
+  }
+
+  static Widget speechBubblesStar({bool isDark = false, Color? accent}) {
+    return Builder(
+      builder: (context) => _SpeechBubblesBase(
+        accent: accent ?? Theme.of(context).colorScheme.primary,
+        isDark: isDark,
+        badge: const Icon(Icons.star_rounded, color: Colors.white, size: 38),
+      ),
+    );
+  }
+
+  static Widget peopleGroupPlus({bool isDark = false, Color? accent}) {
+    return Builder(
+      builder: (context) {
+        final primary = accent ?? Theme.of(context).colorScheme.primary;
+        return _PeopleGroupBase(
+          accent: primary,
+          isDark: isDark,
+          badge: Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: .12),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
                 ),
               ],
             ),
+            child: Icon(Icons.add_rounded, color: primary, size: 22),
           ),
-        ],
+        );
+      },
+    );
+  }
+
+  static Widget peopleGroupHeart({bool isDark = false, Color? accent}) {
+    return Builder(
+      builder: (context) => _PeopleGroupBase(
+        accent: accent ?? Theme.of(context).colorScheme.primary,
+        isDark: isDark,
+        badge: Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: .12),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          // The heart remains red because it communicates the favourite state.
+          child: const Icon(
+            Icons.favorite_rounded,
+            color: Color(0xFFE53935),
+            size: 19,
+          ),
+        ),
       ),
+    );
+  }
+
+  static Widget personOffline({bool isDark = false, Color? accent}) {
+    return Builder(
+      builder: (context) {
+        final theme = Theme.of(context);
+        final primary = accent ?? theme.colorScheme.primary;
+        final soft = Color.lerp(
+          primary,
+          theme.brightness == Brightness.dark ? Colors.white : Colors.white,
+          theme.brightness == Brightness.dark ? .28 : .78,
+        )!;
+        final sparkle = Color.lerp(
+          primary,
+          theme.colorScheme.surface,
+          .42,
+        )!;
+        return SizedBox(
+          width: 170,
+          height: 140,
+          child: Stack(
+            alignment: Alignment.center,
+            clipBehavior: Clip.none,
+            children: [
+              Positioned(
+                left: 18,
+                top: 10,
+                child: CustomPaint(
+                  size: const Size(11, 11),
+                  painter: _SparklePainter(color: sparkle),
+                ),
+              ),
+              Positioned(
+                right: 22,
+                top: 18,
+                child: CustomPaint(
+                  size: const Size(11, 11),
+                  painter: _SparklePainter(color: sparkle),
+                ),
+              ),
+              Positioned(
+                bottom: 2,
+                child: Container(
+                  width: 86,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest,
+                    borderRadius: const BorderRadius.all(
+                      Radius.elliptical(86, 14),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                bottom: 8,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.center,
+                  children: [
+                    _PersonSilhouette(
+                      headRadius: 20,
+                      bodyWidth: 76,
+                      bodyHeight: 38,
+                      color: primary,
+                    ),
+                    Positioned(
+                      right: -6,
+                      bottom: 6,
+                      child: Container(
+                        width: 24,
+                        height: 24,
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                        padding: const EdgeInsets.all(4),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: soft.withValues(alpha: .2),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: theme.colorScheme.outline),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -339,14 +369,19 @@ class NovynEmptyIllustrations {
 class _SpeechBubblesBase extends StatelessWidget {
   final Widget badge;
   final bool isDark;
+  final Color accent;
 
   const _SpeechBubblesBase({
     required this.badge,
+    required this.accent,
     this.isDark = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final soft = Color.lerp(accent, Colors.white, isDark ? .24 : .78)!;
+    final muted = Color.lerp(accent, theme.colorScheme.surface, .64)!;
     return SizedBox(
       width: 170,
       height: 146,
@@ -354,15 +389,12 @@ class _SpeechBubblesBase extends StatelessWidget {
         clipBehavior: Clip.none,
         alignment: Alignment.center,
         children: [
-          // Sparkles
           Positioned(
             left: 14,
             top: 12,
             child: CustomPaint(
               size: const Size(11, 11),
-              painter: _SparklePainter(
-                color: isDark ? const Color(0xFF4C4372) : const Color(0xFFC7BFF5),
-              ),
+              painter: _SparklePainter(color: muted),
             ),
           ),
           Positioned(
@@ -370,43 +402,40 @@ class _SpeechBubblesBase extends StatelessWidget {
             top: 24,
             child: CustomPaint(
               size: const Size(12, 12),
-              painter: _SparklePainter(
-                color: isDark ? const Color(0xFF4C4372) : const Color(0xFFC7BFF5),
-              ),
+              painter: _SparklePainter(color: muted),
             ),
           ),
-          // Shadow
           Positioned(
             bottom: 2,
             child: Container(
               width: 86,
               height: 14,
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF221C38) : const Color(0xFFE8E5F7),
-                borderRadius: const BorderRadius.all(Radius.elliptical(86, 14)),
+                color: theme.colorScheme.surfaceContainerHighest,
+                borderRadius: const BorderRadius.all(
+                  Radius.elliptical(86, 14),
+                ),
               ),
             ),
           ),
-          // Back Lavender Bubble
           Positioned(
             left: 28,
             top: 14,
             child: CustomPaint(
               size: const Size(72, 70),
               painter: _SpeechBubblePainter(
-                color: isDark ? const Color(0xFF383058) : const Color(0xFFC8BEF6),
+                color: soft,
                 tailOnRight: false,
               ),
             ),
           ),
-          // Front Purple Bubble
           Positioned(
             left: 56,
             top: 32,
             child: CustomPaint(
               size: const Size(84, 82),
-              painter: const _SpeechBubblePainter(
-                color: Color(0xFF5E44F3),
+              painter: _SpeechBubblePainter(
+                color: accent,
                 tailOnRight: true,
               ),
               child: SizedBox(
@@ -425,14 +454,19 @@ class _SpeechBubblesBase extends StatelessWidget {
 class _PeopleGroupBase extends StatelessWidget {
   final Widget badge;
   final bool isDark;
+  final Color accent;
 
   const _PeopleGroupBase({
     required this.badge,
+    required this.accent,
     this.isDark = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final soft = Color.lerp(accent, Colors.white, isDark ? .22 : .78)!;
+    final sparkle = Color.lerp(accent, theme.colorScheme.surface, .64)!;
     return SizedBox(
       width: 170,
       height: 140,
@@ -440,15 +474,12 @@ class _PeopleGroupBase extends StatelessWidget {
         alignment: Alignment.center,
         clipBehavior: Clip.none,
         children: [
-          // Sparkles
           Positioned(
             left: 14,
             top: 12,
             child: CustomPaint(
               size: const Size(11, 11),
-              painter: _SparklePainter(
-                color: isDark ? const Color(0xFF4C4372) : const Color(0xFFC7BFF5),
-              ),
+              painter: _SparklePainter(color: sparkle),
             ),
           ),
           Positioned(
@@ -456,24 +487,22 @@ class _PeopleGroupBase extends StatelessWidget {
             top: 16,
             child: CustomPaint(
               size: const Size(12, 12),
-              painter: _SparklePainter(
-                color: isDark ? const Color(0xFF4C4372) : const Color(0xFFC7BFF5),
-              ),
+              painter: _SparklePainter(color: sparkle),
             ),
           ),
-          // Shadow
           Positioned(
             bottom: 2,
             child: Container(
               width: 90,
               height: 14,
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF221C38) : const Color(0xFFE8E5F7),
-                borderRadius: const BorderRadius.all(Radius.elliptical(90, 14)),
+                color: theme.colorScheme.surfaceContainerHighest,
+                borderRadius: const BorderRadius.all(
+                  Radius.elliptical(90, 14),
+                ),
               ),
             ),
           ),
-          // Back-left person
           Positioned(
             left: 20,
             bottom: 12,
@@ -481,10 +510,9 @@ class _PeopleGroupBase extends StatelessWidget {
               headRadius: 13,
               bodyWidth: 48,
               bodyHeight: 28,
-              color: isDark ? const Color(0xFF383058) : const Color(0xFFC8BEF6),
+              color: soft,
             ),
           ),
-          // Back-right person
           Positioned(
             right: 20,
             bottom: 12,
@@ -492,21 +520,20 @@ class _PeopleGroupBase extends StatelessWidget {
               headRadius: 13,
               bodyWidth: 48,
               bodyHeight: 28,
-              color: isDark ? const Color(0xFF383058) : const Color(0xFFC8BEF6),
+              color: soft,
             ),
           ),
-          // Front-center person
           Positioned(
             bottom: 8,
             child: Stack(
               clipBehavior: Clip.none,
               alignment: Alignment.center,
               children: [
-                const _PersonSilhouette(
+                _PersonSilhouette(
                   headRadius: 18,
                   bodyWidth: 70,
                   bodyHeight: 36,
-                  color: Color(0xFF5E44F3),
+                  color: accent,
                 ),
                 Positioned(
                   right: -8,
