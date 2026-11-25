@@ -481,25 +481,28 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                     width: 76,
                     height: 76,
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [Color(0xFF7B52FF), Color(0xFF5E44F3)],
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: border.withValues(alpha: 0.8),
+                        width: 1.5,
                       ),
-                      borderRadius: BorderRadius.circular(22),
                       boxShadow: const [
                         BoxShadow(
-                          color: Color(0x355E44F3),
-                          blurRadius: 16,
+                          color: Color(0x255E44F3),
+                          blurRadius: 18,
                           offset: Offset(0, 6),
                         ),
                       ],
                     ),
-                    clipBehavior: Clip.antiAlias,
-                    child: Image.asset(
-                      'assets/icons/app_icon.png',
-                      fit: BoxFit.cover,
-                      semanticLabel: 'Novyn',
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(18.5),
+                      child: Image.asset(
+                        'assets/icons/app_icon.png',
+                        width: 76,
+                        height: 76,
+                        fit: BoxFit.cover,
+                        semanticLabel: 'Novyn',
+                      ),
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -821,7 +824,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   GestureDetector(
-                    onTap: () => _openLegalLink('https://novyn.app/privacy'),
+                    onTap: () => _openLegalLink('https://chat-novyn.web.app/privacy.html'),
                     child: Text('Privacy Policy', style: TextStyle(color: muted, fontSize: 12.5, fontWeight: FontWeight.w600)),
                   ),
                   Padding(
@@ -829,7 +832,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                     child: Text('•', style: TextStyle(color: muted.withValues(alpha: 0.5), fontSize: 12)),
                   ),
                   GestureDetector(
-                    onTap: () => _openLegalLink('https://novyn.app/terms'),
+                    onTap: () => _openLegalLink('https://chat-novyn.web.app/terms.html'),
                     child: Text('Terms', style: TextStyle(color: muted, fontSize: 12.5, fontWeight: FontWeight.w600)),
                   ),
                   Padding(
@@ -837,8 +840,8 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                     child: Text('•', style: TextStyle(color: muted.withValues(alpha: 0.5), fontSize: 12)),
                   ),
                   GestureDetector(
-                    onTap: () => _openLegalLink('https://novyn.app/support'),
-                    child: Text('Support', style: TextStyle(color: muted, fontSize: 12.5, fontWeight: FontWeight.w600)),
+                    onTap: () => _openLegalLink('https://chat-novyn.web.app/'),
+                    child: Text('Website', style: TextStyle(color: muted, fontSize: 12.5, fontWeight: FontWeight.w600)),
                   ),
                 ],
               ),
@@ -915,7 +918,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
   }
 
   Future<void> _shareNovyn() async {
-    const shareText = 'Check out Novyn - Your space, your people! Download the app: https://novyn.app';
+    const shareText = 'Check out Novyn - Your space, your people! https://chat-novyn.web.app/';
     try {
       await Share.share(shareText);
     } catch (_) {
