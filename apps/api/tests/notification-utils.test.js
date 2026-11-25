@@ -170,7 +170,7 @@ test("notification presentation preferences are forwarded as FCM data", () => {
   assert.equal(message.android.notification.channelId, "novyn_social_silent_no_vibrate");
 });
 
-test("encrypted direct-message system alerts never expose message plaintext", () => {
+test("encrypted direct messages use Android data-only delivery and keep iOS alerts generic", () => {
   const encrypted = createFcmMessage("alice", { username: "alice" }, {
     type: "message",
     chat: "bob",
@@ -180,10 +180,23 @@ test("encrypted direct-message system alerts never expose message plaintext", ()
     senderPublicKey: "public-key",
     messageId: "msg-1",
   });
-  assert.equal(encrypted.notification.body, "You have a new message");
+
+  // Android must invoke the app's background handler so the phone can
+  // decrypt locally before creating its notification. A notification field
+  // would be auto-rendered by FCM and bypass that handler.
+  assert.equal(encrypted.notification, undefined);
+  assert.equal(encrypted.android.notification, undefined);
+  assert.equal(encrypted.android.priority, "high");
+  assert.equal(encrypted.android.ttl, 28 * 24 * 60 * 60 * 1000);
+
+  // iOS keeps an OS-visible generic alert; neither platform receives plaintext.
+  assert.equal(encrypted.apns.payload.aps.alert.body, "You have a new message");
   assert.equal(encrypted.data.body, "You have a new message");
   assert.equal(encrypted.data.ciphertext, "ciphertext");
+  assert.equal(encrypted.data.iv, "nonce");
+  assert.equal(encrypted.data.senderPublicKey, "public-key");
   assert.equal(encrypted.data.messageId, "msg-1");
+  assert.doesNotMatch(JSON.stringify(encrypted), /secret plaintext/);
 });
 
 test("disabled message previews use a private system notification fallback", () => {
