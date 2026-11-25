@@ -891,7 +891,7 @@ class _GameProfileHeroCardState extends State<_GameProfileHeroCard> {
                           backgroundColor: isDark
                               ? const Color(0xFF453B68)
                               : const Color(0xFFE3DDFB),
-                          valueColor: const AlwaysStoppedAnimation<Color>(
+                          valueColor: AlwaysStoppedAnimation<Color>(
                             accent,
                           ),
                         ),
