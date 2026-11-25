@@ -12,7 +12,7 @@ const { createHttpErrorHandler } = require("./server/observability/http-error-ha
 const { createSocketAuthMiddleware } = require("./server/realtime/socket-auth");
 const { isAllowedSocketOrigin, parseAllowedSocketOrigins } = require("./server/security/origins");
 const { mediaNames, canReadMedia } = require("./server/security/media-access");
-const { ALLOWED_VOICE_MIME, ALLOWED_FILE_MIME, MULTIPART_LIMITS, createUploadFileFilter, mapMultipartError, uploadCloudMediaWithMetadata } = require("./server/security/uploads");
+const { ALLOWED_VOICE_MIME, ALLOWED_FILE_MIME, MULTIPART_LIMITS, createUploadFileFilter, mapMultipartError, uploadCloudMediaWithMetadata, validateUploadFileContent } = require("./server/security/uploads");
 const { registerMessageMutationHandlers } = require("./server/realtime/message-mutations");
 const { registerCallHandlers, cancelCallForUser } = require("./server/realtime/call-handlers");
 const { applyGameMove, createGameChallenge } = require("./server/realtime/game-rules");
@@ -845,7 +845,7 @@ app.post(
     }
 
     const mime = String(req.file.mimetype || "").toLowerCase();
-    if (!ALLOWED_VOICE_MIME.has(mime)) {
+    if (!ALLOWED_VOICE_MIME.has(mime) || !(await validateUploadFileContent(req.file.path, mime))) {
       fs.unlink(req.file.path, () => {});
       res.status(415).json({ error: "Unsupported voice format." });
       return;
@@ -917,7 +917,7 @@ app.post(
     }
 
     const mime = String(req.file.mimetype || "").toLowerCase();
-    if (!ALLOWED_FILE_MIME.has(mime)) {
+    if (!ALLOWED_FILE_MIME.has(mime) || !(await validateUploadFileContent(req.file.path, mime))) {
       fs.unlink(req.file.path, () => {});
       res.status(415).json({ error: "Unsupported file type." });
       return;

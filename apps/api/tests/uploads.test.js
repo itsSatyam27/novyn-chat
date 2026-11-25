@@ -1,5 +1,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs/promises");
+const os = require("node:os");
+const path = require("node:path");
 const {
   ALLOWED_VOICE_MIME,
   ALLOWED_FILE_MIME,
@@ -7,6 +10,7 @@ const {
   createUploadFileFilter,
   mapMultipartError,
   uploadCloudMediaWithMetadata,
+  validateUploadFileContent,
 } = require("../server/security/uploads");
 
 function runFilter(filter, mime) {
@@ -105,4 +109,39 @@ test("Cloudinary upload metadata success keeps the uploaded object", async () =>
   assert.equal(result, uploaded);
   assert.equal(persisted, true);
   assert.equal(cleanupCalled, false);
+});
+
+
+test("upload content validation rejects MIME spoofing and accepts matching image, media, and document signatures", async (t) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "novyn-upload-signatures-"));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const cases = [
+    ["photo.jpg", "image/jpeg", Buffer.from("ffd8ffe000104a4649460001", "hex"), true],
+    ["fake.png", "image/png", Buffer.from("<script>alert(1)</script>"), false],
+    ["voice.webm", "audio/webm", Buffer.from("1a45dfa301000000", "hex"), true],
+    ["voice.wav", "audio/wav", Buffer.from("524946462400000057415645666d7420", "hex"), true],
+    ["movie.mp4", "video/mp4", Buffer.from("000000186674797069736f6d00000200", "hex"), true],
+    ["paper.pdf", "application/pdf", Buffer.from("%PDF-1.7\n"), true],
+    ["archive.zip", "application/zip", Buffer.from("504b0304", "hex"), true],
+    ["office.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", Buffer.from("504b0304", "hex"), true],
+    ["legacy.doc", "application/msword", Buffer.from("d0cf11e0a1b11ae1", "hex"), true],
+    ["wrong.pdf", "application/pdf", Buffer.from("504b0304", "hex"), false],
+  ];
+  for (const [name, mime, bytes, expected] of cases) {
+    const filePath = path.join(directory, name);
+    await fs.writeFile(filePath, bytes);
+    assert.equal(await validateUploadFileContent(filePath, mime), expected, name);
+  }
+});
+
+test("plain text and CSV uploads must be valid UTF-8 and cannot contain NUL bytes", async (t) => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "novyn-upload-text-"));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const valid = path.join(directory, "valid.csv");
+  const invalid = path.join(directory, "invalid.txt");
+  await fs.writeFile(valid, "name,city\nSatyam,Ahmedabad\n", "utf8");
+  await fs.writeFile(invalid, Buffer.from([0x61, 0x00, 0x62]));
+  assert.equal(await validateUploadFileContent(valid, "text/csv"), true);
+  assert.equal(await validateUploadFileContent(invalid, "text/plain"), false);
+  assert.equal(await validateUploadFileContent(valid, "text/html"), false);
 });

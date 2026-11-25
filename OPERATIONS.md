@@ -155,6 +155,8 @@ old CDN delivery. This requires a deployment-specific data migration and has not
 been run against your account. Media is not cryptographically encrypted by the app
 at rest; download access is enforced by the backend.
 
+New voice and file uploads are checked against the declared MIME type using file-signature validation (including image, audio, video, PDF, archive, and Office container headers; UTF-8 validation for text/CSV) before Cloudinary or local storage. The multipart MIME field is client-controlled, so this check is required even after the allowlist and size limits. This is format validation, not antivirus or malware scanning.
+
 Cloudinary's temporary-download API bypasses CDN caching and has higher bandwidth
 costs. For a high-volume deployment, evaluate authenticated CDN delivery with
 token/cookie access controls supported by your plan. See the

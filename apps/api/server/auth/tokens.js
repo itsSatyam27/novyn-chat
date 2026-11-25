@@ -36,6 +36,7 @@ function createAuthToken({ secret, kind, userKey, ttlMs, extra = {} }) {
 function verifyAuthToken({ secret, rawToken, expectedKind }) {
   if (!secret) return null;
   const token = String(rawToken || "");
+  if (token.length > 8192 || !/^[A-Za-z0-9_.-]+$/.test(token)) return null;
   const parts = token.split(".");
   if (parts.length !== 3) return null;
 
@@ -72,8 +73,11 @@ function verifyAuthToken({ secret, rawToken, expectedKind }) {
   const subjectKey = normalizeName(payload.sub);
   if (!subjectKey) return null;
 
-  const exp = Number(payload.exp);
-  if (!Number.isFinite(exp) || exp <= Date.now()) return null;
+  const now = Date.now();
+  const issuedAt = payload.iat;
+  const exp = payload.exp;
+  if (!Number.isFinite(issuedAt) || issuedAt < 0 || issuedAt > now + 60_000 ||
+      !Number.isFinite(exp) || exp <= now || exp <= issuedAt) return null;
   return payload;
 }
 

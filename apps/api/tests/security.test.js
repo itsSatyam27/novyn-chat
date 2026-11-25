@@ -220,3 +220,21 @@ test('development socket origin configuration remains permissive for local setup
     ['http://localhost:5173', 'https://preview.example/'],
   );
 });
+
+
+test('auth token verification rejects oversized, malformed, and invalid time-claim tokens', () => {
+  const secret = 'test-secret';
+  assert.equal(verifyAuthToken({ secret, rawToken: 'a'.repeat(8193), expectedKind: 'access' }), null);
+  assert.equal(verifyAuthToken({ secret, rawToken: 'not.a.valid+token', expectedKind: 'access' }), null);
+
+  const encode = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const signPayload = (payload) => {
+    const body = encode({ alg: 'HS256', typ: 'JWT' }) + '.' + encode(payload);
+    return body + '.' + crypto.createHmac('sha256', secret).update(body).digest('base64url');
+  };
+  const base = { sub: 'alice', kind: 'access', iat: Date.now(), exp: Date.now() + 60_000 };
+  assert.equal(verifyAuthToken({ secret, rawToken: signPayload({ ...base, iat: Date.now() + 120_000 }), expectedKind: 'access' }), null);
+  assert.equal(verifyAuthToken({ secret, rawToken: signPayload({ ...base, exp: base.iat }), expectedKind: 'access' }), null);
+  const { iat, ...missingIssuedAt } = base;
+  assert.equal(verifyAuthToken({ secret, rawToken: signPayload(missingIssuedAt), expectedKind: 'access' }), null);
+});
