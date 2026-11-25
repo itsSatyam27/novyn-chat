@@ -6,6 +6,7 @@ const {
   MULTIPART_LIMITS,
   createUploadFileFilter,
   mapMultipartError,
+  uploadCloudMediaWithMetadata,
 } = require("../server/security/uploads");
 
 function runFilter(filter, mime) {
@@ -51,4 +52,57 @@ test("multipart errors map size and MIME failures to safe client responses", () 
   assert.deepEqual(mapMultipartError({ code: "LIMIT_FIELD_COUNT" }), {
     status: 413, message: "Upload request contains too much form data.",
   });
+});
+
+
+test("Cloudinary media is removed if ownership metadata cannot be persisted", async () => {
+  const uploaded = { public_id: "novyn/test-object", resource_type: "video" };
+  const calls = [];
+  const expectedError = new Error("MongoDB metadata write failed");
+
+  await assert.rejects(
+    uploadCloudMediaWithMetadata({
+      upload: async () => uploaded,
+      saveMetadata: async () => { calls.push("metadata"); throw expectedError; },
+      cleanup: async (result) => { calls.push(["cleanup", result]); },
+    }),
+    (error) => error === expectedError,
+  );
+  assert.deepEqual(calls, ["metadata", ["cleanup", uploaded]]);
+});
+
+test("Cloudinary cleanup failure is reported without hiding the metadata error", async () => {
+  const uploaded = { public_id: "novyn/test-object", resource_type: "image" };
+  const metadataError = new Error("MongoDB metadata write failed");
+  const cleanupError = new Error("Cloudinary destroy failed");
+  let observedCleanupError;
+
+  await assert.rejects(
+    uploadCloudMediaWithMetadata({
+      upload: async () => uploaded,
+      saveMetadata: async () => { throw metadataError; },
+      cleanup: async () => { throw cleanupError; },
+      onCleanupError: (error, result) => {
+        observedCleanupError = { error, result };
+      },
+    }),
+    (error) => error === metadataError,
+  );
+  assert.deepEqual(observedCleanupError, { error: cleanupError, result: uploaded });
+});
+
+test("Cloudinary upload metadata success keeps the uploaded object", async () => {
+  const uploaded = { public_id: "novyn/test-object", resource_type: "raw" };
+  let persisted = false;
+  let cleanupCalled = false;
+
+  const result = await uploadCloudMediaWithMetadata({
+    upload: async () => uploaded,
+    saveMetadata: async (value) => { persisted = value === uploaded; },
+    cleanup: async () => { cleanupCalled = true; },
+  });
+
+  assert.equal(result, uploaded);
+  assert.equal(persisted, true);
+  assert.equal(cleanupCalled, false);
 });
