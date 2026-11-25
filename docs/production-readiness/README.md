@@ -22,6 +22,12 @@ This branch is a staged production-hardening effort. Do not treat the checklist 
 - [x] Socket action rate-limit bucket cleanup now sweeps the global map at most once per minute while checking and enforcing each active bucket on every protected action.
 - [x] Local voice/file uploads and wallpaper imports remove the final on-disk file when metadata persistence fails, preventing inaccessible orphaned media.
 
+## Production startup configuration
+
+- Production startup now fails when neither MongoDB nor an explicit absolute `DATA_DIR` is configured.
+- Production startup also fails when neither complete Cloudinary credentials nor an explicit absolute `UPLOADS_DIR` is configured. Configured local directories are checked for write access before the server begins accepting traffic.
+- In local development, relative runtime paths remain supported. The sample `.env.example` calls out the local-only paths separately.
+
 ## Deployment constraint
 
 The authoritative user, conversation, group, presence, session and rate-limit state currently lives in in-process maps (see `apps/api/server/core/state.js`). Deploy **one backend process/replica only**. Do not enable multiple Render instances or horizontal autoscaling until authoritative state, rate limits and registration reservations are moved to shared storage with atomic operations. The current signup reservation closes same-process races; it is not a distributed lock.
