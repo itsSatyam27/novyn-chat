@@ -123,6 +123,29 @@ void main() {
     final roundTrip = await bob.decrypt(incoming, 'bob', alicePublicKey);
     expect(roundTrip.text, 'Android → web test');
     expect(roundTrip.needsMessageKey, isFalse);
+
+    // The Android FCM background handler uses strict decryption so a missing
+    // local key is diagnosed rather than silently mistaken for a bad payload.
+    final notificationPreview = await bob.decryptForNotification(
+      incoming,
+      'bob',
+      alicePublicKey,
+    );
+    expect(notificationPreview.text, 'Android → web test');
+    expect(notificationPreview.needsMessageKey, isFalse);
+
+    final noLocalIdentity = MessageEncryptionService(
+      read: (_) async => null,
+      write: (_, __) async {},
+    );
+    await expectLater(
+      noLocalIdentity.decryptForNotification(
+        incoming,
+        'bob',
+        alicePublicKey,
+      ),
+      throwsStateError,
+    );
     expect(
       await alice.encrypt('message', 'alice', 'bob', '{}'),
       isNull,
