@@ -5412,7 +5412,10 @@ class _MessageBubble extends StatelessWidget {
                               ],
                             ),
                           ),
-                        if (message.game is Map) ...[
+                        if (message.game is Map &&
+                            !( !isGroup &&
+                               (message.game as Map)['state']?.toString() == 'in_progress' &&
+                               (message.game as Map)['lastMoveBy'] == null)) ...[
                           GameMessageCard(
                             messageId: message.id.toString(),
                             game:
