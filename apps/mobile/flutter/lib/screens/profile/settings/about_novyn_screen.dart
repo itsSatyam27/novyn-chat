@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../../theme/novyn_theme.dart';
 import '../../../services/app_update_service.dart';
 
@@ -44,6 +45,20 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
       (_updateService.isPaused || _updateService.hasPartialDownload);
   bool get _available => _latestBuild > _installedBuild;
   bool get _ready => _downloadedApkPath != null;
+
+  String get _cleanDisplayVersion {
+    var v = _appVersion.trim();
+    if (v.toLowerCase().startsWith('beta v')) {
+      return v;
+    }
+    if (v.toLowerCase().startsWith('beta')) {
+      return v;
+    }
+    if (v.toLowerCase().startsWith('v')) {
+      return 'Beta $v';
+    }
+    return 'Beta v$v';
+  }
 
   List<String> _displayReleaseNotes() {
     final notes = _releaseNotes
@@ -539,7 +554,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                           ),
                         ),
                         const SizedBox(width: 7),
-                        Text('Beta v$_appVersion',
+                        Text(_cleanDisplayVersion,
                           style: TextStyle(color: ink, fontSize: 12.5,
                             fontWeight: FontWeight.w700)),
                       ],
@@ -823,47 +838,56 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  GestureDetector(
-                    onTap: () => _openLegalLink('https://chat-novyn.web.app/privacy.html'),
-                    child: Text('Privacy Policy', style: TextStyle(color: muted, fontSize: 12.5, fontWeight: FontWeight.w600)),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: Text('•', style: TextStyle(color: muted.withValues(alpha: 0.5), fontSize: 12)),
-                  ),
-                  GestureDetector(
-                    onTap: () => _openLegalLink('https://chat-novyn.web.app/terms.html'),
-                    child: Text('Terms', style: TextStyle(color: muted, fontSize: 12.5, fontWeight: FontWeight.w600)),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: Text('•', style: TextStyle(color: muted.withValues(alpha: 0.5), fontSize: 12)),
-                  ),
-                  GestureDetector(
-                    onTap: () => _openLegalLink('https://chat-novyn.web.app/support.html'),
-                    child: Text('Support', style: TextStyle(color: muted, fontSize: 12.5, fontWeight: FontWeight.w600)),
-                  ),
+                  _legalLink('Privacy Policy', 'https://chat-novyn.web.app/privacy.html'),
+                  const SizedBox(width: 14),
+                  _legalLink('Terms', 'https://chat-novyn.web.app/terms.html'),
+                  const SizedBox(width: 14),
+                  _legalLink('Support', 'https://chat-novyn.web.app/support.html'),
                 ],
               ),
               const SizedBox(height: 20),
               Center(
                 child: Column(
                   children: [
-                    const Text(
-                      'Made with ❤️ by Team Novyn',
-                      style: TextStyle(
-                        color: Color(0xFF7048F8),
-                        fontStyle: FontStyle.italic,
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w700,
+                    Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(
+                            text: 'Made with ',
+                            style: GoogleFonts.dancingScript(
+                              fontSize: 27,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF5E44F3),
+                            ),
+                          ),
+                          const WidgetSpan(
+                            alignment: PlaceholderAlignment.middle,
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 4),
+                              child: Text(
+                                '💜',
+                                style: TextStyle(fontSize: 20),
+                              ),
+                            ),
+                          ),
+                          TextSpan(
+                            text: ' by Team Novyn',
+                            style: GoogleFonts.dancingScript(
+                              fontSize: 27,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF5E44F3),
+                            ),
+                          ),
+                        ],
                       ),
+                      textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     Text(
                       '© 2026 Novyn. All rights reserved.',
                       style: TextStyle(
-                        color: muted.withValues(alpha: 0.7),
-                        fontSize: 11,
+                        color: muted.withValues(alpha: 0.8),
+                        fontSize: 12,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -877,8 +901,29 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
     );
   }
 
+  Widget _legalLink(String label, String url) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _openLegalLink(url),
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF5E44F3),
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildDetailsCard(BuildContext context, Color surface, Color border, Color ink, Color muted) {
-    final buildStr = _installedBuild > 0 ? '$_appVersion ($_installedBuild)' : '$_appVersion (24)';
+    final buildStr = _installedBuild > 0 ? '1.0.0 ($_installedBuild)' : '1.0.0 (24)';
     return Container(
       decoration: BoxDecoration(
         color: surface,
@@ -894,7 +939,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
       ),
       child: Column(
         children: [
-          _detailRow('App version', 'Beta v$_appVersion', ink, muted),
+          _detailRow('App version', _cleanDisplayVersion, ink, muted),
           Divider(height: 1, thickness: 1, color: border.withValues(alpha: 0.6)),
           _detailRow('Build number', buildStr, ink, muted),
           Divider(height: 1, thickness: 1, color: border.withValues(alpha: 0.6)),
@@ -1004,10 +1049,24 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
   Future<void> _openLegalLink(String url) async {
     final uri = Uri.parse(url);
     try {
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched) {
+        await launchUrl(uri, mode: LaunchMode.platformDefault);
       }
-    } catch (_) {}
+    } catch (_) {
+      try {
+        await launchUrl(uri);
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not open link: $url')),
+          );
+        }
+      }
+    }
   }
 
   Widget _updateAction({
