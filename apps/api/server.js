@@ -1852,7 +1852,7 @@ function describeAuthDevice(req) {
 
 async function issueAuthTokensForUser(userKey, remember, req, options = {}) {
   const key = normalizeName(userKey);
-  if (!key || users.get(key)?.isSuspended === true) return null;
+  if (!key || users.get(key)?.isSuspended === true || passwordMutationLocks.has(key)) return null;
   const persistent = Boolean(remember);
   const refreshTtl = persistent ? AUTH_REFRESH_REMEMBER_TTL_MS : AUTH_REFRESH_SESSION_TTL_MS;
   const refreshTokenId = crypto.randomBytes(16).toString("hex");
@@ -5323,6 +5323,95 @@ function revokeAllRefreshSessionsForUser(rawUserKey) {
   if (!tokenSet || !tokenSet.size) return;
   for (const tokenId of Array.from(tokenSet)) {
     revokeRefreshSession(tokenId);
+  }
+}
+
+function snapshotRefreshSessionsForUser(rawUserKey) {
+  const userKey = normalizeName(rawUserKey);
+  return Array.from(refreshByUser.get(userKey) || [])
+    .map((tokenId) => ({ tokenId, entry: refreshSessions.get(tokenId) }))
+    .filter(({ entry }) => entry)
+    .map(({ tokenId, entry }) => ({ tokenId, entry: { ...entry } }));
+}
+
+function restoreRefreshSessionsForUser(rawUserKey, snapshot) {
+  const userKey = normalizeName(rawUserKey);
+  if (!userKey) return;
+  for (const tokenId of Array.from(refreshByUser.get(userKey) || [])) {
+    refreshSessions.delete(tokenId);
+  }
+  refreshByUser.delete(userKey);
+  const restored = new Set();
+  for (const item of Array.isArray(snapshot) ? snapshot : []) {
+    if (!item?.tokenId || !item?.entry) continue;
+    refreshSessions.set(item.tokenId, { ...item.entry });
+    restored.add(item.tokenId);
+  }
+  if (restored.size) refreshByUser.set(userKey, restored);
+}
+
+const passwordMutationLocks = new Set();
+
+async function updatePasswordAndRevokeSessions(rawUserKey, secret) {
+  const userKey = normalizeName(rawUserKey);
+  const user = users.get(userKey);
+  if (!user?.isRegistered || !secret?.passwordSalt || !secret?.passwordHash) {
+    throw new Error("Account or new password data is unavailable.");
+  }
+  if (passwordMutationLocks.has(userKey)) {
+    throw new Error("A password update is already in progress. Please try again.");
+  }
+
+  passwordMutationLocks.add(userKey);
+  const previousPassword = {
+    passwordSalt: user.passwordSalt,
+    passwordHash: user.passwordHash,
+  };
+  const previousSessions = snapshotRefreshSessionsForUser(userKey);
+
+  try {
+    user.passwordSalt = secret.passwordSalt;
+    user.passwordHash = secret.passwordHash;
+    revokeAllRefreshSessionsForUser(userKey);
+    await flushStatePersistNow();
+    await flushAuthStatePersistNow();
+  } catch (error) {
+    user.passwordSalt = previousPassword.passwordSalt;
+    user.passwordHash = previousPassword.passwordHash;
+    restoreRefreshSessionsForUser(userKey, previousSessions);
+    try {
+      await flushStatePersistNow();
+      await flushAuthStatePersistNow();
+    } catch (rollbackError) {
+      console.error("[NovynAuth] Could not persist password/session rollback:", rollbackError?.message || rollbackError);
+    }
+    throw error;
+  } finally {
+    passwordMutationLocks.delete(userKey);
+  }
+}
+
+function disconnectUserSocketsForSecurity(rawUserKey) {
+  const userKey = normalizeName(rawUserKey);
+  if (!userKey) return;
+  const wasOnline = onlineUsers.has(userKey);
+  for (const socket of io.sockets.sockets.values()) {
+    if (normalizeName(socket.data?.userKey) === userKey) {
+      socket.emit("session_revoked", { message: "Your session ended because account credentials changed. Please sign in again." });
+      socket.disconnect(true);
+    }
+  }
+  if (onlineUsers.has(userKey)) {
+    onlineUsers.delete(userKey);
+    const user = users.get(userKey);
+    if (user && normalizePresenceMode(user.presenceMode) !== "offline") {
+      user.lastSeenAt = nowIso();
+    }
+  }
+  if (wasOnline) {
+    schedulePersist();
+    emitStatusToFriends(userKey);
+    emitDiscoverOnlineToAll();
   }
 }
 
