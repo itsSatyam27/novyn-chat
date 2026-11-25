@@ -5350,6 +5350,24 @@ function restoreRefreshSessionsForUser(rawUserKey, snapshot) {
   if (restored.size) refreshByUser.set(userKey, restored);
 }
 
+async function revokeRefreshSessionsAndPersist(rawTokenIds) {
+  const tokenIds = Array.from(new Set(
+    (Array.isArray(rawTokenIds) ? rawTokenIds : [rawTokenIds])
+      .map((value) => toDisplayName(value))
+      .filter(Boolean)
+  ));
+  let revoked = 0;
+  for (const tokenId of tokenIds) {
+    if (revokeRefreshSession(tokenId)) revoked += 1;
+  }
+  if (revoked > 0) {
+    // Do not acknowledge a security-sensitive revoke while the old refresh
+    // allow-list could still be restored by a backend restart.
+    await flushAuthStatePersistNow();
+  }
+  return revoked;
+}
+
 const passwordMutationLocks = new Set();
 
 async function updatePasswordAndRevokeSessions(rawUserKey, secret) {
@@ -5461,7 +5479,7 @@ async function setUserSuspended(rawUserKey, suspended, { disconnectSockets = tru
 
   if (!suspended) return;
 
-  revokeAllRefreshSessionsForUser(userKey);
+  await revokeRefreshSessionsAndPersist(Array.from(refreshByUser.get(userKey) || []));
   const peerKey = clearCallPair(userKey);
   if (peerKey && onlineUsers.has(peerKey)) {
     io.to(onlineUsers.get(peerKey)).emit("call_ended", {
@@ -5472,7 +5490,6 @@ async function setUserSuspended(rawUserKey, suspended, { disconnectSockets = tru
   if (disconnectSockets) {
     await disconnectUserSocketsForSecurity(userKey);
   }
-  await flushAuthStatePersistNow();
 }
 
 async function removeUserMedia(rawUserKey) {
@@ -6937,7 +6954,13 @@ app.post("/api/auth/logout", createIpRateLimiter({ getStore: () => httpRateLimit
   const cookies = getAuthCookiesFromHeader(req.headers.cookie);
   const refreshPayload = verifyAuthToken(cookies.refreshToken, "refresh");
   if (refreshPayload?.jti) {
-    revokeRefreshSession(refreshPayload.jti);
+    try {
+      await revokeRefreshSessionsAndPersist([refreshPayload.jti]);
+    } catch (error) {
+      console.error("[NovynAuth] Logout revocation persistence failed:", error?.message || error);
+      res.status(503).json({ ok: false, message: "Sign-out could not be fully saved. Please retry." });
+      return;
+    }
     await notifyAndDisconnectSessionSockets(
       refreshPayload.jti,
       "You signed out of this session. Please sign in again to reconnect.",
@@ -7104,7 +7127,13 @@ app.post("/api/auth/revoke-session",
       res.status(400).json({ ok: false, message: "Use Sign out to end the current session." });
       return;
     }
-    revokeRefreshSession(targetId);
+    try {
+      await revokeRefreshSessionsAndPersist([targetId]);
+    } catch (error) {
+      console.error("[NovynAuth] Session revocation persistence failed:", error?.message || error);
+      res.status(503).json({ ok: false, message: "That device could not be signed out completely. Please retry." });
+      return;
+    }
     await notifyAndDisconnectSessionSockets(
       targetId,
       "This device session was signed out from another device. Please sign in again.",
@@ -7127,17 +7156,21 @@ app.post("/api/auth/revoke-sessions",
     }
 
     const userKey = normalizeName(req.userKey);
-    const tokenIds = Array.from(refreshByUser.get(userKey) || []);
-    const revokedIds = [];
-    for (const tokenId of tokenIds) {
-      if (tokenId === currentSessionId) continue;
-      if (revokeRefreshSession(tokenId)) revokedIds.push(tokenId);
+    const tokenIds = Array.from(refreshByUser.get(userKey) || [])
+      .filter((tokenId) => tokenId !== currentSessionId);
+    let revoked = 0;
+    try {
+      revoked = await revokeRefreshSessionsAndPersist(tokenIds);
+    } catch (error) {
+      console.error("[NovynAuth] Bulk session revocation persistence failed:", error?.message || error);
+      res.status(503).json({ ok: false, message: "Other devices could not be signed out completely. Please retry." });
+      return;
     }
     await notifyAndDisconnectSessionSockets(
-      revokedIds,
+      tokenIds,
       "This device session was signed out from another device. Please sign in again.",
     );
-    res.json({ ok: true, revoked: revokedIds.length });
+    res.json({ ok: true, revoked });
   }
 );
 
@@ -9004,9 +9037,7 @@ io.on("connection", (socket) => {
     }
 
     socket.emit("account_deleted", { success: true });
-    setTimeout(() => {
-      try { socket.disconnect(true); } catch (_) {}
-    }, 500);
+    await disconnectUserSocketsForSecurity(userKey);
   });
 
   socket.on("enable_2fa", async (payload) => {
