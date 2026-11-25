@@ -558,20 +558,28 @@ class MessageEncryptionService {
       throw StateError('The signed-in notification account is unavailable.');
     }
 
+    Object? modernKeyFailure;
     if (peerPublicKey.trim().isNotEmpty) {
-      final shared = await _sharedKey(
-        normalizedAccount,
-        peerPublicKey,
-        requireExistingIdentity: true,
-      );
       try {
-        final clear = await _aes.decrypt(
-          _box(message.ciphertext!, base64Decode(message.iv!)),
-          secretKey: shared,
+        final shared = await _sharedKey(
+          normalizedAccount,
+          peerPublicKey,
+          requireExistingIdentity: true,
         );
-        return message.copyWith(text: utf8.decode(clear));
-      } on SecretBoxAuthenticationError {
-        // A legacy conversation key may still be the key used by this message.
+        try {
+          final clear = await _aes.decrypt(
+            _box(message.ciphertext!, base64Decode(message.iv!)),
+            secretKey: shared,
+          );
+          return message.copyWith(text: utf8.decode(clear));
+        } on SecretBoxAuthenticationError catch (error) {
+          // A legacy imported conversation key may still decrypt this message.
+          modernKeyFailure = error;
+        }
+      } catch (error) {
+        // Secure storage can be unavailable in the FCM isolate, or a legacy
+        // message may refer to an older peer key. Try imported local keys too.
+        modernKeyFailure = error;
       }
     }
 
@@ -589,6 +597,17 @@ class MessageEncryptionService {
       } on FormatException {
         continue;
       }
+    }
+
+    if (modernKeyFailure is StateError) {
+      throw StateError(
+        'No usable local E2EE identity or conversation key is available.',
+      );
+    }
+    if (modernKeyFailure is FormatException) {
+      throw const FormatException(
+        'The encrypted message or sender public key is invalid.',
+      );
     }
     throw StateError(
       'No saved local encryption key can decrypt this conversation message.',
