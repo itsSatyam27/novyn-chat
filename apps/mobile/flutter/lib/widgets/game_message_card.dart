@@ -7,8 +7,8 @@ import 'novyn_alert.dart';
 import 'package:provider/provider.dart';
 import '../services/socket_service.dart';
 import '../services/game_history_service.dart';
-import '../screens/games/game_room_screen.dart';
-import '../screens/games/raja_mantri_online_game_screen.dart';
+import '../screens/games/shared/room/game_room_screen.dart';
+import '../screens/games/raja_mantri/raja_mantri_online_game_screen.dart';
 
 class GameMessageCard extends StatefulWidget {
   final String messageId;

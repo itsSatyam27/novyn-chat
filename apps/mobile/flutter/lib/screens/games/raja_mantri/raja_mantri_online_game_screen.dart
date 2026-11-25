@@ -3,9 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../services/auth_service.dart';
-import '../../services/game_history_service.dart';
-import '../../services/socket_service.dart';
+import '../../../services/auth_service.dart';
+import '../../../services/game_history_service.dart';
+import '../../../services/socket_service.dart';
 
 class RajaMantriOnlineGameScreen extends StatefulWidget {
   const RajaMantriOnlineGameScreen({

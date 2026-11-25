@@ -3,7 +3,7 @@ import 'package:novyn/models/chat_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novyn/services/socket_service.dart';
 import 'package:novyn/widgets/game_message_card.dart';
-import 'package:novyn/screens/games/game_room_screen.dart';
+import 'package:novyn/screens/games/shared/room/game_room_screen.dart';
 import 'package:provider/provider.dart';
 
 class _FakeSocketService extends SocketService {
