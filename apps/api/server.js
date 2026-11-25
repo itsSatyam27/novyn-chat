@@ -7,6 +7,7 @@ const express = require("express");
 const multer = require("multer");
 const { createMongoStorage } = require("./server/db/mongo");
 const { registerHealthRoutes } = require("./server/routes/health");
+const { createRequestObservability } = require("./server/observability/request-logging");
 const { createSocketAuthMiddleware } = require("./server/realtime/socket-auth");
 const { isAllowedSocketOrigin, parseAllowedSocketOrigins } = require("./server/security/origins");
 const { mediaNames, canReadMedia } = require("./server/security/media-access");
@@ -67,6 +68,9 @@ try {
 const app = express();
 const server = http.createServer(app);
 app.disable("x-powered-by");
+app.use(createRequestObservability({
+  slowRequestMs: process.env.SLOW_REQUEST_LOG_THRESHOLD_MS,
+}));
 app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
