@@ -1003,7 +1003,7 @@ class _GameOverModalContentState extends State<_GameOverModalContent> {
             FilledButton(
               onPressed: _handlePlayAgain,
               style: FilledButton.styleFrom(
-                backgroundColor: const accent,
+                backgroundColor: accent,
                 foregroundColor: Colors.white,
                 minimumSize: const Size(double.infinity, 52),
                 shape: RoundedRectangleBorder(
