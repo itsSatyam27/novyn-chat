@@ -1690,6 +1690,8 @@ function expireRajaMantriSession(sessionId) {
 const randomGameSessions = new Map();
 const RANDOM_GAME_SESSION_TTL_MS = 30 * 60 * 1000;
 const pendingGameInvites = new Map();
+// Retry counters are transient; scheduled messages themselves remain durable in state.
+const scheduledMessageRetryAttempts = new Map();
 
 let mongoStorage = null;
 let mongoLegacyCollection = null;
@@ -5635,6 +5637,7 @@ async function removeUserAccount(rawUserKey, { disconnectSockets = true } = {}) 
     if (timer) clearTimeout(timer);
     scheduledMessageTimers.delete(scheduledId);
     scheduledMessages.delete(scheduledId);
+    scheduledMessageRetryAttempts.delete(scheduledId);
   }
 
   revokeAllRefreshSessionsForUser(userKey);
@@ -5903,63 +5906,95 @@ function emitScheduledMessagesUpdated(userKey, options = {}) {
   });
 }
 
+function retryScheduledMessageDelivery(messageId, error) {
+  const id = toDisplayName(messageId);
+  if (!id || !scheduledMessages.has(id) || shutdownRequested) return;
+
+  const attempt = (scheduledMessageRetryAttempts.get(id) || 0) + 1;
+  scheduledMessageRetryAttempts.set(id, attempt);
+  const retryInMs = Math.min(30_000, 500 * (2 ** Math.min(6, attempt - 1)));
+  const errorCode = toDisplayName(error?.code || "UNEXPECTED_ERROR").slice(0, 48);
+  console.error("[NovynScheduledMessage] Unexpected delivery failure; retry scheduled.", {
+    attempt,
+    retryInMs,
+    errorCode,
+  });
+
+  const timer = setTimeout(() => {
+    scheduledMessageTimers.delete(id);
+    deliverScheduledMessageById(id);
+  }, retryInMs);
+  if (typeof timer.unref === "function") timer.unref();
+  scheduledMessageTimers.set(id, timer);
+}
+
 function deliverScheduledMessageById(messageId) {
   const id = toDisplayName(messageId);
   if (!id) return;
   clearScheduledMessageTimer(id);
   const entry = scheduledMessages.get(id);
-  if (!entry) return;
-
-  const sendAtMs = Date.parse(entry.sendAt);
-  if (Number.isFinite(sendAtMs) && sendAtMs > Date.now() + 500) {
-    queueScheduledMessageDelivery(id);
+  if (!entry) {
+    scheduledMessageRetryAttempts.delete(id);
     return;
   }
 
-  let result = null;
-  if (normalizeChatKind(entry.toType) === "group") {
-    result = deliverGroupMessage({
-      fromKey: entry.fromKey,
-      groupId: entry.toKey,
-      text: entry.text,
-      attachment: entry.attachment,
-      replyTo: entry.replyTo,
-      timestamp: nowIso(),
-    });
-  } else {
-    result = deliverFriendMessage({
-      fromKey: entry.fromKey,
-      toKey: entry.toKey,
-      text: entry.text,
-      attachment: entry.attachment,
-      replyTo: entry.replyTo,
-      timestamp: nowIso(),
-    });
-  }
+  try {
+    const sendAtMs = Date.parse(entry.sendAt);
+    if (Number.isFinite(sendAtMs) && sendAtMs > Date.now() + 500) {
+      queueScheduledMessageDelivery(id);
+      return;
+    }
 
-  scheduledMessages.delete(id);
-
-  const senderSocket = onlineUsers.get(entry.fromKey);
-  if (senderSocket) {
-    if (result?.ok) {
-      io.to(senderSocket).emit("scheduled_message_sent", {
-        id,
-        toType: normalizeChatKind(entry.toType),
-        to: entry.toKey,
-        messageId: result.message?.id || "",
+    let result = null;
+    if (normalizeChatKind(entry.toType) === "group") {
+      result = deliverGroupMessage({
+        fromKey: entry.fromKey,
+        groupId: entry.toKey,
+        text: entry.text,
+        attachment: entry.attachment,
+        replyTo: entry.replyTo,
+        timestamp: nowIso(),
       });
     } else {
-      io.to(senderSocket).emit("scheduled_message_failed", {
-        id,
-        toType: normalizeChatKind(entry.toType),
-        to: entry.toKey,
-        reason: result?.message || "Could not deliver scheduled message.",
+      result = deliverFriendMessage({
+        fromKey: entry.fromKey,
+        toKey: entry.toKey,
+        text: entry.text,
+        attachment: entry.attachment,
+        replyTo: entry.replyTo,
+        timestamp: nowIso(),
       });
     }
-  }
 
-  emitScheduledMessagesUpdated(entry.fromKey, { toType: entry.toType, to: entry.toKey });
-  schedulePersist();
+    // A normal business-rule rejection is terminal and is reported to the sender.
+    // An unexpected thrown error is different: keep the message durable and retry.
+    scheduledMessages.delete(id);
+    scheduledMessageRetryAttempts.delete(id);
+
+    const senderSocket = onlineUsers.get(entry.fromKey);
+    if (senderSocket) {
+      if (result?.ok) {
+        io.to(senderSocket).emit("scheduled_message_sent", {
+          id,
+          toType: normalizeChatKind(entry.toType),
+          to: entry.toKey,
+          messageId: result.message?.id || "",
+        });
+      } else {
+        io.to(senderSocket).emit("scheduled_message_failed", {
+          id,
+          toType: normalizeChatKind(entry.toType),
+          to: entry.toKey,
+          reason: result?.message || "Could not deliver scheduled message.",
+        });
+      }
+    }
+
+    emitScheduledMessagesUpdated(entry.fromKey, { toType: entry.toType, to: entry.toKey });
+    schedulePersist();
+  } catch (error) {
+    retryScheduledMessageDelivery(id, error);
+  }
 }
 
 function queueScheduledMessageDelivery(messageId) {
@@ -5972,11 +6007,18 @@ function queueScheduledMessageDelivery(messageId) {
   const sendAtMs = Date.parse(entry.sendAt);
   if (!Number.isFinite(sendAtMs)) {
     scheduledMessages.delete(id);
+    scheduledMessageRetryAttempts.delete(id);
+    schedulePersist();
     return;
   }
   const delay = sendAtMs - Date.now();
   if (delay <= 0) {
-    setImmediate(() => deliverScheduledMessageById(id));
+    const immediateTimer = setTimeout(() => {
+      scheduledMessageTimers.delete(id);
+      deliverScheduledMessageById(id);
+    }, 0);
+    if (typeof immediateTimer.unref === "function") immediateTimer.unref();
+    scheduledMessageTimers.set(id, immediateTimer);
     return;
   }
   const maxDelay = 2_147_000_000;
@@ -10688,6 +10730,7 @@ io.on("connection", (socket) => {
       return;
     }
     scheduledMessages.delete(id);
+    scheduledMessageRetryAttempts.delete(id);
     clearScheduledMessageTimer(id);
     socket.emit("scheduled_message_cancelled", { id });
     emitScheduledMessagesUpdated(userKey, { toType: entry.toType, to: entry.toKey });
@@ -11253,6 +11296,7 @@ io.on("connection", (socket) => {
       for (const [id, entry] of scheduledMessages.entries()) {
         if (entry.toType === "group" && normalizeGroupId(entry.toKey) === group.id) {
           scheduledMessages.delete(id);
+          scheduledMessageRetryAttempts.delete(id);
           const timer = scheduledMessageTimers.get(id);
           if (timer) clearTimeout(timer);
           scheduledMessageTimers.delete(id);
@@ -11609,6 +11653,7 @@ const shutdown = createShutdownHandler({
       clearTimeout(timer);
     }
     scheduledMessageTimers.clear();
+    scheduledMessageRetryAttempts.clear();
     for (const invite of pendingGameInvites.values()) {
       if (invite?.timer) clearTimeout(invite.timer);
     }

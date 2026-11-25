@@ -202,3 +202,9 @@ persistence queues, and only then closes MongoDB. If the final flush fails,
 shutdown returns a non-zero exit status rather than reporting a clean stop.
 This remains a single-process design; retrying snapshots does not make the
 in-memory data model safe for multiple replicas.
+
+Scheduled-message timers are also guarded: an unexpected thrown delivery error
+keeps the scheduled item in durable state and retries it with capped exponential
+backoff. Normal delivery rejections remain terminal and are reported to the
+sender. Overdue deliveries use tracked timers so shutdown can cancel them
+before the final persistence flush.
