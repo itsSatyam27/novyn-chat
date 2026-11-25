@@ -5391,16 +5391,25 @@ async function updatePasswordAndRevokeSessions(rawUserKey, secret) {
   }
 }
 
-function disconnectUserSocketsForSecurity(rawUserKey) {
+async function disconnectUserSocketsForSecurity(rawUserKey) {
   const userKey = normalizeName(rawUserKey);
   if (!userKey) return;
   const wasOnline = onlineUsers.has(userKey);
-  for (const socket of io.sockets.sockets.values()) {
-    if (normalizeName(socket.data?.userKey) === userKey) {
-      socket.emit("session_revoked", { message: "Your session ended because account credentials changed. Please sign in again." });
-      socket.disconnect(true);
-    }
+  const userSockets = Array.from(io.sockets.sockets.values())
+    .filter((socket) => normalizeName(socket.data?.userKey) === userKey);
+
+  // Give the client a brief window to receive the explicit revocation notice
+  // before the server closes the transport.
+  for (const socket of userSockets) {
+    socket.emit("session_revoked", { message: "Your session ended because account credentials changed. Please sign in again." });
   }
+  if (userSockets.length) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  for (const socket of userSockets) {
+    if (socket.connected) socket.disconnect(true);
+  }
+
   if (onlineUsers.has(userKey)) {
     onlineUsers.delete(userKey);
     const user = users.get(userKey);
@@ -7032,7 +7041,7 @@ app.post("/api/auth/password-reset/confirm",
       return;
     }
     dropPasswordResetTokenById(tokenId);
-    disconnectUserSocketsForSecurity(userKey);
+    await disconnectUserSocketsForSecurity(userKey);
     clearAuthCookies(res);
     res.json({ ok: true, message: "Password updated. Please sign in." });
   }
@@ -8373,7 +8382,7 @@ io.on("connection", (socket) => {
     }
     dropPasswordResetTokenById(tokenId);
     socket.emit("password_reset_success", { message: "Password updated. Please sign in." });
-    setTimeout(() => disconnectUserSocketsForSecurity(userKey), 100);
+    setTimeout(() => { void disconnectUserSocketsForSecurity(userKey); }, 100);
   });
 
   socket.on("request_email_change_code", async (payload, respond) => {
