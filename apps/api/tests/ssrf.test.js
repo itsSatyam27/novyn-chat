@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const { assertSafeExternalUrl, fetchSafeExternalUrl, readResponseWithLimit } = require('../server/security/ssrf');
 
 test('external fetch rejects local destinations and unsafe schemes', async () => {
-  for (const url of ['http://127.0.0.1', 'http://169.254.169.254', 'http://[::]', 'http://[::1]', 'http://[::ffff:127.0.0.1]', 'file:///etc/passwd', 'https://user:password@example.com']) {
+  for (const url of ['http://127.0.0.1', 'http://169.254.169.254', 'http://[::]', 'http://[::1]', 'http://[::127.0.0.1]', 'http://[::ffff:127.0.0.1]', 'file:///etc/passwd', 'https://user:password@example.com']) {
     await assert.rejects(assertSafeExternalUrl(url));
   }
 });
