@@ -5955,7 +5955,9 @@ app.get("/api/auth/2fa/status", requireUser, (req, res) => {
   });
 });
 
-app.post("/api/auth/2fa/setup", requireUser, requireCsrf, (req, res) => {
+app.post("/api/auth/2fa/setup", requireUser, requireCsrf,
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-2fa-setup", 10, 15 * 60 * 1000),
+  (req, res) => {
   const user = users.get(req.userKey);
   if (!user) return res.status(401).json({ message: "Sign in required." });
   if (user.twoFactorEnabled) {
@@ -5983,7 +5985,9 @@ app.post("/api/auth/2fa/setup", requireUser, requireCsrf, (req, res) => {
   res.json({ reuseExisting: false, secret, setupToken, otpauthUri });
 });
 
-app.post("/api/auth/2fa/enable", requireUser, requireCsrf, (req, res) => {
+app.post("/api/auth/2fa/enable", requireUser, requireCsrf,
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-2fa-enable", 10, 15 * 60 * 1000),
+  (req, res) => {
   const setupToken = verifyAuthToken(toDisplayName(req.body?.setupToken), "2fa_setup");
   if (!setupToken || resolveCurrentUserKey(setupToken.sub) !== req.userKey) {
     return res.status(401).json({ message: "Your setup session expired. Start again." });
@@ -6006,7 +6010,9 @@ app.post("/api/auth/2fa/enable", requireUser, requireCsrf, (req, res) => {
   res.json({ enabled: true, backupCodes });
 });
 
-app.post("/api/auth/2fa/disable", requireUser, requireCsrf, async (req, res) => {
+app.post("/api/auth/2fa/disable", requireUser, requireCsrf,
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-2fa-disable", 5, 15 * 60 * 1000),
+  async (req, res) => {
   const user = users.get(req.userKey);
   if (!user || !user.twoFactorEnabled || !user.twoFactorSecret) {
     return res.status(409).json({ message: "Two-factor authentication is not enabled." });
