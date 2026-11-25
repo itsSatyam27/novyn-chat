@@ -73,7 +73,7 @@ test("logout removes only this device token and preserves other devices", () => 
   assert.equal(user.fcmToken, tokenB);
 });
 
-test("app update and direct message pushes are data-only and have offline TTL", () => {
+test("app updates and direct messages include OS-visible alerts with offline TTL", () => {
   const update = createFcmMessage("alice", { username: "alice" }, {
     type: "app_update", build: 52, title: "Update ready", body: "Install Novyn",
   });
@@ -81,20 +81,23 @@ test("app update and direct message pushes are data-only and have offline TTL", 
     type: "message", chat: "bob", body: "Hello",
   });
 
-  assert.equal(update.notification, undefined);
+  assert.equal(update.notification.body, "Install Novyn");
+  assert.equal(update.android.notification.channelId, "novyn_app_updates_sound_vibrate");
   assert.equal(update.data.build, "52");
   assert.equal(update.data.recipient, "alice");
   assert.equal(update.android.priority, "high");
   assert.equal(update.android.ttl, 28 * 24 * 60 * 60 * 1000);
-  assert.equal(direct.notification, undefined);
+  assert.equal(direct.notification.body, "Hello");
+  assert.equal(direct.android.notification.channelId, "novyn_messages_sound_vibrate");
   assert.equal(direct.data.chat, "bob");
 });
 
-test("group messages are data-only and preserve group routing metadata", () => {
+test("group messages include OS-visible alerts and preserve group routing metadata", () => {
   const group = createFcmMessage("alice", { username: "alice" }, {
     type: "message", group: true, groupId: "room-1", title: "Group message", body: "Hello group",
   });
-  assert.equal(group.notification, undefined);
+  assert.equal(group.notification.body, "Hello group");
+  assert.equal(group.android.notification.channelId, "novyn_messages_sound_vibrate");
   assert.equal(group.data.kind, "group");
   assert.equal(group.data.groupId, "room-1");
   assert.equal(group.android.priority, "high");
@@ -112,19 +115,20 @@ test("calls use a short high-priority delivery window", () => {
   assert.equal(call.android.ttl, 45 * 1000);
 });
 
-test("social notifications remain data-only for account and preference filtering", () => {
+test("social notifications include OS-visible alerts and retain account routing", () => {
   const social = createFcmMessage("alice", { username: "alice" }, {
     type: "friend_request", eventId: "request-1", from: "bob",
     title: "Friend request", body: "Bob sent a request",
   });
-  assert.equal(social.notification, undefined);
+  assert.equal(social.notification.title, "Friend request");
+  assert.equal(social.notification.body, "Bob sent a request");
   assert.equal(social.data.type, "friend_request");
   assert.equal(social.data.eventId, "request-1");
   assert.equal(social.data.from, "bob");
   assert.equal(social.data.recipient, "alice");
 });
 
-test("game notification events are data-only and retain game routing metadata", () => {
+test("game notifications include OS-visible alerts and retain game routing metadata", () => {
   for (const type of ["game_invitation", "game_turn", "game_result"]) {
     const game = createFcmMessage("alice", { username: "alice" }, {
       type,
@@ -140,7 +144,8 @@ test("game notification events are data-only and retain game routing metadata", 
       vibrationEnabled: true,
       mentionOrReply: true,
     });
-    assert.equal(game.notification, undefined);
+    assert.equal(game.notification.body, "It's your turn");
+    assert.equal(game.android.notification.channelId, "novyn_games_silent_vibrate");
     assert.equal(game.data.type, type);
     assert.equal(game.data.eventId, type + ":game-7");
     assert.equal(game.data.gameId, "game-7");
@@ -161,7 +166,55 @@ test("notification presentation preferences are forwarded as FCM data", () => {
   });
   assert.equal(message.data.soundEnabled, "false");
   assert.equal(message.data.vibrationEnabled, "false");
-  assert.equal(message.notification, undefined);
+  assert.equal(message.notification.title, "Novyn");
+  assert.equal(message.android.notification.channelId, "novyn_social_silent_no_vibrate");
+});
+
+test("encrypted direct-message system alerts never expose message plaintext", () => {
+  const encrypted = createFcmMessage("alice", { username: "alice" }, {
+    type: "message",
+    chat: "bob",
+    body: "secret plaintext",
+    ciphertext: "ciphertext",
+    iv: "nonce",
+    senderPublicKey: "public-key",
+    messageId: "msg-1",
+  });
+  assert.equal(encrypted.notification.body, "You have a new message");
+  assert.equal(encrypted.data.body, "You have a new message");
+  assert.equal(encrypted.data.ciphertext, "ciphertext");
+  assert.equal(encrypted.data.messageId, "msg-1");
+});
+
+test("disabled message previews use a private system notification fallback", () => {
+  const message = createFcmMessage("alice", { username: "alice" }, {
+    type: "message",
+    chat: "bob",
+    body: "private body",
+  });
+  const hidden = createFcmMessage("alice", {
+    username: "alice",
+    messagePreviewEnabled: false,
+  }, {
+    type: "message",
+    chat: "bob",
+    body: "private body",
+  });
+  assert.equal(message.notification.body, "private body");
+  assert.equal(hidden.notification.body, "You have a new message");
+  assert.equal(hidden.data.previewEnabled, "0");
+});
+
+test("explicit silent events never create an OS-visible alert", () => {
+  const silent = createFcmMessage("alice", { username: "alice" }, {
+    type: "message",
+    chat: "bob",
+    body: "quiet",
+    silent: true,
+  });
+  assert.equal(silent.notification, undefined);
+  assert.equal(silent.android.notification, undefined);
+  assert.equal(silent.android.priority, "normal");
 });
 
 test("recognizes current and legacy ARM64 APK release tags", () => {
