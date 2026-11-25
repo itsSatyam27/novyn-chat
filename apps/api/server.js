@@ -5597,6 +5597,9 @@ function finalizeSocketAuthentication(socket, user) {
   return true;
 }
 
+const SOCKET_RATE_LIMIT_PRUNE_INTERVAL_MS = 60 * 1000;
+let lastSocketRateLimitPruneAt = 0;
+
 function allowSocketAction(socket, key, maxPerWindow, windowMs) {
   if (!socket || !key) return false;
   const max = Math.max(1, Number(maxPerWindow) || 1);
@@ -5607,11 +5610,14 @@ function allowSocketAction(socket, key, maxPerWindow, windowMs) {
   const globalKey = userKey ? `${userKey}:${key}` : `anonymous:${socketIp}:${key}`;
   const globalStore = runtimeState.socketRateLimits;
 
-  // Prune expired global buckets opportunistically so long-lived servers do
-  // not retain one Map entry forever for every user/action combination.
-  for (const [storedKey, storedBucket] of globalStore) {
-    if (!storedBucket || now >= storedBucket.expiresAt) {
-      globalStore.delete(storedKey);
+  // Expiration is enforced below on each bucket access. A full Map sweep is
+  // only needed periodically to reclaim inactive users' expired entries.
+  if (now - lastSocketRateLimitPruneAt >= SOCKET_RATE_LIMIT_PRUNE_INTERVAL_MS) {
+    lastSocketRateLimitPruneAt = now;
+    for (const [storedKey, storedBucket] of globalStore) {
+      if (!storedBucket || now >= storedBucket.expiresAt) {
+        globalStore.delete(storedKey);
+      }
     }
   }
 
