@@ -94,6 +94,15 @@ test("slow successful requests are logged at warning level", () => {
   assert.equal(harness.events[0].event.durationMs, 51);
 });
 
+test("blank threshold uses the safe default rather than warning on every request", () => {
+  const harness = createHarness({ slowRequestMs: "" });
+  harness.setTime(50);
+  harness.response.writableFinished = true;
+  harness.response.emit("finish");
+
+  assert.equal(harness.events[0].level, "info");
+});
+
 test("aborted responses are logged once even when close is followed by finish", () => {
   const harness = createHarness();
   harness.setTime(8);
