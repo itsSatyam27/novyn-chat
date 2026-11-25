@@ -1328,6 +1328,13 @@ class _IncomingGameInviteSheet extends StatelessWidget {
             : gameType == 'rajamantri'
                 ? 'Raja Mantri'
                 : 'a game';
+    final gameDetails = gameType == 'tictactoe'
+        ? '2 players · Classic match'
+        : gameType == 'rps'
+            ? '2 players · First to 3 wins'
+            : gameType == 'rajamantri'
+                ? '3–4 players · Chor Sipahi'
+                : 'Live multiplayer match';
 
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
@@ -1354,6 +1361,8 @@ class _IncomingGameInviteSheet extends StatelessWidget {
                     Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface)),
                     const SizedBox(height: 3),
                     Text('invited you to play $gameName', style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
+                    const SizedBox(height: 4),
+                    Text(gameDetails, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: const Color(0xFF8B78F5))),
                   ],
                 ),
               ),
