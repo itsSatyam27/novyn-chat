@@ -882,7 +882,7 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
 
     Color borderColor = Colors.transparent;
     if (isYou) {
-      borderColor = const accent;
+      borderColor = accent;
     } else if (isRaja) {
       borderColor = const Color(0xFFF59E0B);
     }
