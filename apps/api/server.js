@@ -33,6 +33,7 @@ const { createIpRateLimiter, getSocketClientIp, pruneHttpRateLimits } = require(
 const { createShutdownHandler } = require("./server/core/shutdown");
 const { createAuthToken: signAuthToken, verifyAuthToken: verifySignedAuthToken } = require("./server/auth/tokens");
 const { createAuthSessions } = require("./server/auth/sessions");
+const { createRegistrationReservations } = require("./server/auth/registration-reservations");
 const { parseCookies, safeTimingEqual: csrfSafeTimingEqual, createCsrf } = require("./server/auth/csrf");
 const runtimeState = require("./server/core/state");
 const { buildUserSearchResults } = require("./server/users/search");
@@ -1561,6 +1562,8 @@ const {
   authUserAliases,
   httpRateLimits,
 } = runtimeState;
+
+const registrationReservations = createRegistrationReservations();
 
 const publicGameMatchmaking = new PublicGameMatchmaking({
   timeoutMs: 60_000,
@@ -5905,19 +5908,42 @@ async function authenticateSignupPayload(payload) {
     };
   }
 
-  const user = getOrCreateUser(requestedHandle);
-  const secret = await createPasswordSecret(password);
-  user.passwordSalt = secret.passwordSalt;
-  user.passwordHash = secret.passwordHash;
-  user.isRegistered = true;
-  user.email = email;
-  user.displayName = displayName;
-  if (!user.createdAt) {
-    user.createdAt = nowIso();
+  // Reserve both unique identity fields before password hashing yields to the
+  // event loop. The runtime is intentionally single-process; these reservations
+  // close the concurrent-request race within that supported deployment model.
+  if (!registrationReservations.reserve(email, requestedHandle)) {
+    return {
+      ok: false,
+      status: 409,
+      message: "This email or username is already being registered. Please try again.",
+    };
   }
-  schedulePersist();
 
-  return { ok: true, user };
+  try {
+    const user = getOrCreateUser(requestedHandle);
+    if (user.isRegistered || isEmailTaken(email) || isUsernameTaken(requestedHandle)) {
+      return {
+        ok: false,
+        status: 409,
+        message: "This email or username was just registered. Please sign in.",
+      };
+    }
+
+    const secret = await createPasswordSecret(password);
+    user.passwordSalt = secret.passwordSalt;
+    user.passwordHash = secret.passwordHash;
+    user.isRegistered = true;
+    user.email = email;
+    user.displayName = displayName;
+    if (!user.createdAt) {
+      user.createdAt = nowIso();
+    }
+    schedulePersist();
+
+    return { ok: true, user };
+  } finally {
+    registrationReservations.release(email, requestedHandle);
+  }
 }
 
 function generateBase32Secret(byteLength = 20) {
