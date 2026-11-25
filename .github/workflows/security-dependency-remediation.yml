@@ -54,14 +54,18 @@ jobs:
           packageJson.overrides['@fastify/busboy'] = '^3.2.2';
           packageJson.overrides['@grpc/grpc-js'] = '^1.14.7';
           packageJson.overrides['fast-xml-parser'] = '^5.12.1';
+          packageJson.overrides['body-parser'] = '^1.20.9';
+          packageJson.overrides['proxy-addr'] = '^2.0.8';
+          packageJson.overrides['shell-quote'] = '^1.11.0';
+          packageJson.overrides['source-map-js'] = '^1.2.2';
 
           fs.writeFileSync('package.json', JSON.stringify(packageJson, null, 2) + '\n');
           NODE
 
       - name: Regenerate the lockfile and apply non-breaking npm security fixes
         run: |
-          npm install --package-lock-only --ignore-scripts --no-audit
-          npm audit fix --package-lock-only
+          npm install --ignore-scripts --no-audit
+          npm audit fix --ignore-scripts
 
       - name: Install the exact regenerated lockfile
         run: npm ci
@@ -69,9 +73,8 @@ jobs:
       - name: Enforce the production dependency security gate
         run: npm audit --omit=dev --audit-level=high
 
-      - name: Report remaining development-only advisories without hiding them
-        if: always()
-        run: npm audit --audit-level=high || true
+      - name: Enforce the full dependency security gate
+        run: npm audit --audit-level=high
 
       - name: Check the API entry point
         run: node --check apps/api/server.js
