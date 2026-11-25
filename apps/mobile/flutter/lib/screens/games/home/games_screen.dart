@@ -662,10 +662,13 @@ class _GamesOverflowMenu extends StatelessWidget {
         switch (action) {
           case _GamesMenuAction.invitations:
             onInvitations();
+            break;
           case _GamesMenuAction.leaderboard:
             onLeaderboard();
+            break;
           case _GamesMenuAction.history:
             onHistory();
+            break;
         }
       },
       itemBuilder: (context) => [
