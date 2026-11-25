@@ -7582,7 +7582,7 @@ io.on("connection", (socket) => {
     }
     const invitations = [];
     for (const [messageId, invite] of pendingGameInvites.entries()) {
-      if (invite.toKey !== userKey || invite.expiresAt <= Date.now()) continue;
+      if (invite.toKey !== userKey || invite.accepted === true || invite.expiresAt <= Date.now()) continue;
       const inviter = users.get(invite.fromKey);
       if (!inviter || usersAreBlocked(invite.fromKey, userKey)) continue;
       invitations.push({
