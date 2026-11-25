@@ -1790,8 +1790,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         final game = current.game;
         final isPendingDirectGameInvite = !widget.isGroup &&
             game is Map &&
-            game['state']?.toString() == 'in_progress' &&
-            game['lastMoveBy'] == null;
+            (game as Map)['state']?.toString() == 'in_progress' &&
+            (game as Map)['lastMoveBy'] == null;
         if (isPendingDirectGameInvite) return const SizedBox.shrink();
         final next = msgIndex + 1 < messages.length ? messages[msgIndex + 1] : null;
         // last bubble of a run from the same sender
