@@ -812,7 +812,7 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
 
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 8, 20, 10),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(26),
@@ -863,9 +863,9 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           SizedBox(
-            height: 78,
+            height: 72,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: List.generate(5, (index) {
@@ -1354,6 +1354,36 @@ String _formatDuration(int seconds) {
   final minutes = seconds ~/ 60;
   final remaining = seconds % 60;
   return remaining > 0 ? '${minutes}m ${remaining}s' : '${minutes}m';
+}
+
+class _QuickCallDashedCirclePainter extends CustomPainter {
+  final Color color;
+
+  const _QuickCallDashedCirclePainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final stroke = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.8;
+    final radius = size.shortestSide / 2 - stroke.strokeWidth / 2;
+    final rect = Rect.fromCircle(
+      center: Offset(size.width / 2, size.height / 2),
+      radius: radius,
+    );
+    const dashCount = 24;
+    const gapFraction = .42;
+    final dashSweep = (math.pi * 2 / dashCount) * (1 - gapFraction);
+    for (var index = 0; index < dashCount; index++) {
+      final start = index * math.pi * 2 / dashCount;
+      canvas.drawArc(rect, start, dashSweep, false, stroke);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _QuickCallDashedCirclePainter oldDelegate) =>
+      oldDelegate.color != color;
 }
 
 // ── Call Card ────────────────────────────────────────────────────────────────
