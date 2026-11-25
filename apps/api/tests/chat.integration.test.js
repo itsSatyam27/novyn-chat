@@ -257,6 +257,49 @@ test('localhost discovery, requests, reconnect state, and private media', { time
     }),
   });
   assert.equal(changedPasswordLogin.status, 200, await changedPasswordLogin.clone().text());
+  const changedCharlieCookie = changedPasswordLogin.headers.getSetCookie()
+    .map((item) => item.split(';')[0]).join('; ');
+  const charlieResetSocket = await connect(changedCharlieCookie);
+  const resetSentToCharlie = event(charlieResetSocket.socket, 'password_reset_sent');
+  charlieResetSocket.socket.emit('request_password_reset', { identifier: 'charlie' });
+  await resetSentToCharlie;
+  const charlieResetCode = logs.match(/\[Password reset code\] charlie@example\.test: (\S+)/)?.[1];
+  assert.ok(charlieResetCode, 'test-only reset code should be logged for Charlie');
+  const resetSessionRevoked = event(charlieResetSocket.socket, 'session_revoked');
+  const resetSocketDisconnected = event(charlieResetSocket.socket, 'disconnect');
+  const changedCharlieCsrf = changedCharlieCookie.split('; ')
+    .find((part) => part.startsWith('novyn_csrf='))
+    ?.slice('novyn_csrf='.length);
+  assert.ok(changedCharlieCsrf, 'sign-in must issue a CSRF cookie');
+  const httpPasswordReset = await fetch(`${base}/api/auth/password-reset/confirm`, {
+    method: 'POST',
+    headers: {
+      Cookie: changedCharlieCookie,
+      Origin: origin,
+      'Content-Type': 'application/json',
+      'x-novyn-csrf': decodeURIComponent(changedCharlieCsrf),
+    },
+    body: JSON.stringify({
+      identifier: 'charlie@example.test',
+      code: charlieResetCode,
+      newPassword: 'Reset-password-789!',
+    }),
+  });
+  assert.equal(httpPasswordReset.status, 200, await httpPasswordReset.clone().text());
+  assert.match((await resetSessionRevoked).message, /credentials changed/i);
+  await resetSocketDisconnected;
+  assert.equal((await fetch(`${base}/api/auth/session`, {
+    headers: { Cookie: changedCharlieCookie },
+  })).status, 401);
+  const resetPasswordLogin = await fetch(`${base}/api/auth/signin`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      identifier: 'charlie@example.test',
+      password: 'Reset-password-789!',
+    }),
+  });
+  assert.equal(resetPasswordLogin.status, 200, await resetPasswordLogin.clone().text());
 
   // Device-pairing secrets and resulting login cookies must never be cached.
   const pairingCsrfCookie = alice.cookie.split('; ')
