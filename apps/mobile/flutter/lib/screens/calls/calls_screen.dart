@@ -268,6 +268,9 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * .62,
+      ),
       builder: (sheetContext) => StatefulBuilder(
         builder: (context, refresh) {
           final theme = Theme.of(context);
@@ -1630,6 +1633,7 @@ class _CallHistorySheet extends StatelessWidget {
   final bool isFavorite;
   final VoidCallback onToggleFavorite;
   final void Function(String type) onCall;
+
   const _CallHistorySheet({
     required this.entry,
     required this.isFavorite,
@@ -1640,14 +1644,18 @@ class _CallHistorySheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final accent = theme.colorScheme.primary;
-    final missedCount = entry.history.where((log) => log['status'] == 'missed').length;
-    final outgoingCount = entry.history.where((log) => log['status'] == 'outgoing').length;
+    final colors = theme.colorScheme;
+    final accent = colors.primary;
+    final missedCount =
+        entry.history.where((log) => log['status'] == 'missed').length;
+    final outgoingCount =
+        entry.history.where((log) => log['status'] == 'outgoing').length;
+    final sheetHeight = MediaQuery.sizeOf(context).height * .62;
 
     Widget stat(String label, {bool danger = false}) {
-      final color = danger ? const Color(0xFFD92D2D) : theme.colorScheme.onSurface;
+      final color = danger ? const Color(0xFFD92D2D) : colors.onSurface;
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
           color: danger
               ? const Color(0xFFFDE7E7)
@@ -1666,30 +1674,70 @@ class _CallHistorySheet extends StatelessWidget {
       );
     }
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 22),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: SingleChildScrollView(
+    Widget callAction({
+      required IconData icon,
+      required String label,
+      required VoidCallback onTap,
+      required bool primary,
+    }) {
+      final foreground = primary ? colors.onPrimary : accent;
+      return Material(
+        color: primary ? accent : accent.withValues(alpha: .11),
+        borderRadius: BorderRadius.circular(30),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(30),
+          onTap: onTap,
+          child: SizedBox(
+            height: 50,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 20, color: foreground),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: foreground,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: sheetHeight,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 8),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        child: SafeArea(
+          top: false,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
             children: [
               Center(
                 child: Container(
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.outlineVariant,
+                    color: colors.outlineVariant,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
               ),
-              const SizedBox(height: 22),
+              const SizedBox(height: 16),
               Row(
                 children: [
                   UserAvatar(
@@ -1710,18 +1758,20 @@ class _CallHistorySheet extends StatelessWidget {
                           style: TextStyle(
                             fontFamily: 'PlusJakartaSans',
                             fontSize: 21,
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.w800,
                             letterSpacing: -.5,
-                            color: theme.colorScheme.onSurface,
+                            color: colors.onSurface,
                           ),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           '@${entry.peer.username}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontFamily: 'PlusJakartaSans',
                             fontSize: 13.5,
-                            color: theme.colorScheme.onSurfaceVariant,
+                            color: colors.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -1734,19 +1784,21 @@ class _CallHistorySheet extends StatelessWidget {
                       customBorder: const CircleBorder(),
                       onTap: onToggleFavorite,
                       child: SizedBox(
-                        width: 48,
-                        height: 48,
+                        width: 46,
+                        height: 46,
                         child: Icon(
-                          isFavorite ? Icons.star_rounded : Icons.star_outline_rounded,
+                          isFavorite
+                              ? Icons.star_rounded
+                              : Icons.star_outline_rounded,
                           color: accent,
-                          size: 25,
+                          size: 24,
                         ),
                       ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 14),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -1756,55 +1808,63 @@ class _CallHistorySheet extends StatelessWidget {
                   stat('$outgoingCount outgoing'),
                 ],
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 14),
               Row(
                 children: [
                   Expanded(
-                    child: FilledButton.icon(
-                      onPressed: () => onCall('voice'),
-                      icon: const Icon(Icons.call_rounded, size: 20),
-                      label: const Text('Voice call', style: TextStyle(fontWeight: FontWeight.w700)),
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size(0, 52),
-                        shape: const StadiumBorder(),
-                      ),
+                    child: callAction(
+                      icon: Icons.call_rounded,
+                      label: 'Voice call',
+                      onTap: () => onCall('voice'),
+                      primary: true,
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: FilledButton.tonalIcon(
-                      onPressed: () => onCall('video'),
-                      icon: const Icon(Icons.videocam_rounded, size: 21),
-                      label: const Text('Video call', style: TextStyle(fontWeight: FontWeight.w700)),
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size(0, 52),
-                        foregroundColor: accent,
-                        shape: const StadiumBorder(),
-                      ),
+                    child: callAction(
+                      icon: Icons.videocam_rounded,
+                      label: 'Video call',
+                      onTap: () => onCall('video'),
+                      primary: false,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
               Text(
                 'HISTORY',
                 style: TextStyle(
                   fontFamily: 'PlusJakartaSans',
                   fontSize: 12,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w800,
                   letterSpacing: 1.4,
-                  color: theme.colorScheme.onSurfaceVariant,
+                  color: colors.onSurfaceVariant,
                 ),
               ),
-              const SizedBox(height: 8),
-              for (var index = 0; index < entry.history.length; index++) ...[
-                _buildHistoryRow(context, entry.history[index], accent),
-                if (index != entry.history.length - 1)
-                  Divider(
-                    height: 1,
-                    color: theme.colorScheme.outlineVariant.withValues(alpha: .65),
-                  ),
-              ],
+              const SizedBox(height: 6),
+              Expanded(
+                child: entry.history.isEmpty
+                    ? Center(
+                        child: Text(
+                          'No call history yet',
+                          style: TextStyle(color: colors.onSurfaceVariant),
+                        ),
+                      )
+                    : ListView.separated(
+                        physics: const BouncingScrollPhysics(),
+                        padding: const EdgeInsets.only(bottom: 8),
+                        itemCount: entry.history.length,
+                        separatorBuilder: (_, __) => Divider(
+                          height: 1,
+                          color: colors.outlineVariant.withValues(alpha: .65),
+                        ),
+                        itemBuilder: (context, index) => _buildHistoryRow(
+                          context,
+                          entry.history[index],
+                          accent,
+                        ),
+                      ),
+              ),
             ],
           ),
         ),
@@ -1812,73 +1872,89 @@ class _CallHistorySheet extends StatelessWidget {
     );
   }
 
-  Widget _buildHistoryRow(BuildContext context, Map<String, dynamic> log, Color accent) {
+  Widget _buildHistoryRow(
+    BuildContext context,
+    Map<String, dynamic> log,
+    Color accent,
+  ) {
     final theme = Theme.of(context);
-    final status = (log['status'] ?? 'outgoing').toString();
-    final type = (log['type'] ?? 'voice').toString();
+    final colors = theme.colorScheme;
+    final status = (log['status'] ?? 'outgoing').toString().toLowerCase();
+    final type = normalizeCallType(log['type']);
     final duration = (log['duration'] as num?)?.toInt() ?? 0;
     final parsed = DateTime.tryParse(log['createdAt']?.toString() ?? '');
-    final createdAt = parsed == null ? DateTime.now() : (parsed.isUtc ? parsed.toLocal() : parsed);
+    final createdAt = parsed == null
+        ? DateTime.now()
+        : (parsed.isUtc ? parsed.toLocal() : parsed);
     final isMissed = status == 'missed';
     final isIncoming = status == 'incoming';
     final color = isMissed
         ? const Color(0xFFD92D2D)
         : isIncoming
-            ? const Color(0xFF4F46E5)
+            ? accent
             : accent;
     final icon = isMissed
         ? Icons.call_missed_rounded
         : isIncoming
             ? Icons.call_received_rounded
             : Icons.call_made_rounded;
-    final label = '${status.isEmpty ? 'Call' : '${status[0].toUpperCase()}${status.substring(1)}'} ${type == 'video' ? 'video' : 'voice'} call';
+    final mediaLabel = type == 'video' ? 'video' : 'voice';
+    final statusLabel = status.isEmpty
+        ? 'Call'
+        : status[0].toUpperCase() + status.substring(1);
+    final label = '$statusLabel $mediaLabel call';
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
+      padding: const EdgeInsets.symmetric(vertical: 11),
       child: Row(
         children: [
           Container(
-            width: 42,
-            height: 42,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
               color: color.withValues(alpha: .12),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Icon(icon, size: 21, color: color),
+            child: Icon(icon, size: 20, color: color),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 11),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: 'PlusJakartaSans',
-                    fontSize: 14.5,
+                    fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: isMissed ? color : theme.colorScheme.onSurface,
+                    color: isMissed ? color : colors.onSurface,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   _formatFullTime(createdAt),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: 'PlusJakartaSans',
-                    fontSize: 12.5,
-                    color: theme.colorScheme.onSurfaceVariant,
+                    fontSize: 12,
+                    color: colors.onSurfaceVariant,
                   ),
                 ),
               ],
             ),
           ),
+          const SizedBox(width: 8),
           Text(
             duration > 0 ? _formatDuration(duration) : _formatTime(createdAt),
             style: TextStyle(
               fontFamily: 'PlusJakartaSans',
-              fontSize: 13.5,
+              fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: theme.colorScheme.onSurfaceVariant,
+              color: colors.onSurfaceVariant,
             ),
           ),
         ],
