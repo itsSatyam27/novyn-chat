@@ -37,4 +37,4 @@ jobs:
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NOVYN_CHAT_APP }}
-          projectId: novyn-chat-app
+          projectId: chat-novyn
