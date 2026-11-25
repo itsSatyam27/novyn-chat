@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [main, "phase-2", "production-readiness"]
 
+# Keep only the newest validation run per branch/PR. This avoids duplicate
+# Android/Gradle dependency downloads when several commits are pushed quickly.
+concurrency:
+  group: novyn-ci-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate:
     runs-on: ubuntu-latest
