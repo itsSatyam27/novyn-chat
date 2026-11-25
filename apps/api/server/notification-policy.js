@@ -50,10 +50,15 @@ function shouldDeliverNotification(user, payload = {}, timestamp = Date.now()) {
     return false;
   }
   if (user.doNotDisturbEnabled === true) {
+    const typeUsesGroupConversation =
+      payload.group === true &&
+      ["message", "game_invitation", "game_turn", "game_result"].includes(type);
     const target = String(
-      payload.group === true
-        ? (payload.groupId || payload.chat || "")
-        : (payload.chat || payload.from || "")
+      type === "group_invite"
+        ? (payload.from || payload.chat || "")
+        : typeUsesGroupConversation
+          ? (payload.groupId || payload.chat || "")
+          : (payload.chat || payload.from || "")
     ).trim().toLowerCase();
     const favorites = new Set(
       (Array.isArray(user.favoriteChatIds) ? user.favoriteChatIds : [])
