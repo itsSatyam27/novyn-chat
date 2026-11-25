@@ -417,7 +417,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
   Widget _buildFilters(List<UserModel> all) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    const primary = Color(0xFF5E44F3);
+    final primary = theme.colorScheme.primary;
     final labels = <(String, String)>[
       ('All', 'All · ${all.length}'),
       ('Online', 'Online'),
@@ -462,7 +462,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
                         BoxShadow(
                           color: _filter == item.$1
                               ? primary.withValues(alpha: 0.28)
-                              : (isDark ? Colors.black26 : const Color(0xFF5E44F3).withValues(alpha: 0.04)),
+                              : (isDark ? Colors.black26 : primary.withValues(alpha: 0.04)),
                           blurRadius: 10,
                           offset: const Offset(0, 3),
                         ),
