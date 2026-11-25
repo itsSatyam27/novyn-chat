@@ -1558,7 +1558,7 @@ class _RandomMatchmakingScreen extends StatelessWidget {
                         color: accent.withValues(alpha: .12),
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Text(
+                      child: Text(
                         'Random player',
                         style: TextStyle(
                           color: accent,
@@ -1779,7 +1779,7 @@ class _RandomMatchFoundScreenState extends State<_RandomMatchFoundScreen> {
                         color: accent.withValues(alpha: .12),
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Text(
+                      child: Text(
                         'Random player',
                         style: TextStyle(
                           color: accent,
@@ -2009,7 +2009,7 @@ class _MatchPlayerBadge extends StatelessWidget {
               ),
               child: Text(
                 'Level $level',
-                style: const TextStyle(
+                style: TextStyle(
                   color: accent,
                   fontWeight: FontWeight.w700,
                   fontSize: 12,
