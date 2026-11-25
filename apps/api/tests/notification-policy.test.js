@@ -136,6 +136,41 @@ test("quiet hours handle same-day and overnight schedules while calls remain del
   assert.equal(isQuietHoursActive(daytime, Date.UTC(2026, 10, 20, 17, 0)), false);
 });
 
+test("Do Not Disturb only allows favorited conversations", () => {
+  const dnd = preferences({
+    doNotDisturbEnabled: true,
+    favoriteChatIds: ["alice", "group-1"],
+  });
+  assert.equal(
+    shouldDeliverNotification(dnd, { type: "message", chat: "alice" }),
+    true,
+  );
+  assert.equal(
+    shouldDeliverNotification(dnd, { type: "message", chat: "bob" }),
+    false,
+  );
+  assert.equal(
+    shouldDeliverNotification(dnd, {
+      type: "message",
+      group: true,
+      groupId: "group-1",
+    }),
+    true,
+  );
+  assert.equal(
+    shouldDeliverNotification(dnd, {
+      type: "message",
+      group: true,
+      groupId: "group-2",
+    }),
+    false,
+  );
+  assert.equal(
+    shouldDeliverNotification(dnd, { type: "friend_request", from: "bob" }),
+    false,
+  );
+});
+
 test("global push switch suppresses every notification category", () => {
   assert.equal(
     shouldDeliverNotification(

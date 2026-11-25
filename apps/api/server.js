@@ -36,6 +36,7 @@ const { parseCookies, safeTimingEqual: csrfSafeTimingEqual, createCsrf } = requi
 const runtimeState = require("./server/core/state");
 const { buildUserSearchResults } = require("./server/users/search");
 const { isQuietHoursActive, shouldDeliverNotification } = require("./server/notification-policy");
+const { createFcmMessage } = require("./server/notification-utils");
 const {
   normalizeName,
   toDisplayName,
@@ -2101,6 +2102,9 @@ function createUserRecord(username) {
     twoFactorBackupCodes: [],
     notificationsEnabled: true,
     messagePreviewEnabled: true,
+    hideNotificationContent: false,
+    doNotDisturbEnabled: false,
+    favoriteChatIds: [],
     groupNotificationsEnabled: true,
     directMessagesEnabled: true,
     groupMessagesEnabled: true,
@@ -2165,6 +2169,9 @@ function serializeState() {
       fcmToken: toDisplayName(user.fcmToken),
       notificationsEnabled: user.notificationsEnabled !== false,
       messagePreviewEnabled: user.messagePreviewEnabled !== false,
+      hideNotificationContent: user.hideNotificationContent === true,
+      doNotDisturbEnabled: user.doNotDisturbEnabled === true,
+      favoriteChatIds: Array.isArray(user.favoriteChatIds) ? user.favoriteChatIds : [],
       groupNotificationsEnabled: user.groupNotificationsEnabled !== false,
       directMessagesEnabled: user.directMessagesEnabled !== false,
       groupMessagesEnabled: user.groupMessagesEnabled !== false,
@@ -2411,6 +2418,9 @@ async function persistMongoNow() {
               fcmToken: toDisplayName(entry.fcmToken),
               notificationsEnabled: entry.notificationsEnabled !== false,
               messagePreviewEnabled: entry.messagePreviewEnabled !== false,
+              hideNotificationContent: entry.hideNotificationContent === true,
+              doNotDisturbEnabled: entry.doNotDisturbEnabled === true,
+              favoriteChatIds: Array.isArray(entry.favoriteChatIds) ? entry.favoriteChatIds : [],
               groupNotificationsEnabled: entry.groupNotificationsEnabled !== false,
               isRegistered: Boolean(entry.isRegistered),
               isSuspended: entry.isSuspended === true,
@@ -2934,18 +2944,27 @@ async function sendPushToUser(userKey, payload) {
   if (!userKey) return;
   const user = users.get(userKey);
   if (!user || user.notificationsEnabled === false) return;
+  const presenceMode = normalizePresenceMode(user.presenceMode);
+  if (presenceMode === "busy" || presenceMode === "invisible") return;
   if (!shouldDeliverNotification(user, payload)) return;
   if (["message", "game_invitation", "game_turn", "game_result"].includes(String(payload?.type || ""))) {
     const conversationKey = payload?.group === true
       ? normalizeGroupId(payload?.groupId || payload?.chat)
       : normalizeName(payload?.chat || payload?.from);
-    if (conversationKey && isMutedBy(user, conversationKey)) return;
+    if (conversationKey) {
+      const hiddenChats = user.hiddenChats instanceof Set
+        ? user.hiddenChats
+        : new Set(Array.isArray(user.hiddenChats) ? user.hiddenChats : []);
+      if (hiddenChats.has(conversationKey) || isMutedBy(user, conversationKey)) return;
+    }
   }
-  const previewEnabled = user.messagePreviewEnabled !== false;
+  const previewEnabled = user.messagePreviewEnabled !== false &&
+    user.hideNotificationContent !== true;
   const safePayload = {
     ...payload,
     soundEnabled: user.notificationSoundEnabled !== false,
     vibrationEnabled: user.notificationVibrationEnabled !== false,
+    previewEnabled,
     ...(payload?.type === "message" && !previewEnabled
       ? { body: payload?.group === true ? "New group message" : "You have a new message" }
       : {}),
@@ -2983,102 +3002,7 @@ async function sendPushToUser(userKey, payload) {
     try {
       const token = toDisplayName(user.fcmToken);
       if (token) {
-        const isEncryptedDirectMessage =
-          safePayload.type === "message" &&
-          safePayload.group !== true &&
-          typeof safePayload.ciphertext === "string" &&
-          typeof safePayload.iv === "string" &&
-          typeof safePayload.senderPublicKey === "string";
-        // Encrypted direct messages use data-only delivery. The recipient app
-        // decrypts locally and creates the visible notification; plaintext
-        // never passes through FCM or this server.
-        const isCallPush = safePayload.type === "call";
-        // The mobile app renders data-only notifications so category,
-        // quiet-hours, mute, preview, sound and vibration preferences are
-        // applied consistently in foreground and background states.
-        const isManagedDataPush = [
-          "message", "friend_request", "friend_request_accepted",
-          "friend_request_declined", "group_invite",
-          "game_invitation", "game_turn", "game_result",
-        ].includes(safePayload.type);
-        const data = {
-          type: toDisplayName(safePayload.type) || "message",
-          url: toDisplayName(safePayload.url),
-          tag: toDisplayName(safePayload.tag),
-          recipient: toDisplayName(user.username) || userKey,
-          eventId: toDisplayName(safePayload.eventId) ||
-            (String(safePayload.type || "notification") + ":" + String(Date.now())),
-          chat: toDisplayName(payload?.group === true ? payload?.groupId : payload?.chat) || "",
-          kind: payload?.group === true ? "group" : "friend",
-          from: toDisplayName(safePayload.from),
-          ...(safePayload.gameId ? { gameId: toDisplayName(safePayload.gameId) } : {}),
-          ...(safePayload.gameType ? { gameType: toDisplayName(safePayload.gameType) } : {}),
-          mentionOrReply: safePayload.mentionOrReply ? "1" : "0",
-          soundEnabled: safePayload.soundEnabled === false ? "0" : "1",
-          vibrationEnabled: safePayload.vibrationEnabled === false ? "0" : "1",
-          // Keep a data-payload copy so Flutter can honor local preview/privacy
-          // preferences and show plaintext previews when the app is backgrounded.
-          ...(!isCallPush ? {
-            title: toDisplayName(safePayload.title) || "Novyn",
-            body: toDisplayName(safePayload.body) || "You have a new message",
-            previewEnabled: previewEnabled ? "1" : "0",
-          } : {}),
-          ...(isCallPush ? {
-            // Bind every call alert to the account whose token received it.
-            recipient: toDisplayName(user.username) || userKey,
-            callStatus: toDisplayName(safePayload.callStatus) || "missed",
-            callId: toDisplayName(safePayload.callId),
-            isVideo: safePayload.isVideo ? "1" : "0",
-            title: toDisplayName(safePayload.title) || "Incoming call",
-            body: toDisplayName(safePayload.body) || "You have an incoming call",
-          } : {}),
-        };
-        if (isEncryptedDirectMessage) {
-          data.title = toDisplayName(safePayload.title) || "Novyn";
-          data.ciphertext = safePayload.ciphertext;
-          data.iv = safePayload.iv;
-          data.senderPublicKey = safePayload.senderPublicKey;
-          data.messageId = toDisplayName(safePayload.messageId);
-          data.previewEnabled = previewEnabled ? "1" : "0";
-        }
-        const message = {
-          token,
-          ...(!isManagedDataPush && !isCallPush ? {
-            notification: {
-              title: toDisplayName(safePayload.title) || "Novyn",
-              body: toDisplayName(safePayload.body) || "You have a new message",
-            },
-          } : {}),
-          data,
-          android: {
-            priority: safePayload.silent ? "normal" : "high",
-            ...(isCallPush ? { ttl: 45000 } : {}),
-            ...(!isManagedDataPush && !isCallPush ? {
-              notification: {
-                tag: toDisplayName(safePayload.tag) || undefined,
-                ...(safePayload.silent ? {} : { sound: "default" }),
-              },
-            } : {}),
-          },
-          apns: {
-            headers: (isManagedDataPush || isCallPush) ? {
-              "apns-push-type": "background",
-              "apns-priority": "5",
-              ...(isCallPush ? { "apns-expiration": String(Math.floor(Date.now() / 1000) + 45) } : {}),
-            } : undefined,
-            payload: {
-              aps: (isManagedDataPush || isCallPush)
-                ? { "content-available": 1 }
-                : {
-                    alert: {
-                      title: toDisplayName(safePayload.title) || "Novyn",
-                      body: toDisplayName(safePayload.body) || "You have a new message",
-                    },
-                    ...(safePayload.silent ? {} : { sound: "default" }),
-                  },
-            },
-          },
-        };
+        const message = createFcmMessage(userKey, user, safePayload);
         try {
           await admin.messaging(firebaseAdmin).send(message);
         } catch (error) {
@@ -3244,6 +3168,11 @@ function applyLoadedState(parsed) {
     user.fcmToken = toDisplayName(entry.fcmToken);
     user.notificationsEnabled = entry.notificationsEnabled !== false;
     user.messagePreviewEnabled = entry.messagePreviewEnabled !== false;
+    user.hideNotificationContent = entry.hideNotificationContent === true;
+    user.doNotDisturbEnabled = entry.doNotDisturbEnabled === true;
+    user.favoriteChatIds = Array.isArray(entry.favoriteChatIds)
+      ? entry.favoriteChatIds.map(normalizeName).filter(Boolean).slice(0, 250)
+      : [];
     user.groupNotificationsEnabled = entry.groupNotificationsEnabled !== false;
     user.directMessagesEnabled = entry.directMessagesEnabled !== false;
     // Migrate users who only had the legacy groupNotificationsEnabled field.
@@ -3458,6 +3387,9 @@ function toSerializedUserEntry(doc) {
     fcmToken: toDisplayName(doc?.fcmToken),
     notificationsEnabled: doc?.notificationsEnabled !== false,
     messagePreviewEnabled: doc?.messagePreviewEnabled !== false,
+    hideNotificationContent: doc?.hideNotificationContent === true,
+    doNotDisturbEnabled: doc?.doNotDisturbEnabled === true,
+    favoriteChatIds: Array.isArray(doc?.favoriteChatIds) ? doc.favoriteChatIds : [],
     groupNotificationsEnabled: doc?.groupNotificationsEnabled !== false,
     directMessagesEnabled: doc?.directMessagesEnabled !== false,
     groupMessagesEnabled: typeof doc?.groupMessagesEnabled === "boolean"
@@ -8436,6 +8368,9 @@ io.on("connection", (socket) => {
         typingIndicatorsEnabled: user.typingIndicatorsEnabled !== false,
         notificationsEnabled: user.notificationsEnabled !== false,
         messagePreviewEnabled: user.messagePreviewEnabled !== false,
+        hideNotificationContent: user.hideNotificationContent === true,
+        doNotDisturbEnabled: user.doNotDisturbEnabled === true,
+        favoriteChatIds: Array.isArray(user.favoriteChatIds) ? user.favoriteChatIds : [],
         groupNotificationsEnabled: user.groupNotificationsEnabled !== false,
         directMessagesEnabled: user.directMessagesEnabled !== false,
         groupMessagesEnabled: typeof user.groupMessagesEnabled === "boolean"
@@ -8490,6 +8425,13 @@ io.on("connection", (socket) => {
     if (typeof payload?.callsEnabled === "boolean") user.callsEnabled = payload.callsEnabled;
     if (typeof payload?.notificationsEnabled === "boolean") user.notificationsEnabled = payload.notificationsEnabled;
     if (typeof payload?.messagePreviewEnabled === "boolean") user.messagePreviewEnabled = payload.messagePreviewEnabled;
+    if (typeof payload?.hideNotificationContent === "boolean") user.hideNotificationContent = payload.hideNotificationContent;
+    if (typeof payload?.doNotDisturbEnabled === "boolean") user.doNotDisturbEnabled = payload.doNotDisturbEnabled;
+    if (Array.isArray(payload?.favoriteChatIds)) {
+      user.favoriteChatIds = Array.from(new Set(
+        payload.favoriteChatIds.map(normalizeName).filter(Boolean)
+      )).slice(0, 250);
+    }
     if (typeof payload?.groupNotificationsEnabled === "boolean") user.groupNotificationsEnabled = payload.groupNotificationsEnabled;
     const notificationBooleanKeys = [
       "directMessagesEnabled", "groupMessagesEnabled", "mentionsRepliesEnabled",

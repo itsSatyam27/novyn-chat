@@ -102,9 +102,9 @@ function createFcmMessage(userKey, user, payload = {}) {
   const type = String(payload.type || "message");
   const isCall = type === "call";
   const isGroup = payload.group === true;
-  const dataOnlyTypes = new Set([
-    "call",
-    "app_update",
+  const silent = payload.silent === true;
+  const visibleAlertTypes = new Set([
+    "message",
     "friend_request",
     "friend_request_accepted",
     "friend_request_declined",
@@ -112,14 +112,26 @@ function createFcmMessage(userKey, user, payload = {}) {
     "game_invitation",
     "game_turn",
     "game_result",
+    "app_update",
   ]);
-  // Every mobile alert is data-only so the app can check the signed-in account,
-  // apply privacy/DND rules, and render one consistent local notification.
-  const dataOnly = type === "message" || dataOnlyTypes.has(type);
-  const silent = payload.silent === true;
+  const systemVisible = !silent && visibleAlertTypes.has(type);
   const ttlMs = isCall ? 45000 : FOUR_WEEKS_MS;
+  const previewAllowed =
+    user?.messagePreviewEnabled !== false &&
+    user?.hideNotificationContent !== true &&
+    payload.previewEnabled !== false;
+  const encryptedDirectMessage = type === "message" && !isGroup &&
+    (typeof payload.ciphertext === "string" ||
+     typeof payload.iv === "string" ||
+     typeof payload.senderPublicKey === "string");
+  const genericBody = isGroup ? "New group message" : "You have a new message";
   const title = String(payload.title || "Novyn").slice(0, 180);
-  const body = String(payload.body || "You have a new notification").slice(0, 900);
+  // E2EE plaintext never enters FCM. Background OS delivery uses a private
+  // fallback for encrypted DMs; plaintext previews are only used when the
+  // server receives an unencrypted message and previews are explicitly enabled.
+  const body = type === "message" && (!previewAllowed || encryptedDirectMessage)
+    ? genericBody
+    : String(payload.body || "You have a new notification").slice(0, 900);
 
   const data = {
     type,
@@ -127,7 +139,7 @@ function createFcmMessage(userKey, user, payload = {}) {
     eventId: String(
       payload.eventId ||
       payload.messageId ||
-      (isCall ? (String(payload.callId || "call") + ":" + String(payload.callStatus || "missed")) : "") ||
+      (isCall ? String(payload.callId || "call") + ":" + String(payload.callStatus || "missed") : "") ||
       (type === "app_update" ? "app-update:" + String(payload.build || "0") : "") ||
       (type + ":" + Date.now())
     ).slice(0, 180),
@@ -140,53 +152,75 @@ function createFcmMessage(userKey, user, payload = {}) {
 
   const optionalFields = [
     "url", "tag", "groupId", "callStatus", "callId", "callExpiresAt", "isVideo",
-    "previewEnabled", "from", "displayName", "action", "build",
-    "releaseTag", "releaseUrl", "soundEnabled", "vibrationEnabled",
-    "gameId", "gameType", "mentionOrReply",
+    "from", "displayName", "action", "build", "releaseTag", "releaseUrl",
+    "gameId", "gameType", "mentionOrReply", "ciphertext", "iv",
+    "senderPublicKey", "messageId",
   ];
   for (const key of optionalFields) {
     const value = toDataValue(payload[key]);
     if (value !== undefined) data[key] = value;
   }
-  if (type === "message") data.previewEnabled = payload.previewEnabled === false ? "0" : "1";
+  if (type === "message") data.previewEnabled = previewAllowed ? "1" : "0";
   if (isCall) {
     data.callStatus = String(payload.callStatus || "missed");
     data.callId = String(payload.callId || "");
     data.isVideo = payload.isVideo ? "1" : "0";
+    data.callExpiresAt = String(payload.callExpiresAt || "");
+  }
+  data.soundEnabled = payload.soundEnabled === false ? "false" : "true";
+  data.vibrationEnabled = payload.vibrationEnabled === false ? "false" : "true";
+
+  // FCM's combined notification + data payload is limited to 4 KB. Trim
+  // non-routing metadata first; keep recipient/chat/type/eventId/title/body.
+  const dataBytes = () => Buffer.byteLength(JSON.stringify(data), "utf8");
+  for (const key of [
+    "ciphertext", "senderPublicKey", "iv", "releaseUrl", "url",
+    "displayName", "gameType", "gameId", "action", "from", "tag", "messageId",
+  ]) {
+    if (dataBytes() <= 3400) break;
+    delete data[key];
   }
 
+  const channelBase =
+    type === "message" ? "novyn_messages" :
+    type.startsWith("game_") ? "novyn_games" :
+    type === "app_update" ? "novyn_app_updates" : "novyn_social";
+  const sound = payload.soundEnabled !== false;
+  const vibration = payload.vibrationEnabled !== false;
+  const channelId = channelBase + "_" +
+    (sound ? "sound" : "silent") + "_" +
+    (vibration ? "vibrate" : "no_vibrate");
+  const expiresAt = Math.floor(Date.now() / 1000) + Math.floor(ttlMs / 1000);
+
   const message = {
+    token: safeToken(user?.fcmToken),
     data,
     android: {
       priority: silent ? "normal" : "high",
       ttl: ttlMs,
-      ...(dataOnly ? {} : {
+      ...(systemVisible ? {
         notification: {
-          channelId: isGroup ? "novyn_messages" : "novyn_social",
+          channelId,
           ...(payload.tag ? { tag: String(payload.tag).slice(0, 100) } : {}),
-          ...(silent ? {} : { sound: "default" }),
+          ...(sound ? { sound: "default" } : {}),
         },
-      }),
+      } : {}),
     },
     apns: {
       headers: {
-        "apns-expiration": String(Math.floor(Date.now() / 1000) + Math.floor(ttlMs / 1000)),
-        ...(dataOnly
-          ? { "apns-push-type": "background", "apns-priority": "5" }
-          : { "apns-push-type": "alert", "apns-priority": "10" }),
+        "apns-expiration": String(expiresAt),
+        ...(systemVisible
+          ? { "apns-push-type": "alert", "apns-priority": "10" }
+          : { "apns-push-type": "background", "apns-priority": "5" }),
       },
       payload: {
-        aps: dataOnly
-          ? { "content-available": 1 }
-          : {
-              alert: { title, body },
-              ...(silent ? {} : { sound: "default" }),
-            },
+        aps: systemVisible
+          ? { alert: { title, body }, ...(sound ? { sound: "default" } : {}) }
+          : { "content-available": 1 },
       },
     },
   };
-
-  if (!dataOnly) message.notification = { title, body };
+  if (systemVisible) message.notification = { title, body };
   return message;
 }
 
