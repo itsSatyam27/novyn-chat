@@ -16,6 +16,7 @@ function createHealthHarness(dependencies = {}) {
     getMongoUri: dependencies.getMongoUri || (() => ""),
     getMongoStorage: dependencies.getMongoStorage || (() => null),
     hasMongoStorage: dependencies.hasMongoStorage || (() => false),
+    getPersistenceStatus: dependencies.getPersistenceStatus,
   });
 
   function createResponse() {
@@ -122,4 +123,45 @@ test("readiness succeeds after MongoDB responds to ping", async () => {
     storage: "mongodb",
     persistentStorage: true,
   });
+});
+
+test("readiness reports degraded state when persisted writes are failing", async () => {
+  const harness = createHealthHarness({
+    getPersistenceStatus: () => ({
+      chat: { consecutiveFailures: 2 },
+      auth: { consecutiveFailures: 0 },
+    }),
+  });
+  const response = harness.createResponse();
+
+  await harness.handlers.get("/health/ready")({}, response);
+
+  assert.equal(response.statusCode, 503);
+  assert.deepEqual(response.body, {
+    ok: false,
+    ready: false,
+    storage: "file",
+    persistence: "degraded",
+    message: "Persistent storage is temporarily unavailable.",
+  });
+});
+
+test("readiness recovers after persistence writes succeed again", async () => {
+  let failures = 1;
+  const harness = createHealthHarness({
+    getPersistenceStatus: () => ({
+      chat: { consecutiveFailures: failures },
+      auth: { consecutiveFailures: 0 },
+    }),
+  });
+  const handler = harness.handlers.get("/health/ready");
+  const degradedResponse = harness.createResponse();
+  await handler({}, degradedResponse);
+  assert.equal(degradedResponse.statusCode, 503);
+
+  failures = 0;
+  const healthyResponse = harness.createResponse();
+  await handler({}, healthyResponse);
+  assert.equal(healthyResponse.statusCode, 200);
+  assert.equal(healthyResponse.body.ready, true);
 });

@@ -181,3 +181,24 @@ Capacitor, Flutter, and backend messaging paths. Message bodies are readable by
 the backend and should only be sent over HTTPS/WSS in production. Password
 hashing, session authentication, TOTP secret protection, and transport TLS remain
 separate account/network security controls.
+
+## Persistence recovery and background maintenance
+
+Chat-state and authentication-state writes are debounced and serialized
+independently. A failed write remains queued and is retried with exponential
+backoff (capped at 30 seconds); a later successful write clears the degraded
+state. `PERSISTENCE_RETRY_BASE_MS` and `PERSISTENCE_RETRY_MAX_MS` tune the
+backoff, with safe defaults when omitted. The readiness endpoint returns
+`503` while either persistence queue has an unresolved write failure, while
+`/health` remains a liveness check so an orchestrator does not restart a
+temporarily storage-isolated process in a loop. Monitor readiness and the
+`[NovynPersistence]` log events during a storage incident.
+
+Hourly retention maintenance runs through a single-flight background task.
+Overlapping executions are skipped, task errors are logged without terminating
+the Node process, and shutdown stops the task before the final state flush.
+Graceful shutdown drains transports, stops background work, flushes both
+persistence queues, and only then closes MongoDB. If the final flush fails,
+shutdown returns a non-zero exit status rather than reporting a clean stop.
+This remains a single-process design; retrying snapshots does not make the
+in-memory data model safe for multiple replicas.

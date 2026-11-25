@@ -34,6 +34,8 @@ const { cloudinary, hasCloudinaryConfig } = require("./cloudinary");
 const { createChatAuthorization } = require("./server/chat/authorization");
 const { createIpRateLimiter, getSocketClientIp, pruneHttpRateLimits } = require("./server/auth/rate-limit");
 const { createShutdownHandler } = require("./server/core/shutdown");
+const { createResilientPersistenceQueue } = require("./server/core/persistence-queue");
+const { createBackgroundTask } = require("./server/core/background-task");
 const { createAuthToken: signAuthToken, verifyAuthToken: verifySignedAuthToken } = require("./server/auth/tokens");
 const { createAuthSessions } = require("./server/auth/sessions");
 const { createRegistrationReservations } = require("./server/auth/registration-reservations");
@@ -96,6 +98,10 @@ registerHealthRoutes({
   getMongoUri: () => MONGODB_URI,
   getMongoStorage: () => mongoStorage,
   hasMongoStorage,
+  getPersistenceStatus: () => ({
+    chat: statePersistence.getStatus(),
+    auth: authStatePersistence.getStatus(),
+  }),
 });
 
 const defaultUploadsDir = path.join(__dirname, "runtime", "uploads");
@@ -1695,11 +1701,23 @@ let mongoMediaCollection = null;
 let mongoGameHistoryCollection = null;
 const mediaMetadataCache = new Map();
 
-let persistTimer = null;
-let persistInFlight = Promise.resolve();
-let authPersistTimer = null;
-let authPersistInFlight = Promise.resolve();
-let retentionMaintenanceTimer = null;
+const statePersistence = createResilientPersistenceQueue({
+  write: () => persistNow(),
+  label: "chat-state",
+  debounceMs: 180,
+  retryBaseMs: process.env.PERSISTENCE_RETRY_BASE_MS,
+  retryMaxMs: process.env.PERSISTENCE_RETRY_MAX_MS,
+  logger: console,
+});
+const authStatePersistence = createResilientPersistenceQueue({
+  write: () => persistAuthStateNow(),
+  label: "auth-state",
+  debounceMs: 120,
+  retryBaseMs: process.env.PERSISTENCE_RETRY_BASE_MS,
+  retryMaxMs: process.env.PERSISTENCE_RETRY_MAX_MS,
+  logger: console,
+});
+let retentionMaintenanceTask = null;
 let bootstrapPromise = null;
 let shutdownRequested = false;
 
@@ -2587,57 +2605,19 @@ async function persistNow() {
 }
 
 function schedulePersist() {
-  if (persistTimer) return;
-
-  persistTimer = setTimeout(() => {
-    persistTimer = null;
-    persistInFlight = persistInFlight
-      .then(() => persistNow())
-      .catch((err) => {
-        console.error("Failed to persist chat state:", err);
-      });
-  }, 180);
+  statePersistence.schedule();
 }
 
 async function flushStatePersistNow() {
-  if (persistTimer) {
-    clearTimeout(persistTimer);
-    persistTimer = null;
-  }
-
-  const write = persistInFlight.then(() => persistNow());
-  persistInFlight = write.catch((error) => {
-    console.error("Failed to persist chat state:", error);
-  });
-  await write;
+  await statePersistence.flush();
 }
 
 function scheduleAuthStatePersist() {
-  if (authPersistTimer) return;
-
-  authPersistTimer = setTimeout(() => {
-    authPersistTimer = null;
-    authPersistInFlight = authPersistInFlight
-      .then(() => persistAuthStateNow())
-      .catch((err) => {
-        console.error("Failed to persist auth session state:", err);
-      });
-  }, 120);
+  authStatePersistence.schedule();
 }
 
-// Flush pending auth persistence through the same promise chain as the
-// debounced writer, avoiding concurrent file/database writes.
 async function flushAuthStatePersistNow() {
-  if (authPersistTimer) {
-    clearTimeout(authPersistTimer);
-    authPersistTimer = null;
-  }
-
-  const write = authPersistInFlight.then(() => persistAuthStateNow());
-  authPersistInFlight = write.catch((error) => {
-    console.error("Failed to persist auth session state:", error);
-  });
-  await write;
+  await authStatePersistence.flush();
 }
 
 function createResetToken() {
@@ -4692,12 +4672,14 @@ function runRetentionMaintenance() {
 }
 
 function startRetentionMaintenanceLoop() {
-  if (retentionMaintenanceTimer) return;
-  const intervalMs = 60 * 60 * 1000;
-  retentionMaintenanceTimer = setInterval(runRetentionMaintenance, intervalMs);
-  if (typeof retentionMaintenanceTimer.unref === "function") {
-    retentionMaintenanceTimer.unref();
-  }
+  if (retentionMaintenanceTask) return;
+  retentionMaintenanceTask = createBackgroundTask({
+    name: "retention-maintenance",
+    run: runRetentionMaintenance,
+    intervalMs: 60 * 60 * 1000,
+    logger: console,
+  });
+  retentionMaintenanceTask.start();
 }
 
 function getUnreadCount(user, friendKey) {
@@ -11615,29 +11597,26 @@ const shutdown = createShutdownHandler({
       reject(error);
     }
   }),
-  stopBackgroundWork: () => {
-    if (retentionMaintenanceTimer) {
-      clearInterval(retentionMaintenanceTimer);
-      retentionMaintenanceTimer = null;
+  stopBackgroundWork: async () => {
+    if (retentionMaintenanceTask) {
+      await retentionMaintenanceTask.stop();
     }
-    if (persistTimer) {
-      clearTimeout(persistTimer);
-      persistTimer = null;
-    }
-    if (authPersistTimer) {
-      clearTimeout(authPersistTimer);
-      authPersistTimer = null;
-    }
+    await Promise.all([
+      statePersistence.stop(),
+      authStatePersistence.stop(),
+    ]);
     for (const timer of scheduledMessageTimers.values()) {
       clearTimeout(timer);
     }
     scheduledMessageTimers.clear();
+    for (const invite of pendingGameInvites.values()) {
+      if (invite?.timer) clearTimeout(invite.timer);
+    }
+    pendingGameInvites.clear();
   },
   flushState: async () => {
-    await persistInFlight.catch(() => {});
-    await authPersistInFlight.catch(() => {});
-    await persistNow();
-    await persistAuthStateNow();
+    await statePersistence.flush();
+    await authStatePersistence.flush();
   },
   closeStorage,
   timeoutMs: 25_000,

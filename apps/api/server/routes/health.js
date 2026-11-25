@@ -1,4 +1,4 @@
-function registerHealthRoutes({ app, getMongoUri, getMongoStorage, hasMongoStorage }) {
+function registerHealthRoutes({ app, getMongoUri, getMongoStorage, hasMongoStorage, getPersistenceStatus }) {
   app.get("/health", (_req, res) => {
     res.set("Cache-Control", "no-store, max-age=0");
     res.status(200).json({ ok: true, status: "live" });
@@ -30,6 +30,21 @@ function registerHealthRoutes({ app, getMongoUri, getMongoStorage, hasMongoStora
           message: "Database is temporarily unavailable.",
         });
       }
+    }
+
+    const persistence = typeof getPersistenceStatus === "function"
+      ? getPersistenceStatus()
+      : null;
+    const persistenceDegraded = persistence
+      && Object.values(persistence).some((entry) => Number(entry?.consecutiveFailures) > 0);
+    if (persistenceDegraded) {
+      return res.status(503).json({
+        ok: false,
+        ready: false,
+        storage,
+        persistence: "degraded",
+        message: "Persistent storage is temporarily unavailable.",
+      });
     }
 
     return res.status(200).json({
