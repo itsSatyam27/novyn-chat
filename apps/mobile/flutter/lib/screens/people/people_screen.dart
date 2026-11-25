@@ -323,6 +323,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
                           filtered,
                           myUid,
                           onlineBuddies: onlineBuddies,
+                          totalBuddiesCount: all.length,
                         ),
                       ),
                     ],
@@ -415,6 +416,8 @@ class _PeopleScreenState extends State<PeopleScreen> {
 
   Widget _buildFilters(List<UserModel> all) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    const primary = Color(0xFF5E44F3);
     final labels = <(String, String)>[
       ('All', 'All · ${all.length}'),
       ('Online', 'Online'),
@@ -429,40 +432,55 @@ class _PeopleScreenState extends State<PeopleScreen> {
         child: Row(
           children: [
             for (final item in labels)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: GestureDetector(
-                onTap: () {
-                  setState(() => _filter = item.$1);
-                  if (_scrollController.hasClients) {
-                    _scrollController.jumpTo(0);
-                  }
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOutCubic,
-                  height: 40,
-                  padding: const EdgeInsets.symmetric(horizontal: 18),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: _filter == item.$1
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.surface,
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  child: Text(
-                    item.$2,
-                    style: TextStyle(
-                      fontFamily: 'PlusJakartaSans',
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
+              Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() => _filter = item.$1);
+                    if (_scrollController.hasClients) {
+                      _scrollController.jumpTo(0);
+                    }
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOutCubic,
+                    height: 42,
+                    padding: const EdgeInsets.symmetric(horizontal: 22),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
                       color: _filter == item.$1
-                          ? Colors.white
-                          : theme.colorScheme.onSurface,
+                          ? primary
+                          : (isDark ? const Color(0xFF201B36) : Colors.white),
+                      borderRadius: BorderRadius.circular(26),
+                      border: Border.all(
+                        color: _filter == item.$1
+                            ? primary
+                            : (isDark ? Colors.white10 : const Color(0xFFEAE6F7)),
+                        width: 1,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: _filter == item.$1
+                              ? primary.withValues(alpha: 0.28)
+                              : (isDark ? Colors.black26 : const Color(0xFF5E44F3).withValues(alpha: 0.04)),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      item.$2,
+                      style: TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        fontSize: 14.5,
+                        fontWeight: _filter == item.$1 ? FontWeight.w700 : FontWeight.w600,
+                        color: _filter == item.$1
+                            ? Colors.white
+                            : (isDark ? Colors.white70 : const Color(0xFF2D2942)),
+                      ),
                     ),
                   ),
                 ),
-              ),
               ),
           ],
         ),
@@ -474,19 +492,61 @@ class _PeopleScreenState extends State<PeopleScreen> {
     List<UserModel> contacts,
     String myUid, {
     required List<UserModel> onlineBuddies,
+    required int totalBuddiesCount,
   }) {
     if (contacts.isEmpty) {
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      if (_search.trim().isNotEmpty) {
+        return ListView(
+          controller: _scrollController,
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 24, 16, 112),
+          children: [
+            NovynEmptyState(
+              icon: Icons.search_off_rounded,
+              title: 'No buddies found',
+              description: 'No buddies match "$_search".',
+            ),
+          ],
+        );
+      }
+
+      Widget emptyState;
+      if (_filter == 'Favourites') {
+        emptyState = NovynEmptyState(
+          illustration: NovynEmptyIllustrations.peopleGroupHeart(isDark: isDark),
+          title: 'No favourites yet',
+          description: 'Tap the star on a buddy to keep your closest people here',
+          buttonLabel: 'See all $totalBuddiesCount buddies',
+          isSecondaryButton: true,
+          onButtonTap: () => setState(() => _filter = 'All'),
+        );
+      } else if (_filter == 'Online') {
+        emptyState = NovynEmptyState(
+          illustration: NovynEmptyIllustrations.personOffline(isDark: isDark),
+          title: 'No one’s online',
+          description: 'Your buddies are offline right now. Check back in a bit',
+          buttonLabel: 'See all $totalBuddiesCount buddies',
+          isSecondaryButton: true,
+          onButtonTap: () => setState(() => _filter = 'All'),
+        );
+      } else {
+        emptyState = NovynEmptyState(
+          illustration: NovynEmptyIllustrations.peopleGroupPlus(isDark: isDark),
+          title: 'No buddies yet',
+          description: 'Connect with people to chat and play games together',
+          buttonLabel: 'Discover people',
+          buttonIcon: Icons.explore_outlined,
+          onButtonTap: _openDiscover,
+        );
+      }
+
       return ListView(
         controller: _scrollController,
         physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 0, 18, 112),
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 112),
         children: [
-          const SizedBox(height: 34),
-          const NovynEmptyState(
-            icon: Icons.people_outline_rounded,
-            title: 'No buddies found',
-            description: 'Try another search or choose a different filter.',
-          ),
+          emptyState,
         ],
       );
     }

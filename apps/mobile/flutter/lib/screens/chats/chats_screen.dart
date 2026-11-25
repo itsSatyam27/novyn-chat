@@ -1511,7 +1511,9 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
       ('groups', 'Groups'),
       ('favorites', 'Favourites'),
     ];
-    final colors = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    const primary = Color(0xFF5E44F3);
+
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
@@ -1519,35 +1521,45 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
         children: [
           for (final item in filters)
             Padding(
-              padding: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.only(right: 10),
               child: GestureDetector(
                 onTap: () => _selectTab(item.$1),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
                   curve: Curves.easeOutCubic,
-                  height: 40,
-                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  height: 42,
+                  padding: const EdgeInsets.symmetric(horizontal: 22),
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
+                    color: _selectedTab == item.$1
+                        ? primary
+                        : (isDark ? const Color(0xFF201B36) : Colors.white),
+                    borderRadius: BorderRadius.circular(26),
                     border: Border.all(
                       color: _selectedTab == item.$1
-                          ? colors.primary
-                          : colors.outlineVariant.withValues(alpha: .6),
+                          ? primary
+                          : (isDark ? Colors.white10 : const Color(0xFFEAE6F7)),
+                      width: 1,
                     ),
-                    color: _selectedTab == item.$1
-                        ? colors.primary
-                        : colors.surface,
-                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _selectedTab == item.$1
+                            ? primary.withValues(alpha: 0.28)
+                            : (isDark ? Colors.black26 : const Color(0xFF5E44F3).withValues(alpha: 0.04)),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
                   ),
                   child: Text(
                     item.$2,
                     style: TextStyle(
                       fontFamily: 'PlusJakartaSans',
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
+                      fontSize: 14.5,
+                      fontWeight: _selectedTab == item.$1 ? FontWeight.w700 : FontWeight.w600,
                       color: _selectedTab == item.$1
                           ? Colors.white
-                          : colors.onSurface,
+                          : (isDark ? Colors.white70 : const Color(0xFF2D2942)),
                     ),
                   ),
                 ),
@@ -2063,6 +2075,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildEmpty() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     if (_showingArchivedChats) {
       return const NovynEmptyState(
         icon: Icons.archive_outlined,
@@ -2084,11 +2097,52 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
         description: 'There are no conversations in this view.',
       );
     }
-    return const NovynEmptyState(
-      icon: Icons.chat_bubble_outline_rounded,
-      title: 'No chats yet',
-      description: 'Tap the + button to start\na conversation',
-    );
+    if (_search.trim().isNotEmpty) {
+      return NovynEmptyState(
+        icon: Icons.search_off_rounded,
+        title: 'No chats found',
+        description: 'No conversations match "${_search.trim()}".',
+      );
+    }
+
+    switch (_selectedTab) {
+      case 'unread':
+        return NovynEmptyState(
+          illustration: NovynEmptyIllustrations.speechBubblesCheck(isDark: isDark),
+          title: 'You’re all caught up',
+          description: 'No unread messages right now. New ones will appear here',
+        );
+      case 'groups':
+        return NovynEmptyState(
+          illustration: NovynEmptyIllustrations.peopleGroupPlus(isDark: isDark),
+          title: 'No groups yet',
+          description: 'Create a group to chat with several buddies at once',
+          buttonLabel: 'Create group',
+          buttonIcon: Icons.add_rounded,
+          onButtonTap: _openCreateGroup,
+        );
+      case 'favorites':
+        return NovynEmptyState(
+          illustration: NovynEmptyIllustrations.speechBubblesStar(isDark: isDark),
+          title: 'No favourite chats',
+          description: 'Long-press a chat and tap the star to keep it here',
+          buttonLabel: 'See all chats',
+          isSecondaryButton: true,
+          onButtonTap: () => _selectTab('all'),
+        );
+      case 'all':
+      default:
+        return NovynEmptyState(
+          illustration: NovynEmptyIllustrations.speechBubblesDots(isDark: isDark),
+          title: 'No chats yet',
+          description: 'Say hi to a buddy and your first conversation will show up here',
+          buttonLabel: 'Start a chat',
+          buttonIcon: Icons.edit_outlined,
+          onButtonTap: () {
+            widget.onNavigateToPeople?.call();
+          },
+        );
+    }
   }
 
 

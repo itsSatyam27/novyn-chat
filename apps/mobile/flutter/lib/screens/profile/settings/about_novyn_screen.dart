@@ -1,13 +1,10 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:novyn/widgets/novyn_alert.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../../../theme/novyn_theme.dart';
-import '../../../services/api_service.dart';
-import '../../../services/auth_service.dart';
 import '../../../services/app_update_service.dart';
 
 const _installerChannel = MethodChannel('com.example.novyn/apk_installer');
@@ -22,7 +19,7 @@ class AboutNovynScreen extends StatefulWidget {
 class _AboutNovynScreenState extends State<AboutNovynScreen> {
   bool _checking = true, _downloading = false, _installing = false;
   bool _readySheetOpen = false, _readySheetDismissed = false;
-  String? _status, _apkUrl, _expectedSha256, _downloadedApkPath, _releaseName;
+  String? _status, _downloadedApkPath, _releaseName;
   List<String> _releaseNotes = const [];
   int? _apkSize;
   int _installedBuild = 0, _latestBuild = 0;
@@ -122,8 +119,6 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
         _checking = true;
         _status = null;
         _latestBuild = 0;
-        _apkUrl = null;
-        _expectedSha256 = null;
         _apkSize = null;
         _releaseName = null;
         _releaseNotes = const [];
@@ -144,8 +139,6 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
       final release = result.release;
       if (release != null) {
         _latestBuild = release.build;
-        _apkUrl = release.url;
-        _expectedSha256 = release.sha256;
         _apkSize = release.size;
         _releaseName = release.name.isNotEmpty ? release.name : 'Build ${release.build}';
         _releaseNotes = release.notes;
@@ -441,8 +434,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
     final muted = dark ? const Color(0xFFC4C1DD) : const Color(0xFF777487);
     final surface = dark ? const Color(0xFF171622) : Colors.white;
     final border = dark ? const Color(0xFF39345F) : const Color(0xFFE5DFFF);
-    final primary = const Color(0xFF7048F8);
-    final updateName = _releaseName ?? 'Build $_latestBuild';
+    const primary = Color(0xFF7048F8);
     final updateNotes = _displayReleaseNotes();
     final activeDownload = !_ready &&
         (_downloading || _paused || _updateService.hasPartialDownload);
@@ -486,20 +478,20 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
               Center(
                 child: Column(children: [
                   Container(
-                    width: 68,
-                    height: 68,
+                    width: 76,
+                    height: 76,
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
-                        colors: [Color(0xFF8060FF), Color(0xFF5938D8)],
+                        colors: [Color(0xFF7B52FF), Color(0xFF5E44F3)],
                       ),
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: BorderRadius.circular(22),
                       boxShadow: const [
                         BoxShadow(
-                          color: Color(0x337048F8),
-                          blurRadius: 14,
-                          offset: Offset(0, 5),
+                          color: Color(0x355E44F3),
+                          blurRadius: 16,
+                          offset: Offset(0, 6),
                         ),
                       ],
                     ),
@@ -510,24 +502,45 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                       semanticLabel: 'Novyn',
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
                   Text('Novyn', style: TextStyle(color: ink, fontSize: 26,
                     letterSpacing: -.6, fontWeight: FontWeight.w900)),
                   const SizedBox(height: 2),
                   Text('Your space, your people.',
                     style: TextStyle(color: muted, fontSize: 13.5,
                       fontWeight: FontWeight.w500)),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                     decoration: BoxDecoration(
                       color: surface,
-                      borderRadius: BorderRadius.circular(15),
+                      borderRadius: BorderRadius.circular(20),
                       border: Border.all(color: border),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x06000000),
+                          blurRadius: 6,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
                     ),
-                    child: Text('Version $_appVersion',
-                      style: TextStyle(color: ink, fontSize: 12.5,
-                        fontWeight: FontWeight.w800)),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF10B981),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 7),
+                        Text('Beta v$_appVersion',
+                          style: TextStyle(color: ink, fontSize: 12.5,
+                            fontWeight: FontWeight.w700)),
+                      ],
+                    ),
                   ),
                 ]),
               ),
@@ -711,16 +724,16 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                     ] else ...[
                       const SizedBox(height: 14),
                       SizedBox(
-                        height: 48,
+                        height: 44,
                         child: Material(
                           color: surface,
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(22),
                           child: InkWell(
                             onTap: (_checking || _installing) ? null : _checkForUpdates,
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(22),
                             child: Container(
                               decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(22),
                                 border: Border.all(color: border),
                               ),
                               child: Row(
@@ -728,25 +741,25 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                                 children: [
                                   if (_checking)
                                     const SizedBox(
-                                      width: 17,
-                                      height: 17,
+                                      width: 16,
+                                      height: 16,
                                       child: CircularProgressIndicator(
-                                        strokeWidth: 2.2,
-                                        color: Color(0xFF7048F8),
+                                        strokeWidth: 2,
+                                        color: Color(0xFF5E44F3),
                                       ),
                                     )
                                   else
                                     Icon(
                                       Icons.refresh_rounded,
                                       color: _installing ? muted.withValues(alpha: .5) : ink,
-                                      size: 19,
+                                      size: 18,
                                     ),
                                   const SizedBox(width: 8),
                                   Text(
                                     _checking ? 'Checking for updates...' : 'Check for updates',
                                     style: TextStyle(
                                       color: _installing ? muted.withValues(alpha: .5) : ink,
-                                      fontSize: 14.5,
+                                      fontSize: 14,
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
@@ -765,20 +778,233 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 12),
-              _infoCard(context, [
-                _InfoRow(label: 'App version', value: _appVersion),
-              ]),
-              const SizedBox(height: 12),
-              Center(child: Text('MADE TO KEEP YOUR PEOPLE CLOSE',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: muted, fontSize: 11,
-                  letterSpacing: 1.2, fontWeight: FontWeight.w800))),
+              const SizedBox(height: 14),
+              _buildDetailsCard(context, surface, border, ink, muted),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 48,
+                      child: ElevatedButton.icon(
+                        onPressed: _shareNovyn,
+                        icon: const Icon(Icons.share_outlined, size: 18, color: Colors.white),
+                        label: const Text('Share Novyn', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF5E44F3),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: SizedBox(
+                      height: 48,
+                      child: OutlinedButton.icon(
+                        onPressed: _showWhatsNewSheet,
+                        icon: const Icon(Icons.auto_awesome_rounded, size: 18, color: Color(0xFF5E44F3)),
+                        label: Text("What's new", style: TextStyle(color: ink, fontSize: 14, fontWeight: FontWeight.w700)),
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: surface,
+                          side: BorderSide(color: border),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 22),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  GestureDetector(
+                    onTap: () => _openLegalLink('https://novyn.app/privacy'),
+                    child: Text('Privacy Policy', style: TextStyle(color: muted, fontSize: 12.5, fontWeight: FontWeight.w600)),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Text('•', style: TextStyle(color: muted.withValues(alpha: 0.5), fontSize: 12)),
+                  ),
+                  GestureDetector(
+                    onTap: () => _openLegalLink('https://novyn.app/terms'),
+                    child: Text('Terms', style: TextStyle(color: muted, fontSize: 12.5, fontWeight: FontWeight.w600)),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Text('•', style: TextStyle(color: muted.withValues(alpha: 0.5), fontSize: 12)),
+                  ),
+                  GestureDetector(
+                    onTap: () => _openLegalLink('https://novyn.app/support'),
+                    child: Text('Support', style: TextStyle(color: muted, fontSize: 12.5, fontWeight: FontWeight.w600)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Center(
+                child: Column(
+                  children: [
+                    const Text(
+                      'Made with ❤️ by Team Novyn',
+                      style: TextStyle(
+                        color: Color(0xFF7048F8),
+                        fontStyle: FontStyle.italic,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '© 2026 Novyn. All rights reserved.',
+                      style: TextStyle(
+                        color: muted.withValues(alpha: 0.7),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Widget _buildDetailsCard(BuildContext context, Color surface, Color border, Color ink, Color muted) {
+    final buildStr = _installedBuild > 0 ? '$_appVersion ($_installedBuild)' : '$_appVersion (24)';
+    return Container(
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: border),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A000000),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          _detailRow('App version', 'Beta v$_appVersion', ink, muted),
+          Divider(height: 1, thickness: 1, color: border.withValues(alpha: 0.6)),
+          _detailRow('Build number', buildStr, ink, muted),
+          Divider(height: 1, thickness: 1, color: border.withValues(alpha: 0.6)),
+          _detailRow('Release date', '24 Nov 2026', ink, muted),
+        ],
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value, Color ink, Color muted) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TextStyle(color: muted, fontSize: 13.5, fontWeight: FontWeight.w500)),
+          Text(value, style: TextStyle(color: ink, fontSize: 13.5, fontWeight: FontWeight.w700)),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _shareNovyn() async {
+    const shareText = 'Check out Novyn - Your space, your people! Download the app: https://novyn.app';
+    try {
+      await Share.share(shareText);
+    } catch (_) {
+      await Clipboard.setData(const ClipboardData(text: shareText));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Link copied to clipboard!')),
+        );
+      }
+    }
+  }
+
+  void _showWhatsNewSheet() {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final surface = dark ? const Color(0xFF1F1D2C) : Colors.white;
+    final ink = dark ? const Color(0xFFF0EFFF) : const Color(0xFF1D1B2B);
+    final notes = _displayReleaseNotes();
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => SafeArea(
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
+          decoration: BoxDecoration(
+            color: surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: dark ? const Color(0xFF39345F) : const Color(0xFFE5DFFF),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF5E44F3).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.auto_awesome_rounded, color: Color(0xFF5E44F3), size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Text("What's New in Novyn",
+                    style: TextStyle(color: ink, fontSize: 18, fontWeight: FontWeight.w800)),
+                ],
+              ),
+              const SizedBox(height: 16),
+              ...notes.map((n) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(top: 5),
+                      child: Icon(Icons.check_circle_rounded, color: Color(0xFF5E44F3), size: 16),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(n, style: TextStyle(color: ink, fontSize: 14, height: 1.4, fontWeight: FontWeight.w500)),
+                    ),
+                  ],
+                ),
+              )),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openLegalLink(String url) async {
+    final uri = Uri.parse(url);
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (_) {}
   }
 
   Widget _updateAction({
@@ -848,17 +1074,6 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
       ),
     );
   }
-
-  Widget _infoCard(BuildContext context, List<Widget> children) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-    decoration: BoxDecoration(
-      color: NovynTheme.cardBg(context),
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: Theme.of(context).brightness == Brightness.dark
-        ? const Color(0xFF39345F) : const Color(0xFFE5DFFF)),
-    ),
-    child: Column(children: children),
-  );
 }
 
 class _UpdateNote extends StatelessWidget {
@@ -890,31 +1105,6 @@ class _UpdateNote extends StatelessWidget {
     );
   }
 }
-
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, required this.value});
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(children: [
-        Expanded(child: Text(label, style: TextStyle(
-          color: dark ? const Color(0xFFAAA8C6) : const Color(0xFF5D5A85),
-          fontSize: 13, fontWeight: FontWeight.w500))),
-        const SizedBox(width: 12),
-        Flexible(child: Text(value, textAlign: TextAlign.right, maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(color: dark ? const Color(0xFFF0EFFF) : const Color(0xFF1E1B49),
-            fontSize: 13, fontWeight: FontWeight.w800))),
-      ]),
-    );
-  }
-}
-
 
 class _LiquidDownloadProgress extends StatefulWidget {
   const _LiquidDownloadProgress({

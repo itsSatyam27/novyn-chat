@@ -1446,46 +1446,36 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                 height: illustrationSize,
                 child: CustomPaint(
                   painter: _ChatEmptyRingsPainter(
-                    ring: scheme.primary.withValues(alpha: dark ? .18 : .12),
+                    ring: dark ? const Color(0xFF2C254B) : const Color(0xFFE5DFFE),
                   ),
                   child: Center(
                     child: Container(
-                      padding: const EdgeInsets.all(7),
+                      padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: scheme.surface,
+                        color: dark ? const Color(0xFF1B1A28) : Colors.white,
                         boxShadow: [
                           BoxShadow(
-                            color: scheme.primary.withValues(alpha: .13),
-                            blurRadius: 22,
-                            spreadRadius: 4,
+                            color: const Color(0xFF5E44F3).withValues(alpha: dark ? .15 : .06),
+                            blurRadius: 18,
+                            offset: const Offset(0, 4),
                           ),
                         ],
                       ),
-                      child: Container(
-                        padding: const EdgeInsets.all(5),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: scheme.primary.withValues(alpha: .16),
-                            width: 2,
-                          ),
-                        ),
-                        child: UserAvatar(
-                          name: widget.peer.name,
-                          photoUrl: widget.peer.photoUrl,
-                          radius: compact ? 45 : 56,
-                          showOnlineIndicator: !widget.isGroup,
-                          isOnline: widget.peer.isOnline,
-                          presence: widget.peer.status,
-                          fallbackColor: widget.peer.avatarColor,
-                        ),
+                      child: UserAvatar(
+                        name: widget.peer.name,
+                        photoUrl: widget.peer.photoUrl,
+                        radius: compact ? 46 : 56,
+                        showOnlineIndicator: !widget.isGroup,
+                        isOnline: widget.peer.isOnline,
+                        presence: widget.peer.status,
+                        fallbackColor: const Color(0xFF5E44F3),
                       ),
                     ),
                   ),
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 12),
               Text(
                 widget.peer.name,
                 textAlign: TextAlign.center,
@@ -1493,9 +1483,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontFamily: 'PlusJakartaSans',
-                  fontSize: compact ? 21 : 23,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -.55,
+                  fontSize: compact ? 22 : 25,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -.6,
                   color: scheme.onSurface,
                 ),
               ),
@@ -1505,20 +1495,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                     ? 'Group conversation'
                     : '@${widget.peer.username}',
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: 'PlusJakartaSans',
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: scheme.primary,
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF5E44F3),
                 ),
               ),
               const SizedBox(height: 12),
               Container(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
-                  color: scheme.primary.withValues(alpha: dark ? .18 : .10),
-                  borderRadius: BorderRadius.circular(24),
+                  color: dark ? const Color(0xFF2B244A) : const Color(0xFFEDE9FE),
+                  borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -1527,19 +1517,19 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                       widget.isGroup
                           ? Icons.groups_rounded
                           : Icons.lock_outline_rounded,
-                      color: scheme.primary,
-                      size: 17,
+                      color: const Color(0xFF5E44F3),
+                      size: 16,
                     ),
-                    const SizedBox(width: 9),
+                    const SizedBox(width: 8),
                     Text(
                       widget.isGroup
                           ? 'Group conversation'
                           : 'End-to-end encrypted',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontFamily: 'PlusJakartaSans',
-                        fontSize: 12,
+                        fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: scheme.primary,
+                        color: Color(0xFF5E44F3),
                       ),
                     ),
                   ],
@@ -1551,26 +1541,26 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: 'PlusJakartaSans',
-                  fontSize: 13,
+                  fontSize: 14,
                   fontWeight: FontWeight.w500,
                   color: scheme.onSurfaceVariant,
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               Container(
                 clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
                   color: scheme.surface,
-                  borderRadius: BorderRadius.circular(27),
+                  borderRadius: BorderRadius.circular(24),
                   border: Border.all(
                     color: scheme.outlineVariant.withValues(alpha: .22),
                   ),
                   boxShadow: [
                     BoxShadow(
                       color:
-                          scheme.primary.withValues(alpha: dark ? .02 : .045),
-                      blurRadius: 22,
-                      offset: const Offset(0, 7),
+                          const Color(0xFF5E44F3).withValues(alpha: dark ? .04 : .05),
+                      blurRadius: 18,
+                      offset: const Offset(0, 5),
                     ),
                   ],
                 ),
@@ -1580,8 +1570,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                       icon: Icons.waving_hand_rounded,
                       title: 'Wave hello',
                       subtitle: 'Break the ice with a wave',
-                      tint: scheme.primaryContainer,
-                      accent: scheme.primary,
+                      tint: dark ? const Color(0xFF2E264F) : const Color(0xFFEDE9FE),
+                      accent: const Color(0xFF5E44F3),
                       onTap: () {
                         unawaited(context.read<SocketService>().sendMessage(
                               '👋',
@@ -1603,8 +1593,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                       icon: Icons.gif_box_rounded,
                       title: 'Send a GIF',
                       subtitle: 'Pick something fun',
-                      tint: scheme.primaryContainer,
-                      accent: scheme.primary,
+                      tint: dark ? const Color(0xFF2E264F) : const Color(0xFFEDE9FE),
+                      accent: const Color(0xFF5E44F3),
                       onTap: _showGifPicker,
                     ),
 
@@ -7871,14 +7861,12 @@ class _ChatEmptyRingsPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final radius = math.min(size.width, size.height) * .47;
+    final radius = math.min(size.width, size.height) * .43;
     final paint = Paint()
       ..color = ring
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-    for (var index = 1; index <= 4; index++) {
-      canvas.drawCircle(center, radius * index / 4, paint);
-    }
+      ..strokeWidth = 8;
+    canvas.drawCircle(center, radius, paint);
   }
 
   @override
