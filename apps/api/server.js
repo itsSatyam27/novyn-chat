@@ -10,7 +10,7 @@ const { registerHealthRoutes } = require("./server/routes/health");
 const { createSocketAuthMiddleware } = require("./server/realtime/socket-auth");
 const { isAllowedSocketOrigin } = require("./server/security/origins");
 const { mediaNames, canReadMedia } = require("./server/security/media-access");
-const { ALLOWED_VOICE_MIME, ALLOWED_FILE_MIME, MULTIPART_LIMITS, createUploadFileFilter, mapMultipartError } = require("./server/security/uploads");
+const { ALLOWED_VOICE_MIME, ALLOWED_FILE_MIME, MULTIPART_LIMITS, createUploadFileFilter, mapMultipartError, uploadCloudMediaWithMetadata } = require("./server/security/uploads");
 const { registerMessageMutationHandlers } = require("./server/realtime/message-mutations");
 const { registerCallHandlers, cancelCallForUser } = require("./server/realtime/call-handlers");
 const { applyGameMove, createGameChallenge } = require("./server/realtime/game-rules");
@@ -295,12 +295,31 @@ function userCanReadMedia(filename, userKey) {
 }
 
 async function storeCloudMedia(file, ownerKey, folder) {
-  const result = await cloudinary.uploader.upload(file.path, {
-    resource_type: 'auto', type: 'authenticated', folder,
-  });
   const filename = `cloud-${crypto.randomBytes(16).toString('hex')}.bin`;
-  await saveMediaMetadata(filename, ownerKey, {
-    publicId: result.public_id, format: result.format || '', resourceType: result.resource_type,
+  const result = await uploadCloudMediaWithMetadata({
+    upload: () => cloudinary.uploader.upload(file.path, {
+      resource_type: 'auto', type: 'authenticated', folder,
+    }),
+    saveMetadata: (uploaded) => saveMediaMetadata(filename, ownerKey, {
+      publicId: uploaded.public_id,
+      format: uploaded.format || '',
+      resourceType: uploaded.resource_type,
+    }),
+    cleanup: (uploaded) => {
+      if (!uploaded?.public_id || !uploaded?.resource_type) return;
+      return cloudinary.uploader.destroy(uploaded.public_id, {
+        resource_type: uploaded.resource_type,
+        type: 'authenticated',
+        invalidate: true,
+      });
+    },
+    onCleanupError: (cleanupError, uploaded) => {
+      console.error(
+        '[NovynMedia] Could not clean up orphaned Cloudinary upload:',
+        uploaded?.public_id || 'unknown public id',
+        cleanupError?.message || cleanupError,
+      );
+    },
   });
   return `/uploads/${filename}?token=${signUploadToken(filename)}`;
 }
