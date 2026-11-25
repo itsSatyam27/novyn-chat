@@ -2,11 +2,16 @@
 
 This branch is a staged production-hardening effort. Do not treat the checklist as evidence that an item is already implemented.
 
+## Implemented changes
+
+- [x] Render HTTP rate limits use a syntactically valid `CF-Connecting-IP` value for client identity. If that trusted edge header is missing or malformed, the limiter falls back to the socket peer rather than trusting potentially client-supplied `X-Forwarded-For` values. Regression tests cover same-client throttling and client isolation.
+- [x] CI validation now runs on pushes to `production-readiness` and for pull requests targeting it.
+
 ## Release gates
 
 ### P0 — security and deployment safety
 - [ ] Audit authentication/session lifecycle, token/cookie expiry, CSRF and session revocation.
-- [ ] Audit rate limits for all sensitive endpoints (auth, password reset, uploads, search, invitations, game actions).
+- [ ] Complete rate-limit audit for all sensitive endpoints (auth, password reset, uploads, search, invitations, game actions); verify distributed storage before adding multiple backend replicas.
 - [ ] Audit authorization boundaries for chat, group, media, games, calls, profile and settings.
 - [ ] Verify upload limits, file-type validation, malware-risk handling, storage cleanup and access authorization.
 - [ ] Review CORS/socket origin policy, TLS/proxy trust, security headers and production error responses.

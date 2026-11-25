@@ -1,6 +1,42 @@
+"use strict";
+
+const net = require("node:net");
+
 const DEFAULT_WINDOW_MS = 60 * 1000;
 
-function createIpRateLimiter({ store, getStore, normalizeIp = (value) => String(value || "unknown") } = {}, bucket, maxRequests, windowMs = DEFAULT_WINDOW_MS) {
+function validIp(value) {
+  const candidate = String(value ?? "").trim();
+  return net.isIP(candidate) ? candidate : "";
+}
+
+function getRequestClientIp(req) {
+  // Render routes public web-service traffic through Cloudflare before it
+  // reaches the service. Cloudflare's single-value CF-Connecting-IP header is
+  // preferable to X-Forwarded-For, which may contain client-supplied entries.
+  if (String(process.env.RENDER || "").toLowerCase() === "true") {
+    const cloudflareIp = validIp(req?.headers?.["cf-connecting-ip"]);
+    if (cloudflareIp) return cloudflareIp;
+
+    // Do not fall back to X-Forwarded-For when the trusted edge header is
+    // absent or malformed. The socket peer is conservative (it may be the
+    // shared proxy), but it cannot be chosen by the HTTP client.
+    return validIp(req?.socket?.remoteAddress) || "unknown";
+  }
+
+  return validIp(req?.ip) || validIp(req?.socket?.remoteAddress) || "unknown";
+}
+
+function createIpRateLimiter(
+  {
+    store,
+    getStore,
+    getClientIp = getRequestClientIp,
+    normalizeIp = (value) => String(value || "unknown"),
+  } = {},
+  bucket,
+  maxRequests,
+  windowMs = DEFAULT_WINDOW_MS
+) {
   const resolveStore = () => getStore ? getStore() : store;
   if (!store && !getStore) {
     throw new Error("createIpRateLimiter requires a rate-limit store.");
@@ -15,7 +51,7 @@ function createIpRateLimiter({ store, getStore, normalizeIp = (value) => String(
       next();
       return;
     }
-    const ip = normalizeIp(req?.ip || req?.socket?.remoteAddress || "unknown");
+    const ip = String(normalizeIp(getClientIp(req)) || "unknown");
     const now = Date.now();
     const key = safeBucket + ":" + ip;
     const current = activeStore.get(key);
@@ -46,5 +82,6 @@ function pruneHttpRateLimits(store) {
 
 module.exports = {
   createIpRateLimiter,
+  getRequestClientIp,
   pruneHttpRateLimits,
 };

@@ -2,9 +2,9 @@ name: Novyn CI
 
 on:
   push:
-    branches: [main, "phase-2", "features/**", "hardening/**", "calls/**", "offline/**"]
+    branches: [main, "phase-2", "features/**", "hardening/**", "calls/**", "offline/**", "production-readiness"]
   pull_request:
-    branches: [main, "phase-2"]
+    branches: [main, "phase-2", "production-readiness"]
 
 jobs:
   validate:
