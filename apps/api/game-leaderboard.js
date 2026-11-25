@@ -157,7 +157,200 @@ function buildGameLeaderboard({
   return rows.map((row, index) => ({ rank: index + 1, ...row }));
 }
 
+
+function buildMongoGameLeaderboardPipeline(userKeys = null) {
+  const match = {
+    isBotMatch: { $ne: true },
+    userKey: { $type: "string", $ne: "" },
+    playedAt: { $type: "string", $ne: "" },
+    result: { $in: ["win", "loss", "draw"] },
+  };
+  if (Array.isArray(userKeys)) match.userKey = { $in: userKeys };
+
+  const rawGameType = { $toLower: { $ifNull: ["$gameType", ""] } };
+  return [
+    { $match: match },
+    {
+      $addFields: {
+        normalizedGameType: {
+          $cond: [
+            { $eq: [rawGameType, "rockpaperscissors"] },
+            "rps",
+            rawGameType,
+          ],
+        },
+      },
+    },
+    { $match: { normalizedGameType: { $in: [...VALID_GAME_TYPES].filter((game) => game !== "rockpaperscissors") } } },
+    // userKey + playedAt matches the storage compound index. The window stage
+    // partitions by game so a loss/draw resets only that game's win streak.
+    { $sort: { userKey: 1, playedAt: 1, _id: 1 } },
+    {
+      $setWindowFields: {
+        partitionBy: { userKey: "$userKey", gameType: "$normalizedGameType" },
+        sortBy: { playedAt: 1, _id: 1 },
+        output: {
+          streakSegment: {
+            $sum: {
+              $cond: [{ $eq: ["$result", "win"] }, 0, 1],
+            },
+            window: { documents: ["unbounded", "current"] },
+          },
+        },
+      },
+    },
+    {
+      $group: {
+        _id: {
+          userKey: "$userKey",
+          gameType: "$normalizedGameType",
+          streakSegment: "$streakSegment",
+        },
+        matches: { $sum: 1 },
+        wins: { $sum: { $cond: [{ $eq: ["$result", "win"] }, 1, 0] } },
+        losses: { $sum: { $cond: [{ $eq: ["$result", "loss"] }, 1, 0] } },
+        draws: { $sum: { $cond: [{ $eq: ["$result", "draw"] }, 1, 0] } },
+        runWins: { $sum: { $cond: [{ $eq: ["$result", "win"] }, 1, 0] } },
+        lastPlayedAt: { $max: "$playedAt" },
+      },
+    },
+    {
+      $group: {
+        _id: { userKey: "$_id.userKey", gameType: "$_id.gameType" },
+        matches: { $sum: "$matches" },
+        wins: { $sum: "$wins" },
+        losses: { $sum: "$losses" },
+        draws: { $sum: "$draws" },
+        streakBonus: {
+          $sum: {
+            $multiply: [{ $floor: { $divide: ["$runWins", 3] } }, 15],
+          },
+        },
+        lastPlayedAt: { $max: "$lastPlayedAt" },
+      },
+    },
+    {
+      $addFields: {
+        score: {
+          $add: [
+            { $multiply: ["$matches", 10] },
+            { $multiply: ["$wins", 25] },
+            "$streakBonus",
+          ],
+        },
+      },
+    },
+    {
+      $group: {
+        _id: "$_id.userKey",
+        overallMatches: { $sum: "$matches" },
+        overallWins: { $sum: "$wins" },
+        overallLosses: { $sum: "$losses" },
+        overallDraws: { $sum: "$draws" },
+        overallScore: { $sum: "$score" },
+        overallLastPlayedAt: { $max: "$lastPlayedAt" },
+        games: {
+          $push: {
+            gameType: "$_id.gameType",
+            matches: "$matches",
+            wins: "$wins",
+            losses: "$losses",
+            draws: "$draws",
+            score: "$score",
+            lastPlayedAt: "$lastPlayedAt",
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        _id: 0,
+        userKey: "$_id",
+        overall: {
+          matches: "$overallMatches",
+          wins: "$overallWins",
+          losses: "$overallLosses",
+          draws: "$overallDraws",
+          score: "$overallScore",
+          lastPlayedAt: "$overallLastPlayedAt",
+        },
+        games: 1,
+      },
+    },
+  ];
+}
+
+function buildGameLeaderboardFromAggregates({
+  aggregates,
+  users,
+  viewerKey,
+  selectedGame = "overall",
+} = {}) {
+  const gameFilter = normalizeLeaderboardGame(selectedGame);
+  if (!gameFilter || !(users instanceof Map)) return [];
+  const safeViewerKey = String(viewerKey || "").trim().toLowerCase();
+  const rows = [];
+
+  for (const aggregate of Array.isArray(aggregates) ? aggregates : []) {
+    const userKey = String(aggregate?.userKey || "").trim().toLowerCase();
+    const user = users.get(userKey);
+    if (!userKey || !user?.isRegistered || user.isSuspended === true) continue;
+    const selected = gameFilter === "overall"
+      ? aggregate.overall
+      : (Array.isArray(aggregate.games)
+        ? aggregate.games.find((entry) => normalizeLeaderboardGame(entry?.gameType) === gameFilter)
+        : null);
+    if (!selected && userKey !== safeViewerKey) continue;
+
+    const stats = selected || createStats();
+    const matches = Math.max(0, Number(stats.matches) || 0);
+    const wins = Math.max(0, Number(stats.wins) || 0);
+    const losses = Math.max(0, Number(stats.losses) || 0);
+    const draws = Math.max(0, Number(stats.draws) || 0);
+    rows.push({
+      username: String(user.username || userKey),
+      displayName: String(user.displayName || user.username || userKey),
+      score: Math.max(0, Number(stats.score) || 0),
+      matches,
+      wins,
+      losses,
+      draws,
+      winRate: matches > 0 ? Math.round((wins / matches) * 100) : 0,
+      lastPlayedAt: String(stats.lastPlayedAt || ""),
+      isSelf: userKey === safeViewerKey,
+    });
+  }
+
+  if (safeViewerKey && users.get(safeViewerKey)?.isRegistered &&
+      !rows.some((entry) => entry.isSelf)) {
+    const user = users.get(safeViewerKey);
+    rows.push({
+      username: String(user.username || safeViewerKey),
+      displayName: String(user.displayName || user.username || safeViewerKey),
+      score: 0,
+      matches: 0,
+      wins: 0,
+      losses: 0,
+      draws: 0,
+      winRate: 0,
+      lastPlayedAt: "",
+      isSelf: true,
+    });
+  }
+
+  rows.sort((a, b) =>
+    b.score - a.score ||
+    b.wins - a.wins ||
+    b.winRate - a.winRate ||
+    b.matches - a.matches ||
+    a.username.localeCompare(b.username)
+  );
+  return rows.map((row, index) => ({ rank: index + 1, ...row }));
+}
+
 module.exports = {
   buildGameLeaderboard,
+  buildGameLeaderboardFromAggregates,
+  buildMongoGameLeaderboardPipeline,
   normalizeLeaderboardGame,
 };

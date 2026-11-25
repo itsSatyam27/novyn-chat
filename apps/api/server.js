@@ -17,7 +17,7 @@ const { registerMessageMutationHandlers } = require("./server/realtime/message-m
 const { registerCallHandlers, cancelCallForUser } = require("./server/realtime/call-handlers");
 const { applyGameMove, createGameChallenge } = require("./server/realtime/game-rules");
 const { PublicGameMatchmaking } = require("./server/realtime/game-matchmaking");
-const { buildGameLeaderboard, normalizeLeaderboardGame } = require("./game-leaderboard");
+const { buildGameLeaderboard, buildGameLeaderboardFromAggregates, buildMongoGameLeaderboardPipeline, normalizeLeaderboardGame } = require("./game-leaderboard");
 const { RajaMantriMatchmaking } = require("./server/realtime/raja-mantri-matchmaking");
 const {
   createRajaMantriGameSession,
@@ -1172,30 +1172,47 @@ app.get("/api/games/leaderboard", requireUser,
       }
     }
 
-    const historyQuery = { isBotMatch: { $ne: true } };
-    if (scope === "friends") {
-      historyQuery.userKey = { $in: Array.from(eligibleUsers.keys()) };
+    let rankings;
+    try {
+      const userKeys = scope === "friends"
+        ? Array.from(eligibleUsers.keys())
+        : null;
+      const aggregated = await mongoGameHistoryCollection
+        .aggregate(buildMongoGameLeaderboardPipeline(userKeys), { allowDiskUse: true })
+        .toArray();
+      rankings = buildGameLeaderboardFromAggregates({
+        aggregates: aggregated,
+        users: eligibleUsers,
+        viewerKey: req.userKey,
+        selectedGame: game,
+      });
+    } catch (aggregationError) {
+      // MongoDB 5.0+ supports $setWindowFields. Retain the old, correct
+      // implementation as a compatibility fallback for older/self-hosted clusters.
+      console.warn("[NovynGames] Server-side leaderboard aggregation unavailable; using compatibility path:",
+        aggregationError?.message || aggregationError);
+      const historyQuery = { isBotMatch: { $ne: true } };
+      if (scope === "friends") historyQuery.userKey = { $in: Array.from(eligibleUsers.keys()) };
+      const matches = await mongoGameHistoryCollection
+        .find(historyQuery, {
+          projection: {
+            _id: 0,
+            userKey: 1,
+            gameType: 1,
+            result: 1,
+            playedAt: 1,
+            isBotMatch: 1,
+          },
+        })
+        .sort({ userKey: 1, playedAt: 1 })
+        .toArray();
+      rankings = buildGameLeaderboard({
+        matches,
+        users: eligibleUsers,
+        viewerKey: req.userKey,
+        selectedGame: game,
+      });
     }
-    const matches = await mongoGameHistoryCollection
-      .find(historyQuery, {
-        projection: {
-          _id: 0,
-          userKey: 1,
-          gameType: 1,
-          result: 1,
-          playedAt: 1,
-          isBotMatch: 1,
-        },
-      })
-      .sort({ userKey: 1, playedAt: 1 })
-      .toArray();
-
-    const rankings = buildGameLeaderboard({
-      matches,
-      users: eligibleUsers,
-      viewerKey: req.userKey,
-      selectedGame: game,
-    });
     return res.json({
       ok: true,
       scope,
