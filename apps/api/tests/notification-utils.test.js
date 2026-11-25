@@ -196,6 +196,9 @@ test("encrypted direct messages use Android data-only delivery and keep iOS aler
   assert.equal(encrypted.data.iv, "nonce");
   assert.equal(encrypted.data.senderPublicKey, "public-key");
   assert.equal(encrypted.data.messageId, "msg-1");
+  assert.equal(encrypted.data.recipient, "alice");
+  assert.equal(encrypted.data.kind, "friend");
+  assert.equal(encrypted.data.previewEnabled, "1");
   assert.doesNotMatch(JSON.stringify(encrypted), /secret plaintext/);
 });
 

@@ -300,14 +300,33 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     isGroup: isGroup,
     mentionOrReply: mentionOrReply,
   )) return;
-  // Keep honoring explicit silent payloads (including delayed pushes).
+  // Resolve and validate the recipient account before reading account-scoped
+  // archive preferences or attempting E2EE decryption.
+  final storedNotificationAccount =
+      (prefs.getString('novyn_notification_account') ?? '').trim().toLowerCase();
+  final pushRecipient = data['recipient']?.toString().trim().toLowerCase() ?? '';
+  if (storedNotificationAccount.isNotEmpty &&
+      pushRecipient.isNotEmpty &&
+      storedNotificationAccount != pushRecipient) {
+    debugPrint(
+        '[NovynNotifications] Ignored message push for a different signed-in account.');
+    return;
+  }
+  // The recipient in the signed FCM payload is bound to this registered device
+  // token. Use it only when the local account marker is absent.
+  final notificationAccount = storedNotificationAccount.isNotEmpty
+      ? storedNotificationAccount
+      : pushRecipient;
+  if (notificationAccount.isNotEmpty && storedNotificationAccount.isEmpty) {
+    await prefs.setString('novyn_notification_account', notificationAccount);
+  }
+
+  // Keep honoring explicit silent pushes and account-scoped chat preferences.
   final sender = (data['chat'] ?? '').toString().trim();
-  final account = (prefs.getString('novyn_notification_account') ?? '')
-      .trim()
-      .toLowerCase();
-  final archivedChats = (prefs.getStringList('novyn_archived_$account') ?? [])
-      .map((value) => value.trim().toLowerCase())
-      .toSet();
+  final archivedChats =
+      (prefs.getStringList('novyn_archived_$notificationAccount') ?? [])
+          .map((value) => value.trim().toLowerCase())
+          .toSet();
   if (archivedChats.contains(sender.toLowerCase())) return;
   if (prefs.getBool('novyn_mute_${sender.toLowerCase()}') == true) return;
   final dndEnabled = prefs.getBool('do_not_disturb_enabled') ?? false;
@@ -327,8 +346,6 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   final previewEnabled = (prefs.getBool('message_preview') ?? true) &&
       data['previewEnabled']?.toString() != '0';
   final hideContent = prefs.getBool('hide_notification_content') ?? false;
-  final notificationAccount =
-      (prefs.getString('novyn_notification_account') ?? '').trim();
   if (sender.isEmpty) {
     debugPrint(
         '[NovynNotifications] Background message has no sender chat id.');
@@ -363,36 +380,61 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
           iv: iv,
         );
         final encryption = MessageEncryptionService();
-        var decrypted =
-            await encryption.decrypt(encrypted, notificationAccount, peerKey);
-        // Secure storage can take longer to become available in Android's
-        // background isolate. Retry with bounded backoff; never expose
-        // ciphertext or fall back to plaintext from the server.
-        const retryDelays = [350, 700, 1200];
-        for (final delay in retryDelays) {
-          if (!decrypted.needsMessageKey) break;
-          await Future<void>.delayed(Duration(milliseconds: delay));
-          decrypted =
-              await encryption.decrypt(encrypted, notificationAccount, peerKey);
+        Message decrypted;
+        // Android may schedule the FCM isolate while the app process is gone.
+        // Give the keystore-backed identity a short bounded warm-up window.
+        final retryDelays = <int>[350, 700, 1200];
+        Object? lastDecryptError;
+        while (true) {
+          try {
+            decrypted = await encryption.decryptForNotification(
+              encrypted,
+              notificationAccount,
+              peerKey,
+            );
+            lastDecryptError = null;
+            break;
+          } catch (error) {
+            lastDecryptError = error;
+            if (retryDelays.isEmpty) rethrow;
+            final delay = retryDelays.first;
+            retryDelays.removeAt(0);
+            await Future<void>.delayed(Duration(milliseconds: delay));
+          }
         }
         if (!decrypted.needsMessageKey &&
             decrypted.text != '🔒 Encrypted message' &&
             decrypted.text.trim().isNotEmpty) {
           body = decrypted.text.trim();
+          await prefs.remove('novyn_notification_preview_last_failure');
           debugPrint(
-              '[NovynNotifications] Background message preview decrypted successfully.');
+              '[NovynNotifications] Background E2EE preview decrypted locally.');
         } else {
-          debugPrint(
-              '[NovynNotifications] Message preview key unavailable for this sender/account.');
+          throw lastDecryptError ??
+              StateError('Background E2EE preview remained encrypted.');
         }
       } catch (error) {
+        final failureCode = error is StateError
+            ? 'local_identity_or_conversation_key_unavailable'
+            : error is FormatException
+                ? 'invalid_encryption_envelope'
+                : error.runtimeType.toString();
+        await prefs.setString(
+          'novyn_notification_preview_last_failure',
+          failureCode,
+        );
+        await prefs.setInt(
+          'novyn_notification_preview_last_failure_at',
+          DateTime.now().millisecondsSinceEpoch,
+        );
         debugPrint(
-            '[NovynNotifications] Background preview decryption failed: $error');
-        // Never expose ciphertext; fall back to a private generic alert.
+          '[NovynNotifications] Background E2EE preview could not be decrypted '
+          'locally ($failureCode). The notification remains private.');
+        // Never expose ciphertext or server-side plaintext as a fallback.
       }
     } else {
       debugPrint(
-          '[NovynNotifications] Encrypted push is missing preview key material (ciphertext: ${ciphertext.isNotEmpty}, iv: ${iv.isNotEmpty}, sender key: ${peerKey.isNotEmpty}, account: ${account.isNotEmpty}).');
+          '[NovynNotifications] Encrypted push is missing preview key material (ciphertext: ${ciphertext.isNotEmpty}, iv: ${iv.isNotEmpty}, sender key: ${peerKey.isNotEmpty}, account: ${notificationAccount.isNotEmpty}).');
     }
   } else {
     debugPrint(

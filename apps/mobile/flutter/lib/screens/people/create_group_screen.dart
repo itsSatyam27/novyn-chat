@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:novyn/widgets/novyn_alert.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import '../../services/friend_service.dart';
-import '../../services/socket_service.dart';
+
 import '../../models/user_model.dart';
-import '../../widgets/user_avatar.dart';
+import '../../services/friend_service.dart';
+import '../../services/haptic_service.dart';
+import '../../services/socket_service.dart';
 import '../../theme/novyn_theme.dart';
-import 'package:novyn/services/haptic_service.dart';
+import '../../widgets/user_avatar.dart';
 
 class CreateGroupScreen extends StatefulWidget {
   final String myUid;
+
   const CreateGroupScreen({super.key, required this.myUid});
 
   @override
@@ -19,32 +19,45 @@ class CreateGroupScreen extends StatefulWidget {
 
 class _CreateGroupScreenState extends State<CreateGroupScreen> {
   final _nameController = TextEditingController();
-  final _nameNotifier = ValueNotifier<String>(''); // Optimized state tracking
-  final List<UserModel> _selected = [];
+  final _nameFocusNode = FocusNode();
+  final _searchController = TextEditingController();
+  final _searchFocusNode = FocusNode();
+  final _nameNotifier = ValueNotifier<String>('');
+  final List<UserModel> _selected = <UserModel>[];
   String _search = '';
+  bool _creating = false;
 
   @override
   void dispose() {
     _nameController.dispose();
+    _nameFocusNode.dispose();
+    _searchController.dispose();
+    _searchFocusNode.dispose();
     _nameNotifier.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
     final friends = context.read<FriendService>();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final pageBackground = theme.brightness == Brightness.dark
+        ? NovynTheme.pageBg(context)
+        : Color.lerp(NovynTheme.pageBg(context), colors.primary, .025)!;
 
     return Scaffold(
-      backgroundColor: NovynTheme.pageBg(context),
+      backgroundColor: pageBackground,
       resizeToAvoidBottomInset: true,
-      body: Container(
-        decoration: BoxDecoration( // Optimized background
+      body: DecoratedBox(
+        decoration: BoxDecoration(
           gradient: RadialGradient(
-            center: Alignment.topRight,
-            radius: 1.2,
+            center: const Alignment(1, -1),
+            radius: 1.15,
             colors: [
-              Theme.of(context).colorScheme.primary.withValues(alpha: isDark ? 0.05 : 0.08),
+              colors.primary.withValues(
+                alpha: theme.brightness == Brightness.dark ? .08 : .055,
+              ),
               Colors.transparent,
             ],
           ),
@@ -54,18 +67,46 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
             children: [
               _buildHeader(context),
               Expanded(
-                child: CustomScrollView( // High-performance scrolling
+                child: CustomScrollView(
+                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                   physics: const BouncingScrollPhysics(),
                   slivers: [
-                    SliverToBoxAdapter(child: _buildGroupNameInput(isDark)),
-                    if (_selected.isNotEmpty) 
-                      SliverToBoxAdapter(child: _buildSelectedList()),
-                    SliverToBoxAdapter(child: _buildSearchInput(isDark)),
-                    _buildSliverFriendList(friends),
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(24, 18, 24, 0),
+                      sliver: SliverToBoxAdapter(
+                        child: _buildGroupNameInput(context),
+                      ),
+                    ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 20)),
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      sliver: SliverToBoxAdapter(
+                        child: _buildMembersHeading(context),
+                      ),
+                    ),
+                    if (_selected.isNotEmpty) ...[
+                      const SliverToBoxAdapter(child: SizedBox(height: 10)),
+                      SliverPadding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        sliver: SliverToBoxAdapter(
+                          child: _buildSelectedMembers(context),
+                        ),
+                      ),
+                    ],
+                    const SliverToBoxAdapter(child: SizedBox(height: 12)),
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      sliver: SliverToBoxAdapter(
+                        child: _buildSearchInput(context),
+                      ),
+                    ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 6)),
+                    _buildFriendListSliver(friends),
+                    const SliverToBoxAdapter(child: SizedBox(height: 12)),
                   ],
                 ),
               ),
-              _buildCreateButton(Theme.of(context).colorScheme.primary),
+              _buildCreateButton(context),
             ],
           ),
         ),
@@ -74,101 +115,215 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
   }
 
   Widget _buildHeader(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
+      child: SizedBox(
+        height: 54,
+        child: Row(
+          children: [
+            Material(
+              color: colors.surface,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: () => Navigator.of(context).maybePop(),
+                child: SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: Icon(
+                    Icons.close_rounded,
+                    size: 25,
+                    color: colors.onSurface,
+                  ),
+                ),
+              ),
+            ),
+            Expanded(
+              child: Text(
+                'New Group',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'PlusJakartaSans',
+                  fontSize: 21,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -.45,
+                  color: colors.onSurface,
+                ),
+              ),
+            ),
+            const SizedBox(width: 44),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGroupNameInput(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final accent = colors.primary;
+    return Container(
+      height: 56,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(32),
+        border: Border.all(color: colors.outlineVariant.withValues(alpha: .5)),
+      ),
       child: Row(
         children: [
-          IconButton(
-            icon: const Icon(Icons.close_rounded),
-            onPressed: () => Navigator.pop(context),
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: .14),
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: Icon(Icons.groups_2_outlined, color: accent, size: 23),
           ),
-          const Expanded(
-            child: Text(
-              'New Group',
-              textAlign: TextAlign.center,
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              controller: _nameController,
+              focusNode: _nameFocusNode,
+              textCapitalization: TextCapitalization.words,
+              textInputAction: TextInputAction.next,
+              onChanged: (value) => _nameNotifier.value = value,
               style: TextStyle(
                 fontFamily: 'PlusJakartaSans',
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
+                fontSize: 15.5,
+                fontWeight: FontWeight.w600,
+                color: colors.onSurface,
+              ),
+              decoration: InputDecoration(
+                filled: false,
+                isDense: true,
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                hintText: 'Group name',
+                hintStyle: TextStyle(
+                  fontFamily: 'PlusJakartaSans',
+                  fontSize: 15.5,
+                  fontWeight: FontWeight.w500,
+                  color: colors.onSurfaceVariant,
+                ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
               ),
             ),
           ),
-          const SizedBox(width: 48), // Spacer
+          ValueListenableBuilder<String>(
+            valueListenable: _nameNotifier,
+            builder: (context, value, _) => value.isEmpty
+                ? const SizedBox(width: 8)
+                : IconButton(
+                    tooltip: 'Clear group name',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () {
+                      _nameController.clear();
+                      _nameNotifier.value = '';
+                      _nameFocusNode.requestFocus();
+                    },
+                    icon: Icon(
+                      Icons.close_rounded,
+                      color: colors.onSurfaceVariant,
+                      size: 19,
+                    ),
+                  ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildGroupNameInput(bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-        decoration: BoxDecoration(
-          color: NovynTheme.cardBg(context),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .7)),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: isDark ? .12 : .035), blurRadius: 16, offset: const Offset(0, 5))],
-        ),
-        child: TextField(
-          controller: _nameController,
-          onChanged: (v) => _nameNotifier.value = v, // Non-rebuilding state update
-          style: const TextStyle(fontFamily: 'PlusJakartaSans', fontWeight: FontWeight.w700, fontSize: 16),
-          decoration: const InputDecoration(
-            hintText: 'Enter Group Name...',
-            border: InputBorder.none,
-            prefixIcon: Icon(Icons.groups_rounded, size: 24),
+  Widget _buildMembersHeading(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            'Add members',
+            style: TextStyle(
+              fontFamily: 'PlusJakartaSans',
+              fontSize: 14.5,
+              fontWeight: FontWeight.w700,
+              color: colors.onSurfaceVariant,
+            ),
           ),
         ),
-      ),
+        Text(
+          '${_selected.length} selected',
+          style: TextStyle(
+            fontFamily: 'PlusJakartaSans',
+            fontSize: 13.5,
+            fontWeight: FontWeight.w800,
+            color: colors.primary,
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _buildSelectedList() {
-    return Container(
-      height: 82,
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
+  Widget _buildSelectedMembers(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return SizedBox(
+      height: 42,
+      child: ListView.separated(
         scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
         itemCount: _selected.length,
-        itemBuilder: (context, i) {
-          final user = _selected[i];
-          return Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Stack(
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final user = _selected[index];
+          return Container(
+            padding: const EdgeInsets.fromLTRB(5, 4, 8, 4),
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: colors.outlineVariant.withValues(alpha: .55),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Column(
-                  children: [
-                    UserAvatar(name: user.name, photoUrl: user.photoUrl, radius: 25),
-                    const SizedBox(height: 4),
-                    SizedBox(
-                      width: 50,
-                      child: Text(
-                        user.name.split(' ')[0],
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
+                UserAvatar(
+                  name: user.name,
+                  photoUrl: user.photoUrl,
+                  radius: 15,
                 ),
-                Positioned(
-                  right: 0,
-                  top: 0,
-                  child: GestureDetector(
-                    onTap: () {
-                      HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.buttons);
-                      setState(() => _selected.removeWhere((u) => u.uid == user.uid));
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.all(3),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEF4444), 
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
+                const SizedBox(width: 7),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 112),
+                  child: Text(
+                    user.name.split(' ').first,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: colors.onSurface,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 7),
+                Material(
+                  color: colors.primary.withValues(alpha: .11),
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: () => _toggleMember(user),
+                    child: SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: Icon(
+                        Icons.close_rounded,
+                        size: 17,
+                        color: colors.primary,
                       ),
-                      child: const Icon(Icons.close_rounded, color: Colors.white, size: 10),
                     ),
                   ),
                 ),
@@ -180,127 +335,338 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     );
   }
 
-  Widget _buildSearchInput(bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-        decoration: BoxDecoration(
-          color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .65)),
-        ),
-        child: TextField(
-          onChanged: (v) => setState(() => _search = v.toLowerCase()),
-          decoration: const InputDecoration(
-            hintText: 'Search friends...',
-            border: InputBorder.none,
-            icon: Icon(Icons.search_rounded, size: 20),
+  Widget _buildSearchInput(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: colors.outlineVariant.withValues(alpha: .45)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.search_rounded, size: 21, color: colors.onSurfaceVariant),
+          const SizedBox(width: 10),
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              focusNode: _searchFocusNode,
+              onChanged: (value) => setState(() => _search = value.trim().toLowerCase()),
+              textInputAction: TextInputAction.search,
+              style: TextStyle(
+                fontFamily: 'PlusJakartaSans',
+                fontSize: 14.5,
+                color: colors.onSurface,
+              ),
+              decoration: InputDecoration(
+                filled: false,
+                isDense: true,
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                hintText: 'Search friends',
+                hintStyle: TextStyle(
+                  fontFamily: 'PlusJakartaSans',
+                  fontSize: 14.5,
+                  color: colors.onSurfaceVariant,
+                ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
           ),
-        ),
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: _searchController,
+            builder: (context, value, _) => value.text.isEmpty
+                ? const SizedBox.shrink()
+                : IconButton(
+                    tooltip: 'Clear search',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() => _search = '');
+                      _searchFocusNode.requestFocus();
+                    },
+                    icon: Icon(
+                      Icons.close_rounded,
+                      color: colors.onSurfaceVariant,
+                      size: 18,
+                    ),
+                  ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildSliverFriendList(FriendService service) {
+  Widget _buildFriendListSliver(FriendService service) {
+    final colors = Theme.of(context).colorScheme;
     return StreamBuilder<List<UserModel>>(
       stream: service.friendsStream(widget.myUid),
-      builder: (context, snap) {
-        final all = snap.data ?? [];
-        final filtered = all.where((u) => 
-          u.name.toLowerCase().contains(_search) || 
-          u.username.toLowerCase().contains(_search)
-        ).toList();
-
-        if (filtered.isEmpty) {
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            snapshot.data == null) {
           return SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
-              child: Column(children: [
-                Icon(Icons.group_outlined, size: 34, color: Theme.of(context).colorScheme.primary.withValues(alpha: .7)),
-                const SizedBox(height: 10),
-                Text(_search.isEmpty ? 'No friends yet' : 'No friends found', style: TextStyle(fontWeight: FontWeight.w800, color: Theme.of(context).colorScheme.onSurface)),
-                const SizedBox(height: 4),
-                Text(_search.isEmpty ? 'Add friends before starting a group.' : 'Try another name or username.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
-              ]),
+              padding: const EdgeInsets.symmetric(vertical: 42),
+              child: Center(
+                child: CircularProgressIndicator(color: colors.primary),
+              ),
             ),
           );
         }
-        return SliverList(
-          delegate: SliverChildBuilderDelegate(
-            (context, i) {
-              final user = filtered[i];
-              final isSelected = _selected.any((u) => u.uid == user.uid);
+        if (snapshot.hasError) {
+          return SliverToBoxAdapter(
+            child: _buildListMessage(
+              context,
+              icon: Icons.cloud_off_rounded,
+              title: 'Could not load friends',
+              subtitle: 'Check your connection and try again.',
+            ),
+          );
+        }
 
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
-                child: Card(
-                  elevation: 0,
-                  color: NovynTheme.cardBg(context),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .55))),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                  leading: UserAvatar(name: user.name, photoUrl: user.photoUrl, radius: 22),
-                  title: Text(user.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: Text('@${user.username}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                  trailing: Container(
-                    width: 24,
-                    height: 24,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: isSelected ? const Color(0xFF6D5DFC) : Colors.grey.withValues(alpha: 0.3)),
-                      color: isSelected ? const Color(0xFF6D5DFC) : Colors.transparent,
-                    ),
-                    child: isSelected ? const Icon(Icons.check, color: Colors.white, size: 16) : null,
-                  ),
-                  onTap: () {
-                    HapticService.vibrate(NovynHapticType.light, category: HapticCategory.buttons);
-                    setState(() {
-                      if (isSelected) {
-                        _selected.removeWhere((u) => u.uid == user.uid);
-                      } else {
-                        _selected.add(user);
-                      }
-                    });
-                  },
-                  ),
-                ),
-              );
-            },
-            childCount: filtered.length,
+        final all = snapshot.data ?? const <UserModel>[];
+        final filtered = all.where((user) {
+          final name = user.name.toLowerCase();
+          final username = user.username.toLowerCase();
+          return name.contains(_search) || username.contains(_search);
+        }).toList();
+
+        if (filtered.isEmpty) {
+          return SliverToBoxAdapter(
+            child: _buildListMessage(
+              context,
+              icon: Icons.group_outlined,
+              title: _search.isEmpty ? 'No friends yet' : 'No friends found',
+              subtitle: _search.isEmpty
+                  ? 'Add friends before starting a group.'
+                  : 'Try another name or username.',
+            ),
+          );
+        }
+
+        return SliverPadding(
+          padding: const EdgeInsets.only(top: 6),
+          sliver: SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) => _buildFriendRow(context, filtered[index]),
+              childCount: filtered.length,
+              addAutomaticKeepAlives: false,
+              addRepaintBoundaries: true,
+            ),
           ),
         );
       },
     );
   }
 
-  Widget _buildCreateButton(Color accent) {
+  Widget _buildListMessage(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 36, 16, 28),
+      child: Column(
+        children: [
+          Container(
+            width: 62,
+            height: 62,
+            decoration: BoxDecoration(
+              color: colors.primary.withValues(alpha: .1),
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: Icon(icon, size: 28, color: colors.primary),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'PlusJakartaSans',
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: colors.onSurface,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'PlusJakartaSans',
+              fontSize: 12.5,
+              color: colors.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFriendRow(BuildContext context, UserModel user) {
+    final colors = Theme.of(context).colorScheme;
+    final isSelected = _selected.any((item) => item.uid == user.uid);
+    final selectedFill = Color.alphaBlend(
+      colors.primary.withValues(alpha: .085),
+      colors.surface,
+    );
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Material(
+        color: isSelected ? selectedFill : Colors.transparent,
+        borderRadius: BorderRadius.circular(26),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(26),
+          onTap: () => _toggleMember(user),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+            child: Row(
+              children: [
+                UserAvatar(
+                  name: user.name,
+                  photoUrl: user.photoUrl,
+                  radius: 21,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        user.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 15.5,
+                          fontWeight: FontWeight.w700,
+                          color: colors.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '@${user.username}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w500,
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 160),
+                  width: 25,
+                  height: 25,
+                  decoration: BoxDecoration(
+                    color: isSelected ? colors.primary : Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isSelected
+                          ? colors.primary
+                          : colors.onSurfaceVariant.withValues(alpha: .58),
+                      width: isSelected ? 1 : 1.6,
+                    ),
+                  ),
+                  child: isSelected
+                      ? const Icon(
+                          Icons.check_rounded,
+                          size: 19,
+                          color: Colors.white,
+                        )
+                      : null,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _toggleMember(UserModel user) {
+    HapticService.vibrate(
+      NovynHapticType.selection,
+      category: HapticCategory.buttons,
+    );
+    setState(() {
+      final selected = _selected.any((item) => item.uid == user.uid);
+      if (selected) {
+        _selected.removeWhere((item) => item.uid == user.uid);
+      } else {
+        _selected.add(user);
+      }
+    });
+  }
+
+  Widget _buildCreateButton(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return ValueListenableBuilder<String>(
       valueListenable: _nameNotifier,
-      builder: (context, name, child) {
-        final canCreate = name.trim().isNotEmpty && _selected.isNotEmpty;
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
-          child: GestureDetector(
-            onTap: canCreate ? _handleCreate : null,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
+      builder: (context, name, _) {
+        final canCreate = name.trim().isNotEmpty &&
+            _selected.isNotEmpty &&
+            !_creating;
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 10, 24, 18),
+            child: SizedBox(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                gradient: canCreate ? LinearGradient(
-                  colors: [accent, Color.lerp(accent, Colors.black, 0.14)!],
-                ) : null,
-                color: canCreate ? null : Theme.of(context).colorScheme.surfaceContainerHighest,
-                boxShadow: canCreate ? [
-                  BoxShadow(color: accent.withValues(alpha: 0.3), blurRadius: 20, offset: const Offset(0, 10))
-                ] : null,
-              ),
-              child: Center(
-                child: Text(
-                  'Create Group',
-                  style: TextStyle(color: canCreate ? Colors.white : Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w800, fontSize: 15),
+              height: 56,
+              child: Material(
+                color: canCreate ? colors.primary : colors.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(32),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(32),
+                  onTap: canCreate ? _handleCreate : null,
+                  child: Center(
+                    child: _creating
+                        ? SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.4,
+                              color: colors.onPrimary,
+                            ),
+                          )
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.person_add_alt_1_rounded,
+                                color: canCreate
+                                    ? colors.onPrimary
+                                    : colors.onSurfaceVariant,
+                                size: 21,
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                'Create group · ${_selected.length} members',
+                                style: TextStyle(
+                                  fontFamily: 'PlusJakartaSans',
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: canCreate
+                                      ? colors.onPrimary
+                                      : colors.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                  ),
                 ),
               ),
             ),
@@ -311,70 +677,38 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
   }
 
   Future<void> _handleCreate() async {
-    HapticService.vibrate(NovynHapticType.heavy, category: HapticCategory.buttons);
-    final socket = context.read<SocketService>();
-    
+    if (_creating ||
+        _nameController.text.trim().isEmpty ||
+        _selected.isEmpty) {
+      return;
+    }
+    HapticService.vibrate(
+      NovynHapticType.heavy,
+      category: HapticCategory.buttons,
+    );
+    setState(() => _creating = true);
+
     try {
-      // Show loading
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => const Center(child: CircularProgressIndicator()),
-      );
-
+      final socket = context.read<SocketService>();
       final chatId = await socket.createGroup(
-        name: _nameController.text,
-        memberIds: _selected.map((u) => u.username.trim().isNotEmpty ? u.username.trim() : u.uid).toList(),
+        name: _nameController.text.trim(),
+        memberIds: _selected
+            .map((user) => user.username.trim().isNotEmpty
+                ? user.username.trim()
+                : user.uid)
+            .toList(),
       );
-
-      if (mounted) {
-        Navigator.pop(context); // Close loading
-        context.showNovynAlert(
-          SnackBar(
-            content: Text('Group "${_nameController.text.trim()}" created successfully!'),
-            backgroundColor: const Color(0xFF10B981),
-          ),
-        );
-        Navigator.pop(context, chatId); // Return the server-confirmed group ID
-      }
-    } catch (e) {
-      if (mounted) {
-        Navigator.pop(context); // Close loading
-        context.showNovynAlert(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
-      }
+      if (!mounted) return;
+      Navigator.of(context).pop(chatId);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _creating = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not create group: $error'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
     }
   }
-}
-
-class _SubtleAurora extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return CustomPaint(
-      painter: _AuroraPainter(isDark: isDark, accent: Theme.of(context).colorScheme.primary),
-    );
-  }
-}
-
-class _AuroraPainter extends CustomPainter {
-  final bool isDark;
-  final Color accent;
-  _AuroraPainter({required this.isDark, required this.accent});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..shader = RadialGradient(
-        colors: [
-          accent.withValues(alpha: isDark ? 0.05 : 0.08),
-          Colors.transparent,
-        ],
-      ).createShader(Rect.fromCircle(center: Offset(size.width, 0), radius: size.width * 0.8));
-    canvas.drawCircle(Offset(size.width, 0), size.width * 0.8, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

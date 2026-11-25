@@ -542,6 +542,78 @@ class MessageEncryptionService {
     return message;
   }
 
+  /// Strict local decrypt used by Android background notifications.
+  ///
+  /// Unlike [decrypt], this method surfaces missing secure-storage identities
+  /// and authentication failures instead of silently returning the encrypted
+  /// placeholder. It never creates a new identity in the background isolate.
+  Future<Message> decryptForNotification(
+    Message message,
+    String account,
+    String peerPublicKey,
+  ) async {
+    if (!needsDecryption(message)) return message;
+    final normalizedAccount = _account(account);
+    if (normalizedAccount.isEmpty) {
+      throw StateError('The signed-in notification account is unavailable.');
+    }
+
+    Object? modernKeyFailure;
+    if (peerPublicKey.trim().isNotEmpty) {
+      try {
+        final shared = await _sharedKey(
+          normalizedAccount,
+          peerPublicKey,
+          requireExistingIdentity: true,
+        );
+        try {
+          final clear = await _aes.decrypt(
+            _box(message.ciphertext!, base64Decode(message.iv!)),
+            secretKey: shared,
+          );
+          return message.copyWith(text: utf8.decode(clear));
+        } on SecretBoxAuthenticationError catch (error) {
+          // A legacy imported conversation key may still decrypt this message.
+          modernKeyFailure = error;
+        }
+      } catch (error) {
+        // Secure storage can be unavailable in the FCM isolate, or a legacy
+        // message may refer to an older peer key. Try imported local keys too.
+        modernKeyFailure = error;
+      }
+    }
+
+    final legacy = await _readLegacyKeys(normalizedAccount);
+    final versions = legacy[message.chatId.toLowerCase()] as List? ?? [];
+    for (final entry in versions.reversed) {
+      try {
+        final clear = await _aes.decrypt(
+          _box(message.ciphertext!, base64Decode(message.iv!)),
+          secretKey: SecretKey(base64Decode(entry['key'])),
+        );
+        return message.copyWith(text: utf8.decode(clear));
+      } on SecretBoxAuthenticationError {
+        continue;
+      } on FormatException {
+        continue;
+      }
+    }
+
+    if (modernKeyFailure is StateError) {
+      throw StateError(
+        'No usable local E2EE identity or conversation key is available.',
+      );
+    }
+    if (modernKeyFailure is FormatException) {
+      throw const FormatException(
+        'The encrypted message or sender public key is invalid.',
+      );
+    }
+    throw StateError(
+      'No saved local encryption key can decrypt this conversation message.',
+    );
+  }
+
   /// Encrypts binary media with the same per-contact ECDH key used for messages.
   /// The returned ciphertext includes the 16-byte GCM authentication tag.
   Future<Map<String, dynamic>> encryptAttachmentBytes(

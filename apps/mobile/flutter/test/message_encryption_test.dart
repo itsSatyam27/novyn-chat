@@ -76,6 +76,17 @@ void main() {
       expect(decrypted.ciphertext, raw['ciphertext']);
       expect(decrypted.copyWith(edited: true).iv, raw['iv']);
       expect(decrypted.needsMessageKey, isFalse);
+
+      // Existing imported chat-key backups must also work in the background
+      // notification path when no modern per-device public key is present.
+      final legacyNotificationPreview =
+          await service.decryptForNotification(
+        encrypted(raw),
+        'interop-alice',
+        '',
+      );
+      expect(legacyNotificationPreview.text, raw['text']);
+      expect(legacyNotificationPreview.needsMessageKey, isFalse);
     }
     final restarted = MessageEncryptionService(
         read: (key) async => storage[key], write: (_, __) async {});
@@ -123,6 +134,29 @@ void main() {
     final roundTrip = await bob.decrypt(incoming, 'bob', alicePublicKey);
     expect(roundTrip.text, 'Android → web test');
     expect(roundTrip.needsMessageKey, isFalse);
+
+    // The Android FCM background handler uses strict decryption so a missing
+    // local key is diagnosed rather than silently mistaken for a bad payload.
+    final notificationPreview = await bob.decryptForNotification(
+      incoming,
+      'bob',
+      alicePublicKey,
+    );
+    expect(notificationPreview.text, 'Android → web test');
+    expect(notificationPreview.needsMessageKey, isFalse);
+
+    final noLocalIdentity = MessageEncryptionService(
+      read: (_) async => null,
+      write: (_, __) async {},
+    );
+    await expectLater(
+      noLocalIdentity.decryptForNotification(
+        incoming,
+        'bob',
+        alicePublicKey,
+      ),
+      throwsStateError,
+    );
     expect(
       await alice.encrypt('message', 'alice', 'bob', '{}'),
       isNull,
