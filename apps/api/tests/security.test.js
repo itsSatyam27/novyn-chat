@@ -180,4 +180,10 @@ test('signup reservations block duplicate email and username while hashing is pe
   assert.equal(reservations.reserve('different@example.test', 'other_user', 'googleuid'), true, 'external IDs remain case-sensitive');
   reservations.release('google@example.test', 'google_user', 'GoogleUID');
   reservations.release('different@example.test', 'other_user', 'googleuid');
+
+  assert.equal(reservations.reserve('', '', 'link-only-uid'), true);
+  assert.equal(reservations.reserve('', '', 'link-only-uid'), false, 'Google linking must reserve a UID even without email or username locks');
+  reservations.release('', '', 'link-only-uid');
+  assert.equal(reservations.reserve('', '', 'link-only-uid'), true, 'UID-only reservations can be released and retried');
+  reservations.release('', '', 'link-only-uid');
 });
