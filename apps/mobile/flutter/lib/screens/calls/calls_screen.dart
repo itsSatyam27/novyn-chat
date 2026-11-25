@@ -17,6 +17,7 @@ import '../../services/local_db_service.dart';
 import '../../services/socket_service.dart';
 import '../../theme/novyn_theme.dart';
 import '../../utils/presence_utils.dart';
+import '../../utils/call_history_utils.dart';
 import '../../widgets/novyn_empty_state.dart';
 import '../../widgets/novyn_page_route.dart';
 import '../../widgets/novyn_shimmer.dart';
@@ -40,6 +41,7 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
   String _search = '';
   String _callPrivacy = 'friends';
   Set<String> _favoriteUsernames = <String>{};
+  Set<String> _readMissedCallIds = <String>{};
   // peer username (lowercase) -> millis of the newest call that was removed.
   Map<String, int> _dismissedAt = <String, int>{};
   String? _myUsername;
@@ -88,6 +90,8 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
 
   String _favKey(String username) => 'novyn_call_favorites_${username.toLowerCase()}';
   String _dismissKey(String username) => 'novyn_call_dismissed_${username.toLowerCase()}';
+  String _readMissedKey(String username) =>
+      'novyn_missed_read_${username.toLowerCase()}';
 
   Future<void> _loadLocalPrefs() async {
     final username = context.read<AuthService>().user?.username;
@@ -109,6 +113,7 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
     setState(() {
       _myUsername = username;
       _favoriteUsernames = (prefs.getStringList(_favKey(username)) ?? <String>[]).take(5).toSet();
+      _readMissedCallIds = (prefs.getStringList(_readMissedKey(username)) ?? <String>[]).toSet();
       _dismissedAt = dismissed;
     });
   }
@@ -148,6 +153,27 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_dismissKey(username), jsonEncode(_dismissedAt));
   }
+
+  Future<void> _markMissedCallsRead() async {
+    final username = _myUsername ?? context.read<AuthService>().user?.username;
+    if (username == null) return;
+    final missedIds = _calls
+        .expand((entry) => entry.history)
+        .where((log) => log['status']?.toString().toLowerCase() == 'missed')
+        .map(callLogStableId)
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    if (missedIds.isEmpty) return;
+    final next = {..._readMissedCallIds, ...missedIds};
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      _readMissedKey(username),
+      next.toList()..sort(),
+    );
+    if (!mounted) return;
+    setState(() => _readMissedCallIds = next);
+  }
+
 
   int _logMillis(Map<String, dynamic> log) =>
       DateTime.tryParse(log['createdAt']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0;
@@ -442,7 +468,7 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
         final cutoff = _dismissedAt[peerKey];
         if (cutoff != null && createdAt.millisecondsSinceEpoch <= cutoff) continue;
 
-        final type = log['type']?.toString() ?? 'voice';
+        final type = normalizeCallType(log['type']);
         final status = log['status']?.toString() ?? 'outgoing';
         final duration = (log['duration'] as num?)?.toInt() ?? 0;
 
@@ -957,7 +983,7 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
             final latest = matching.first;
             final parsedDate = DateTime.tryParse(latest['createdAt']?.toString() ?? '');
             return call.copyWith(
-              type: latest['type']?.toString() ?? call.type,
+              type: normalizeCallType(latest['type'] ?? call.type),
               status: latest['status']?.toString() ?? call.status,
               duration: (latest['duration'] as num?)?.toInt() ?? 0,
               createdAt: parsedDate == null
