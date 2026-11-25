@@ -5832,6 +5832,12 @@ async function authenticateSigninPayload(payload) {
   const identifier = toDisplayName(payload?.identifier || payload?.email || payload?.username || "");
   const password = toDisplayName(payload?.password || "");
   const isEmail = identifier.includes("@");
+  const invalidCredentials = {
+    ok: false,
+    status: 401,
+    message: "Invalid email/username or password.",
+    suggestions: [],
+  };
 
   if (!identifier) {
     return { ok: false, status: 400, message: "Email or username is required.", suggestions: [] };
@@ -5842,37 +5848,26 @@ async function authenticateSigninPayload(payload) {
 
   if (isEmail) {
     const user = findUserByEmail(identifier);
-    if (!user || !user.isRegistered) {
-      return { ok: false, status: 401, message: "Email doesn't exist. Sign up.", suggestions: [] };
-    }
-    if (user.isSuspended === true) {
-      return { ok: false, status: 403, message: "This account is suspended. Contact support.", suggestions: [] };
-    }
-    if (!(await verifyPassword(password, user.passwordSalt, user.passwordHash))) {
-      return { ok: false, status: 401, message: "Incorrect password.", suggestions: [] };
+    const passwordMatches = await verifyPassword(
+      password,
+      user?.passwordSalt,
+      user?.passwordHash,
+    );
+    if (!user || !user.isRegistered || user.isSuspended === true || !passwordMatches) {
+      return invalidCredentials;
     }
     return { ok: true, user };
   }
 
   const userKey = normalizeName(identifier);
   const user = users.get(userKey);
-  const suggestions = buildUsernameSuggestions(identifier);
-  if (!user || !user.isRegistered) {
-    return {
-      ok: false,
-      status: 401,
-      message: "Username doesn't exist. Sign up.",
-      suggestions,
-    };
-  }
-  if (user.isSuspended === true) {
-    return { ok: false, status: 403, message: "This account is suspended. Contact support.", suggestions: [] };
-  }
-
-  if (!user.passwordSalt || !user.passwordHash) {
-    return { ok: false, status: 401, message: 'Password sign-in is unavailable for this account. Use Google sign-in or reset your password.', suggestions: [] };
-  } else if (!(await verifyPassword(password, user.passwordSalt, user.passwordHash))) {
-    return { ok: false, status: 401, message: "Incorrect password.", suggestions };
+  const passwordMatches = await verifyPassword(
+    password,
+    user?.passwordSalt,
+    user?.passwordHash,
+  );
+  if (!user || !user.isRegistered || user.isSuspended === true || !passwordMatches) {
+    return invalidCredentials;
   }
 
   return { ok: true, user };
