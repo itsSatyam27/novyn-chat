@@ -773,6 +773,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
     final isDark = theme.brightness == Brightness.dark;
     final socket = context.watch<SocketService>();
     final connectionReady = socket.isConnected && socket.isAuthenticated;
@@ -870,9 +871,9 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
                             title: 'Random player',
                             subtitle: 'Find a match online',
                             icon: Icons.public_rounded,
-                            iconBackground: const Color(0xFF796CF4),
+                            iconBackground: accent,
                             iconColor: Colors.white,
-                            background: const Color(0xFF5E4CF2),
+                            background: accent,
                             foreground: Colors.white,
                             subtitleColor: Colors.white.withValues(alpha: .88),
                             onTap: connectionReady &&
@@ -2226,7 +2227,7 @@ class _FriendInviteWaitingSheet extends StatelessWidget {
                           fontSize: 16, fontWeight: FontWeight.w900),
                     ),
                     style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF5E4CF2),
+                      backgroundColor: accent,
                       foregroundColor: Colors.white,
                       disabledBackgroundColor: const Color(0xFFE7E2F8),
                       disabledForegroundColor: const Color(0xFF625D8C),
