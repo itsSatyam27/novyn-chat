@@ -268,6 +268,22 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // Background FCM runs in its own isolate; refresh the plugin cache before
   // reading account and preview preferences written by the foreground isolate.
   await prefs.reload();
+  // FCM retries or duplicate server transports can repeat a message. Persist a
+  // short message-ID dedupe window so only one local notification is posted.
+  final backgroundMessageId =
+      (data['messageId']?.toString().trim().isNotEmpty == true)
+          ? data['messageId'].toString().trim()
+          : (message.messageId?.trim() ?? '');
+  if (backgroundMessageId.isNotEmpty) {
+    final dedupeKey = 'novyn_notif_seen_$backgroundMessageId';
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final seenAt = prefs.getInt(dedupeKey) ?? 0;
+    if (seenAt > 0 && nowMs - seenAt < 60000) {
+      debugPrint('[NovynNotifications] Suppressed duplicate background message.');
+      return;
+    }
+    await prefs.setInt(dedupeKey, nowMs);
+  }
   final notificationsEnabled = prefs.getBool('notifications_on') ?? true;
   final presenceMode =
       (prefs.getString('active_smart_presence_mode_v1') ?? 'online')
@@ -450,6 +466,22 @@ class NotificationService {
   static final Map<int, Timer> _callReminderTimers = {};
   static OverlayEntry? _inAppBannerEntry;
   static Timer? _inAppBannerTimer;
+  // Deduplicate socket-driven banners/system alerts in the foreground when
+  // the server or transport briefly repeats the same sender+content event.
+  static final Map<String, DateTime> _recentForegroundMessages = <String, DateTime>{};
+  static bool _isDuplicateForegroundMessage(String sender, String body) {
+    final key = sender.trim().toLowerCase() + '|' + body.trim();
+    final now = DateTime.now();
+    final previous = _recentForegroundMessages[key];
+    _recentForegroundMessages.removeWhere(
+      (_, value) => now.difference(value) > const Duration(seconds: 5),
+    );
+    if (previous != null && now.difference(previous) < const Duration(seconds: 3)) {
+      return true;
+    }
+    _recentForegroundMessages[key] = now;
+    return false;
+  }
   static AuthService? _presenceAuth;
   static SettingsService? _settings;
   static SocketService? _socket;
@@ -1177,6 +1209,10 @@ class NotificationService {
   }) async {
     final preferences = await SharedPreferences.getInstance();
     await preferences.reload();
+    if (_isDuplicateForegroundMessage(username, messageBody)) {
+      debugPrint('[NovynNotifications] Suppressed duplicate foreground banner.');
+      return;
+    }
     final chatKey = username.trim().toLowerCase();
     if (!_canDisplayNotification(
       preferences,
@@ -1927,6 +1963,10 @@ class NotificationService {
     bool mentionOrReply = false,
   }) async {
     final sender = username.trim();
+    if (_isDuplicateForegroundMessage(sender, messageBody)) {
+      debugPrint('[NovynNotifications] Suppressed duplicate foreground system alert.');
+      return;
+    }
     final settings = _settings;
     if (sender.isEmpty || settings == null || !settings.notificationsOn) return;
     final preferences = await SharedPreferences.getInstance();
