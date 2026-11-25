@@ -33,6 +33,7 @@ const webpush = require("web-push");
 const { cloudinary, hasCloudinaryConfig } = require("./cloudinary");
 const { createChatAuthorization } = require("./server/chat/authorization");
 const { createIpRateLimiter, getSocketClientIp, pruneHttpRateLimits } = require("./server/auth/rate-limit");
+const { createIdentityRateLimiter } = require("./server/auth/identity-rate-limit");
 const { createShutdownHandler } = require("./server/core/shutdown");
 const { createResilientPersistenceQueue } = require("./server/core/persistence-queue");
 const { createBackgroundTask } = require("./server/core/background-task");
@@ -59,6 +60,11 @@ const { validateProductionStorageConfig } = require("./server/config/production-
 const productionStorageIssues = validateProductionStorageConfig(process.env);
 if (productionStorageIssues.length) {
   throw new Error(`Production storage configuration is unsafe:\n- ${productionStorageIssues.join("\n- ")}`);
+}
+const { validateProductionSecurityConfig } = require("./server/config/production-security");
+const productionSecurityIssues = validateProductionSecurityConfig(process.env);
+if (productionSecurityIssues.length) {
+  throw new Error("Production security configuration is unsafe:\n- " + productionSecurityIssues.join("\n- "));
 }
 const { admin, firebaseAdmin, firebaseLegacyAdmin, verifyFirebaseIdToken } = require("./server/config/firebase-admin");
 let nodemailer = null;
@@ -6336,7 +6342,7 @@ app.post(
   }
 );
 
-app.post("/api/auth/signin", createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-signin", 25, 15 * 60 * 1000), requireCsrf, async (req, res) => {
+app.post("/api/auth/signin", createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-signin", 25, 15 * 60 * 1000), requireCsrf, createIdentityRateLimiter({ getStore: () => httpRateLimits, getIdentity: (req) => req.body?.identifier || req.body?.email || req.body?.username }, "auth-signin-identity", 12, 15 * 60 * 1000), async (req, res) => {
   try {
     const result = await authenticateSigninPayload(req.body || {});
     if (!result.ok) {
