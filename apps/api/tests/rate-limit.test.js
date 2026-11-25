@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { createIpRateLimiter, getRequestClientIp } = require("../server/auth/rate-limit");
+const { createIpRateLimiter, getRequestClientIp, getSocketClientIp } = require("../server/auth/rate-limit");
 
 function setRenderEnvironment(t, value) {
   const previous = process.env.RENDER;
