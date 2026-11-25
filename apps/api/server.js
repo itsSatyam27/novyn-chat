@@ -34,6 +34,7 @@ const { cloudinary, hasCloudinaryConfig } = require("./cloudinary");
 const { createChatAuthorization } = require("./server/chat/authorization");
 const { createIpRateLimiter, getSocketClientIp, pruneHttpRateLimits } = require("./server/auth/rate-limit");
 const { createIdentityRateLimiter } = require("./server/auth/identity-rate-limit");
+const { createSocketActionRateLimiter } = require("./server/auth/socket-rate-limit");
 const { createShutdownHandler } = require("./server/core/shutdown");
 const { createResilientPersistenceQueue } = require("./server/core/persistence-queue");
 const { createBackgroundTask } = require("./server/core/background-task");
@@ -5785,53 +5786,12 @@ function finalizeSocketAuthentication(socket, user) {
   return true;
 }
 
-const SOCKET_RATE_LIMIT_PRUNE_INTERVAL_MS = 60 * 1000;
-let lastSocketRateLimitPruneAt = 0;
-
-function allowSocketAction(socket, key, maxPerWindow, windowMs) {
-  if (!socket || !key) return false;
-  const max = Math.max(1, Number(maxPerWindow) || 1);
-  const windowDuration = Math.max(1000, Number(windowMs) || 1000);
-  const now = Date.now();
-  const userKey = normalizeName(socket.data?.userKey || "");
-  const socketIp = getSocketClientIp(socket);
-  const globalKey = userKey ? `${userKey}:${key}` : `anonymous:${socketIp}:${key}`;
-  const globalStore = runtimeState.socketRateLimits;
-
-  // Expiration is enforced below on each bucket access. A full Map sweep is
-  // only needed periodically to reclaim inactive users' expired entries.
-  if (now - lastSocketRateLimitPruneAt >= SOCKET_RATE_LIMIT_PRUNE_INTERVAL_MS) {
-    lastSocketRateLimitPruneAt = now;
-    for (const [storedKey, storedBucket] of globalStore) {
-      if (!storedBucket || now >= storedBucket.expiresAt) {
-        globalStore.delete(storedKey);
-      }
-    }
-  }
-
-  // Enforce limits across all simultaneous sockets for the same account.
-  // Otherwise a client could bypass a per-socket limit by opening connections.
-  const existing = globalStore.get(globalKey);
-  if (!existing || now >= existing.expiresAt) {
-    globalStore.set(globalKey, { count: 1, windowStartedAt: now, expiresAt: now + windowDuration });
-  } else {
-    existing.count += 1;
-  }
-
-  const globalBucket = globalStore.get(globalKey);
-  if (globalBucket.count > max) return false;
-
-  // Keep a lightweight per-socket bucket as an additional burst guard.
-  if (!socket.data.rateBuckets) socket.data.rateBuckets = {};
-  const bucket = socket.data.rateBuckets[key] || { count: 0, windowStartedAt: now };
-  if (now - bucket.windowStartedAt > windowDuration) {
-    bucket.windowStartedAt = now;
-    bucket.count = 0;
-  }
-  bucket.count += 1;
-  socket.data.rateBuckets[key] = bucket;
-  return bucket.count <= max;
-}
+const allowSocketAction = createSocketActionRateLimiter({
+  getStore: () => runtimeState.socketRateLimits,
+  getClientIp: getSocketClientIp,
+  normalizeUserKey: normalizeName,
+  maxEntries: 100_000,
+});
 
 function clearScheduledMessageTimer(messageId) {
   const id = toDisplayName(messageId);
