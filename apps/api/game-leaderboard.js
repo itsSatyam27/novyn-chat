@@ -387,9 +387,17 @@ function buildGameLeaderboardFromAggregates({
   return rows.map((row, index) => ({ rank: index + 1, ...row }));
 }
 
+
+function isMongoWindowStageUnsupportedError(error) {
+  if (Number(error?.code) === 40324) return true;
+  const message = String(error?.message || "");
+  return /unrecognized pipeline stage name:\\s*['"`]?\\$setWindowFields['"`]?/i.test(message);
+}
+
 module.exports = {
   buildGameLeaderboard,
   buildGameLeaderboardFromAggregates,
+  isMongoWindowStageUnsupportedError,
   buildMongoGameLeaderboardPipeline,
   normalizeLeaderboardGame,
 };

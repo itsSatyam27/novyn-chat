@@ -5,6 +5,7 @@ const {
   buildGameLeaderboard,
   buildGameLeaderboardFromAggregates,
   buildMongoGameLeaderboardPipeline,
+  isMongoWindowStageUnsupportedError,
   normalizeLeaderboardGame,
 } = require("../game-leaderboard");
 
@@ -150,4 +151,18 @@ test("Mongo aggregate summaries preserve score, win-rate, streak bonus, and empt
   assert.equal(emptySelf.length, 1);
   assert.equal(emptySelf[0].isSelf, true);
   assert.equal(emptySelf[0].score, 0);
+});
+
+test("only falls back for MongoDB versions that reject $setWindowFields", () => {
+  assert.equal(
+    isMongoWindowStageUnsupportedError({ code: 40324, message: "Unrecognized pipeline stage name: '$setWindowFields'" }),
+    true
+  );
+  assert.equal(
+    isMongoWindowStageUnsupportedError(new Error("Unrecognized pipeline stage name: '$setWindowFields'")),
+    true
+  );
+  assert.equal(isMongoWindowStageUnsupportedError({ code: 50, message: "operation exceeded time limit" }), false);
+  assert.equal(isMongoWindowStageUnsupportedError(new Error("MongoServerSelectionError: connection timed out")), false);
+  assert.equal(isMongoWindowStageUnsupportedError(new Error("not authorized on novyn to execute aggregate")), false);
 });

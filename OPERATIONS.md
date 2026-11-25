@@ -246,3 +246,10 @@ cluster does not support that stage, the endpoint logs the compatibility
 fallback and uses the previous query path without changing scoring rules.
 Malformed timestamps and bot matches are excluded consistently with the
 in-memory implementation.
+
+
+Leaderboard compatibility handling only falls back to the legacy full-history reader
+when MongoDB explicitly reports that `$setWindowFields` is an unsupported stage
+(older server versions). Transient network errors, operation timeouts, permission
+errors, and resource failures are surfaced as a temporary API failure instead of
+triggering a second, potentially larger in-memory query.

@@ -17,7 +17,7 @@ const { registerMessageMutationHandlers } = require("./server/realtime/message-m
 const { registerCallHandlers, cancelCallForUser } = require("./server/realtime/call-handlers");
 const { applyGameMove, createGameChallenge } = require("./server/realtime/game-rules");
 const { PublicGameMatchmaking } = require("./server/realtime/game-matchmaking");
-const { buildGameLeaderboard, buildGameLeaderboardFromAggregates, buildMongoGameLeaderboardPipeline, normalizeLeaderboardGame } = require("./game-leaderboard");
+const { buildGameLeaderboard, buildGameLeaderboardFromAggregates, buildMongoGameLeaderboardPipeline, isMongoWindowStageUnsupportedError, normalizeLeaderboardGame } = require("./game-leaderboard");
 const { RajaMantriMatchmaking } = require("./server/realtime/raja-mantri-matchmaking");
 const {
   createRajaMantriGameSession,
@@ -1187,10 +1187,13 @@ app.get("/api/games/leaderboard", requireUser,
         selectedGame: game,
       });
     } catch (aggregationError) {
-      // MongoDB 5.0+ supports $setWindowFields. Retain the old, correct
-      // implementation as a compatibility fallback for older/self-hosted clusters.
-      console.warn("[NovynGames] Server-side leaderboard aggregation unavailable; using compatibility path:",
-        aggregationError?.message || aggregationError);
+      // Only an explicitly unsupported $setWindowFields stage indicates an old
+      // MongoDB cluster. Timeouts, network errors, and resource failures must
+      // not trigger a second query that downloads the full match history.
+      if (!isMongoWindowStageUnsupportedError(aggregationError)) {
+        throw aggregationError;
+      }
+      console.warn("[NovynGames] MongoDB does not support $setWindowFields; using compatibility path.");
       const historyQuery = { isBotMatch: { $ne: true } };
       if (scope === "friends") historyQuery.userKey = { $in: Array.from(eligibleUsers.keys()) };
       const matches = await mongoGameHistoryCollection
