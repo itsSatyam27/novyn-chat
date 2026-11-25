@@ -1149,38 +1149,31 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
               child: Text(
                 group.key.toUpperCase(),
                 style: TextStyle(
+                  fontFamily: 'PlusJakartaSans',
                   fontSize: 12,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w700,
                   letterSpacing: 1.25,
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
             ),
-            Container(
-              clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surface,
-                borderRadius: BorderRadius.circular(26),
-              ),
-              child: Column(
-                children: [
-                  for (var index = 0; index < group.value.length; index++) ...[
-                    _CallCard(
-                      entry: group.value[index],
-                      isFavorite: _favoriteUsernames.contains(group.value[index].peer.username.toLowerCase()),
-                      onToggleFavorite: () => _toggleFavorite(group.value[index].peer),
-                      onDismiss: () => _dismissEntry(group.value[index]),
+            for (final entry in group.value)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(28),
+                  child: Material(
+                    color: theme.colorScheme.surface,
+                    child: _CallCard(
+                      entry: entry,
+                      isFavorite: _favoriteUsernames
+                          .contains(entry.peer.username.toLowerCase()),
+                      onToggleFavorite: () => _toggleFavorite(entry.peer),
+                      onDismiss: () => _dismissEntry(entry),
                     ),
-                    if (index != group.value.length - 1)
-                      Divider(
-                        height: 1,
-                        indent: 78,
-                        color: theme.colorScheme.outlineVariant.withValues(alpha: .45),
-                      ),
-                  ],
-                ],
+                  ),
+                ),
               ),
-            ),
           ],
         ],
       ),
@@ -1457,14 +1450,9 @@ class _CallCard extends StatelessWidget {
               _showHistory(context);
             },
             child: Padding(
-            padding: const EdgeInsets.only(left: 12, right: 14, top: 12, bottom: 12),
+            padding: const EdgeInsets.only(left: 14, right: 14, top: 12, bottom: 12),
             child: Row(
               children: [
-                PresenceIndicatorBar(
-                  isOnline: entry.peer.isOnline,
-                  status: entry.peer.status,
-                  margin: const EdgeInsets.only(right: 10),
-                ),
                 GestureDetector(
                   onLongPress: onToggleFavorite,
                   child: Stack(
