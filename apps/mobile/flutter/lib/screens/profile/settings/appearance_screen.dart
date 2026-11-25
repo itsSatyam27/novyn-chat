@@ -81,6 +81,8 @@ class AppearanceScreen extends StatelessWidget {
                   label: 'Light',
                   mode: ThemeMode.light,
                   selected: settings.themeMode == ThemeMode.light,
+                  accentColor: accent,
+                  accentEnabled: settings.accentColorEnabled,
                   onTap: () => settings.setThemeMode(ThemeMode.light),
                 ),
                 const SizedBox(width: 12),
@@ -88,6 +90,8 @@ class AppearanceScreen extends StatelessWidget {
                   label: 'Dark',
                   mode: ThemeMode.dark,
                   selected: settings.themeMode == ThemeMode.dark,
+                  accentColor: accent,
+                  accentEnabled: settings.accentColorEnabled,
                   onTap: () => settings.setThemeMode(ThemeMode.dark),
                 ),
                 const SizedBox(width: 12),
@@ -95,6 +99,8 @@ class AppearanceScreen extends StatelessWidget {
                   label: 'System',
                   mode: ThemeMode.system,
                   selected: settings.themeMode == ThemeMode.system,
+                  accentColor: accent,
+                  accentEnabled: settings.accentColorEnabled,
                   onTap: () => settings.setThemeMode(ThemeMode.system),
                 ),
               ],
@@ -169,7 +175,7 @@ class AppearanceScreen extends StatelessWidget {
                       if (index == 7) {
                         return _AccentItem(
                           name: 'Custom',
-                          color: const Color(0xFF6D5DFC),
+                          color: accent,
                           selected: selectedAccent < 0,
                           custom: true,
                           enabled: settings.accentColorEnabled,
@@ -505,12 +511,16 @@ class _ThemeChoiceCard extends StatelessWidget {
   final String label;
   final ThemeMode mode;
   final bool selected;
+  final Color accentColor;
+  final bool accentEnabled;
   final VoidCallback onTap;
 
   const _ThemeChoiceCard({
     required this.label,
     required this.mode,
     required this.selected,
+    required this.accentColor,
+    required this.accentEnabled,
     required this.onTap,
   });
 
@@ -520,6 +530,12 @@ class _ThemeChoiceCard extends StatelessWidget {
     final system = mode == ThemeMode.system;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final ink = isDark ? Colors.white : const Color(0xFF1A1730);
+    final previewSurface = dark ? const Color(0xFF1C1930) : const Color(0xFFF1EEFC);
+    final previewAccent = resolveAccentSwatchColor(
+      color: accentColor,
+      surface: previewSurface,
+      enabled: accentEnabled,
+    );
 
     return Expanded(
       child: GestureDetector(
@@ -572,7 +588,7 @@ class _ThemeChoiceCard extends StatelessWidget {
                                     width: 22,
                                     height: 5,
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFF6D5DFC),
+                                      color: previewAccent,
                                       borderRadius: BorderRadius.circular(3),
                                     ),
                                   ),
