@@ -2101,6 +2101,9 @@ function createUserRecord(username) {
     twoFactorBackupCodes: [],
     notificationsEnabled: true,
     messagePreviewEnabled: true,
+    hideNotificationContent: false,
+    doNotDisturbEnabled: false,
+    favoriteChatIds: [],
     groupNotificationsEnabled: true,
     directMessagesEnabled: true,
     groupMessagesEnabled: true,
@@ -2165,6 +2168,9 @@ function serializeState() {
       fcmToken: toDisplayName(user.fcmToken),
       notificationsEnabled: user.notificationsEnabled !== false,
       messagePreviewEnabled: user.messagePreviewEnabled !== false,
+      hideNotificationContent: user.hideNotificationContent === true,
+      doNotDisturbEnabled: user.doNotDisturbEnabled === true,
+      favoriteChatIds: Array.isArray(user.favoriteChatIds) ? user.favoriteChatIds : [],
       groupNotificationsEnabled: user.groupNotificationsEnabled !== false,
       directMessagesEnabled: user.directMessagesEnabled !== false,
       groupMessagesEnabled: user.groupMessagesEnabled !== false,
@@ -2411,6 +2417,9 @@ async function persistMongoNow() {
               fcmToken: toDisplayName(entry.fcmToken),
               notificationsEnabled: entry.notificationsEnabled !== false,
               messagePreviewEnabled: entry.messagePreviewEnabled !== false,
+              hideNotificationContent: entry.hideNotificationContent === true,
+              doNotDisturbEnabled: entry.doNotDisturbEnabled === true,
+              favoriteChatIds: Array.isArray(entry.favoriteChatIds) ? entry.favoriteChatIds : [],
               groupNotificationsEnabled: entry.groupNotificationsEnabled !== false,
               isRegistered: Boolean(entry.isRegistered),
               isSuspended: entry.isSuspended === true,
@@ -3260,6 +3269,11 @@ function applyLoadedState(parsed) {
     user.fcmToken = toDisplayName(entry.fcmToken);
     user.notificationsEnabled = entry.notificationsEnabled !== false;
     user.messagePreviewEnabled = entry.messagePreviewEnabled !== false;
+    user.hideNotificationContent = entry.hideNotificationContent === true;
+    user.doNotDisturbEnabled = entry.doNotDisturbEnabled === true;
+    user.favoriteChatIds = Array.isArray(entry.favoriteChatIds)
+      ? entry.favoriteChatIds.map(normalizeName).filter(Boolean).slice(0, 250)
+      : [];
     user.groupNotificationsEnabled = entry.groupNotificationsEnabled !== false;
     user.directMessagesEnabled = entry.directMessagesEnabled !== false;
     // Migrate users who only had the legacy groupNotificationsEnabled field.
@@ -3474,6 +3488,9 @@ function toSerializedUserEntry(doc) {
     fcmToken: toDisplayName(doc?.fcmToken),
     notificationsEnabled: doc?.notificationsEnabled !== false,
     messagePreviewEnabled: doc?.messagePreviewEnabled !== false,
+    hideNotificationContent: doc?.hideNotificationContent === true,
+    doNotDisturbEnabled: doc?.doNotDisturbEnabled === true,
+    favoriteChatIds: Array.isArray(doc?.favoriteChatIds) ? doc.favoriteChatIds : [],
     groupNotificationsEnabled: doc?.groupNotificationsEnabled !== false,
     directMessagesEnabled: doc?.directMessagesEnabled !== false,
     groupMessagesEnabled: typeof doc?.groupMessagesEnabled === "boolean"
@@ -8452,6 +8469,9 @@ io.on("connection", (socket) => {
         typingIndicatorsEnabled: user.typingIndicatorsEnabled !== false,
         notificationsEnabled: user.notificationsEnabled !== false,
         messagePreviewEnabled: user.messagePreviewEnabled !== false,
+        hideNotificationContent: user.hideNotificationContent === true,
+        doNotDisturbEnabled: user.doNotDisturbEnabled === true,
+        favoriteChatIds: Array.isArray(user.favoriteChatIds) ? user.favoriteChatIds : [],
         groupNotificationsEnabled: user.groupNotificationsEnabled !== false,
         directMessagesEnabled: user.directMessagesEnabled !== false,
         groupMessagesEnabled: typeof user.groupMessagesEnabled === "boolean"
@@ -8506,6 +8526,13 @@ io.on("connection", (socket) => {
     if (typeof payload?.callsEnabled === "boolean") user.callsEnabled = payload.callsEnabled;
     if (typeof payload?.notificationsEnabled === "boolean") user.notificationsEnabled = payload.notificationsEnabled;
     if (typeof payload?.messagePreviewEnabled === "boolean") user.messagePreviewEnabled = payload.messagePreviewEnabled;
+    if (typeof payload?.hideNotificationContent === "boolean") user.hideNotificationContent = payload.hideNotificationContent;
+    if (typeof payload?.doNotDisturbEnabled === "boolean") user.doNotDisturbEnabled = payload.doNotDisturbEnabled;
+    if (Array.isArray(payload?.favoriteChatIds)) {
+      user.favoriteChatIds = Array.from(new Set(
+        payload.favoriteChatIds.map(normalizeName).filter(Boolean)
+      )).slice(0, 250);
+    }
     if (typeof payload?.groupNotificationsEnabled === "boolean") user.groupNotificationsEnabled = payload.groupNotificationsEnabled;
     const notificationBooleanKeys = [
       "directMessagesEnabled", "groupMessagesEnabled", "mentionsRepliesEnabled",
