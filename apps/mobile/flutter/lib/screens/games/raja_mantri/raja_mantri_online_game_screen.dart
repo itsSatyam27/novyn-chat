@@ -20,7 +20,6 @@ class RajaMantriOnlineGameScreen extends StatefulWidget {
 }
 
 class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen> {
-  static const _purple = Color(0xFF5E4CF2);
   static const _ink = Color(0xFF1E1A43);
   static const _muted = Color(0xFF625D8C);
 
@@ -263,7 +262,9 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
+    final isDark = theme.brightness == Brightness.dark;
     final background = isDark ? const Color(0xFF141026) : const Color(0xFFF5F3FC);
     final foreground = isDark ? Colors.white : _ink;
     final muted = isDark ? Colors.white60 : _muted;
@@ -286,7 +287,7 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.sports_esports_outlined, size: 48, color: _purple),
+                Icon(Icons.sports_esports_outlined, size: 48, color: accent),
                 const SizedBox(height: 14),
                 Text('Match unavailable', style: TextStyle(color: foreground, fontSize: 20, fontWeight: FontWeight.w900)),
                 const SizedBox(height: 8),
@@ -346,8 +347,8 @@ class _RajaMantriOnlineGameScreenState extends State<RajaMantriOnlineGameScreen>
               child: Center(
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                  decoration: BoxDecoration(color: const Color(0xFFEDE9FC), borderRadius: BorderRadius.circular(22)),
-                  child: Text('Round $_round/$_totalRounds', style: const TextStyle(color: Color(0xFF403875), fontWeight: FontWeight.w800, fontSize: 12)),
+                  decoration: BoxDecoration(color: accent.withValues(alpha: .12), borderRadius: BorderRadius.circular(22)),
+                  child: Text('Round $_round/$_totalRounds', style: TextStyle(color: accent, fontWeight: FontWeight.w800, fontSize: 12)),
                 ),
               ),
             ),
@@ -542,6 +543,7 @@ class _PhaseBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     final (title, detail) = switch (phase) {
       'picking' => ('Choose your chit', 'Everyone picks once. Your role stays private.'),
       'guessing' => isSipahi
@@ -553,13 +555,13 @@ class _PhaseBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFFEDE9FC),
+        color: accent.withValues(alpha: .12),
         borderRadius: BorderRadius.circular(22),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(color: _RajaMantriOnlineGameScreenState._purple, fontSize: 20, fontWeight: FontWeight.w900)),
+          Text(title, style: TextStyle(color: accent, fontSize: 20, fontWeight: FontWeight.w900)),
           const SizedBox(height: 5),
           Text(detail, style: const TextStyle(color: Color(0xFF625D8C), fontSize: 13, fontWeight: FontWeight.w600)),
           if (secondsRemaining > 0 && (phase == 'picking' || phase == 'guessing')) ...[
@@ -567,15 +569,15 @@ class _PhaseBanner extends StatelessWidget {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.timer_outlined, size: 16, color: Color(0xFF5E4CF2)),
+                Icon(Icons.timer_outlined, size: 16, color: accent),
                 const SizedBox(width: 6),
-                Text('$secondsRemaining sec left', style: const TextStyle(color: Color(0xFF5E4CF2), fontWeight: FontWeight.w900, fontSize: 13)),
+                Text('$secondsRemaining sec left', style: TextStyle(color: accent, fontWeight: FontWeight.w900, fontSize: 13)),
               ],
             ),
           ],
           if (myRole.isNotEmpty) ...[
             const SizedBox(height: 10),
-            Text('Your role: ${_roleLabel(myRole)}', style: const TextStyle(color: Color(0xFF403875), fontWeight: FontWeight.w900)),
+            Text('Your role: ${_roleLabel(myRole)}', style: TextStyle(color: accent, fontWeight: FontWeight.w900)),
           ],
         ],
       ),
@@ -598,6 +600,8 @@ class _OnlinePlayerRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
     final name = player['displayName']?.toString() ?? player['username']?.toString() ?? 'Player';
     final role = player['role']?.toString();
     final score = int.tryParse(player['score']?.toString() ?? '') ?? 0;
@@ -607,7 +611,7 @@ class _OnlinePlayerRow extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
       decoration: BoxDecoration(
-        color: isMe ? const Color(0xFFEDE9FC) : Theme.of(context).brightness == Brightness.dark ? const Color(0xFF201B36) : Colors.white,
+        color: isMe ? accent.withValues(alpha: .12) : Theme.of(context).brightness == Brightness.dark ? const Color(0xFF201B36) : Colors.white,
         borderRadius: BorderRadius.circular(19),
       ),
       child: Row(
@@ -615,7 +619,7 @@ class _OnlinePlayerRow extends StatelessWidget {
           Container(
             width: 42,
             height: 42,
-            decoration: const BoxDecoration(color: Color(0xFF1E1A43), shape: BoxShape.circle),
+            decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
             alignment: Alignment.center,
             child: Text(name.isEmpty ? '?' : name[0].toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
           ),
@@ -693,10 +697,10 @@ class _SuspectButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           child: Row(
             children: [
-              const Icon(Icons.person_search_rounded, color: _RajaMantriOnlineGameScreenState._purple, size: 24),
+              Icon(Icons.person_search_rounded, color: accent, size: 24),
               const SizedBox(width: 12),
               Expanded(child: Text(name, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15))),
-              const Icon(Icons.chevron_right_rounded, color: _RajaMantriOnlineGameScreenState._purple),
+              Icon(Icons.chevron_right_rounded, color: accent),
             ],
           ),
         ),
@@ -762,6 +766,7 @@ class _FinalResultCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
     final sorted = List<Map<String, dynamic>>.from(players)
       ..sort((a, b) => (int.tryParse(b['score']?.toString() ?? '') ?? 0).compareTo(int.tryParse(a['score']?.toString() ?? '') ?? 0));
     final top = int.tryParse(sorted.first['score']?.toString() ?? '') ?? 0;
@@ -769,7 +774,7 @@ class _FinalResultCard extends StatelessWidget {
     final mine = winners.any((player) => player['username']?.toString().toLowerCase() == username);
     return Container(
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(color: const Color(0xFFEDE9FC), borderRadius: BorderRadius.circular(22)),
+      decoration: BoxDecoration(color: accent.withValues(alpha: .12), borderRadius: BorderRadius.circular(22)),
       child: Column(
         children: [
           Text(mine ? 'You won!' : winners.length > 1 ? 'It’s a draw!' : 'Match complete', style: TextStyle(color: foreground, fontWeight: FontWeight.w900, fontSize: 22)),
@@ -897,7 +902,9 @@ class _RajaMantriInviteWaitingScreenState extends State<RajaMantriInviteWaitingS
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
+    final isDark = theme.brightness == Brightness.dark;
     final background = isDark ? const Color(0xFF141026) : const Color(0xFFF5F3FC);
     final foreground = isDark ? Colors.white : const Color(0xFF1E1A43);
     final muted = isDark ? Colors.white60 : const Color(0xFF625D8C);
@@ -925,13 +932,13 @@ class _RajaMantriInviteWaitingScreenState extends State<RajaMantriInviteWaitingS
               Container(
                 width: 112,
                 height: 112,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFEDE9FC),
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: .12),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   _expired ? Icons.hourglass_disabled_rounded : Icons.groups_rounded,
-                  color: const Color(0xFF5E4CF2),
+                  color: accent,
                   size: 54,
                 ),
               ),
@@ -956,7 +963,7 @@ class _RajaMantriInviteWaitingScreenState extends State<RajaMantriInviteWaitingS
                   children: [
                     SizedBox(width: 17, height: 17, child: CircularProgressIndicator(strokeWidth: 2.2)),
                     SizedBox(width: 10),
-                    Text('Waiting for host', style: TextStyle(color: Color(0xFF5E4CF2), fontWeight: FontWeight.w800)),
+                    Text('Waiting for host', style: TextStyle(color: accent, fontWeight: FontWeight.w800)),
                   ],
                 ),
               if (_expired) ...[
