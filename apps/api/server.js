@@ -4721,7 +4721,17 @@ function getConversationSummaryByKey(conversationKey) {
     };
   }
 
-  const message = messages[messages.length - 1];
+  const message = [...messages].reverse().find((candidate) => {
+    const game = candidate?.game;
+    return !(game && game.state === "in_progress" && game.lastMoveBy == null);
+  });
+  if (!message) {
+    return {
+      lastMessage: "",
+      lastTimestamp: null,
+      lastFrom: "",
+    };
+  }
   const text = message.deletedAt ? DELETED_MESSAGE_TEXT : toDisplayName(message.text);
   const compact = text.length > 52 ? `${text.slice(0, 49)}...` : text;
 
