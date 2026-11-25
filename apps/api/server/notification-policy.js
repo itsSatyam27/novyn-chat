@@ -49,6 +49,19 @@ function shouldDeliverNotification(user, payload = {}, timestamp = Date.now()) {
   } else if (type === "game_result" && user.gameResultsEnabled === false) {
     return false;
   }
+  if (user.doNotDisturbEnabled === true) {
+    const target = String(
+      payload.group === true
+        ? (payload.groupId || payload.chat || "")
+        : (payload.chat || payload.from || "")
+    ).trim().toLowerCase();
+    const favorites = new Set(
+      (Array.isArray(user.favoriteChatIds) ? user.favoriteChatIds : [])
+        .map((value) => String(value || "").trim().toLowerCase())
+        .filter(Boolean)
+    );
+    if (!target || !favorites.has(target)) return false;
+  }
   if (type !== "call" && isQuietHoursActive(user, timestamp)) return false;
   return true;
 }
