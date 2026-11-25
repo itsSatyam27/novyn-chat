@@ -542,6 +542,59 @@ class MessageEncryptionService {
     return message;
   }
 
+  /// Strict local decrypt used by Android background notifications.
+  ///
+  /// Unlike [decrypt], this method surfaces missing secure-storage identities
+  /// and authentication failures instead of silently returning the encrypted
+  /// placeholder. It never creates a new identity in the background isolate.
+  Future<Message> decryptForNotification(
+    Message message,
+    String account,
+    String peerPublicKey,
+  ) async {
+    if (!needsDecryption(message)) return message;
+    final normalizedAccount = _account(account);
+    if (normalizedAccount.isEmpty) {
+      throw StateError('The signed-in notification account is unavailable.');
+    }
+
+    if (peerPublicKey.trim().isNotEmpty) {
+      final shared = await _sharedKey(
+        normalizedAccount,
+        peerPublicKey,
+        requireExistingIdentity: true,
+      );
+      try {
+        final clear = await _aes.decrypt(
+          _box(message.ciphertext!, base64Decode(message.iv!)),
+          secretKey: shared,
+        );
+        return message.copyWith(text: utf8.decode(clear));
+      } on SecretBoxAuthenticationError {
+        // A legacy conversation key may still be the key used by this message.
+      }
+    }
+
+    final legacy = await _readLegacyKeys(normalizedAccount);
+    final versions = legacy[message.chatId.toLowerCase()] as List? ?? [];
+    for (final entry in versions.reversed) {
+      try {
+        final clear = await _aes.decrypt(
+          _box(message.ciphertext!, base64Decode(message.iv!)),
+          secretKey: SecretKey(base64Decode(entry['key'])),
+        );
+        return message.copyWith(text: utf8.decode(clear));
+      } on SecretBoxAuthenticationError {
+        continue;
+      } on FormatException {
+        continue;
+      }
+    }
+    throw StateError(
+      'No saved local encryption key can decrypt this conversation message.',
+    );
+  }
+
   /// Encrypts binary media with the same per-contact ECDH key used for messages.
   /// The returned ciphertext includes the 16-byte GCM authentication tag.
   Future<Map<String, dynamic>> encryptAttachmentBytes(
