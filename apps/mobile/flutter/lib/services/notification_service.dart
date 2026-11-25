@@ -434,7 +434,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       }
     } else {
       debugPrint(
-          '[NovynNotifications] Encrypted push is missing preview key material (ciphertext: ${ciphertext.isNotEmpty}, iv: ${iv.isNotEmpty}, sender key: ${peerKey.isNotEmpty}, account: ${account.isNotEmpty}).');
+          '[NovynNotifications] Encrypted push is missing preview key material (ciphertext: ${ciphertext.isNotEmpty}, iv: ${iv.isNotEmpty}, sender key: ${peerKey.isNotEmpty}, account: ${notificationAccount.isNotEmpty}).');
     }
   } else {
     debugPrint(
