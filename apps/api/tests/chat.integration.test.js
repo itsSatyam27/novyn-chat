@@ -231,6 +231,33 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   });
   assert.match((await passwordRateLimited).message, /Too many password change attempts/i);
 
+  // A successful password change must durably revoke the old cookie and
+  // disconnect the already-open socket, not merely delete refresh tokens.
+  const charlie = await signup('charlie');
+  const passwordChanged = event(charlie.socket, 'password_changed');
+  const sessionRevoked = event(charlie.socket, 'session_revoked');
+  const socketDisconnected = event(charlie.socket, 'disconnect');
+  charlie.socket.emit('change_password', {
+    currentPassword: 'Test-only-password-123!',
+    newPassword: 'Changed-password-456!',
+  });
+  assert.equal((await passwordChanged).sessionRevoked, true);
+  assert.match((await sessionRevoked).message, /credentials changed/i);
+  await socketDisconnected;
+  const oldCharlieSession = await fetch(`${base}/api/auth/session`, {
+    headers: { Cookie: charlie.cookie },
+  });
+  assert.equal(oldCharlieSession.status, 401);
+  const changedPasswordLogin = await fetch(`${base}/api/auth/signin`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      identifier: 'charlie@example.test',
+      password: 'Changed-password-456!',
+    }),
+  });
+  assert.equal(changedPasswordLogin.status, 200, await changedPasswordLogin.clone().text());
+
   // Device-pairing secrets and resulting login cookies must never be cached.
   const pairingCsrfCookie = alice.cookie.split('; ')
     .find((part) => part.startsWith('novyn_csrf='))
