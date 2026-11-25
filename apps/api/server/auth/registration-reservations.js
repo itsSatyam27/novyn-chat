@@ -15,7 +15,7 @@ function createRegistrationReservations() {
   function reserve(email, username, externalId = "") {
     const emailKey = normalize(email);
     const usernameKey = normalize(username);
-    const externalKey = normalize(externalId);
+    const externalKey = String(externalId || "").trim();
     if (!emailKey || !usernameKey) return false;
     if (
       pendingEmails.has(emailKey) ||
