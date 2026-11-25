@@ -106,7 +106,7 @@ Horizontal scaling requires database-owned operations, shared sessions and rate
 limits, shared presence/call state, and coordinated scheduled jobs. These changes
 have not been implemented in this patch.
 
-Set `NODE_ENV=production`, a stable `AUTH_SECRET` containing at least 32 bytes of cryptographically random data, `UPLOAD_TOKEN_SECRET`, and `ALLOWED_ORIGIN=https://your-chat-host`. Rotating `AUTH_SECRET` invalidates existing signed sessions and prevents decryption of previously encrypted TOTP secrets, so perform a planned account-security migration before rotating it. Terminate HTTPS at your hosting platform.
+Set `NODE_ENV=production`, a stable `AUTH_SECRET` containing at least 32 bytes of cryptographically random data, a separate `UPLOAD_TOKEN_SECRET` containing at least 32 random bytes (not equal to `AUTH_SECRET` or `CLOUDINARY_API_SECRET`), and `ALLOWED_ORIGIN=https://your-chat-host`. Rotating `AUTH_SECRET` invalidates existing signed sessions and prevents decryption of previously encrypted TOTP secrets, so perform a planned account-security migration before rotating it. Rotating `UPLOAD_TOKEN_SECRET` invalidates existing locally signed media links, so coordinate that rotation with a media-link migration. Production startup rejects missing, short, placeholder, or reused auth/upload secrets. Terminate HTTPS at your hosting platform.
 
 Password sign-in has both per-IP and per-identifier rate limits. The identifier key is SHA-256 hashed before it is stored in the in-process rate-limit map; repeated attempts for one account remain throttled even when the source IP changes. These limits remain process-local and require a shared store before running more than one backend replica.
 

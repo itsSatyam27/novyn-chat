@@ -157,8 +157,7 @@ const uploadFile = multer({
 });
 const uploadTokenSecret =
   process.env.UPLOAD_TOKEN_SECRET ||
-  process.env.CLOUDINARY_API_SECRET ||
-  (process.env.NODE_ENV === "production" ? null : "dev-secret");
+  (process.env.NODE_ENV === "production" ? null : process.env.CLOUDINARY_API_SECRET || "dev-secret");
 const GIPHY_API_KEY = toDisplayName(process.env.GIPHY_API_KEY);
 
 if (!uploadTokenSecret) {
