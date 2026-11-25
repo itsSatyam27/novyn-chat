@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novyn/widgets/novyn_dock.dart';
 
+void _ignoreDockSelection(int _) {}
+
 void main() {
   const styles = [
     'slide_pill',
@@ -49,6 +51,23 @@ void main() {
       expect(tester.getSize(shell).height, 96, reason: style);
       expect(tester.takeException(), isNull, reason: style);
     }
+  });
+
+  testWidgets('update badge appears on Settings avatar when a build is available',
+      (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+      home: Scaffold(
+        bottomNavigationBar: NovynDock(
+          selectedIndex: 4,
+          onSelected: _ignoreDockSelection,
+          updateAvailable: true,
+          style: 'slide_pill',
+        ),
+      ),
+    ));
+
+    expect(find.byKey(const ValueKey('dock-update-badge')), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('dock tabs remain tappable and badges stay visible',

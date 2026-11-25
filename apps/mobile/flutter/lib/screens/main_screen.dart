@@ -471,12 +471,17 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                           .fold(0, (total, chat) => total + chat.unreadCount),
                       builder: (context, unreadCount, _) => AnimatedBuilder(
                         animation: socket.contacts,
-                        builder: (context, _) => NovynDock(
-                          selectedIndex: _selectedIndex,
-                          onSelected: _onTabTap,
-                          unreadCount: unreadCount,
-                          requestCount: socket.contacts.requests.length,
-                          style: dockStyle,
+                        builder: (context, _) => AnimatedBuilder(
+                          animation: AppUpdateService.instance,
+                          builder: (context, _) => NovynDock(
+                            selectedIndex: _selectedIndex,
+                            onSelected: _onTabTap,
+                            unreadCount: unreadCount,
+                            requestCount: socket.contacts.requests.length,
+                            updateAvailable:
+                                AppUpdateService.instance.hasAvailableUpdate,
+                            style: dockStyle,
+                          ),
                         ),
                       ),
                     ),

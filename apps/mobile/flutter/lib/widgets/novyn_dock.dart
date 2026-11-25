@@ -19,6 +19,7 @@ class NovynDock extends StatelessWidget {
     required this.onSelected,
     this.unreadCount = 0,
     this.requestCount = 0,
+    this.updateAvailable = false,
     this.style = 'slide_pill',
     this.preview = false,
   });
@@ -27,6 +28,7 @@ class NovynDock extends StatelessWidget {
   final ValueChanged<int> onSelected;
   final int unreadCount;
   final int requestCount;
+  final bool updateAvailable;
   final String style;
   final bool preview;
 
@@ -749,6 +751,24 @@ class NovynDock extends StatelessWidget {
                 shape: BoxShape.circle,
               ),
               child: SizedBox(width: 8, height: 8),
+            ),
+          ),
+        if (index == 4 && updateAvailable)
+          Positioned(
+            key: const ValueKey('dock-update-badge'),
+            top: -5,
+            right: -6,
+            child: Container(
+              width: 9,
+              height: 9,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE34D73),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Colors.white,
+                  width: 1.5,
+                ),
+              ),
             ),
           ),
       ],

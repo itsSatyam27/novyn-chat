@@ -144,6 +144,7 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
   static const int totalRounds = 5;
 
   late List<RMPlayer> _players;
+  bool _playersInitialized = false;
   int _currentRound = 1;
   RMGameState _gameState = RMGameState.shuffling;
 
@@ -170,12 +171,20 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
   @override
   void initState() {
     super.initState();
-    _initPlayers();
     _initAnimations();
-    _startRound(1);
   }
 
-  void _initPlayers() {
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_playersInitialized) {
+      _playersInitialized = true;
+      _initPlayers(Theme.of(context).colorScheme.primary);
+      _startRound(1);
+    }
+  }
+
+  void _initPlayers(Color accent) {
     final count = widget.isPassAndPlay ? 4 : (widget.playerCount == 3 ? 3 : 4);
     final requiredOpponents = count - 1;
     final supplied = widget.customOpponents ?? const <String>[];
@@ -185,9 +194,9 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
       }
       return 'Bot ${idx + 1}';
     });
-    const playerColors = [
-      Color(0xFF5E44F3),
-      Color(0xFFD92D66),
+    final playerColors = [
+      accent,
+      const Color(0xFFD92D66),
       Color(0xFFF59E0B),
       Color(0xFF0D9488),
     ];
@@ -494,6 +503,7 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
   }
 
   void _showFinalResultModal() {
+    final accent = Theme.of(context).colorScheme.primary;
     final sorted = List<RMPlayer>.from(_players)
       ..sort((a, b) => b.score.compareTo(a.score));
     final winner = sorted.first;
@@ -610,7 +620,7 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
                         height: 52,
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF5E44F3),
+                            backgroundColor: accent,
                             elevation: 0,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),
@@ -796,6 +806,7 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
   }
 
   Widget _buildHeader(bool isDark) {
+    final accent = Theme.of(context).colorScheme.primary;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
@@ -834,8 +845,8 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
             ),
             child: Text(
               'Round $_currentRound/$totalRounds',
-              style: const TextStyle(
-                color: Color(0xFF5E44F3),
+              style: TextStyle(
+                color: accent,
                 fontWeight: FontWeight.w800,
                 fontSize: 13,
               ),
@@ -865,12 +876,13 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
   }
 
   Widget _buildPlayerCard(RMPlayer player, bool isDark) {
+    final accent = Theme.of(context).colorScheme.primary;
     final isYou = player.isUser;
     final isRaja = player.isRoleRevealed && player.currentRole == RMRole.raja;
 
     Color borderColor = Colors.transparent;
     if (isYou) {
-      borderColor = const Color(0xFF5E44F3);
+      borderColor = accent;
     } else if (isRaja) {
       borderColor = const Color(0xFFF59E0B);
     }
@@ -1015,6 +1027,7 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
   }
 
   Widget _buildRichStatusText(bool isDark) {
+    final accent = Theme.of(context).colorScheme.primary;
     if (_gameState == RMGameState.pickChit) {
       return Text(
         _statusMessage,
@@ -1036,10 +1049,10 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
             fontWeight: FontWeight.w800,
             color: isDark ? Colors.white : const Color(0xFF1E1A33),
           ),
-          children: const [
+          children: [
             TextSpan(
               text: 'You ',
-              style: TextStyle(color: Color(0xFF5E44F3)),
+              style: TextStyle(color: accent),
             ),
             TextSpan(text: 'are Sipahi. Who is the Chor?'),
           ],
@@ -1117,6 +1130,7 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
     double height,
     bool isDark,
   ) {
+    final accent = Theme.of(context).colorScheme.primary;
     final isPicked = _userPickedChitIndex == index;
     final isShuffling = _gameState == RMGameState.shuffling;
     final canPick = _gameState == RMGameState.pickChit;
@@ -1157,7 +1171,7 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
             color: isDark ? const Color(0xFF201B36) : Colors.white,
             borderRadius: BorderRadius.circular(18),
             border: isPicked
-                ? Border.all(color: const Color(0xFF5E44F3), width: 3)
+                ? Border.all(color: accent, width: 3)
                 : null,
             boxShadow: [
               BoxShadow(
@@ -1239,6 +1253,7 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
   }
 
   Widget _buildActionButtonContent(bool isDark) {
+    final accent = Theme.of(context).colorScheme.primary;
     if (_gameState == RMGameState.userGuessing) {
       final suspects = _suspectIndices.map((index) => _players[index]).toList();
       suspects.sort((a, b) => a.name.compareTo(b.name));
@@ -1356,12 +1371,12 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
         height: 48,
         child: ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF5E44F3),
+            backgroundColor: accent,
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
-            shadowColor: const Color(0xFF3823B5),
+            shadowColor: accent.withValues(alpha: .3),
           ),
           onPressed: _onNextRound,
           child: const Text(
@@ -1382,12 +1397,12 @@ class _RajaMantriScreenState extends State<RajaMantriScreen>
         height: 48,
         child: ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF5E44F3),
+            backgroundColor: accent,
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
-            shadowColor: const Color(0xFF3823B5),
+            shadowColor: accent.withValues(alpha: .3),
           ),
           onPressed: _showFinalResultModal,
           child: const Text(

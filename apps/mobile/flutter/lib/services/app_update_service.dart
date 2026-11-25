@@ -111,6 +111,12 @@ class AppUpdateService extends ChangeNotifier {
   static const Duration backgroundCheckFrequency = Duration(hours: 12);
 
   AppUpdateInfo? _currentRelease;
+
+  /// True while a verified ARM64 build newer than the installed app is available.
+  bool get hasAvailableUpdate => _currentRelease != null;
+
+  int? get availableBuild => _currentRelease?.build;
+
   Future<void>? _downloadFuture;
   String? _activeDownloadKey;
   bool isDownloading = false;
@@ -157,6 +163,10 @@ class AppUpdateService extends ChangeNotifier {
         .timeout(const Duration(seconds: 20));
 
     if (response.statusCode == 404) {
+      if (_currentRelease != null) {
+        _currentRelease = null;
+        notifyListeners();
+      }
       return AppUpdateCheckResult(
         installedBuild: installedBuild,
         buildNumber: installedInfo.buildNumber,
@@ -227,6 +237,10 @@ class AppUpdateService extends ChangeNotifier {
     }
 
     if (selectedBuild <= installedBuild) {
+      if (_currentRelease != null) {
+        _currentRelease = null;
+        notifyListeners();
+      }
       return AppUpdateCheckResult(
         installedBuild: installedBuild,
         buildNumber: installedInfo.buildNumber,
@@ -304,7 +318,9 @@ class AppUpdateService extends ChangeNotifier {
   Future<void> markUpdateNotificationOpened() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.reload();
-    final build = prefs.getInt(_lastNotifiedBuildKey) ?? 0;
+    final build = _currentRelease?.build ??
+        prefs.getInt(_lastNotifiedBuildKey) ??
+        0;
     if (build > 0) {
       await prefs.setInt(_handledUpdateBuildKey, build);
     }
@@ -364,6 +380,7 @@ class AppUpdateService extends ChangeNotifier {
     final key = release.key;
     if (_activeDownloadKey == key &&
         (isDownloading || downloadedApkPath != null || hasPartialDownload)) {
+      notifyListeners();
       return;
     }
 

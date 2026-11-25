@@ -92,7 +92,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final accent = colors.primary;
+    final isDark = theme.brightness == Brightness.dark;
     final foreground = isDark ? Colors.white : const Color(0xFF211B36);
     final muted = isDark ? Colors.white60 : const Color(0xFF77718F);
     final surface = isDark ? const Color(0xFF201B36) : Colors.white;
@@ -115,7 +118,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _loadLeaderboard,
-          color: const Color(0xFF6848F5),
+          color: accent,
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
@@ -165,10 +168,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                       label: Text(game),
                       selected: selected,
                       onSelected: (_) => _selectGame(game),
-                      selectedColor: const Color(0xFF6848F5),
+                      selectedColor: accent,
                       backgroundColor: surface,
                       labelStyle: TextStyle(
-                        color: selected ? Colors.white : foreground,
+                        color: selected ? colors.onPrimary : foreground,
                         fontWeight: FontWeight.w700,
                         fontSize: 12,
                       ),
@@ -182,14 +185,14 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF292241) : const Color(0xFFEEEAFB),
+                  color: accent.withValues(alpha: .11),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.info_outline_rounded,
-                      color: Color(0xFF6848F5),
+                      color: accent,
                       size: 17,
                     ),
                     const SizedBox(width: 9),
@@ -214,8 +217,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                   child: Center(
                     child: Column(
                       children: [
-                        const CircularProgressIndicator(
-                          color: Color(0xFF6848F5),
+                        CircularProgressIndicator(
+                          color: accent,
                           strokeWidth: 2.5,
                         ),
                         const SizedBox(height: 14),
@@ -330,6 +333,8 @@ class _LeaderboardPlayerTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final accent = colors.primary;
     final foreground = isDark ? Colors.white : const Color(0xFF211B36);
     final muted = isDark ? Colors.white60 : const Color(0xFF77718F);
     final name = (entry['displayName'] ?? entry['username'] ?? 'Player').toString();
@@ -346,17 +351,20 @@ class _LeaderboardPlayerTile extends StatelessWidget {
             ? const Color(0xFF9BA5B5)
             : rank == 3
                 ? const Color(0xFFCD8B55)
-                : const Color(0xFF6848F5);
+                : accent;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
       decoration: BoxDecoration(
         color: highlight
-            ? (isDark ? const Color(0xFF302653) : const Color(0xFFECE7FF))
-            : (isDark ? const Color(0xFF201B36) : Colors.white),
+            ? Color.alphaBlend(
+                accent.withValues(alpha: .12),
+                colors.surface,
+              )
+            : colors.surface,
         borderRadius: BorderRadius.circular(19),
         border: highlight
-            ? Border.all(color: const Color(0xFF8067F7), width: 1.2)
+            ? Border.all(color: accent.withValues(alpha: .65), width: 1.2)
             : null,
       ),
       child: Row(
@@ -410,7 +418,7 @@ class _LeaderboardPlayerTile extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF6848F5),
+                          color: accent,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Text(
@@ -488,6 +496,8 @@ class _LeaderboardMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final accent = colors.primary;
     final foreground = isDark ? Colors.white : const Color(0xFF211B36);
     final muted = isDark ? Colors.white60 : const Color(0xFF77718F);
     return Container(
@@ -502,11 +512,11 @@ class _LeaderboardMessage extends StatelessWidget {
           Container(
             width: 66,
             height: 66,
-            decoration: const BoxDecoration(
-              color: Color(0xFFEEE9FF),
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: .12),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: const Color(0xFF6848F5), size: 34),
+            child: Icon(icon, color: accent, size: 34),
           ),
           const SizedBox(height: 16),
           Text(
@@ -534,8 +544,8 @@ class _LeaderboardMessage extends StatelessWidget {
             FilledButton(
               onPressed: onAction,
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF6848F5),
-                foregroundColor: Colors.white,
+                backgroundColor: accent,
+                foregroundColor: colors.onPrimary,
               ),
               child: Text(actionLabel!),
             ),
@@ -559,6 +569,7 @@ class _ScopeTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
@@ -566,14 +577,14 @@ class _ScopeTab extends StatelessWidget {
           duration: const Duration(milliseconds: 180),
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
-            color: selected ? const Color(0xFF6848F5) : Colors.transparent,
+            color: selected ? colors.primary : Colors.transparent,
             borderRadius: BorderRadius.circular(14),
           ),
           alignment: Alignment.center,
           child: Text(
             label,
             style: TextStyle(
-              color: selected ? Colors.white : Theme.of(context).colorScheme.onSurface,
+              color: selected ? colors.onPrimary : colors.onSurface,
               fontSize: 13,
               fontWeight: FontWeight.w800,
             ),

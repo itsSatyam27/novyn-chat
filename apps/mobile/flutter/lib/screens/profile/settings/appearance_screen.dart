@@ -4,6 +4,7 @@ import 'package:novyn/services/haptic_service.dart';
 import '../../../services/settings_service.dart';
 import '../../../services/auth_service.dart';
 import '../../../theme/novyn_theme.dart';
+import '../../../utils/appearance_color_utils.dart';
 import '../../../widgets/novyn_alert.dart';
 import 'dock_customization_screen.dart';
 import 'alert_customization_screen.dart';
@@ -80,6 +81,8 @@ class AppearanceScreen extends StatelessWidget {
                   label: 'Light',
                   mode: ThemeMode.light,
                   selected: settings.themeMode == ThemeMode.light,
+                  accentColor: accent,
+                  accentEnabled: settings.accentColorEnabled,
                   onTap: () => settings.setThemeMode(ThemeMode.light),
                 ),
                 const SizedBox(width: 12),
@@ -87,6 +90,8 @@ class AppearanceScreen extends StatelessWidget {
                   label: 'Dark',
                   mode: ThemeMode.dark,
                   selected: settings.themeMode == ThemeMode.dark,
+                  accentColor: accent,
+                  accentEnabled: settings.accentColorEnabled,
                   onTap: () => settings.setThemeMode(ThemeMode.dark),
                 ),
                 const SizedBox(width: 12),
@@ -94,6 +99,8 @@ class AppearanceScreen extends StatelessWidget {
                   label: 'System',
                   mode: ThemeMode.system,
                   selected: settings.themeMode == ThemeMode.system,
+                  accentColor: accent,
+                  accentEnabled: settings.accentColorEnabled,
                   onTap: () => settings.setThemeMode(ThemeMode.system),
                 ),
               ],
@@ -125,8 +132,35 @@ class AppearanceScreen extends StatelessWidget {
                     },
                   ),
                 ),
+                if (!settings.accentColorEnabled)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.palette_outlined,
+                          size: 14,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 7),
+                        Text(
+                          'Accent colors are off',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
+                  padding: EdgeInsets.fromLTRB(
+                    16,
+                    settings.accentColorEnabled ? 12 : 8,
+                    16,
+                    18,
+                  ),
                   child: GridView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
@@ -141,9 +175,10 @@ class AppearanceScreen extends StatelessWidget {
                       if (index == 7) {
                         return _AccentItem(
                           name: 'Custom',
-                          color: const Color(0xFF6D5DFC),
+                          color: accent,
                           selected: selectedAccent < 0,
                           custom: true,
+                          enabled: settings.accentColorEnabled,
                           onTap: () async {
                             final picked = await _showCustomAccentPicker(context, accent);
                             if (picked != null) await settings.setAccentColor(picked.value);
@@ -156,6 +191,7 @@ class AppearanceScreen extends StatelessWidget {
                         name: item.$1,
                         color: item.$2,
                         selected: isSelected,
+                        enabled: settings.accentColorEnabled,
                         onTap: () => settings.setAccentColor(item.$2.value),
                       );
                     },
@@ -475,12 +511,16 @@ class _ThemeChoiceCard extends StatelessWidget {
   final String label;
   final ThemeMode mode;
   final bool selected;
+  final Color accentColor;
+  final bool accentEnabled;
   final VoidCallback onTap;
 
   const _ThemeChoiceCard({
     required this.label,
     required this.mode,
     required this.selected,
+    required this.accentColor,
+    required this.accentEnabled,
     required this.onTap,
   });
 
@@ -490,6 +530,12 @@ class _ThemeChoiceCard extends StatelessWidget {
     final system = mode == ThemeMode.system;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final ink = isDark ? Colors.white : const Color(0xFF1A1730);
+    final previewSurface = dark ? const Color(0xFF1C1930) : const Color(0xFFF1EEFC);
+    final previewAccent = resolveAccentSwatchColor(
+      color: accentColor,
+      surface: previewSurface,
+      enabled: accentEnabled,
+    );
 
     return Expanded(
       child: GestureDetector(
@@ -542,7 +588,7 @@ class _ThemeChoiceCard extends StatelessWidget {
                                     width: 22,
                                     height: 5,
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFF6D5DFC),
+                                      color: previewAccent,
                                       borderRadius: BorderRadius.circular(3),
                                     ),
                                   ),
@@ -631,6 +677,7 @@ class _AccentItem extends StatelessWidget {
   final Color color;
   final bool selected;
   final bool custom;
+  final bool enabled;
   final VoidCallback onTap;
 
   const _AccentItem({
@@ -638,12 +685,20 @@ class _AccentItem extends StatelessWidget {
     required this.color,
     required this.selected,
     this.custom = false,
+    this.enabled = true,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+    final swatchColor = resolveAccentSwatchColor(
+      color: color,
+      surface: theme.colorScheme.surfaceContainerHighest,
+      enabled: enabled,
+    );
+    final markerColor = enabled ? Colors.white : theme.colorScheme.onSurfaceVariant;
 
     return GestureDetector(
       onTap: () {
@@ -653,14 +708,18 @@ class _AccentItem extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
             width: 44,
             height: 44,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: selected
                   ? Border.all(
-                      color: dark ? Colors.white : const Color(0xFF1A1730),
+                      color: enabled
+                          ? (dark ? Colors.white : const Color(0xFF1A1730))
+                          : theme.colorScheme.outline,
                       width: 2,
                     )
                   : null,
@@ -668,14 +727,18 @@ class _AccentItem extends StatelessWidget {
             padding: EdgeInsets.all(selected ? 3 : 0),
             child: Container(
               decoration: BoxDecoration(
-                color: color,
+                color: swatchColor,
                 shape: BoxShape.circle,
               ),
               child: Center(
                 child: selected
-                    ? Icon(Icons.check_rounded, color: Colors.white, size: 20)
+                    ? Icon(Icons.check_rounded, color: markerColor, size: 20)
                     : (custom
-                        ? Icon(Icons.edit_outlined, color: Colors.white, size: 18)
+                        ? Icon(
+                            Icons.edit_outlined,
+                            color: markerColor,
+                            size: 18,
+                          )
                         : null),
               ),
             ),
@@ -686,7 +749,9 @@ class _AccentItem extends StatelessWidget {
             style: TextStyle(
               fontSize: 12.5,
               fontWeight: FontWeight.w600,
-              color: dark ? const Color(0xFFC0BDCC) : const Color(0xFF5A5670),
+              color: enabled
+                  ? (dark ? const Color(0xFFC0BDCC) : const Color(0xFF5A5670))
+                  : theme.colorScheme.onSurfaceVariant.withValues(alpha: .72),
             ),
           ),
         ],

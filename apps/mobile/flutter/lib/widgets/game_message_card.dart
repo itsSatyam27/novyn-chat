@@ -828,7 +828,9 @@ class _GameOverModalContentState extends State<_GameOverModalContent> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
+    final isDark = theme.brightness == Brightness.dark;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
@@ -884,20 +886,20 @@ class _GameOverModalContentState extends State<_GameOverModalContent> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: const Color(0xFF5E44F3).withValues(alpha: isDark ? 0.2 : 0.1),
+                color: accent.withValues(alpha: isDark ? 0.2 : 0.1),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.timer_outlined, size: 16, color: Color(0xFF5E44F3)),
+                  Icon(Icons.timer_outlined, size: 16, color: accent),
                   const SizedBox(width: 6),
                   Text(
                     '${_secondsRemaining}s remaining',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF5E44F3),
+                      color: accent,
                     ),
                   ),
                 ],
@@ -929,7 +931,7 @@ class _GameOverModalContentState extends State<_GameOverModalContent> {
                   child: FilledButton(
                     onPressed: _loading ? null : _handleAccept,
                     style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF5E44F3),
+                      backgroundColor: accent,
                       foregroundColor: Colors.white,
                       minimumSize: const Size(double.infinity, 52),
                       shape: RoundedRectangleBorder(
@@ -1001,7 +1003,7 @@ class _GameOverModalContentState extends State<_GameOverModalContent> {
             FilledButton(
               onPressed: _handlePlayAgain,
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF5E44F3),
+                backgroundColor: accent,
                 foregroundColor: Colors.white,
                 minimumSize: const Size(double.infinity, 52),
                 shape: RoundedRectangleBorder(
@@ -1294,7 +1296,9 @@ class _RpsMoveTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+    final accent = theme.colorScheme.primary;
     final label = switch (move) {
       'rock' => 'Rock',
       'paper' => 'Paper',
@@ -1315,14 +1319,14 @@ class _RpsMoveTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(18),
               border: Border.all(
                 color: selected
-                    ? const Color(0xFF5E44F3)
+                    ? accent
                     : (dark ? const Color(0xFF382F57) : const Color(0xFFEAE6F8)),
                 width: selected ? 2.2 : 1.2,
               ),
               boxShadow: [
                 BoxShadow(
                   color: selected
-                      ? const Color(0xFF5E44F3).withValues(alpha: 0.15)
+                      ? accent.withValues(alpha: 0.15)
                       : Colors.black.withValues(alpha: 0.03),
                   blurRadius: 8,
                   offset: const Offset(0, 3),
@@ -1557,7 +1561,9 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
     final winsO = (data['p2Score'] as num?)?.toInt() ?? (_finished && winner.toLowerCase() == playerO.toLowerCase() ? 1 : 0);
     final myScore = isPlayerX ? winsX : winsO;
     final opponentScore = isPlayerX ? winsO : winsX;
-    final dark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+    final accent = theme.colorScheme.primary;
     final opponentName = widget.opponentName.trim().isEmpty ? widget.opponentUsername : widget.opponentName.trim();
 
     final myStatus = _finished
@@ -1583,7 +1589,7 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
                 name: 'You',
                 username: '@${widget.currentUsername}',
                 mark: mySymbol,
-                accent: const Color(0xFF5E44F3),
+                accent: accent,
                 active: !_finished && isMyTurn,
                 status: myStatus,
                 isSolidPill: myPillSolid,
@@ -1668,14 +1674,14 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
                         borderRadius: BorderRadius.circular(22),
                         border: Border.all(
                           color: winning
-                              ? const Color(0xFF5E44F3)
+                              ? accent
                               : (dark ? const Color(0xFF382F57) : const Color(0xFFEAE6F8)),
                           width: winning ? 2.5 : 1.2,
                         ),
                         boxShadow: [
                           BoxShadow(
                             color: winning
-                                ? const Color(0xFF5E44F3).withValues(alpha: 0.25)
+                                ? accent.withValues(alpha: 0.25)
                                 : Colors.black.withValues(alpha: 0.03),
                             blurRadius: winning ? 14 : 8,
                             offset: const Offset(0, 4),
@@ -1690,14 +1696,14 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
                           child: child,
                         ),
                         child: value == 'X'
-                            ? const Text(
+                            ? Text(
                                 'X',
                                 key: ValueKey('x'),
                                 style: TextStyle(
                                   fontFamily: 'PlusJakartaSans',
                                   fontSize: 52,
                                   fontWeight: FontWeight.w900,
-                                  color: Color(0xFF5E44F3),
+                                  color: accent,
                                 ),
                               )
                             : value == 'O'
@@ -1731,7 +1737,7 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
             icon: const Icon(Icons.analytics_outlined, size: 18),
             label: const Text('View match results'),
             style: TextButton.styleFrom(
-              foregroundColor: const Color(0xFF5E44F3),
+              foregroundColor: accent,
             ),
           ),
         ],
@@ -2207,7 +2213,9 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
   @override
   Widget build(BuildContext context) {
     final data = _data;
-    final dark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+    final accent = theme.colorScheme.primary;
     final myMove = _myMove;
     final opponentLocked = !_roundTransitioning &&
         !_isCountingDown &&
@@ -2263,7 +2271,7 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
                 name: 'You',
                 username: '@${widget.currentUsername}',
                 mark: _initial(widget.currentUsername),
-                accent: const Color(0xFF5E44F3),
+                accent: accent,
                 status: myTag,
                 active: !_finished && myMove == null,
                 isSolidPill: myPillSolid,
@@ -2323,7 +2331,7 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
             Expanded(
               child: _RpsPad(
                 move: leftMove,
-                accent: const Color(0xFF5E44F3),
+                accent: accent,
                 shake: _isCountingDown,
                 pop: _revealed,
                 winner: leftWin,
@@ -2373,7 +2381,7 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
             icon: const Icon(Icons.analytics_outlined, size: 18),
             label: const Text('View match results'),
             style: TextButton.styleFrom(
-              foregroundColor: const Color(0xFF5E44F3),
+              foregroundColor: accent,
             ),
           ),
         ],

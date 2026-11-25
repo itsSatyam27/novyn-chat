@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -74,6 +75,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
   void initState() {
     super.initState();
     _updateService.addListener(_handleDownloadStateChanged);
+    unawaited(_updateService.markUpdateNotificationOpened());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _checkForUpdates();
     });
@@ -498,7 +500,9 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
     final muted = dark ? const Color(0xFFC4C1DD) : const Color(0xFF777487);
     final surface = dark ? const Color(0xFF171622) : Colors.white;
     final border = dark ? const Color(0xFF39345F) : const Color(0xFFE5DFFF);
-    final primary = Theme.of(context).colorScheme.primary;
+    final colors = Theme.of(context).colorScheme;
+    final primary = colors.primary;
+    final onPrimary = colors.onPrimary;
     final updateNotes = _displayReleaseNotes();
     final activeDownload = !_ready &&
         (_downloading || _paused || _updateService.hasPartialDownload);
@@ -550,11 +554,11 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                         color: border.withValues(alpha: 0.8),
                         width: 1.5,
                       ),
-                      boxShadow: const [
+                      boxShadow: [
                         BoxShadow(
-                          color: Color(0x255E44F3),
+                          color: primary.withValues(alpha: .15),
                           blurRadius: 18,
-                          offset: Offset(0, 6),
+                          offset: const Offset(0, 6),
                         ),
                       ],
                     ),
@@ -807,12 +811,12 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   if (_checking)
-                                    const SizedBox(
+                                    SizedBox(
                                       width: 16,
                                       height: 16,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
-                                        color: Color(0xFF5E44F3),
+                                        color: primary,
                                       ),
                                     )
                                   else
@@ -855,10 +859,10 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                       height: 48,
                       child: ElevatedButton.icon(
                         onPressed: _shareNovyn,
-                        icon: const Icon(Icons.share_outlined, size: 18, color: Colors.white),
-                        label: const Text('Share Novyn', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700)),
+                        icon: Icon(Icons.share_outlined, size: 18, color: onPrimary),
+                        label: Text('Share Novyn', style: TextStyle(color: onPrimary, fontSize: 14, fontWeight: FontWeight.w700)),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF5E44F3),
+                          backgroundColor: primary,
                           elevation: 0,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                         ),
@@ -871,7 +875,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                       height: 48,
                       child: OutlinedButton.icon(
                         onPressed: _showWhatsNewSheet,
-                        icon: const Icon(Icons.auto_awesome_rounded, size: 18, color: Color(0xFF5E44F3)),
+                        icon: Icon(Icons.auto_awesome_rounded, size: 18, color: primary),
                         label: Text("What's new", style: TextStyle(color: ink, fontSize: 14, fontWeight: FontWeight.w700)),
                         style: OutlinedButton.styleFrom(
                           backgroundColor: surface,
@@ -906,16 +910,17 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                             style: GoogleFonts.dancingScript(
                               fontSize: 27,
                               fontWeight: FontWeight.w600,
-                              color: const Color(0xFF5E44F3),
+                              color: primary,
                             ),
                           ),
-                          const WidgetSpan(
+                          WidgetSpan(
                             alignment: PlaceholderAlignment.middle,
                             child: Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 4),
-                              child: Text(
-                                '💜',
-                                style: TextStyle(fontSize: 20),
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              child: Icon(
+                                Icons.favorite_rounded,
+                                color: primary,
+                                size: 19,
                               ),
                             ),
                           ),
@@ -924,7 +929,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                             style: GoogleFonts.dancingScript(
                               fontSize: 27,
                               fontWeight: FontWeight.w600,
-                              color: const Color(0xFF5E44F3),
+                              color: primary,
                             ),
                           ),
                         ],
@@ -960,8 +965,8 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           child: Text(
             label,
-            style: const TextStyle(
-              color: Color(0xFF5E44F3),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.primary,
               fontSize: 14,
               fontWeight: FontWeight.w600,
             ),
@@ -1026,7 +1031,9 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
   }
 
   void _showWhatsNewSheet() {
-    final dark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+    final accent = theme.colorScheme.primary;
     final surface = dark ? const Color(0xFF1F1D2C) : Colors.white;
     final ink = dark ? const Color(0xFFF0EFFF) : const Color(0xFF1D1B2B);
     final notes = _displayReleaseNotes();
@@ -1061,10 +1068,10 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF5E44F3).withValues(alpha: 0.12),
+                      color: accent.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(Icons.auto_awesome_rounded, color: Color(0xFF5E44F3), size: 22),
+                    child: Icon(Icons.auto_awesome_rounded, color: accent, size: 22),
                   ),
                   const SizedBox(width: 12),
                   Text("What's New in Novyn",
@@ -1077,9 +1084,9 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Padding(
-                      padding: EdgeInsets.only(top: 5),
-                      child: Icon(Icons.check_circle_rounded, color: Color(0xFF5E44F3), size: 16),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 5),
+                      child: Icon(Icons.check_circle_rounded, color: accent, size: 16),
                     ),
                     const SizedBox(width: 10),
                     Expanded(

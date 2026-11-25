@@ -139,6 +139,8 @@ class _GameInvitationsScreenState extends State<GameInvitationsScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final accent = colors.primary;
     final isDark = theme.brightness == Brightness.dark;
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF141026) : const Color(0xFFF4F2FA),
@@ -189,7 +191,7 @@ class _GameInvitationsScreenState extends State<GameInvitationsScreen> {
                             decoration: BoxDecoration(
                               color: isDark ? const Color(0xFF211B37) : Colors.white,
                               borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: const Color(0xFF8B78F5).withValues(alpha: .18)),
+                              border: Border.all(color: accent.withValues(alpha: .18)),
                             ),
                             child: Column(
                               children: [
@@ -199,7 +201,7 @@ class _GameInvitationsScreenState extends State<GameInvitationsScreen> {
                                       name: name,
                                       photoUrl: invite['avatarId']?.toString() ?? '',
                                       radius: 24,
-                                      fallbackColor: const Color(0xFF6848F5),
+                                      fallbackColor: accent,
                                     ),
                                     const SizedBox(width: 12),
                                     Expanded(
@@ -212,7 +214,7 @@ class _GameInvitationsScreenState extends State<GameInvitationsScreen> {
                                         ],
                                       ),
                                     ),
-                                    const Icon(Icons.sports_esports_rounded, color: Color(0xFF6848F5)),
+                                    Icon(Icons.sports_esports_rounded, color: accent),
                                   ],
                                 ),
                                 const SizedBox(height: 13),
@@ -220,7 +222,7 @@ class _GameInvitationsScreenState extends State<GameInvitationsScreen> {
                                   children: [
                                     Expanded(child: OutlinedButton(onPressed: busy ? null : () => _reject(invite), child: const Text('Reject'))),
                                     const SizedBox(width: 9),
-                                    Expanded(child: FilledButton(onPressed: busy ? null : () => _accept(invite), style: FilledButton.styleFrom(backgroundColor: const Color(0xFF6848F5)), child: busy ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Accept'))),
+                                    Expanded(child: FilledButton(onPressed: busy ? null : () => _accept(invite), style: FilledButton.styleFrom(backgroundColor: accent, foregroundColor: colors.onPrimary), child: busy ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Accept'))),
                                   ],
                                 ),
                               ],

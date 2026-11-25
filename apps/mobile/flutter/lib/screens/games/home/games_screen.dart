@@ -784,10 +784,12 @@ class _GameProfileHeroCardState extends State<_GameProfileHeroCard> {
     final losses = stats.losses;
     final draws = stats.draws;
     final winRate = total > 0 ? (wins / total * 100).round() : 0;
+    final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
     final foreground = isDark ? Colors.white : const Color(0xFF1E1A33);
     final muted = isDark ? Colors.white60 : const Color(0xFF625D8C);
     final surface = isDark ? const Color(0xFF201B36) : Colors.white;
-    final softSurface = isDark ? const Color(0xFF2A2347) : const Color(0xFFF1EEFC);
+    final softSurface = Color.lerp(surface, accent, isDark ? .19 : .09)!;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -796,7 +798,7 @@ class _GameProfileHeroCardState extends State<_GameProfileHeroCard> {
         borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF5E44F3).withValues(alpha: isDark ? 0.08 : 0.04),
+            color: accent.withValues(alpha: isDark ? 0.08 : 0.04),
             blurRadius: 18,
             offset: const Offset(0, 6),
           ),
@@ -823,10 +825,10 @@ class _GameProfileHeroCardState extends State<_GameProfileHeroCard> {
                           strokeWidth: 4,
                           strokeCap: StrokeCap.round,
                           backgroundColor: isDark
-                              ? const Color(0xFF453B68)
-                              : const Color(0xFFE3DDFB),
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                            Color(0xFF6250F5),
+                              ? accent.withValues(alpha: .24)
+                              : accent.withValues(alpha: .14),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            accent,
                           ),
                         ),
                       ),
@@ -838,7 +840,7 @@ class _GameProfileHeroCardState extends State<_GameProfileHeroCard> {
                               : widget.username,
                           photoUrl: widget.photoUrl,
                           radius: 27,
-                          fallbackColor: const Color(0xFF5E44F3),
+                          fallbackColor: accent,
                         ),
                       ),
                       Positioned(
@@ -847,7 +849,7 @@ class _GameProfileHeroCardState extends State<_GameProfileHeroCard> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF6250F5),
+                            color: accent,
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(color: surface, width: 2),
                           ),
@@ -889,8 +891,8 @@ class _GameProfileHeroCardState extends State<_GameProfileHeroCard> {
                           backgroundColor: isDark
                               ? const Color(0xFF453B68)
                               : const Color(0xFFE3DDFB),
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                            Color(0xFF6250F5),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            accent,
                           ),
                         ),
                       ),
@@ -919,7 +921,7 @@ class _GameProfileHeroCardState extends State<_GameProfileHeroCard> {
                   ),
                   child: Icon(
                     _expanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
-                    color: const Color(0xFF5E44F3),
+                    color: accent,
                     size: 28,
                   ),
                 ),
@@ -1046,7 +1048,7 @@ class _GameProfileHeroCardState extends State<_GameProfileHeroCard> {
                               icon: const Icon(Icons.history_rounded, size: 19),
                               label: const Text('Game History'),
                               style: FilledButton.styleFrom(
-                                foregroundColor: const Color(0xFF5E44F3),
+                                foregroundColor: accent,
                                 backgroundColor: softSurface,
                                 elevation: 0,
                                 minimumSize: const Size.fromHeight(46),
@@ -1063,7 +1065,7 @@ class _GameProfileHeroCardState extends State<_GameProfileHeroCard> {
                               icon: const Icon(Icons.emoji_events_rounded, size: 19),
                               label: const Text('Leaderboard'),
                               style: FilledButton.styleFrom(
-                                foregroundColor: const Color(0xFF5E44F3),
+                                foregroundColor: accent,
                                 backgroundColor: softSurface,
                                 elevation: 0,
                                 minimumSize: const Size.fromHeight(46),
@@ -1146,11 +1148,14 @@ class _GamesCategoryPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final accent = colors.primary;
+    final isDark = theme.brightness == Brightness.dark;
     return Material(
       color: selected
-          ? const Color(0xFF6848F5)
-          : (isDark ? const Color(0xFF201B36) : Colors.white),
+          ? accent
+          : (isDark ? const Color(0xFF201B36) : colors.surface),
       borderRadius: BorderRadius.circular(24),
       child: InkWell(
         onTap: onTap,
@@ -1161,9 +1166,7 @@ class _GamesCategoryPill extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
-              color: selected
-                  ? const Color(0xFF6848F5)
-                  : (isDark ? const Color(0xFF382F57) : const Color(0xFFE7E1FA)),
+              color: selected ? accent : colors.outlineVariant,
             ),
           ),
           child: Text(
@@ -1171,9 +1174,7 @@ class _GamesCategoryPill extends StatelessWidget {
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w800,
-              color: selected
-                  ? Colors.white
-                  : (isDark ? Colors.white70 : const Color(0xFF625D7D)),
+              color: selected ? colors.onPrimary : colors.onSurfaceVariant,
             ),
           ),
         ),
@@ -1195,7 +1196,9 @@ class _GameGridCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final accent = theme.colorScheme.primary;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -1288,19 +1291,19 @@ class _GameGridCard extends StatelessWidget {
                 width: double.infinity,
                 height: 38,
                 alignment: Alignment.center,
-                child: const Row(
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
                       Icons.play_arrow_rounded,
-                      color: Color(0xFF5E44F3),
+                      color: accent,
                       size: 19,
                     ),
-                    SizedBox(width: 4),
+                    const SizedBox(width: 4),
                     Text(
                       'Play',
                       style: TextStyle(
-                        color: Color(0xFF5E44F3),
+                        color: accent,
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
                       ),
@@ -1323,9 +1326,12 @@ class _GameComingSoonGridCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final accent = colors.primary;
     return CustomPaint(
       painter: _DashedBorderPainter(
-        color: isDark ? const Color(0xFF453B6D) : const Color(0xFFD6CEF8),
+        color: accent.withValues(alpha: isDark ? .38 : .28),
         strokeWidth: 1.5,
         dashWidth: 6,
         dashSpace: 5,
@@ -1333,9 +1339,7 @@ class _GameComingSoonGridCard extends StatelessWidget {
       ),
       child: Container(
         decoration: BoxDecoration(
-          color: isDark
-              ? const Color(0xFF1E1833).withValues(alpha: 0.6)
-              : Colors.white.withValues(alpha: 0.55),
+          color: colors.surface.withValues(alpha: .62),
           borderRadius: BorderRadius.circular(24),
         ),
         child: Column(
@@ -1345,20 +1349,20 @@ class _GameComingSoonGridCard extends StatelessWidget {
               width: 42,
               height: 42,
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF2C2449) : const Color(0xFFEEEAFB),
+                color: accent.withValues(alpha: .12),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.add_rounded,
-                color: Color(0xFF5E44F3),
+                color: accent,
                 size: 24,
               ),
             ),
             const SizedBox(height: 12),
-            const Text(
+            Text(
               'Coming soon',
               style: TextStyle(
-                color: Color(0xFF5E44F3),
+                color: accent,
                 fontWeight: FontWeight.w800,
                 fontSize: 14,
               ),
@@ -1457,6 +1461,8 @@ class _IncomingGameInviteSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final accent = colors.primary;
     final isDark = theme.brightness == Brightness.dark;
     final name = invitation['displayName']?.toString().trim().isNotEmpty == true
         ? invitation['displayName'].toString()
@@ -1483,7 +1489,7 @@ class _IncomingGameInviteSheet extends StatelessWidget {
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF211B37) : Colors.white,
         borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: const Color(0xFF8B78F5).withValues(alpha: .22)),
+        border: Border.all(color: accent.withValues(alpha: .22)),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .16), blurRadius: 24, offset: const Offset(0, -5))],
       ),
       child: Column(
@@ -1493,7 +1499,7 @@ class _IncomingGameInviteSheet extends StatelessWidget {
           const SizedBox(height: 16),
           Row(
             children: [
-              UserAvatar(name: name, photoUrl: invitation['avatarId']?.toString() ?? '', radius: 26, fallbackColor: const Color(0xFF6848F5)),
+              UserAvatar(name: name, photoUrl: invitation['avatarId']?.toString() ?? '', radius: 26, fallbackColor: accent),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -1503,11 +1509,11 @@ class _IncomingGameInviteSheet extends StatelessWidget {
                     const SizedBox(height: 3),
                     Text('invited you to play $gameName', style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
                     const SizedBox(height: 4),
-                    Text(gameDetails, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: const Color(0xFF8B78F5))),
+                    Text(gameDetails, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: accent)),
                   ],
                 ),
               ),
-              const Icon(Icons.sports_esports_rounded, color: Color(0xFF6848F5), size: 25),
+              Icon(Icons.sports_esports_rounded, color: accent, size: 25),
             ],
           ),
           const SizedBox(height: 18),
@@ -1515,7 +1521,7 @@ class _IncomingGameInviteSheet extends StatelessWidget {
             children: [
               Expanded(child: OutlinedButton(onPressed: onReject, style: OutlinedButton.styleFrom(foregroundColor: theme.colorScheme.onSurfaceVariant, minimumSize: const Size.fromHeight(44), shape: const StadiumBorder()), child: const Text('Reject'))),
               const SizedBox(width: 10),
-              Expanded(child: FilledButton(onPressed: onAccept, style: FilledButton.styleFrom(backgroundColor: const Color(0xFF6848F5), foregroundColor: Colors.white, minimumSize: const Size.fromHeight(44), shape: const StadiumBorder()), child: const Text('Accept'))),
+              Expanded(child: FilledButton(onPressed: onAccept, style: FilledButton.styleFrom(backgroundColor: accent, foregroundColor: colors.onPrimary, minimumSize: const Size.fromHeight(44), shape: const StadiumBorder()), child: const Text('Accept'))),
             ],
           ),
         ],

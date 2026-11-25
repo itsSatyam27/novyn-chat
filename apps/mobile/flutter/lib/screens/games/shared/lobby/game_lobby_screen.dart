@@ -773,6 +773,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
     final isDark = theme.brightness == Brightness.dark;
     final socket = context.watch<SocketService>();
     final connectionReady = socket.isConnected && socket.isAuthenticated;
@@ -870,9 +871,9 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
                             title: 'Random player',
                             subtitle: 'Find a match online',
                             icon: Icons.public_rounded,
-                            iconBackground: const Color(0xFF796CF4),
+                            iconBackground: accent,
                             iconColor: Colors.white,
-                            background: const Color(0xFF5E4CF2),
+                            background: accent,
                             foreground: Colors.white,
                             subtitleColor: Colors.white.withValues(alpha: .88),
                             onTap: connectionReady &&
@@ -919,6 +920,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
 
   Widget _buildFriendPicker(ThemeData theme, bool connectionReady) {
     final isDark = theme.brightness == Brightness.dark;
+    final accent = theme.colorScheme.primary;
     final surface = isDark ? const Color(0xFF201B36) : Colors.white;
     final foreground = isDark ? Colors.white : const Color(0xFF1E1A43);
     final muted = isDark ? Colors.white60 : const Color(0xFF625D8C);
@@ -949,7 +951,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(28),
               borderSide:
-                  const BorderSide(color: Color(0xFF5E44F3), width: 1.5),
+                  BorderSide(color: accent, width: 1.5),
             ),
             suffixIcon: _searchQuery.isEmpty
                 ? null
@@ -1044,8 +1046,8 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
                         onPressed:
                             canInvite ? () => _playWithFriend(friend) : null,
                         style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFFEEEAFE),
-                          foregroundColor: const Color(0xFF5E44F3),
+                          backgroundColor: accent.withValues(alpha: .12),
+                          foregroundColor: accent,
                           disabledBackgroundColor: isDark
                               ? const Color(0xFF332A57)
                               : const Color(0xFFF1EFF7),
@@ -1439,7 +1441,7 @@ class _RandomMatchmakingScreen extends StatelessWidget {
   final ValueListenable<int> countdown;
   final VoidCallback onCancel;
 
-  Widget _orbitArtwork(double size) {
+  Widget _orbitArtwork(double size, Color accent) {
     return SizedBox(
       width: size,
       height: size,
@@ -1453,7 +1455,7 @@ class _RandomMatchmakingScreen extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: const Color(0xFFBDB5F3).withValues(alpha: .45),
+                  color: accent.withValues(alpha: .28),
                   width: 1.5,
                 ),
               ),
@@ -1480,11 +1482,11 @@ class _RandomMatchmakingScreen extends StatelessWidget {
             width: size * .33,
             height: size * .33,
             decoration: BoxDecoration(
-              color: const Color(0xFF1E1A43),
+              color: accent.withValues(alpha: .14),
               shape: BoxShape.circle,
-              border: Border.all(color: const Color(0xFF6250F5), width: 5),
-              boxShadow: const [
-                BoxShadow(color: Color(0x336250F5), blurRadius: 18),
+              border: Border.all(color: accent, width: 5),
+              boxShadow: [
+                BoxShadow(color: accent.withValues(alpha: .20), blurRadius: 18),
               ],
             ),
             alignment: Alignment.center,
@@ -1506,7 +1508,9 @@ class _RandomMatchmakingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
+    final isDark = theme.brightness == Brightness.dark;
     final background =
         isDark ? const Color(0xFF141026) : const Color(0xFFF6F5FD);
     final foreground = isDark ? Colors.white : const Color(0xFF1E1A43);
@@ -1551,13 +1555,13 @@ class _RandomMatchmakingScreen extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 13, vertical: 7),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFEDE9FC),
+                        color: accent.withValues(alpha: .12),
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Text(
+                      child: Text(
                         'Random player',
                         style: TextStyle(
-                          color: Color(0xFF403875),
+                          color: accent,
                           fontWeight: FontWeight.w700,
                           fontSize: 12,
                         ),
@@ -1582,7 +1586,7 @@ class _RandomMatchmakingScreen extends StatelessWidget {
                     return Column(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
-                        _orbitArtwork(size),
+                        _orbitArtwork(size, accent),
                         Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -1648,8 +1652,8 @@ class _RandomMatchmakingScreen extends StatelessWidget {
                     style: FilledButton.styleFrom(
                       backgroundColor: isDark
                           ? const Color(0xFF282046)
-                          : const Color(0xFFEDE9FC),
-                      foregroundColor: const Color(0xFF5141E5),
+                          : accent.withValues(alpha: .12),
+                      foregroundColor: accent,
                       shape: const StadiumBorder(),
                     ),
                     child: const Text(
@@ -1725,7 +1729,9 @@ class _RandomMatchFoundScreenState extends State<_RandomMatchFoundScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
+    final isDark = theme.brightness == Brightness.dark;
     final background =
         isDark ? const Color(0xFF141026) : const Color(0xFFF6F5FD);
     final foreground = isDark ? Colors.white : const Color(0xFF1E1A43);
@@ -1770,13 +1776,13 @@ class _RandomMatchFoundScreenState extends State<_RandomMatchFoundScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 13, vertical: 7),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFEDE9FC),
+                        color: accent.withValues(alpha: .12),
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Text(
+                      child: Text(
                         'Random player',
                         style: TextStyle(
-                          color: Color(0xFF403875),
+                          color: accent,
                           fontWeight: FontWeight.w700,
                           fontSize: 12,
                         ),
@@ -1833,7 +1839,7 @@ class _RandomMatchFoundScreenState extends State<_RandomMatchFoundScreen> {
                             _MatchPlayerBadge(
                               name: widget.currentName,
                               level: widget.currentLevel,
-                              color: const Color(0xFF6250F5),
+                              color: accent,
                               symbol: widget.gameType == 'tictactoe'
                                   ? widget.currentSymbol
                                   : null,
@@ -1868,11 +1874,8 @@ class _RandomMatchFoundScreenState extends State<_RandomMatchFoundScreen> {
                                 child: LinearProgressIndicator(
                                   value: _seconds / 3,
                                   minHeight: 8,
-                                  backgroundColor: const Color(0xFFE3DFF5),
-                                  valueColor:
-                                      const AlwaysStoppedAnimation<Color>(
-                                    Color(0xFF6250F5),
-                                  ),
+                                  backgroundColor: accent.withValues(alpha: .14),
+                                  valueColor: AlwaysStoppedAnimation<Color>(accent),
                                 ),
                               ),
                               const SizedBox(height: 16),
@@ -1901,10 +1904,8 @@ class _RandomMatchFoundScreenState extends State<_RandomMatchFoundScreen> {
                   child: FilledButton(
                     onPressed: widget.onLeave,
                     style: FilledButton.styleFrom(
-                      backgroundColor: isDark
-                          ? const Color(0xFF282046)
-                          : const Color(0xFFEDE9FC),
-                      foregroundColor: const Color(0xFF5141E5),
+                      backgroundColor: accent.withValues(alpha: .12),
+                      foregroundColor: accent,
                       shape: const StadiumBorder(),
                     ),
                     child: const Text(
@@ -1940,9 +1941,11 @@ class _MatchPlayerBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final foreground = Theme.of(context).brightness == Brightness.dark
+    final theme = Theme.of(context);
+    final foreground = theme.brightness == Brightness.dark
         ? Colors.white
         : const Color(0xFF1E1A43);
+    final accent = theme.colorScheme.primary;
     return SizedBox(
       width: math.max(80.0, size + 10),
       child: Column(
@@ -2001,13 +2004,13 @@ class _MatchPlayerBadge extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
               decoration: BoxDecoration(
-                color: const Color(0xFFEDE9FC),
+                color: accent.withValues(alpha: .12),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
                 'Level $level',
-                style: const TextStyle(
-                  color: Color(0xFF403875),
+                style: TextStyle(
+                  color: accent,
                   fontWeight: FontWeight.w700,
                   fontSize: 12,
                 ),
@@ -2121,7 +2124,9 @@ class _FriendInviteWaitingSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final accent = theme.colorScheme.primary;
+    final isDark = theme.brightness == Brightness.dark;
     final foreground = isDark ? Colors.white : const Color(0xFF1E1A43);
     final muted = isDark ? Colors.white60 : const Color(0xFF625D8C);
     final friendName = friend.name.isEmpty ? friend.username : friend.name;
@@ -2188,10 +2193,10 @@ class _FriendInviteWaitingSheet extends StatelessWidget {
                   Container(
                     width: 48,
                     height: 48,
-                    decoration: const BoxDecoration(
-                        color: Color(0xFFEDE9FC), shape: BoxShape.circle),
-                    child: const Icon(Icons.person_add_alt_1_rounded,
-                        color: Color(0xFF5141E5)),
+                    decoration: BoxDecoration(
+                        color: accent.withValues(alpha: .12), shape: BoxShape.circle),
+                    child: Icon(Icons.person_add_alt_1_rounded,
+                        color: accent),
                   ),
                 ],
               ),
@@ -2222,7 +2227,7 @@ class _FriendInviteWaitingSheet extends StatelessWidget {
                           fontSize: 16, fontWeight: FontWeight.w900),
                     ),
                     style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF5E4CF2),
+                      backgroundColor: accent,
                       foregroundColor: Colors.white,
                       disabledBackgroundColor: const Color(0xFFE7E2F8),
                       disabledForegroundColor: const Color(0xFF625D8C),
