@@ -7,6 +7,7 @@ const { createAuthToken, verifyAuthToken } = require('../server/auth/tokens');
 const { createPasswordSecret, verifyPassword } = require('../server/auth/password');
 const { createCsrf } = require('../server/auth/csrf');
 const { createSocketAuthMiddleware } = require('../server/realtime/socket-auth');
+const { createRegistrationReservations } = require('../server/auth/registration-reservations');
 
 test('production CSRF rejects missing tokens and cross-site origins', (t) => {
   const previous = process.env.NODE_ENV;
@@ -162,4 +163,15 @@ test('socket middleware rejects disallowed origins before authentication', () =>
   middleware(socket, (err) => { error = err; });
   assert.equal(error?.message, 'Origin not allowed');
   assert.equal(authResolved, false);
+});
+
+
+test('signup reservations block duplicate email and username while hashing is pending', () => {
+  const reservations = createRegistrationReservations();
+  assert.equal(reservations.reserve('Alice@Example.test', 'Alice'), true);
+  assert.equal(reservations.reserve('alice@example.test', 'another'), false, 'email matching is case-insensitive');
+  assert.equal(reservations.reserve('other@example.test', 'ALICE'), false, 'username matching is case-insensitive');
+  reservations.release('ALICE@example.test', 'alice');
+  assert.equal(reservations.reserve('alice@example.test', 'alice'), true, 'released identities can be retried');
+  reservations.release('alice@example.test', 'alice');
 });
