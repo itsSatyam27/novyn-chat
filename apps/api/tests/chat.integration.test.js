@@ -131,6 +131,32 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   const bob = await signup('bob');
   const eve = await signup('eve');
 
+  const registerDirectly = (username, email) => fetch(`${base}/api/auth/signup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username, name: username, email, password: 'Test-only-password-123!',
+    }),
+  });
+  const sameEmailAttempts = await Promise.all([
+    registerDirectly('race_email_one', 'same-email@example.test'),
+    registerDirectly('race_email_two', 'same-email@example.test'),
+  ]);
+  assert.deepEqual(
+    sameEmailAttempts.map((response) => response.status).sort((a, b) => a - b),
+    [200, 409],
+    'only one concurrent signup may claim an email address',
+  );
+  const sameUsernameAttempts = await Promise.all([
+    registerDirectly('race_shared_name', 'first-email@example.test'),
+    registerDirectly('race_shared_name', 'second-email@example.test'),
+  ]);
+  assert.deepEqual(
+    sameUsernameAttempts.map((response) => response.status).sort((a, b) => a - b),
+    [200, 409],
+    'only one concurrent signup may claim a username',
+  );
+
   // Repeated expensive password-verification requests are throttled by account.
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const rejected = event(alice.socket, 'password_change_failed');
