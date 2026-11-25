@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/chat_models.dart';
+import '../utils/call_history_utils.dart';
 
 typedef UploadProgressCallback = void Function(double progress);
 
@@ -1518,7 +1519,7 @@ class ApiService {
             body: jsonEncode({
               'callerId': callerId,
               'receiverId': receiverId,
-              'type': type,
+              'type': normalizeCallType(type),
               'status': status,
               'duration': duration,
               if (callId != null && callId.isNotEmpty) 'callId': callId,

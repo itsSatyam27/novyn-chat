@@ -17,6 +17,7 @@ import '../../services/local_db_service.dart';
 import '../../services/socket_service.dart';
 import '../../theme/novyn_theme.dart';
 import '../../utils/presence_utils.dart';
+import '../../utils/call_history_utils.dart';
 import '../../widgets/novyn_empty_state.dart';
 import '../../widgets/novyn_page_route.dart';
 import '../../widgets/novyn_shimmer.dart';
@@ -40,6 +41,7 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
   String _search = '';
   String _callPrivacy = 'friends';
   Set<String> _favoriteUsernames = <String>{};
+  Set<String> _readMissedCallIds = <String>{};
   // peer username (lowercase) -> millis of the newest call that was removed.
   Map<String, int> _dismissedAt = <String, int>{};
   String? _myUsername;
@@ -88,6 +90,8 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
 
   String _favKey(String username) => 'novyn_call_favorites_${username.toLowerCase()}';
   String _dismissKey(String username) => 'novyn_call_dismissed_${username.toLowerCase()}';
+  String _readMissedKey(String username) =>
+      'novyn_missed_read_${username.toLowerCase()}';
 
   Future<void> _loadLocalPrefs() async {
     final username = context.read<AuthService>().user?.username;
@@ -109,6 +113,7 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
     setState(() {
       _myUsername = username;
       _favoriteUsernames = (prefs.getStringList(_favKey(username)) ?? <String>[]).take(5).toSet();
+      _readMissedCallIds = (prefs.getStringList(_readMissedKey(username)) ?? <String>[]).toSet();
       _dismissedAt = dismissed;
     });
   }
@@ -148,6 +153,27 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_dismissKey(username), jsonEncode(_dismissedAt));
   }
+
+  Future<void> _markMissedCallsRead() async {
+    final username = _myUsername ?? context.read<AuthService>().user?.username;
+    if (username == null) return;
+    final missedIds = _calls
+        .expand((entry) => entry.history)
+        .where((log) => log['status']?.toString().toLowerCase() == 'missed')
+        .map(callLogStableId)
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    if (missedIds.isEmpty) return;
+    final next = {..._readMissedCallIds, ...missedIds};
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      _readMissedKey(username),
+      next.toList()..sort(),
+    );
+    if (!mounted) return;
+    setState(() => _readMissedCallIds = next);
+  }
+
 
   int _logMillis(Map<String, dynamic> log) =>
       DateTime.tryParse(log['createdAt']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0;
@@ -442,7 +468,7 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
         final cutoff = _dismissedAt[peerKey];
         if (cutoff != null && createdAt.millisecondsSinceEpoch <= cutoff) continue;
 
-        final type = log['type']?.toString() ?? 'voice';
+        final type = normalizeCallType(log['type']);
         final status = log['status']?.toString() ?? 'outgoing';
         final duration = (log['duration'] as num?)?.toInt() ?? 0;
 
@@ -696,17 +722,104 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
         .take(5)
         .toList()
       ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-    final canAddMore = quickFriends.length < 5;
+
+    Widget contactSlot(UserModel peer) {
+      return Semantics(
+        button: true,
+        label: 'Call ${_displayName(peer.name)}',
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => Navigator.push(
+            context,
+            NovynPageRoute<void>(
+              child: CallScreen(peer: peer, callType: 'voice'),
+            ),
+          ),
+          onLongPress: () => _toggleFavorite(peer),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: accent, width: 2),
+                ),
+                child: UserAvatar(
+                  name: peer.name,
+                  photoUrl: peer.photoUrl,
+                  radius: 21,
+                  showOnlineIndicator: false,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 1),
+                child: Text(
+                  _displayName(peer.name).split(' ').first,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: 'PlusJakartaSans',
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    Widget addSlot() {
+      return Semantics(
+        button: true,
+        label: 'Edit quick call contacts',
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _showQuickCallPicker,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CustomPaint(
+                size: const Size(52, 52),
+                painter: _QuickCallDashedCirclePainter(accent),
+                child: Center(
+                  child: Icon(Icons.add_rounded, size: 26, color: accent),
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                'Add',
+                style: TextStyle(
+                  fontFamily: 'PlusJakartaSans',
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w600,
+                  color: accent,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 8, 20, 10),
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(26),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: [
@@ -739,102 +852,36 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
                   ),
                 ),
               ),
+              const SizedBox(width: 2),
+              IconButton(
+                tooltip: 'Edit quick call contacts',
+                visualDensity: VisualDensity.compact,
+                constraints: const BoxConstraints.tightFor(width: 34, height: 34),
+                padding: EdgeInsets.zero,
+                onPressed: _showQuickCallPicker,
+                icon: Icon(Icons.edit_outlined, size: 18, color: accent),
+              ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           SizedBox(
-            height: 94,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              itemCount: quickFriends.length + (canAddMore ? 1 : 0),
-              separatorBuilder: (_, __) => const SizedBox(width: 12),
-              itemBuilder: (context, index) {
+            height: 72,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: List.generate(5, (index) {
+                Widget? slot;
                 if (index < quickFriends.length) {
-                  final peer = quickFriends[index];
-                  return SizedBox(
-                    width: 72,
-                    child: Semantics(
-                      button: true,
-                      label: 'Call ${_displayName(peer.name)}',
-                      child: GestureDetector(
-                        onTap: () => Navigator.push(
-                          context,
-                          NovynPageRoute<void>(child: CallScreen(peer: peer, callType: 'voice')),
-                        ),
-                        onLongPress: () => _toggleFavorite(peer),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 58,
-                              height: 58,
-                              padding: const EdgeInsets.all(3),
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(color: accent, width: 2),
-                              ),
-                              child: UserAvatar(
-                                name: peer.name,
-                                photoUrl: peer.photoUrl,
-                                radius: 24,
-                                showOnlineIndicator: false,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              _displayName(peer.name).split(' ').first,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontFamily: 'PlusJakartaSans',
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w600,
-                                color: theme.colorScheme.onSurface,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
+                  slot = contactSlot(quickFriends[index]);
+                } else if (index == quickFriends.length &&
+                    quickFriends.length < 5) {
+                  slot = addSlot();
                 }
-                return SizedBox(
-                  width: 72,
-                  child: GestureDetector(
-                    onTap: _showQuickCallPicker,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 58,
-                          height: 58,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: accent,
-                              width: 2,
-                              style: BorderStyle.solid,
-                            ),
-                          ),
-                          child: Icon(Icons.add_rounded, size: 27, color: accent),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Add',
-                          style: TextStyle(
-                            fontFamily: 'PlusJakartaSans',
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                            color: accent,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                return Expanded(
+                  child: slot == null
+                      ? const SizedBox.shrink()
+                      : Center(child: slot),
                 );
-              },
+              }),
             ),
           ),
         ],
@@ -848,9 +895,9 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
     final theme = Theme.of(context);
     final accent = theme.colorScheme.primary;
     final isDark = theme.brightness == Brightness.dark;
-    final missedCount = _calls.fold<int>(
-      0,
-      (sum, c) => sum + c.history.where((l) => l['status'] == 'missed').length,
+    final missedCount = countUnreadMissedCallLogs(
+      _calls.expand((entry) => entry.history),
+      _readMissedCallIds,
     );
     const icons = {
       'All': null,
@@ -880,6 +927,7 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
                 if (_filter == option) return;
                 HapticService.vibrate(NovynHapticType.light, category: HapticCategory.calls);
                 setState(() => _filter = option);
+                if (option == 'Missed') unawaited(_markMissedCallsRead());
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
@@ -894,9 +942,6 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
                   border: Border.all(
                     color: selected ? accent : accent.withValues(alpha: isDark ? .18 : .14),
                   ),
-                  boxShadow: selected
-                      ? [BoxShadow(color: accent.withValues(alpha: .28), blurRadius: 10, offset: const Offset(0, 3))]
-                      : null,
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -957,7 +1002,7 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
             final latest = matching.first;
             final parsedDate = DateTime.tryParse(latest['createdAt']?.toString() ?? '');
             return call.copyWith(
-              type: latest['type']?.toString() ?? call.type,
+              type: normalizeCallType(latest['type'] ?? call.type),
               status: latest['status']?.toString() ?? call.status,
               duration: (latest['duration'] as num?)?.toInt() ?? 0,
               createdAt: parsedDate == null
@@ -1104,38 +1149,31 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
               child: Text(
                 group.key.toUpperCase(),
                 style: TextStyle(
+                  fontFamily: 'PlusJakartaSans',
                   fontSize: 12,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w700,
                   letterSpacing: 1.25,
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
             ),
-            Container(
-              clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surface,
-                borderRadius: BorderRadius.circular(26),
-              ),
-              child: Column(
-                children: [
-                  for (var index = 0; index < group.value.length; index++) ...[
-                    _CallCard(
-                      entry: group.value[index],
-                      isFavorite: _favoriteUsernames.contains(group.value[index].peer.username.toLowerCase()),
-                      onToggleFavorite: () => _toggleFavorite(group.value[index].peer),
-                      onDismiss: () => _dismissEntry(group.value[index]),
+            for (final entry in group.value)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(28),
+                  child: Material(
+                    color: theme.colorScheme.surface,
+                    child: _CallCard(
+                      entry: entry,
+                      isFavorite: _favoriteUsernames
+                          .contains(entry.peer.username.toLowerCase()),
+                      onToggleFavorite: () => _toggleFavorite(entry.peer),
+                      onDismiss: () => _dismissEntry(entry),
                     ),
-                    if (index != group.value.length - 1)
-                      Divider(
-                        height: 1,
-                        indent: 78,
-                        color: theme.colorScheme.outlineVariant.withValues(alpha: .45),
-                      ),
-                  ],
-                ],
+                  ),
+                ),
               ),
-            ),
           ],
         ],
       ),
@@ -1312,6 +1350,36 @@ String _formatDuration(int seconds) {
   return remaining > 0 ? '${minutes}m ${remaining}s' : '${minutes}m';
 }
 
+class _QuickCallDashedCirclePainter extends CustomPainter {
+  final Color color;
+
+  const _QuickCallDashedCirclePainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final stroke = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.8;
+    final radius = size.shortestSide / 2 - stroke.strokeWidth / 2;
+    final rect = Rect.fromCircle(
+      center: Offset(size.width / 2, size.height / 2),
+      radius: radius,
+    );
+    const dashCount = 24;
+    const gapFraction = .42;
+    final dashSweep = (math.pi * 2 / dashCount) * (1 - gapFraction);
+    for (var index = 0; index < dashCount; index++) {
+      final start = index * math.pi * 2 / dashCount;
+      canvas.drawArc(rect, start, dashSweep, false, stroke);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _QuickCallDashedCirclePainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+
 // ── Call Card ────────────────────────────────────────────────────────────────
 class _CallCard extends StatelessWidget {
   final _CallEntry entry;
@@ -1382,14 +1450,9 @@ class _CallCard extends StatelessWidget {
               _showHistory(context);
             },
             child: Padding(
-            padding: const EdgeInsets.only(left: 12, right: 14, top: 12, bottom: 12),
+            padding: const EdgeInsets.only(left: 14, right: 14, top: 12, bottom: 12),
             child: Row(
               children: [
-                PresenceIndicatorBar(
-                  isOnline: entry.peer.isOnline,
-                  status: entry.peer.status,
-                  margin: const EdgeInsets.only(right: 10),
-                ),
                 GestureDetector(
                   onLongPress: onToggleFavorite,
                   child: Stack(
@@ -1529,6 +1592,9 @@ class _CallCard extends StatelessWidget {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * .62,
+      ),
       builder: (sheetContext) => StatefulBuilder(
         builder: (sheetContext, refresh) => _CallHistorySheet(
           entry: entry,
@@ -1556,6 +1622,7 @@ class _CallHistorySheet extends StatelessWidget {
   final bool isFavorite;
   final VoidCallback onToggleFavorite;
   final void Function(String type) onCall;
+
   const _CallHistorySheet({
     required this.entry,
     required this.isFavorite,
@@ -1566,14 +1633,18 @@ class _CallHistorySheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final accent = theme.colorScheme.primary;
-    final missedCount = entry.history.where((log) => log['status'] == 'missed').length;
-    final outgoingCount = entry.history.where((log) => log['status'] == 'outgoing').length;
+    final colors = theme.colorScheme;
+    final accent = colors.primary;
+    final missedCount =
+        entry.history.where((log) => log['status'] == 'missed').length;
+    final outgoingCount =
+        entry.history.where((log) => log['status'] == 'outgoing').length;
+    final sheetHeight = MediaQuery.sizeOf(context).height * .62;
 
     Widget stat(String label, {bool danger = false}) {
-      final color = danger ? const Color(0xFFD92D2D) : theme.colorScheme.onSurface;
+      final color = danger ? const Color(0xFFD92D2D) : colors.onSurface;
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
           color: danger
               ? const Color(0xFFFDE7E7)
@@ -1592,30 +1663,70 @@ class _CallHistorySheet extends StatelessWidget {
       );
     }
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 22),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: SingleChildScrollView(
+    Widget callAction({
+      required IconData icon,
+      required String label,
+      required VoidCallback onTap,
+      required bool primary,
+    }) {
+      final foreground = primary ? colors.onPrimary : accent;
+      return Material(
+        color: primary ? accent : accent.withValues(alpha: .11),
+        borderRadius: BorderRadius.circular(30),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(30),
+          onTap: onTap,
+          child: SizedBox(
+            height: 50,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 20, color: foreground),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'PlusJakartaSans',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: foreground,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: sheetHeight,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 8),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        child: SafeArea(
+          top: false,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
             children: [
               Center(
                 child: Container(
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.outlineVariant,
+                    color: colors.outlineVariant,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
               ),
-              const SizedBox(height: 22),
+              const SizedBox(height: 16),
               Row(
                 children: [
                   UserAvatar(
@@ -1636,18 +1747,20 @@ class _CallHistorySheet extends StatelessWidget {
                           style: TextStyle(
                             fontFamily: 'PlusJakartaSans',
                             fontSize: 21,
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.w800,
                             letterSpacing: -.5,
-                            color: theme.colorScheme.onSurface,
+                            color: colors.onSurface,
                           ),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           '@${entry.peer.username}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontFamily: 'PlusJakartaSans',
                             fontSize: 13.5,
-                            color: theme.colorScheme.onSurfaceVariant,
+                            color: colors.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -1660,19 +1773,21 @@ class _CallHistorySheet extends StatelessWidget {
                       customBorder: const CircleBorder(),
                       onTap: onToggleFavorite,
                       child: SizedBox(
-                        width: 48,
-                        height: 48,
+                        width: 46,
+                        height: 46,
                         child: Icon(
-                          isFavorite ? Icons.star_rounded : Icons.star_outline_rounded,
+                          isFavorite
+                              ? Icons.star_rounded
+                              : Icons.star_outline_rounded,
                           color: accent,
-                          size: 25,
+                          size: 24,
                         ),
                       ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 14),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -1682,55 +1797,63 @@ class _CallHistorySheet extends StatelessWidget {
                   stat('$outgoingCount outgoing'),
                 ],
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 14),
               Row(
                 children: [
                   Expanded(
-                    child: FilledButton.icon(
-                      onPressed: () => onCall('voice'),
-                      icon: const Icon(Icons.call_rounded, size: 20),
-                      label: const Text('Voice call', style: TextStyle(fontWeight: FontWeight.w700)),
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size(0, 52),
-                        shape: const StadiumBorder(),
-                      ),
+                    child: callAction(
+                      icon: Icons.call_rounded,
+                      label: 'Voice call',
+                      onTap: () => onCall('voice'),
+                      primary: true,
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: FilledButton.tonalIcon(
-                      onPressed: () => onCall('video'),
-                      icon: const Icon(Icons.videocam_rounded, size: 21),
-                      label: const Text('Video call', style: TextStyle(fontWeight: FontWeight.w700)),
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size(0, 52),
-                        foregroundColor: accent,
-                        shape: const StadiumBorder(),
-                      ),
+                    child: callAction(
+                      icon: Icons.videocam_rounded,
+                      label: 'Video call',
+                      onTap: () => onCall('video'),
+                      primary: false,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
               Text(
                 'HISTORY',
                 style: TextStyle(
                   fontFamily: 'PlusJakartaSans',
                   fontSize: 12,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w800,
                   letterSpacing: 1.4,
-                  color: theme.colorScheme.onSurfaceVariant,
+                  color: colors.onSurfaceVariant,
                 ),
               ),
-              const SizedBox(height: 8),
-              for (var index = 0; index < entry.history.length; index++) ...[
-                _buildHistoryRow(context, entry.history[index], accent),
-                if (index != entry.history.length - 1)
-                  Divider(
-                    height: 1,
-                    color: theme.colorScheme.outlineVariant.withValues(alpha: .65),
-                  ),
-              ],
+              const SizedBox(height: 6),
+              Expanded(
+                child: entry.history.isEmpty
+                    ? Center(
+                        child: Text(
+                          'No call history yet',
+                          style: TextStyle(color: colors.onSurfaceVariant),
+                        ),
+                      )
+                    : ListView.separated(
+                        physics: const BouncingScrollPhysics(),
+                        padding: const EdgeInsets.only(bottom: 8),
+                        itemCount: entry.history.length,
+                        separatorBuilder: (_, __) => Divider(
+                          height: 1,
+                          color: colors.outlineVariant.withValues(alpha: .65),
+                        ),
+                        itemBuilder: (context, index) => _buildHistoryRow(
+                          context,
+                          entry.history[index],
+                          accent,
+                        ),
+                      ),
+              ),
             ],
           ),
         ),
@@ -1738,73 +1861,89 @@ class _CallHistorySheet extends StatelessWidget {
     );
   }
 
-  Widget _buildHistoryRow(BuildContext context, Map<String, dynamic> log, Color accent) {
+  Widget _buildHistoryRow(
+    BuildContext context,
+    Map<String, dynamic> log,
+    Color accent,
+  ) {
     final theme = Theme.of(context);
-    final status = (log['status'] ?? 'outgoing').toString();
-    final type = (log['type'] ?? 'voice').toString();
+    final colors = theme.colorScheme;
+    final status = (log['status'] ?? 'outgoing').toString().toLowerCase();
+    final type = normalizeCallType(log['type']);
     final duration = (log['duration'] as num?)?.toInt() ?? 0;
     final parsed = DateTime.tryParse(log['createdAt']?.toString() ?? '');
-    final createdAt = parsed == null ? DateTime.now() : (parsed.isUtc ? parsed.toLocal() : parsed);
+    final createdAt = parsed == null
+        ? DateTime.now()
+        : (parsed.isUtc ? parsed.toLocal() : parsed);
     final isMissed = status == 'missed';
     final isIncoming = status == 'incoming';
     final color = isMissed
         ? const Color(0xFFD92D2D)
         : isIncoming
-            ? const Color(0xFF4F46E5)
+            ? accent
             : accent;
     final icon = isMissed
         ? Icons.call_missed_rounded
         : isIncoming
             ? Icons.call_received_rounded
             : Icons.call_made_rounded;
-    final label = '${status.isEmpty ? 'Call' : '${status[0].toUpperCase()}${status.substring(1)}'} ${type == 'video' ? 'video' : 'voice'} call';
+    final mediaLabel = type == 'video' ? 'video' : 'voice';
+    final statusLabel = status.isEmpty
+        ? 'Call'
+        : status[0].toUpperCase() + status.substring(1);
+    final label = '$statusLabel $mediaLabel call';
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
+      padding: const EdgeInsets.symmetric(vertical: 11),
       child: Row(
         children: [
           Container(
-            width: 42,
-            height: 42,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
               color: color.withValues(alpha: .12),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Icon(icon, size: 21, color: color),
+            child: Icon(icon, size: 20, color: color),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 11),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: 'PlusJakartaSans',
-                    fontSize: 14.5,
+                    fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: isMissed ? color : theme.colorScheme.onSurface,
+                    color: isMissed ? color : colors.onSurface,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   _formatFullTime(createdAt),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: 'PlusJakartaSans',
-                    fontSize: 12.5,
-                    color: theme.colorScheme.onSurfaceVariant,
+                    fontSize: 12,
+                    color: colors.onSurfaceVariant,
                   ),
                 ),
               ],
             ),
           ),
+          const SizedBox(width: 8),
           Text(
             duration > 0 ? _formatDuration(duration) : _formatTime(createdAt),
             style: TextStyle(
               fontFamily: 'PlusJakartaSans',
-              fontSize: 13.5,
+              fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: theme.colorScheme.onSurfaceVariant,
+              color: colors.onSurfaceVariant,
             ),
           ),
         ],
