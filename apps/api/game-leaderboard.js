@@ -158,7 +158,7 @@ function buildGameLeaderboard({
 }
 
 
-function buildMongoGameLeaderboardPipeline(userKeys = null) {
+function buildMongoGameLeaderboardPipeline(userKeys = null, selectedGame = "overall") {
   const match = {
     isBotMatch: { $ne: true },
     opponentType: { $ne: "bot" },
@@ -191,7 +191,12 @@ function buildMongoGameLeaderboardPipeline(userKeys = null) {
     },
     {
       $match: {
-        normalizedGameType: { $in: [...VALID_GAME_TYPES].filter((game) => game !== "rockpaperscissors") },
+        normalizedGameType: (() => {
+          const selected = normalizeLeaderboardGame(selectedGame);
+          return selected && selected !== "overall"
+            ? selected
+            : { $in: [...VALID_GAME_TYPES].filter((game) => game !== "rockpaperscissors") };
+        })(),
         parsedPlayedAt: { $ne: null },
       },
     },

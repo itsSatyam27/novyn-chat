@@ -90,6 +90,14 @@ test("Mongo leaderboard aggregation filters bots, normalizes aliases and groups 
 
   const friendsPipeline = buildMongoGameLeaderboardPipeline(["alice", "bob"]);
   assert.deepEqual(friendsPipeline[0].$match.userKey, { $in: ["alice", "bob"] });
+
+  const ticTacToePipeline = buildMongoGameLeaderboardPipeline(null, "tictactoe");
+  const ticTacToeFilter = ticTacToePipeline.find((stage) => stage.$match?.normalizedGameType);
+  assert.equal(ticTacToeFilter.$match.normalizedGameType, "tictactoe");
+
+  const rpsAliasPipeline = buildMongoGameLeaderboardPipeline(null, "rock-paper-scissors");
+  const rpsFilter = rpsAliasPipeline.find((stage) => stage.$match?.normalizedGameType);
+  assert.equal(rpsFilter.$match.normalizedGameType, "rps");
 });
 
 test("Mongo aggregate summaries preserve score, win-rate, streak bonus, and empty self row", () => {

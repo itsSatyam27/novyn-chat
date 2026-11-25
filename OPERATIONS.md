@@ -253,3 +253,9 @@ when MongoDB explicitly reports that `$setWindowFields` is an unsupported stage
 (older server versions). Transient network errors, operation timeouts, permission
 errors, and resource failures are surfaced as a temporary API failure instead of
 triggering a second, potentially larger in-memory query.
+
+For game-specific leaderboard requests, the selected game filter is applied
+inside the MongoDB pipeline after alias normalization. This avoids aggregating
+other game types when the client asks for one game; the overall leaderboard
+continues to aggregate all supported game types so per-game streak bonuses are
+preserved.

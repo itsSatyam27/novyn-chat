@@ -1178,7 +1178,7 @@ app.get("/api/games/leaderboard", requireUser,
         ? Array.from(eligibleUsers.keys())
         : null;
       const aggregated = await mongoGameHistoryCollection
-        .aggregate(buildMongoGameLeaderboardPipeline(userKeys), { allowDiskUse: true })
+        .aggregate(buildMongoGameLeaderboardPipeline(userKeys, game), { allowDiskUse: true })
         .toArray();
       rankings = buildGameLeaderboardFromAggregates({
         aggregates: aggregated,
