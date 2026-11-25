@@ -299,7 +299,15 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   const resetSentToCharlie = event(charlieResetSocket.socket, 'password_reset_sent');
   charlieResetSocket.socket.emit('request_password_reset', { identifier: 'charlie' });
   await resetSentToCharlie;
-  const charlieResetCode = logs.match(/\[Password reset code\] charlie@example\.test: (\S+)/)?.[1];
+  // The server writes the reset code before emitting the socket acknowledgement, but
+  // the parent process receives stdout asynchronously. Wait briefly for the pipe to
+  // flush instead of racing the acknowledgement against the stdout data event.
+  const resetCodeLogDeadline = Date.now() + 2000;
+  let charlieResetCode;
+  while (!charlieResetCode && Date.now() < resetCodeLogDeadline) {
+    charlieResetCode = logs.match(/\[Password reset code\] charlie@example\.test: (\S+)/)?.[1];
+    if (!charlieResetCode) await new Promise((resolve) => setTimeout(resolve, 10));
+  }
   assert.ok(charlieResetCode, 'test-only reset code should be logged for Charlie');
   const resetSessionRevoked = event(charlieResetSocket.socket, 'session_revoked');
   const resetSocketDisconnected = event(charlieResetSocket.socket, 'disconnect');
