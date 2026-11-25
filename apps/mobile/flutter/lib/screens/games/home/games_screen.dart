@@ -714,44 +714,6 @@ class _GameProfileHeroCardState extends State<_GameProfileHeroCard> {
                         ],
                       ),
                       const SizedBox(height: 14),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
-                          decoration: BoxDecoration(
-                            color: softSurface,
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.military_tech_rounded, color: const Color(0xFF5E44F3), size: 19),
-                              const SizedBox(width: 9),
-                              Text(
-                                'Raja Mantri',
-                                style: TextStyle(
-                                  fontFamily: 'PlusJakartaSans',
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w800,
-                                  color: foreground,
-                                ),
-                              ),
-                              const Spacer(),
-                              Flexible(
-                                child: Text(
-                                  '${widget.rmPlayed} played${widget.rmHighScore > 0 ? ' · Best: ${widget.rmHighScore} pts' : ''}',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  textAlign: TextAlign.end,
-                                  style: const TextStyle(
-                                    fontFamily: 'PlusJakartaSans',
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF5E44F3),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
                       const SizedBox(height: 14),
                       SizedBox(
                         width: double.infinity,
