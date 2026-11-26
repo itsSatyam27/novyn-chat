@@ -10,6 +10,7 @@ function makeSocket(userKey) {
   const handlers = new Map();
   const events = [];
   return {
+    id: userKey + '-socket',
     data: { userKey },
     handlers,
     events,
@@ -237,4 +238,114 @@ test('invite validation respects calls disabled, privacy, and existing calls', (
   });
   assert.equal(busy.ok, false);
   assert.match(busy.message, /another call/i);
+});
+
+test('pending invitations reserve seats, and declines notify the participant who invited', () => {
+  const fixture = makeFixture();
+  const promoted = invoke(fixture.sockets.get('alice'), 'group_call_promote', {
+    callId: 'call-1',
+  });
+  assert.equal(promoted.ok, true);
+
+  const carolInvite = invoke(fixture.sockets.get('alice'), 'group_call_invite', {
+    groupCallId: promoted.groupCallId,
+    to: 'carol',
+  });
+  assert.equal(carolInvite.ok, true);
+  const daveInvite = invoke(fixture.sockets.get('bob'), 'group_call_invite', {
+    groupCallId: promoted.groupCallId,
+    to: 'dave',
+  });
+  assert.equal(daveInvite.ok, true);
+  const fifthInvite = invoke(fixture.sockets.get('alice'), 'group_call_invite', {
+    groupCallId: promoted.groupCallId,
+    to: 'erin',
+  });
+  assert.equal(fifthInvite.ok, false);
+
+  const decline = invoke(fixture.sockets.get('carol'), 'group_call_decline', {
+    groupCallId: promoted.groupCallId,
+  });
+  assert.equal(decline.ok, true);
+  assert.equal(
+    fixture.delivered.some((entry) =>
+      entry.socketId === 'alice-socket' &&
+      entry.name === 'group_call_invitation_declined' &&
+      entry.payload.username === 'carol',
+    ),
+    true,
+  );
+  assert.equal(
+    fixture.delivered.some((entry) =>
+      entry.socketId === 'bob-socket' &&
+      entry.name === 'group_call_invitation_declined' &&
+      entry.payload.username === 'carol',
+    ),
+    false,
+  );
+  assert.equal(
+    invoke(fixture.sockets.get('alice'), 'group_call_invite', {
+      groupCallId: promoted.groupCallId,
+      to: 'erin',
+    }).ok,
+    true,
+  );
+});
+
+test('group screen sharing is exclusive and is released when its sharer leaves', () => {
+  const fixture = makeFixture();
+  const promoted = invoke(fixture.sockets.get('alice'), 'group_call_promote', {
+    callId: 'call-1',
+  });
+  fixture.sockets.get('alice').handlers.get('group_call_screen_share_state')({
+    groupCallId: promoted.groupCallId,
+    streamId: 'screen-a',
+  });
+  fixture.sockets.get('bob').handlers.get('group_call_screen_share_state')({
+    groupCallId: promoted.groupCallId,
+    streamId: 'screen-b',
+  });
+  assert.equal(
+    fixture.sockets.get('bob').events.some((entry) => entry.name === 'group_call_screen_share_denied'),
+    true,
+  );
+  assert.equal(
+    fixture.delivered.filter((entry) =>
+      entry.name === 'group_call_screen_share_state' &&
+      entry.payload.streamId === 'screen-a',
+    ).length,
+    2,
+  );
+
+  fixture.sockets.get('alice').handlers.get('group_call_leave')({
+    groupCallId: promoted.groupCallId,
+  }, () => {});
+  assert.equal(
+    fixture.delivered.some((entry) =>
+      entry.name === 'group_call_screen_share_state' &&
+      entry.payload.streamId === null,
+    ),
+    true,
+  );
+});
+
+test('group signaling rejects unsupported packet types and oversized SDP', () => {
+  const fixture = makeFixture();
+  const promoted = invoke(fixture.sockets.get('alice'), 'group_call_promote', {
+    callId: 'call-1',
+  });
+  fixture.sockets.get('alice').handlers.get('group_call_signal')({
+    groupCallId: promoted.groupCallId,
+    to: 'bob',
+    signal: { type: 'renegotiate-anything', sdp: 'bad' },
+  });
+  fixture.sockets.get('alice').handlers.get('group_call_signal')({
+    groupCallId: promoted.groupCallId,
+    to: 'bob',
+    signal: { type: 'offer', sdp: 'x'.repeat(180_001) },
+  });
+  assert.equal(
+    fixture.delivered.filter((entry) => entry.name === 'group_call_signal').length,
+    0,
+  );
 });
