@@ -161,9 +161,9 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
               ),
               const SizedBox(height: 10),
               _ThisDeviceCard(session: current),
-              const SizedBox(height: 22),
+              const SizedBox(height: 18),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 2),
               // Pair a web device action card
               _PairWebDeviceCard(
                 onTap: () {
@@ -184,9 +184,9 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                     child: Text(
                       'Other devices',
                       style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.1,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.2,
                         color: colors.onSurfaceVariant,
                       ),
                     ),
@@ -199,7 +199,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Text(
-                        '${remote.length} active',
+                        '${remote.length}',
                         style: const TextStyle(
                           color: Color(0xFF6D5DFC),
                           fontWeight: FontWeight.w800,
@@ -422,10 +422,9 @@ class _ActiveSessionsHeader extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: border),
+                  shape: BoxShape.circle,
                 ),
-                child: Icon(Icons.refresh_rounded, color: ink, size: 20),
+                child: Icon(Icons.refresh_rounded, color: ink, size: 22),
               ),
             ),
           ),
@@ -437,13 +436,11 @@ class _ActiveSessionsHeader extends StatelessWidget {
 
 class _PairWebDeviceCard extends StatelessWidget {
   final VoidCallback onTap;
-
   const _PairWebDeviceCard({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);\n    final colors = theme.colorScheme;
-
+    final colors = Theme.of(context).colorScheme;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -452,67 +449,33 @@ class _PairWebDeviceCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: isDark
-                ? const Color(0xFF221F3A)
-                : const Color(0xFFF5F3FF).withValues(alpha: 0.9),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(
-              color: const Color(0xFF6D5DFC).withValues(alpha: 0.35),
-              width: 1.2,
-            ),
+            color: colors.primary.withValues(alpha: .09),
+            borderRadius: BorderRadius.circular(28),
           ),
           child: Row(
             children: [
               Container(
-                width: 48,
-                height: 48,
+                width: 48, height: 48,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF6D5DFC),
-                  borderRadius: BorderRadius.circular(15),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF6D5DFC).withValues(alpha: 0.28),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
+                  color: NovynTheme.cardBg(context),
+                  borderRadius: BorderRadius.circular(17),
                 ),
-                child: const Icon(
-                  Icons.grid_view_rounded,
-                  color: Colors.white,
-                  size: 22,
-                ),
+                child: Icon(Icons.qr_code_2_rounded, color: colors.primary, size: 25),
               ),
               const SizedBox(width: 14),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Pair a web device',
-                      style: TextStyle(
-                        fontFamily: 'PlusJakartaSans',
-                        fontSize: 15.5,
-                        fontWeight: FontWeight.w800,
-                        color: colors.primary,
-                      ),
-                    ),
-                    SizedBox(height: 3),
-                    Text(
-                      'Scan a code to link a browser',
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        color: colors.onSurfaceVariant,
-                      ),
-                    ),
+                    Text('Pair a web device',
+                      style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 16, fontWeight: FontWeight.w800, color: colors.primary)),
+                    const SizedBox(height: 3),
+                    Text('Scan a code to link a browser',
+                      style: TextStyle(fontSize: 13, color: colors.onSurfaceVariant)),
                   ],
                 ),
               ),
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: Color(0xFF6D5DFC),
-                size: 22,
-              ),
+              Icon(Icons.chevron_right_rounded, color: colors.primary, size: 26),
             ],
           ),
         ),
