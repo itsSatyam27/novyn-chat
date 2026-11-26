@@ -10,9 +10,9 @@ import 'backup_password_service.dart';
 import 'google_drive_backup_service.dart';
 import 'message_encryption_service.dart';
 
-/// Daily Drive backups run on app launch/resume. Android and iOS may suspend
-/// terminated apps, so this intentionally never promises an exact wall-clock
-/// background execution time.
+/// Daily Drive backups are attempted after app launch/resume and whenever the
+/// active network changes. Android and iOS may suspend terminated apps, so
+/// this intentionally never promises an exact wall-clock background time.
 class BackupAutomationService {
   BackupAutomationService._();
 
