@@ -97,6 +97,7 @@ class _CallScreenState extends State<CallScreen>
   bool _videoUpgradeQueued = false;
   bool _groupTransitioning = false;
   bool _groupRouteOpening = false;
+  bool _webrtcDisposedForGroup = false;
   String? _remoteScreenStreamId;
 
   @override
@@ -961,15 +962,17 @@ class _CallScreenState extends State<CallScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _removeMiniOverlay();
-    NotificationService.setActiveCallActionHandler(null);
-    unawaited(NotificationService.clearActiveCallNotification());
+    if (!_groupTransitioning) {
+      NotificationService.setActiveCallActionHandler(null);
+      unawaited(NotificationService.clearActiveCallNotification());
+      unawaited(CallPlatformService.setCallActive(false));
+    }
     CallPlatformService.setPipListener(null);
-    unawaited(CallPlatformService.setCallActive(false));
     _timer?.cancel();
     _callTimeoutTimer?.cancel();
     _pulseCtrl.dispose();
     _audioPlayer.dispose();
-    _webrtc.dispose();
+    if (!_webrtcDisposedForGroup) _webrtc.dispose();
     _seconds.dispose();
     // Clear WebRTC callbacks
     final socket = context.read<SocketService>();
@@ -1119,6 +1122,9 @@ class _CallScreenState extends State<CallScreen>
     _groupRouteOpening = true;
     _callTimeoutTimer?.cancel();
     _stopRingtone();
+    await _webrtc.dispose();
+    _webrtcDisposedForGroup = true;
+    if (!mounted || _state != CallState.connected) return;
     final rawParticipants = data['participants'];
     final participants = rawParticipants is List
         ? rawParticipants.whereType<Map>()
