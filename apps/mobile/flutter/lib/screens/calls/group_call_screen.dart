@@ -117,6 +117,7 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
     _socket.onGroupCallParticipantJoinedCallback = (data) {
       if (!_matchesCall(data)) return;
       _applyParticipantSnapshot(data['participants']);
+      _refreshMiniOverlay();
     };
     _socket.onGroupCallParticipantLeftCallback = (data) {
       if (!_matchesCall(data)) return;
@@ -139,6 +140,7 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
         _remoteAudioEnabled[username] = data['audioEnabled'] != false;
         _remoteVideoEnabled[username] = data['videoEnabled'] != false;
       });
+      _refreshMiniOverlay();
     };
     _socket.onGroupCallScreenShareStateCallback = (data) {
       if (!_matchesCall(data)) return;
@@ -152,6 +154,7 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
       for (final peer in _peers.values) {
         peer.setRemoteScreenShare(streamId);
       }
+      _refreshMiniOverlay();
     };
     _socket.onGroupCallInvitationDeclinedCallback = (data) {
       if (!_matchesCall(data)) return;
@@ -786,8 +789,18 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
         objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
       );
     }
+    final screenSharerKey = _screenSharer?.toLowerCase();
+    if (screenSharerKey != null && screenSharerKey != _meKey) {
+      final screen = _peers[screenSharerKey]?.remoteScreenRenderer;
+      if (screen?.srcObject != null) {
+        return RTCVideoView(
+          screen!,
+          objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+        );
+      }
+    }
     final remote = _firstRemoteVideoService();
-    if (remote != null && remote.remoteStream != null) {
+    if (remote != null && remote.hasRemoteVideo) {
       return RTCVideoView(
         remote.remoteRenderer,
         objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
@@ -830,7 +843,8 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
     final key = username.toLowerCase();
     final isMe = key == _meKey;
     final service = _peers[key];
-    final videoEnabled = isMe ? !_cameraOff : (_remoteVideoEnabled[key] != false);
+    final videoEnabled = widget.isVideo &&
+        (isMe ? !_cameraOff : (_remoteVideoEnabled[key] != false));
     Widget video;
     if (!videoEnabled) {
       video = _avatarFor(participant);
@@ -840,7 +854,7 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
         mirror: true,
         objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
       );
-    } else if (!isMe && service?.remoteStream != null) {
+    } else if (!isMe && service?.hasRemoteVideo == true) {
       video = RTCVideoView(
         service!.remoteRenderer,
         objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
