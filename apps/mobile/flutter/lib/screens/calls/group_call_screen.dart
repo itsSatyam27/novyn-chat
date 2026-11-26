@@ -346,6 +346,7 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
     _mediaOwner?.toggleMute(_muted);
     _publishMediaState();
     if (mounted) setState(() {});
+    _refreshMiniOverlay();
   }
 
   void _toggleCamera() {
@@ -354,6 +355,7 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
     _mediaOwner?.toggleCamera(_cameraOff);
     _publishMediaState();
     if (mounted) setState(() {});
+    _refreshMiniOverlay();
   }
 
   Future<void> _switchCamera() async {
@@ -372,6 +374,7 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
     _speakerOn = !_speakerOn;
     await Helper.setSpeakerphoneOn(_speakerOn);
     if (mounted) setState(() {});
+    _refreshMiniOverlay();
   }
 
   Future<void> _toggleScreenShare() async {
@@ -400,6 +403,7 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
       _socket.updateGroupCallScreenShare(widget.groupCallId, screen.id);
       screen.getVideoTracks().first.onEnded = () => unawaited(_stopScreenShare());
       if (mounted) setState(() {});
+      _refreshMiniOverlay();
     } catch (error) {
       await _stopScreenShare();
       if (mounted) {
@@ -438,6 +442,7 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
         _screenStreamId = null;
       });
     }
+    _refreshMiniOverlay();
   }
 
   Future<void> _showInvitePicker() async {
@@ -584,11 +589,16 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
       for (final peer in _peers.values) {
         try { await peer.removeSharedScreenStream(); } catch (_) {}
       }
-      for (final track in screen.getTracks()) {
-        track.onEnded = null;
-        try { await track.stop(); } catch (_) {}
+      final owner = _mediaOwner;
+      if (owner != null && identical(owner.localScreenStream, screen)) {
+        await owner.releaseGroupScreenCapture();
+      } else {
+        for (final track in screen.getTracks()) {
+          track.onEnded = null;
+          try { await track.stop(); } catch (_) {}
+        }
+        try { await screen.dispose(); } catch (_) {}
       }
-      try { await screen.dispose(); } catch (_) {}
     }
     final peers = _peers.values.toList();
     _peers.clear();
@@ -883,6 +893,7 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
 
     if (!_showScreenFirst) {
       return Stack(
+        fit: StackFit.expand,
         children: [
           Positioned.fill(child: _buildParticipantGrid()),
           Positioned(
@@ -890,9 +901,20 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
             top: 12,
             width: 112,
             height: 160,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: Container(color: const Color(0xFF171927), child: screenView),
+            child: GestureDetector(
+              onTap: () => setState(() => _showScreenFirst = true),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Container(color: const Color(0xFF171927), child: screenView),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 12,
+            top: 12,
+            child: _GroupTag(
+              icon: Icons.screen_share_rounded,
+              text: 'Screen shared',
             ),
           ),
         ],
@@ -922,11 +944,27 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
         Positioned(
           left: 12,
           top: 12,
-          child: _GroupTag(
-            icon: Icons.screen_share_rounded,
-            text: _screenSharer?.toLowerCase() == _meKey
-                ? 'You are sharing'
-                : (_screenSharer ?? 'Participant') + ' is sharing',
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _GroupTag(
+                icon: Icons.screen_share_rounded,
+                text: _screenSharer?.toLowerCase() == _meKey
+                    ? 'You are sharing'
+                    : (_screenSharer ?? 'Participant') + ' is sharing',
+              ),
+              const SizedBox(width: 8),
+              Material(
+                color: Colors.black.withValues(alpha: .56),
+                shape: const CircleBorder(),
+                child: IconButton(
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => setState(() => _showScreenFirst = false),
+                  icon: const Icon(Icons.swap_horiz_rounded, color: Colors.white),
+                  tooltip: 'Show participants',
+                ),
+              ),
+            ],
           ),
         ),
       ],
