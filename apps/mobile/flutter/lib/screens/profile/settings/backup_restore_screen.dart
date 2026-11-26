@@ -284,16 +284,12 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
             _actionCard(context, [
               _ActionItem(
                 Icons.cloud_upload_outlined,
-                colors.primary,
                 'Protect encryption identity',
-                'Save an encrypted recovery copy to your Novyn account.',
                 () => _identity(restore: false),
               ),
               _ActionItem(
                 Icons.key_rounded,
-                colors.primary,
                 'Restore encryption identity',
-                'Recover your existing identity to decrypt old messages.',
                 () => _identity(restore: true),
               ),
             ]),
@@ -755,10 +751,8 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
 }
 
 class _ActionItem {
-  const _ActionItem(this.icon, this.color, this.title, this.subtitle, this.onTap);
+  const _ActionItem(this.icon, this.title, this.onTap);
   final IconData icon;
-  final Color color;
   final String title;
-  final String subtitle;
   final VoidCallback onTap;
 }
