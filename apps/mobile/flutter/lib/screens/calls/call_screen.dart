@@ -96,6 +96,7 @@ class _CallScreenState extends State<CallScreen>
   bool _showSharedScreenFirst = true;
   bool _videoUpgradeQueued = false;
   bool _groupTransitioning = false;
+  bool _groupRouteOpening = false;
   String? _remoteScreenStreamId;
 
   @override
@@ -1111,11 +1112,11 @@ class _CallScreenState extends State<CallScreen>
   }
 
   Future<void> _enterGroupCall(Map data) async {
-    if (_groupTransitioning && ModalRoute.of(context)?.isCurrent != true) return;
-    if (_state != CallState.connected || !mounted) return;
+    if (_groupRouteOpening || _state != CallState.connected || !mounted) return;
     final groupCallId = data['groupCallId']?.toString().trim() ?? '';
     if (groupCallId.isEmpty) return;
     _groupTransitioning = true;
+    _groupRouteOpening = true;
     _callTimeoutTimer?.cancel();
     _stopRingtone();
     final rawParticipants = data['participants'];
