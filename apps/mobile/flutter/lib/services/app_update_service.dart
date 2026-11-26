@@ -16,7 +16,7 @@ import 'package:workmanager/workmanager.dart';
 import 'notification_service.dart';
 
 const String _releasesApi =
-    'https://api.github.com/repos/itsSatyam27/novyn-chat/releases?per_page=50';
+    'https://api.github.com/repos/itsSatyam27/novyn-chat/releases?per_page=100';
 const String _arm64ApkName = 'Novyn-Android-ARM64.apk';
 const String _updateTaskName = 'novyn_periodic_update_check';
 const String _lastNotifiedBuildKey = 'novyn_last_notified_update_build';
