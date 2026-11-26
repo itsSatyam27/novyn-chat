@@ -819,9 +819,6 @@ class _PeopleScreenState extends State<PeopleScreen> {
         final accent = Theme.of(dialogContext).colorScheme.primary;
         final panelColor = isDark ? const Color(0xFF191B2B) : Colors.white;
         final textColor = isDark ? Colors.white : const Color(0xFF20213E);
-        final lineColor = isDark
-            ? Colors.white.withValues(alpha: .08)
-            : const Color(0xFFECE7F7);
 
         Widget item({
           required IconData icon,
