@@ -42,6 +42,6 @@ class GroupCallGridSpec {
     final tileHeight =
         (height - verticalPadding - spacing * (rows - 1)) / rows;
     if (tileWidth <= 0 || tileHeight <= 0) return 1.0;
-    return (tileWidth / tileHeight).clamp(.72, 1.85).toDouble();
+    return (tileWidth / tileHeight).clamp(.55, 1.85).toDouble();
   }
 }
