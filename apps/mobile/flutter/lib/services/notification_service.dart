@@ -2228,7 +2228,8 @@ class NotificationService {
             ],
           ),
         );
-        if (accepted != true || !context.mounted) {
+        if (!context.mounted) return;
+        if (accepted != true) {
           await context.read<SocketService>().declineGroupCall(groupCallId);
           return;
         }
@@ -2236,16 +2237,23 @@ class NotificationService {
 
       final socket = context.read<SocketService>();
       final result = await socket.acceptGroupCall(groupCallId);
-      if (result['ok'] != true || !context.mounted) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result['message']?.toString() ??
-                  'This group call is no longer available.'),
-            ),
-          );
+      if (!context.mounted) {
+        if (result['ok'] == true) {
+          await socket.leaveGroupCall(groupCallId);
         }
         return;
+      }
+      if (result['ok'] != true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message']?.toString() ??
+                'This group call is no longer available.'),
+          ),
+        );
+        return;
+      }
+      if (callId.isNotEmpty) {
+        await clearIncomingCallNotification(callId);
       }
       final raw = result['participants'];
       final participants = raw is List
