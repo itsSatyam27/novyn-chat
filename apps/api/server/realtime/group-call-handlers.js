@@ -19,6 +19,7 @@ function registerGroupCallHandlers(socket, deps) {
     onlineUsers,
     io,
     activeCalls,
+    clearCallPair,
     usersAreBlocked,
     sendPushToUser,
     allowSocketAction,
@@ -158,6 +159,10 @@ function registerGroupCallHandlers(socket, deps) {
       screenSharer: null,
     };
     registry.sessions.set(groupCallId, session);
+    // The legacy direct-call lock is no longer authoritative once the group
+    // registry owns this session. Clear it for both original callers so they
+    // can leave the group cleanly and start another call afterward.
+    clearCallPair?.(userKey);
     registry.userSessions.set(userKey, groupCallId);
     registry.userSessions.set(peerKey, groupCallId);
 
