@@ -93,9 +93,21 @@ class BackupAutomationService {
     bool cancelled = false,
     bool failed = false,
   }) {
+    final boundedPercent = percent.clamp(0, 100).toInt();
+    final previous = progress.value;
+    // A large chat can contain thousands of messages and uploads stream in
+    // 64 KB chunks. Throttle UI/tray refreshes to meaningful 2% changes while
+    // always publishing stage transitions and terminal states.
+    if (!completed &&
+        previous != null &&
+        !previous.completed &&
+        previous.stage == stage &&
+        boundedPercent - previous.percent < 2) {
+      return;
+    }
     progress.value = BackupProgress(
       stage: stage,
-      percent: percent.clamp(0, 100).toInt(),
+      percent: boundedPercent,
       completed: completed,
       cancelled: cancelled,
       failed: failed,
