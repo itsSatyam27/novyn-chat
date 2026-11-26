@@ -45,6 +45,13 @@ function makeFixture() {
     toDisplayName: (value) => String(value ?? '').trim(),
     onlineUsers,
     activeCalls,
+    clearCallPair(userKey) {
+      const active = activeCalls.get(userKey);
+      if (!active) return null;
+      activeCalls.delete(userKey);
+      if (active.peerKey) activeCalls.delete(active.peerKey);
+      return active.peerKey;
+    },
     io: {
       to(socketId) {
         return {
@@ -83,6 +90,7 @@ test('promotes a connected direct call into a group session with a four-person c
   assert.equal(result.capacity, MAX_GROUP_CALL_PARTICIPANTS);
   assert.equal(fixture.registry.userSessions.get('alice'), result.groupCallId);
   assert.equal(fixture.registry.userSessions.get('bob'), result.groupCallId);
+  assert.equal(fixture.activeCalls.size, 0, 'group registry replaces the old pair-call lock');
   assert.equal(
     fixture.sockets.get('bob').events.some((entry) => entry.name === 'group_call_promoted'),
     false,
