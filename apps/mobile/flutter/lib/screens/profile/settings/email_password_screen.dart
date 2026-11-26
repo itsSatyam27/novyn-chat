@@ -73,7 +73,7 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
               Text(user?.emailVerified == true
                 ? 'Your email address is verified and can be used for account recovery.'
                 : 'Verify a new email address when you change it. Email verification for existing accounts may not be available yet.',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant, height: 1.4)),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant, height: 1.4))),
               const SizedBox(height: 14),
               SizedBox(width: double.infinity, child: OutlinedButton.icon(
                 onPressed: () => _changeEmail(socket, auth),
