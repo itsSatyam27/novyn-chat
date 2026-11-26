@@ -286,9 +286,9 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
     if (key.isEmpty ||
         key == _meKey ||
         _peers.containsKey(key) ||
-        !_creatingPeers.add(key) ||
         _localStream == null ||
-        _ended) {
+        _ended ||
+        !_creatingPeers.add(key)) {
       return;
     }
 
