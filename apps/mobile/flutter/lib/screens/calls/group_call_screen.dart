@@ -14,6 +14,7 @@ import '../../services/notification_service.dart';
 import '../../services/socket_service.dart';
 import '../../services/webrtc_service.dart';
 import '../../widgets/user_avatar.dart';
+import 'group_call_layout.dart';
 import '../main_screen.dart';
 
 /// Four-person mesh call UI. One local media stream is shared by the
@@ -885,8 +886,12 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
                 screenRenderer!,
                 objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
               );
-        final miniWidth = (constraints.maxWidth * .30).clamp(88.0, 156.0).toDouble();
-        final miniHeight = (constraints.maxHeight * .38).clamp(104.0, 184.0).toDouble();
+        final miniWidth = constraints.maxWidth < 240
+            ? constraints.maxWidth * .30
+            : (constraints.maxWidth * .30).clamp(88.0, 156.0).toDouble();
+        final miniHeight = constraints.maxHeight < 200
+            ? constraints.maxHeight * .38
+            : (constraints.maxHeight * .38).clamp(104.0, 184.0).toDouble();
 
         if (!_showScreenFirst) {
           return Stack(
@@ -1089,8 +1094,12 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
   Widget _buildMiniOverlay() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final width = (constraints.maxWidth * .44).clamp(132.0, 166.0).toDouble();
-        final height = (constraints.maxHeight * .74).clamp(148.0, 224.0).toDouble();
+        final width = constraints.maxWidth < 300
+            ? constraints.maxWidth * .44
+            : (constraints.maxWidth * .44).clamp(132.0, 166.0).toDouble();
+        final height = constraints.maxHeight < 200
+            ? constraints.maxHeight * .74
+            : (constraints.maxHeight * .74).clamp(148.0, 224.0).toDouble();
         final maxX = (constraints.maxWidth - width - 8)
             .clamp(0.0, double.infinity).toDouble();
         final maxY = (constraints.maxHeight - height - 8)
