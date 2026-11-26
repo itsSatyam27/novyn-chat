@@ -262,7 +262,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                             height: 18,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: Colors.white,
+                              color: const Color(0xFFC52E25),
                             ),
                           )
                         : const Icon(Icons.logout_rounded, size: 20),
@@ -291,7 +291,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                   color: isDark
                       ? const Color(0xFF202035)
                       : const Color(0xFFF0EDFF).withValues(alpha: 0.85),
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(24),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -306,8 +306,8 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                       child: Text(
                         'Signing out a device revokes its Novyn session. It will need to sign in or pair again.',
                         style: TextStyle(
-                          fontSize: 12,
-                          height: 1.45,
+                          fontSize: 13,
+                          height: 1.5,
                           color: colors.onSurfaceVariant,
                         ),
                       ),
