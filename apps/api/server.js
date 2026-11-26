@@ -2521,6 +2521,7 @@ async function persistMongoNow() {
           retentionDays: 0,
           groups: state.groups || [],
           wallpapers: state.wallpapers || [],
+          themes: state.themes || [],
           scheduledMessages: state.scheduledMessages || [],
         },
       },
@@ -3566,7 +3567,7 @@ async function loadStateFromMongoCollections() {
     mongoLegacyCollection
       ? mongoLegacyCollection.findOne(
           { _id: "main" },
-          { projection: { groups: 1, scheduledMessages: 1, wallpapers: 1 } }
+          { projection: { groups: 1, scheduledMessages: 1, wallpapers: 1, themes: 1 } }
         )
       : null,
   ]);
@@ -3605,6 +3606,7 @@ async function loadStateFromMongoCollections() {
     })),
     groups: Array.isArray(legacyDoc?.groups) ? legacyDoc.groups : [],
     wallpapers: Array.isArray(legacyDoc?.wallpapers) ? legacyDoc.wallpapers : [],
+    themes: Array.isArray(legacyDoc?.themes) ? legacyDoc.themes : [],
     scheduledMessages: Array.isArray(legacyDoc?.scheduledMessages) ? legacyDoc.scheduledMessages : [],
   };
 
