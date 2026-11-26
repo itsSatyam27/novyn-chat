@@ -768,8 +768,9 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
           height: constraints.maxHeight,
         );
         if (count == 3 && columns == 2) {
-          final tileWidth =
-              ((constraints.maxWidth - 24 - 10) / 2).clamp(1.0, double.infinity);
+          final tileWidth = ((constraints.maxWidth - 24 - 10) / 2)
+              .clamp(1.0, double.infinity)
+              .toDouble();
           return Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 18),
             child: Column(
