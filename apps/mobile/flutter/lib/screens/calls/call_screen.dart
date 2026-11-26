@@ -1565,20 +1565,254 @@ class _CallScreenState extends State<CallScreen>
   // ── Video call UI ──────────────────────────────────────────────────────
   Widget _buildVideoCall() {
     final connected = _state == CallState.connected;
-    final localVideoIsMain = _localVideoExpanded && _webrtc.localStream != null;
-    final remoteVideoIsMain = !localVideoIsMain && _webrtc.remoteStream != null;
-    return Stack(fit: StackFit.expand, children: [
-      Positioned.fill(child: localVideoIsMain && !_cameraOff
-        ? RTCVideoView(_webrtc.localRenderer, mirror: _frontCamera, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
-        : remoteVideoIsMain ? RTCVideoView(_webrtc.remoteRenderer, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
-        : Container(decoration: const BoxDecoration(gradient: RadialGradient(center: Alignment(-0.35,-0.55),radius:1.25,colors:[Color(0xFF5967B8),Color(0xFF25294D),Color(0xFF0B0D1B)],stops:[0,.52,1])), child: localVideoIsMain && _cameraOff ? const Center(child: Icon(Icons.videocam_off_rounded,color:Colors.white70,size:48)) : Stack(children:[Positioned(right:-100,bottom:60,child:Container(width:360,height:360,decoration:const BoxDecoration(shape:BoxShape.circle,gradient:RadialGradient(colors:[Color(0x886D4C91),Color(0x006D4C91)])))),Center(child:AnimatedBuilder(animation:_pulse,builder:(_,child)=>Transform.scale(scale:_state==CallState.calling?_pulse.value:1,child:child),child:UserAvatar(name:widget.peer.name,photoUrl:widget.peer.photoUrl,radius:112,fallbackColor:const Color(0xFF6D5DFC))))])),
-      Positioned.fill(child:IgnorePointer(child:DecoratedBox(decoration:BoxDecoration(gradient:LinearGradient(begin:Alignment.topCenter,end:Alignment.bottomCenter,colors:[Colors.black.withValues(alpha:.34),Colors.transparent,Colors.transparent,Colors.black.withValues(alpha:.72)],stops:const[0,.25,.58,1]))))),
-      SafeArea(child:Column(children:[
-        Padding(padding:const EdgeInsets.fromLTRB(12,8,18,0),child:Row(children:[_CallGlassButton(icon:Icons.keyboard_arrow_down_rounded,onTap:_minimizeCall),const Spacer(),Column(children:[Text(widget.peer.name,style:const TextStyle(color:Colors.white,fontSize:17,fontWeight:FontWeight.w600)),const SizedBox(height:3),ValueListenableBuilder<int>(valueListenable:_seconds,builder:(_,secs,__)=>Text(connected?_formatDuration(secs):_statusText(secs),style:const TextStyle(color:Colors.white70,fontSize:12,fontWeight:FontWeight.w500)))],),const Spacer(),_CallNetworkIndicator(webrtc:_webrtc)])),
-        Align(alignment:Alignment.topRight,child:Padding(padding:const EdgeInsets.only(top:22,right:18),child:GestureDetector(onTap:(){if(_webrtc.localStream==null||_webrtc.remoteStream==null)return;HapticService.vibrate(NovynHapticType.selection,category:HapticCategory.calls);setState(()=>_localVideoExpanded=!_localVideoExpanded);},onPanUpdate:(details)=>setState(()=>_pipPosition=Offset((_pipPosition.dx+details.delta.dx).clamp(8,MediaQuery.sizeOf(context).width-_pipWidth-8),(_pipPosition.dy+details.delta.dy).clamp(MediaQuery.paddingOf(context).top+70,MediaQuery.sizeOf(context).height-_pipHeight-180))),child:Container(width:_pipWidth,height:_pipHeight,decoration:BoxDecoration(color:const Color(0xFF17192B),borderRadius:BorderRadius.circular(24),boxShadow:[BoxShadow(color:Colors.black.withValues(alpha:.28),blurRadius:20,offset:const Offset(0,8))]),clipBehavior:Clip.antiAlias,child:localVideoIsMain?(_webrtc.remoteStream!=null?RTCVideoView(_webrtc.remoteRenderer,objectFit:RTCVideoViewObjectFit.RTCVideoViewObjectFitCover):Center(child:UserAvatar(name:widget.peer.name,photoUrl:widget.peer.photoUrl,radius:42))):_cameraOff?const Center(child:Icon(Icons.videocam_off_rounded,color:Colors.white70,size:30)):_webrtc.localStream!=null?RTCVideoView(_webrtc.localRenderer,mirror:_frontCamera,objectFit:RTCVideoViewObjectFit.RTCVideoViewObjectFitCover):const Center(child:Icon(Icons.videocam_rounded,color:Colors.white70,size:30)))))),
-        const Spacer(),if(_audioRoutes.any((route)=>route['kind']=='bluetooth'))Padding(padding:const EdgeInsets.only(bottom:12),child:_buildAudioRouteSelector()),if(_state==CallState.calling&&widget.isIncoming)_buildIncomingControls() else if(_state==CallState.calling)_buildCallingControls() else _buildSwipeCallTray(),
-      ])),
-    ]);
+    final localVideoIsMain =
+        _localVideoExpanded && _webrtc.localStream != null;
+    final remoteVideoIsMain =
+        !localVideoIsMain && _webrtc.remoteStream != null;
+
+    final Widget mainVideo = localVideoIsMain && !_cameraOff
+        ? RTCVideoView(
+            _webrtc.localRenderer,
+            mirror: _frontCamera,
+            objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+          )
+        : remoteVideoIsMain
+            ? RTCVideoView(
+                _webrtc.remoteRenderer,
+                objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+              )
+            : Container(
+                decoration: const BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment(-0.35, -0.55),
+                    radius: 1.25,
+                    colors: [
+                      Color(0xFF5967B8),
+                      Color(0xFF25294D),
+                      Color(0xFF0B0D1B),
+                    ],
+                    stops: [0, .52, 1],
+                  ),
+                ),
+                child: localVideoIsMain && _cameraOff
+                    ? const Center(
+                        child: Icon(
+                          Icons.videocam_off_rounded,
+                          color: Colors.white70,
+                          size: 48,
+                        ),
+                      )
+                    : Stack(
+                        children: [
+                          Positioned(
+                            right: -100,
+                            bottom: 60,
+                            child: Container(
+                              width: 360,
+                              height: 360,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: RadialGradient(
+                                  colors: [
+                                    Color(0x886D4C91),
+                                    Color(0x006D4C91),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          Center(
+                            child: AnimatedBuilder(
+                              animation: _pulse,
+                              builder: (_, child) => Transform.scale(
+                                scale: _state == CallState.calling
+                                    ? _pulse.value
+                                    : 1,
+                                child: child,
+                              ),
+                              child: UserAvatar(
+                                name: widget.peer.name,
+                                photoUrl: widget.peer.photoUrl,
+                                radius: 112,
+                                fallbackColor: const Color(0xFF6D5DFC),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+              );
+
+    final Widget pictureInPicture = GestureDetector(
+      onTap: () {
+        if (_webrtc.localStream == null || _webrtc.remoteStream == null) {
+          return;
+        }
+        HapticService.vibrate(
+          NovynHapticType.selection,
+          category: HapticCategory.calls,
+        );
+        setState(() => _localVideoExpanded = !_localVideoExpanded);
+      },
+      onPanUpdate: (details) {
+        setState(() {
+          _pipPosition = Offset(
+            (_pipPosition.dx + details.delta.dx)
+                .clamp(8.0, MediaQuery.sizeOf(context).width - _pipWidth - 8)
+                .toDouble(),
+            (_pipPosition.dy + details.delta.dy)
+                .clamp(
+                  MediaQuery.paddingOf(context).top + 70,
+                  MediaQuery.sizeOf(context).height - _pipHeight - 180,
+                )
+                .toDouble(),
+          );
+        });
+      },
+      child: Container(
+        width: _pipWidth,
+        height: _pipHeight,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: const Color(0xFF17192B),
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: .28),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: localVideoIsMain
+            ? (_webrtc.remoteStream != null
+                ? RTCVideoView(
+                    _webrtc.remoteRenderer,
+                    objectFit:
+                        RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                  )
+                : Center(
+                    child: UserAvatar(
+                      name: widget.peer.name,
+                      photoUrl: widget.peer.photoUrl,
+                      radius: 42,
+                    ),
+                  ))
+            : _cameraOff
+                ? const Center(
+                    child: Icon(
+                      Icons.videocam_off_rounded,
+                      color: Colors.white70,
+                      size: 30,
+                    ),
+                  )
+                : _webrtc.localStream != null
+                    ? RTCVideoView(
+                        _webrtc.localRenderer,
+                        mirror: _frontCamera,
+                        objectFit:
+                            RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                      )
+                    : const Center(
+                        child: Icon(
+                          Icons.videocam_rounded,
+                          color: Colors.white70,
+                          size: 30,
+                        ),
+                      ),
+      ),
+    );
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Positioned.fill(child: mainVideo),
+        Positioned.fill(
+          child: IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: .34),
+                    Colors.transparent,
+                    Colors.transparent,
+                    Colors.black.withValues(alpha: .72),
+                  ],
+                  stops: const [0, .25, .58, 1],
+                ),
+              ),
+              child: const SizedBox.expand(),
+            ),
+          ),
+        ),
+        SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 18, 0),
+                child: Row(
+                  children: [
+                    _CallGlassButton(
+                      icon: Icons.keyboard_arrow_down_rounded,
+                      onTap: _minimizeCall,
+                    ),
+                    const Spacer(),
+                    Column(
+                      children: [
+                        Text(
+                          widget.peer.name,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        ValueListenableBuilder<int>(
+                          valueListenable: _seconds,
+                          builder: (_, secs, __) => Text(
+                            connected
+                                ? _formatDuration(secs)
+                                : _statusText(secs),
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Spacer(),
+                    _CallNetworkIndicator(webrtc: _webrtc),
+                  ],
+                ),
+              ),
+              Align(
+                alignment: Alignment.topRight,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 22, right: 18),
+                  child: pictureInPicture,
+                ),
+              ),
+              const Spacer(),
+              if (_audioRoutes.any((route) => route['kind'] == 'bluetooth'))
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _buildAudioRouteSelector(),
+                ),
+              if (_state == CallState.calling && widget.isIncoming)
+                _buildIncomingControls()
+              else if (_state == CallState.calling)
+                _buildCallingControls()
+              else
+                _buildSwipeCallTray(),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildVoiceCall() {
