@@ -79,6 +79,7 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
   bool _inviting = false;
   bool _switchingCamera = false;
   bool _screenShareBusy = false;
+  bool _controlsExpanded = false;
   bool _retrying = false;
   String? _error;
   Offset? _miniPosition;
@@ -1217,75 +1218,151 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
     );
   }
 
+  void _toggleControlsTray() {
+    setState(() => _controlsExpanded = !_controlsExpanded);
+  }
+
   Widget _buildControls() {
     final mediaReady = !_initializing && !_leaving && !_ended && _localStream != null;
     final canInvite = mediaReady &&
         _participants.length + _pendingInvites.length < _maxParticipants &&
         !_inviting;
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 9),
-      decoration: BoxDecoration(
-        color: const Color(0xDD151525),
-        borderRadius: BorderRadius.circular(36),
-        border: Border.all(color: Colors.white24),
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          _GroupDockButton(
-            icon: Icons.person_add_alt_1_rounded,
-            label: 'Add people',
-            onTap: _showInvitePicker,
-            active: _inviting,
-            disabled: !canInvite,
-          ),
-          _GroupDockButton(
-            icon: _muted ? Icons.mic_off_rounded : Icons.mic_rounded,
-            label: _muted ? 'Unmute microphone' : 'Mute microphone',
-            onTap: _toggleMute,
-            active: _muted,
-            disabled: !mediaReady,
-          ),
-          if (widget.isVideo) ...[
-            _GroupDockButton(
-              icon: _cameraOff ? Icons.videocam_off_rounded : Icons.videocam_rounded,
-              label: _cameraOff ? 'Turn camera on' : 'Turn camera off',
-              onTap: _toggleCamera,
-              active: _cameraOff,
-              disabled: !mediaReady,
-            ),
-            _GroupDockButton(
-              icon: _switchingCamera ? Icons.hourglass_top_rounded : Icons.flip_camera_android_rounded,
-              label: 'Switch camera',
-              onTap: _switchCamera,
-              disabled: !mediaReady || _switchingCamera,
+    final canShare = mediaReady &&
+        !_screenShareBusy &&
+        (_sharingScreen || (_screenSharer == null && _peers.isNotEmpty));
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onVerticalDragEnd: (details) {
+        final velocity = details.primaryVelocity ?? 0;
+        if (velocity < -140 && !_controlsExpanded) {
+          setState(() => _controlsExpanded = true);
+        } else if (velocity > 140 && _controlsExpanded) {
+          setState(() => _controlsExpanded = false);
+        }
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOutCubic,
+        width: double.infinity,
+        margin: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+        padding: const EdgeInsets.fromLTRB(16, 9, 16, 13),
+        decoration: BoxDecoration(
+          color: const Color(0xDD151525),
+          borderRadius: BorderRadius.circular(34),
+          border: Border.all(color: Colors.white.withValues(alpha: .12)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: .22),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
             ),
           ],
-          _GroupDockButton(
-            icon: _screenShareBusy
-                ? Icons.hourglass_top_rounded
-                : (_sharingScreen ? Icons.stop_screen_share_rounded : Icons.screen_share_rounded),
-            label: _sharingScreen ? 'Stop screen sharing' : 'Share screen',
-            onTap: _toggleScreenShare,
-            active: _sharingScreen,
-            disabled: !mediaReady || _screenShareBusy || (!_sharingScreen && (_screenSharer != null || _peers.isEmpty)),
-          ),
-          _GroupDockButton(
-            icon: _speakerOn ? Icons.volume_up_rounded : Icons.volume_off_rounded,
-            label: _speakerOn ? 'Speaker on' : 'Speaker off',
-            onTap: _toggleSpeaker,
-            active: _speakerOn,
-            disabled: !mediaReady,
-          ),
-          _GroupDockButton(
-            icon: _leaving ? Icons.hourglass_top_rounded : Icons.call_end_rounded,
-            label: 'Leave group call',
-            onTap: _leaveCall,
-            danger: true,
-            disabled: _leaving || _ended,
-          ),
-        ]),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: _toggleControlsTray,
+              child: SizedBox(
+                width: double.infinity,
+                height: 18,
+                child: Center(
+                  child: Container(
+                    width: 48,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: .48),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              child: _controlsExpanded
+                  ? Padding(
+                      padding: const EdgeInsets.only(top: 9, bottom: 13),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _GroupTrayActionTile(
+                              icon: _switchingCamera
+                                  ? Icons.hourglass_top_rounded
+                                  : Icons.flip_camera_android_rounded,
+                              label: 'Switch camera',
+                              onTap: _switchCamera,
+                              disabled: !widget.isVideo || !mediaReady || _switchingCamera,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _GroupTrayActionTile(
+                              icon: _screenShareBusy
+                                  ? Icons.hourglass_top_rounded
+                                  : (_sharingScreen
+                                      ? Icons.stop_screen_share_rounded
+                                      : Icons.screen_share_rounded),
+                              label: _sharingScreen ? 'Stop sharing' : 'Share screen',
+                              onTap: _toggleScreenShare,
+                              active: _sharingScreen,
+                              disabled: !widget.isVideo || !canShare,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _GroupTrayActionTile(
+                              icon: Icons.person_add_alt_1_rounded,
+                              label: 'Add people',
+                              onTap: _showInvitePicker,
+                              active: _inviting,
+                              disabled: !canInvite,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : const SizedBox(width: double.infinity, height: 0),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _GroupDockButton(
+                  icon: _muted ? Icons.mic_off_rounded : Icons.mic_rounded,
+                  label: _muted ? 'Unmute microphone' : 'Mute microphone',
+                  onTap: _toggleMute,
+                  active: _muted,
+                  disabled: !mediaReady,
+                ),
+                _GroupDockButton(
+                  icon: _cameraOff ? Icons.videocam_off_rounded : Icons.videocam_rounded,
+                  label: _cameraOff ? 'Turn camera on' : 'Turn camera off',
+                  onTap: _toggleCamera,
+                  active: _cameraOff,
+                  disabled: !widget.isVideo || !mediaReady,
+                ),
+                _GroupDockButton(
+                  icon: _speakerOn ? Icons.volume_up_rounded : Icons.volume_off_rounded,
+                  label: _speakerOn ? 'Speaker on' : 'Speaker off',
+                  onTap: _toggleSpeaker,
+                  active: _speakerOn,
+                  disabled: !mediaReady || _speakerRouteChanging,
+                ),
+                _GroupDockButton(
+                  icon: _leaving ? Icons.hourglass_top_rounded : Icons.call_end_rounded,
+                  label: 'Leave group call',
+                  onTap: _leaveCall,
+                  danger: true,
+                  disabled: _leaving || _ended,
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1611,6 +1688,60 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
     }
     unawaited(_cleanup());
     super.dispose();
+  }
+}
+
+class _GroupTrayActionTile extends StatelessWidget {
+  const _GroupTrayActionTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.active = false,
+    this.disabled = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool active;
+  final bool disabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      opacity: disabled ? .42 : 1,
+      child: Material(
+        color: active ? const Color(0xFF514A78) : const Color(0x3DFFFFFF),
+        borderRadius: BorderRadius.circular(23),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(23),
+          onTap: disabled ? null : onTap,
+          child: SizedBox(
+            height: 86,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, color: Colors.white, size: 25),
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
