@@ -292,6 +292,47 @@ test('pending invitations reserve seats, and declines notify the participant who
   );
 });
 
+test('late joiners receive current microphone, camera and screen-share state', () => {
+  const fixture = makeFixture();
+  const promoted = invoke(fixture.sockets.get('alice'), 'group_call_promote', {
+    callId: 'call-1',
+  });
+  fixture.sockets.get('alice').handlers.get('group_call_media_state')({
+    groupCallId: promoted.groupCallId,
+    audioEnabled: false,
+    videoEnabled: true,
+  });
+  fixture.sockets.get('bob').handlers.get('group_call_media_state')({
+    groupCallId: promoted.groupCallId,
+    audioEnabled: true,
+    videoEnabled: false,
+  });
+  fixture.sockets.get('alice').handlers.get('group_call_screen_share_state')({
+    groupCallId: promoted.groupCallId,
+    streamId: 'screen-a',
+  });
+  invoke(fixture.sockets.get('alice'), 'group_call_invite', {
+    groupCallId: promoted.groupCallId,
+    to: 'carol',
+  });
+  const joined = invoke(fixture.sockets.get('carol'), 'group_call_accept', {
+    groupCallId: promoted.groupCallId,
+  });
+
+  assert.equal(joined.ok, true);
+  assert.equal(joined.mediaStates.alice.audioEnabled, false);
+  assert.equal(joined.mediaStates.bob.videoEnabled, false);
+  assert.equal(joined.screenSharer, 'alice');
+  assert.equal(joined.screenStreamId, 'screen-a');
+  assert.equal(
+    fixture.sockets.get('carol').events.some((entry) =>
+      entry.name === 'group_call_screen_share_state' &&
+      entry.payload.streamId === 'screen-a',
+    ),
+    true,
+  );
+});
+
 test('group screen sharing is exclusive and is released when its sharer leaves', () => {
   const fixture = makeFixture();
   const promoted = invoke(fixture.sockets.get('alice'), 'group_call_promote', {
