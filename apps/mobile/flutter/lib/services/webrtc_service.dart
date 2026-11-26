@@ -508,6 +508,49 @@ class WebRTCService extends ChangeNotifier {
     }
   }
 
+  /// Captures the display once for a group call. Each peer connection then
+  /// attaches this same stream with [addSharedScreenStream].
+  Future<MediaStream> captureScreenForGroup() async {
+    if (_screenStream != null) return _screenStream!;
+    await _startScreenShareForegroundExecution();
+    try {
+      final screen = await navigator.mediaDevices.getDisplayMedia({
+        'audio': false,
+        'video': {
+          'frameRate': {'ideal': 12, 'max': 15},
+          'width': {'ideal': 1280, 'max': 1600},
+          'height': {'ideal': 720, 'max': 900},
+        },
+      });
+      if (screen.getVideoTracks().isEmpty) {
+        await screen.dispose();
+        throw StateError('Screen capture did not return a video track.');
+      }
+      _screenStream = screen;
+      _ownsScreenStream = true;
+      localScreenRenderer.srcObject = screen;
+      notifyListeners();
+      return screen;
+    } catch (_) {
+      await _stopScreenShareForegroundExecution();
+      rethrow;
+    }
+  }
+
+  Future<void> releaseGroupScreenCapture() async {
+    final screen = _screenStream;
+    _screenStream = null;
+    _screenSender = null;
+    localScreenRenderer.srcObject = null;
+    for (final track in screen?.getTracks() ?? <MediaStreamTrack>[]) {
+      track.onEnded = null;
+      try { await track.stop(); } catch (_) {}
+    }
+    try { await screen?.dispose(); } catch (_) {}
+    await _stopScreenShareForegroundExecution();
+    notifyListeners();
+  }
+
   Future<void> startScreenShare(SocketService socket, String peerId, String callId) async {
     final connection = _peerConnection;
     if (connection == null) throw StateError('Call connection is not ready.');
