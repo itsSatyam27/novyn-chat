@@ -437,7 +437,7 @@ export class WebRTCManager {
       return false;
     }
 
-    return false;
+    return true;
   }
 
   public getLocalStream(): MediaStream | null {
