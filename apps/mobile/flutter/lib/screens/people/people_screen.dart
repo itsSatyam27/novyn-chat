@@ -201,7 +201,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final pageBackground = isDark
         ? NovynTheme.pageBg(context)
-        : const Color(0xFFF3EFFA);
+        : const Color(0xFFF0EFFA);
 
     return Scaffold(
       backgroundColor: pageBackground,
@@ -226,40 +226,63 @@ class _PeopleScreenState extends State<PeopleScreen> {
                       ),
                     ),
                   ),
-                  NovynIconButton(
-                    icon: _isSearchVisible ? Icons.close_rounded : Icons.search_rounded,
-                    size: 46,
-                    radius: 18,
-                    iconSize: 22,
-                    onTap: () {
-                      setState(() {
-                        _isSearchVisible = !_isSearchVisible;
-                        if (!_isSearchVisible) {
-                          _search = '';
-                          _searchController.clear();
-                        }
-                      });
-                      if (_isSearchVisible) {
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (mounted && _isSearchVisible) {
-                            _searchFocusNode.requestFocus();
-                          }
-                        });
-                      } else {
-                        _searchFocusNode.unfocus();
-                      }
-                    },
-                  ),
-                  const SizedBox(width: 10),
-                  StreamBuilder<int>(
-                    stream: friends.pendingRequestsCountStream(myUid),
-                    builder: (context, requestSnapshot) {
-                      return _buildContactsOverflowMenu(
-                        theme: Theme.of(context),
-                        requestCount: requestSnapshot.data ?? 0,
-                        myUid: myUid,
-                      );
-                    },
+                  Container(
+                    height: 54,
+                    padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF292542) : const Color(0xFFE9E5F6),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Material(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(999),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(999),
+                            onTap: () {
+                              setState(() {
+                                _isSearchVisible = !_isSearchVisible;
+                                if (!_isSearchVisible) {
+                                  _search = '';
+                                  _searchController.clear();
+                                }
+                              });
+                              if (_isSearchVisible) {
+                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                  if (mounted && _isSearchVisible) _searchFocusNode.requestFocus();
+                                });
+                              } else {
+                                _searchFocusNode.unfocus();
+                              }
+                            },
+                            child: SizedBox(
+                              width: 54,
+                              height: 48,
+                              child: Icon(
+                                _isSearchVisible ? Icons.close_rounded : Icons.search_rounded,
+                                size: 23,
+                                color: isDark ? Theme.of(context).colorScheme.onSurface : const Color(0xFF684DEB),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Container(
+                          width: 1,
+                          height: 25,
+                          color: isDark ? Colors.white24 : const Color(0xFFD0C9E8),
+                        ),
+                        StreamBuilder<int>(
+                          stream: friends.pendingRequestsCountStream(myUid),
+                          builder: (context, requestSnapshot) => _buildContactsOverflowMenu(
+                            theme: Theme.of(context),
+                            requestCount: requestSnapshot.data ?? 0,
+                            myUid: myUid,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -428,7 +451,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
       width: double.infinity,
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
+        padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
         child: Row(
           children: [
             for (final item in labels)
@@ -444,8 +467,8 @@ class _PeopleScreenState extends State<PeopleScreen> {
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 180),
                     curve: Curves.easeOutCubic,
-                    height: 42,
-                    padding: const EdgeInsets.symmetric(horizontal: 22),
+                    height: 44,
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: _filter == item.$1
@@ -560,10 +583,8 @@ class _PeopleScreenState extends State<PeopleScreen> {
     }
     final letters = grouped.keys.toList()..sort();
     final children = <Widget>[
-      if (_filter == 'All' && _search.isEmpty && onlineBuddies.isNotEmpty)
-        _buildOnlineBuddiesStrip(onlineBuddies),
       Padding(
-        padding: const EdgeInsets.fromLTRB(8, 6, 22, 10),
+        padding: const EdgeInsets.fromLTRB(8, 8, 22, 10),
         child: Row(
           children: [
             Expanded(
@@ -596,7 +617,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
       final users = grouped[letter]!;
       children.add(
         Padding(
-          padding: const EdgeInsets.fromLTRB(8, 2, 22, 8),
+          padding: const EdgeInsets.fromLTRB(8, 2, 22, 9),
           child: Text(
             letter,
             style: TextStyle(
@@ -610,9 +631,9 @@ class _PeopleScreenState extends State<PeopleScreen> {
       );
       children.add(
         Padding(
-          padding: const EdgeInsets.only(right: 18, bottom: 12),
+          padding: const EdgeInsets.only(right: 18, bottom: 13),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(26),
+            borderRadius: BorderRadius.circular(28),
             child: Material(
               color: Theme.of(context).colorScheme.surface,
               child: Column(
@@ -797,9 +818,9 @@ class _PeopleScreenState extends State<PeopleScreen> {
       elevation: 10,
       shadowColor: Colors.black.withValues(alpha: .16),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(26),
       ),
-      constraints: const BoxConstraints(minWidth: 224),
+      constraints: const BoxConstraints(minWidth: 284, maxWidth: 320),
       onSelected: (action) {
         HapticService.vibrate(
           NovynHapticType.selection,
@@ -817,8 +838,8 @@ class _PeopleScreenState extends State<PeopleScreen> {
       itemBuilder: (context) => [
         PopupMenuItem<_PeopleMenuAction>(
           value: _PeopleMenuAction.discover,
-          height: 54,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
+          height: 60,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           child: _buildOverflowMenuRow(
             icon: Icons.person_search_rounded,
             title: 'Find buddies',
@@ -827,8 +848,8 @@ class _PeopleScreenState extends State<PeopleScreen> {
         ),
         PopupMenuItem<_PeopleMenuAction>(
           value: _PeopleMenuAction.requests,
-          height: 54,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
+          height: 60,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           child: _buildOverflowMenuRow(
             icon: Icons.person_add_alt_1_rounded,
             title: 'Buddy requests',
@@ -838,8 +859,8 @@ class _PeopleScreenState extends State<PeopleScreen> {
         ),
         PopupMenuItem<_PeopleMenuAction>(
           value: _PeopleMenuAction.invite,
-          height: 54,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
+          height: 60,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           child: _buildOverflowMenuRow(
             icon: Icons.link_rounded,
             title: 'Invite buddies',
@@ -848,17 +869,17 @@ class _PeopleScreenState extends State<PeopleScreen> {
         ),
       ],
       child: Container(
-        width: 48,
+        width: 54,
         height: 48,
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(16),
+        decoration: const BoxDecoration(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.all(Radius.circular(999)),
         ),
         alignment: Alignment.center,
         child: Icon(
           Icons.more_horiz_rounded,
-          size: 24,
-          color: theme.colorScheme.onSurface,
+          size: 25,
+          color: theme.brightness == Brightness.dark ? theme.colorScheme.onSurface : const Color(0xFF684DEB),
         ),
       ),
     );
@@ -872,12 +893,12 @@ class _PeopleScreenState extends State<PeopleScreen> {
   }) {
     final theme = Theme.of(context);
     return SizedBox(
-      width: 198,
+      width: 252,
       child: Row(
         children: [
           Container(
-            width: 36,
-            height: 36,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
               color: accent.withValues(alpha: .11),
               borderRadius: BorderRadius.circular(12),
@@ -893,7 +914,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontFamily: 'PlusJakartaSans',
-                fontSize: 14,
+                fontSize: 15,
                 fontWeight: FontWeight.w600,
                 color: theme.colorScheme.onSurface,
               ),
@@ -966,7 +987,7 @@ class _ContactRow extends StatelessWidget {
     return UserAvatar(
       name: _displayName.isNotEmpty ? _displayName : '?',
       photoUrl: user.photoUrl.trim(),
-      radius: 26,
+      radius: 29,
       fallbackColor: _avatarColor,
       showOnlineIndicator: false,
       isOnline: user.isOnline,
@@ -980,7 +1001,7 @@ class _ContactRow extends StatelessWidget {
     return InkWell(
       onTap: onOpenChat,
       child: Padding(
-        padding: const EdgeInsets.only(left: 10, right: 15, top: 11, bottom: 11),
+        padding: const EdgeInsets.only(left: 10, right: 15, top: 14, bottom: 14),
         child: Row(
           children: [
             PresenceIndicatorBar(
@@ -1047,8 +1068,8 @@ class _ContactRow extends StatelessWidget {
                 onTap: onOpenChat,
                 customBorder: const CircleBorder(),
                 child: SizedBox(
-                  width: 44,
-                  height: 44,
+                  width: 54,
+                  height: 54,
                   child: Icon(
                     Icons.chat_bubble_outline_rounded,
                     size: 19,
