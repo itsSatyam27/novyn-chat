@@ -557,9 +557,13 @@ class _CallScreenState extends State<CallScreen>
     socket.onCallScreenShareChangedCallback = (data) {
       if (!mounted || data['callId']?.toString() != _callId) return;
       final streamId = data['streamId']?.toString();
+      final normalizedStreamId =
+          streamId == null || streamId.isEmpty ? null : streamId;
       _webrtc.setRemoteScreenShare(
-        streamId == null || streamId.isEmpty ? null : streamId,
-        replacesVideoTrack: data['replacesVideoTrack'] == true,
+        normalizedStreamId,
+        replacesVideoTrack: normalizedStreamId == null
+            ? null
+            : data['replacesVideoTrack'] == true,
       );
       setState(() => _remoteScreenStreamId = streamId);
     };
