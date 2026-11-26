@@ -305,6 +305,7 @@ class SocketService extends ChangeNotifier {
   Function(Map)? onGroupCallScreenShareStateCallback;
   Function(Map)? onGroupCallScreenShareDeniedCallback;
   Function(Map)? onGroupCallInvitationDeclinedCallback;
+  Function(Map)? onGroupCallInvitationExpiredCallback;
 
   // Status and foreground message callbacks
   Function(String username, bool isOnline)? onUserStatusChanged;
@@ -1659,6 +1660,9 @@ class SocketService extends ChangeNotifier {
     });
     _socket!.on('group_call_invitation_declined', (data) {
       if (data is Map) onGroupCallInvitationDeclinedCallback?.call(Map<String, dynamic>.from(data));
+    });
+    _socket!.on('group_call_invitation_expired', (data) {
+      if (data is Map) onGroupCallInvitationExpiredCallback?.call(Map<String, dynamic>.from(data));
     });
     _socket!.on('group_call_media_state', (data) {
       if (data is Map) onGroupCallMediaStateCallback?.call(Map<String, dynamic>.from(data));
@@ -3807,6 +3811,7 @@ class SocketService extends ChangeNotifier {
   Future<Map<String, dynamic>> promoteCallToGroup({
     required String callId,
     required bool isVideo,
+    List<String> invitees = const <String>[],
   }) async {
     final socket = _socket;
     if (socket == null || !_isConnected || !_isAuthenticated) {
@@ -3816,6 +3821,11 @@ class SocketService extends ChangeNotifier {
     socket.emitWithAck('group_call_promote', {
       'callId': callId,
       'isVideo': isVideo,
+      'invitees': invitees
+          .map((value) => value.trim().replaceFirst(RegExp(r'^@+'), ''))
+          .where((value) => value.isNotEmpty)
+          .toSet()
+          .toList(),
     }, ack: (dynamic data) {
       if (!completer.isCompleted) {
         completer.complete(data is Map
