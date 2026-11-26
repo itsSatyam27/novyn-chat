@@ -7,6 +7,26 @@ import '../../../services/api_service.dart';
 import '../../../services/auth_service.dart';
 import '../../../theme/novyn_theme.dart';
 
+class _TwoFactorStep extends StatelessWidget {
+  final String number;
+  final String text;
+  const _TwoFactorStep({required this.number, required this.text});
+  @override
+  Widget build(BuildContext context) {
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(children: [
+        Container(width: 36, height: 36, alignment: Alignment.center,
+          decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withValues(alpha: .10), shape: BoxShape.circle),
+          child: Text(number, style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w800))),
+        const SizedBox(width: 14),
+        Expanded(child: Text(text, style: TextStyle(color: muted, fontWeight: FontWeight.w600))),
+      ]),
+    );
+  }
+}
+
 class TwoFactorScreen extends StatefulWidget {
   const TwoFactorScreen({super.key});
 
@@ -300,7 +320,7 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: card,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(28),
         border: Border.all(color: border),
       ),
       child: child,
@@ -346,12 +366,12 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
                   onRefresh: _loadStatus,
                   child: ListView(
                     physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 36),
                     children: [
                       Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(24),
+                          borderRadius: BorderRadius.circular(30),
                           gradient: LinearGradient(
                             colors: _enabled
                                 ? [const Color(0xFF147D59), const Color(0xFF24A879)]
@@ -434,6 +454,14 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
                           const SizedBox(height: 10),
                           Text('Use an app such as Google Authenticator, Microsoft Authenticator, or 1Password to generate a one-time code when you sign in.', style: TextStyle(color: muted, height: 1.5, fontSize: 13)),
                           const SizedBox(height: 18),
+                          const Divider(),
+                          const SizedBox(height: 16),
+                          Text('HOW IT WORKS', style: TextStyle(color: muted, fontWeight: FontWeight.w700, letterSpacing: .8)),
+                          const SizedBox(height: 16),
+                          _TwoFactorStep(number: '1', text: 'Install an authenticator app'),
+                          _TwoFactorStep(number: '2', text: 'Scan the QR code we show you'),
+                          _TwoFactorStep(number: '3', text: 'Enter the one-time code to finish'),
+                          const SizedBox(height: 18),
                           SizedBox(width: double.infinity, child: FilledButton.icon(
                             onPressed: _working ? null : _beginSetup,
                             icon: _working ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.qr_code_2_rounded),
@@ -442,7 +470,21 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
                           )),
                         ])),
                         const SizedBox(height: 14),
-                        Text('Backup codes are generated once during setup. Keep them private and store them somewhere safe.', style: TextStyle(color: muted, fontSize: 12, height: 1.5)),
+                        infoCard(child: Row(children: [
+                          Icon(Icons.receipt_long_rounded, color: accent),
+                          const SizedBox(width: 12),
+                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text('Backup codes', style: TextStyle(color: ink, fontWeight: FontWeight.w700)),
+                            const SizedBox(height: 4),
+                            Text('Generated once during setup', style: TextStyle(color: muted)),
+                          ])),
+                        ])),
+                        const SizedBox(height: 14),
+                        Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: accent.withValues(alpha: .08), borderRadius: BorderRadius.circular(24)), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Icon(Icons.info_outline_rounded, color: accent),
+                          const SizedBox(width: 12),
+                          Expanded(child: Text('Keep your backup codes private and store them somewhere safe.', style: TextStyle(color: ink, height: 1.45))),
+                        ])),
                       ] else ...[
                         infoCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Row(children: [
