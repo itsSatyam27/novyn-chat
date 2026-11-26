@@ -725,7 +725,14 @@ class WebRTCService extends ChangeNotifier {
   void setRemoteScreenShare(String? streamId) {
     _remoteScreenStreamId = streamId;
     onRemoteScreenShareChanged?.call(streamId);
-    if (streamId == null) remoteScreenRenderer.srcObject = null;
+    if (streamId == null) {
+      remoteScreenRenderer.srcObject = null;
+    } else if (_remoteStream?.id == streamId) {
+      // Signaling and media tracks can cross in flight. Re-route the already
+      // received stream if it arrived before the screen-share state event.
+      remoteScreenRenderer.srcObject = _remoteStream;
+      remoteRenderer.srcObject = null;
+    }
   }
 
   void _sendCallSignal(
