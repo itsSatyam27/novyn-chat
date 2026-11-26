@@ -924,6 +924,9 @@ class SocketService extends ChangeNotifier {
       // applied by ChatsScreen immediately, before preview decryption awaits.
       _markSocketAuthenticated();
       if (data is Map) _handleFriendList(data);
+      // Keep media identity registration in the background; text delivery
+      // and notification previews do not wait for an E2EE key exchange.
+      unawaited(_registerEncryptionIdentity().catchError((Object _) {}));
       unawaited(_flushPendingMessageOutbox());
     });
     // ── Initial data + friend list ────────────────────────────────────────
@@ -932,6 +935,9 @@ class SocketService extends ChangeNotifier {
       if (data is Map && data['friends'] != null) {
         _handleFriendList(data);
       }
+      // Keep media identity registration in the background; text delivery
+      // and notification previews do not wait for an E2EE key exchange.
+      unawaited(_registerEncryptionIdentity().catchError((Object _) {}));
       unawaited(_flushPendingMessageOutbox());
     });
 
@@ -2598,7 +2604,8 @@ class SocketService extends ChangeNotifier {
       await HybridDbService.saveMessage(tempMsg);
 
       // Offline sends are accepted into the durable outbox immediately.
-      // Authenticated reconnect and key registration trigger the actual send.
+      // Authenticated reconnect flushes text; encrypted media registers its
+      // own identity and recipient key on demand before sending.
       if (_isConnected && _isAuthenticated) {
         await _flushPendingMessageOutbox();
       }
