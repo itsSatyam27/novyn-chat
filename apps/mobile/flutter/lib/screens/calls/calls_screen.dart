@@ -938,7 +938,7 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
 
   Widget _buildFilterChips() {
     final theme = Theme.of(context);
-    final accent = theme.colorScheme.primary;
+    final primary = theme.colorScheme.primary;
     final isDark = theme.brightness == Brightness.dark;
     final missedCount = countUnreadMissedCallLogs(
       _calls.expand((entry) => entry.history),
@@ -955,7 +955,7 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
       width: double.infinity,
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+        padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
         child: Row(
           children: [
             for (final option in _filters)
@@ -971,19 +971,29 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 180),
                     curve: Curves.easeOutCubic,
-                    height: 44,
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    height: 42,
+                    padding: const EdgeInsets.symmetric(horizontal: 22),
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: _filter == option
-                          ? accent
+                          ? primary
                           : (isDark ? const Color(0xFF201B36) : Colors.white),
                       borderRadius: BorderRadius.circular(26),
                       border: Border.all(
                         color: _filter == option
-                            ? accent
-                            : accent.withValues(alpha: isDark ? .18 : .14),
+                            ? primary
+                            : (isDark ? Colors.white10 : const Color(0xFFEAE6F7)),
+                        width: 1,
                       ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: _filter == option
+                              ? primary.withValues(alpha: 0.28)
+                              : (isDark ? Colors.black26 : primary.withValues(alpha: 0.04)),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -992,7 +1002,9 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
                           Icon(
                             icons[option],
                             size: 17,
-                            color: _filter == option ? Colors.white : theme.colorScheme.onSurfaceVariant,
+                            color: _filter == option
+                                ? Colors.white
+                                : (isDark ? Colors.white70 : const Color(0xFF2D2942)),
                           ),
                           const SizedBox(width: 6),
                         ],
@@ -1000,28 +1012,32 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
                           option,
                           style: TextStyle(
                             fontFamily: 'PlusJakartaSans',
-                            fontSize: 14,
-                            fontWeight: _filter == option ? FontWeight.w700 : FontWeight.w500,
-                            color: _filter == option ? Colors.white : theme.colorScheme.onSurfaceVariant,
+                            fontSize: 14.5,
+                            fontWeight: _filter == option ? FontWeight.w700 : FontWeight.w600,
+                            color: _filter == option
+                                ? Colors.white
+                                : (isDark ? Colors.white70 : const Color(0xFF2D2942)),
                           ),
                         ),
                         if (option == 'Missed' && missedCount > 0) ...[
-                          const SizedBox(width: 7),
+                          const SizedBox(width: 6),
                           Container(
-                            constraints: const BoxConstraints(minWidth: 20),
-                            height: 20,
-                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            constraints: const BoxConstraints(minWidth: 19, minHeight: 19),
+                            padding: const EdgeInsets.symmetric(horizontal: 5),
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
-                              color: _filter == option ? Colors.white : const Color(0xFFD92D2D),
-                              borderRadius: BorderRadius.circular(10),
+                              color: _filter == option
+                                  ? Colors.white.withValues(alpha: .22)
+                                  : primary,
+                              borderRadius: BorderRadius.circular(99),
                             ),
                             child: Text(
                               missedCount > 99 ? '99+' : '$missedCount',
-                              style: TextStyle(
-                                fontSize: 11.5,
+                              style: const TextStyle(
+                                fontFamily: 'PlusJakartaSans',
+                                color: Colors.white,
+                                fontSize: 10.5,
                                 fontWeight: FontWeight.w800,
-                                color: _filter == option ? accent : Colors.white,
                               ),
                             ),
                           ),
