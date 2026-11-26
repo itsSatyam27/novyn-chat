@@ -554,7 +554,7 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final pageBackground = isDark ? NovynTheme.pageBg(context) : const Color(0xFFF3EFFA);
+    final pageBackground = isDark ? NovynTheme.pageBg(context) : const Color(0xFFF0EFFA);
     final visible = _filteredCalls(); // computed once per build
 
     return Scaffold(
@@ -566,24 +566,65 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-            NovynHeader(
-              title: 'Calls',
-              titleSize: 36,
-              titleWeight: FontWeight.w600,
-              actions: [
-                Semantics(
-                  button: true,
-                  label: _searchOpen ? 'Close search' : 'Search calls',
-                  child: NovynIconButton(
-                    icon: _searchOpen ? Icons.close_rounded : Icons.search_rounded,
-                    size: 48,
-                    radius: 16,
-                    iconSize: 22,
-                    onTap: _toggleSearch,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Calls',
+                      style: TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        fontSize: 36,
+                        height: 1.12,
+                        letterSpacing: -1.25,
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ),
                   ),
-                ),
-                _buildMenu(theme),
-              ],
+                  Container(
+                    height: 54,
+                    padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF292542) : const Color(0xFFE9E5F6),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Semantics(
+                          button: true,
+                          label: _searchOpen ? 'Close search' : 'Search calls',
+                          child: Material(
+                            color: Colors.transparent,
+                            borderRadius: BorderRadius.circular(999),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(999),
+                              onTap: _toggleSearch,
+                              child: SizedBox(
+                                width: 54,
+                                height: 48,
+                                child: Icon(
+                                  _searchOpen ? Icons.close_rounded : Icons.search_rounded,
+                                  size: 23,
+                                  color: isDark ? theme.colorScheme.onSurface : const Color(0xFF684DEB),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Container(
+                          width: 1,
+                          height: 25,
+                          color: isDark ? Colors.white24 : const Color(0xFFD0C9E8),
+                        ),
+                        _buildMenu(theme),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
             AnimatedSize(
               duration: const Duration(milliseconds: 280),
@@ -652,7 +693,7 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
     return PopupMenuButton<String>(
       tooltip: 'More call options',
       offset: const Offset(0, 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
       elevation: 10,
       onSelected: (value) {
         if (value == 'privacy') _showCallPrivacy();
@@ -662,7 +703,7 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
       itemBuilder: (context) => [
         const PopupMenuItem(
           value: 'privacy',
-          height: 56,
+          height: 60,
           child: _CallMenuItem(
             icon: Icons.shield_outlined,
             title: 'Call privacy',
@@ -671,7 +712,7 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
         ),
         const PopupMenuItem(
           value: 'refresh',
-          height: 56,
+          height: 60,
           child: _CallMenuItem(
             icon: Icons.refresh_rounded,
             title: 'Refresh',
@@ -682,7 +723,7 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
           const PopupMenuDivider(),
           const PopupMenuItem(
             value: 'clear',
-            height: 56,
+            height: 60,
             child: _CallMenuItem(
               icon: Icons.delete_outline_rounded,
               title: 'Clear history',
@@ -692,14 +733,18 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
           ),
         ],
       ],
-      child: Container(
-        width: 48,
+      child: SizedBox(
+        width: 54,
         height: 48,
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(16),
+        child: Center(
+          child: Icon(
+            Icons.more_horiz_rounded,
+            size: 25,
+            color: theme.brightness == Brightness.dark
+                ? theme.colorScheme.onSurface
+                : const Color(0xFF684DEB),
+          ),
         ),
-        child: Icon(Icons.more_horiz_rounded, size: 24, color: theme.colorScheme.onSurface),
       ),
     );
   }
@@ -907,85 +952,87 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
     };
 
     return SizedBox(
-      height: 56,
-      child: ListView.separated(
+      width: double.infinity,
+      child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(20, 6, 20, 6),
-        itemCount: _filters.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final option = _filters[index];
-          final selected = _filter == option;
-          final count = option == 'Missed' ? missedCount : 0;
-          final fg = selected ? Colors.white : theme.colorScheme.onSurfaceVariant;
-          return Semantics(
-            button: true,
-            selected: selected,
-            label: option == 'Missed' && count > 0 ? 'Missed calls, $count' : '$option calls',
-            child: GestureDetector(
-              onTap: () {
-                if (_filter == option) return;
-                HapticService.vibrate(NovynHapticType.light, category: HapticCategory.calls);
-                setState(() => _filter = option);
-                if (option == 'Missed') unawaited(_markMissedCallsRead());
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeOutCubic,
-                height: 44,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  color: selected
-                      ? accent
-                      : (isDark ? const Color(0xFF171426) : theme.colorScheme.surface),
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(
-                    color: selected ? accent : accent.withValues(alpha: isDark ? .18 : .14),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (icons[option] != null) ...[
-                      Icon(icons[option], size: 17, color: fg),
-                      const SizedBox(width: 6),
-                    ],
-                    Text(
-                      option,
-                      style: TextStyle(
-                        fontFamily: 'PlusJakartaSans',
-                        fontSize: 14,
-                        fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                        color: fg,
+        padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+        child: Row(
+          children: [
+            for (final option in _filters)
+              Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: GestureDetector(
+                  onTap: () {
+                    if (_filter == option) return;
+                    HapticService.vibrate(NovynHapticType.light, category: HapticCategory.calls);
+                    setState(() => _filter = option);
+                    if (option == 'Missed') unawaited(_markMissedCallsRead());
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOutCubic,
+                    height: 44,
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: _filter == option
+                          ? accent
+                          : (isDark ? const Color(0xFF201B36) : Colors.white),
+                      borderRadius: BorderRadius.circular(26),
+                      border: Border.all(
+                        color: _filter == option
+                            ? accent
+                            : accent.withValues(alpha: isDark ? .18 : .14),
                       ),
                     ),
-                    if (count > 0) ...[
-                      const SizedBox(width: 7),
-                      Container(
-                        constraints: const BoxConstraints(minWidth: 20),
-                        height: 20,
-                        padding: const EdgeInsets.symmetric(horizontal: 6),
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: selected ? Colors.white : const Color(0xFFD92D2D),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          count > 99 ? '99+' : '$count',
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (icons[option] != null) ...[
+                          Icon(
+                            icons[option],
+                            size: 17,
+                            color: _filter == option ? Colors.white : theme.colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                        Text(
+                          option,
                           style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w800,
-                            color: selected ? accent : Colors.white,
+                            fontFamily: 'PlusJakartaSans',
+                            fontSize: 14,
+                            fontWeight: _filter == option ? FontWeight.w700 : FontWeight.w500,
+                            color: _filter == option ? Colors.white : theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
-                      ),
-                    ],
-                  ],
+                        if (option == 'Missed' && missedCount > 0) ...[
+                          const SizedBox(width: 7),
+                          Container(
+                            constraints: const BoxConstraints(minWidth: 20),
+                            height: 20,
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: _filter == option ? Colors.white : const Color(0xFFD92D2D),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              missedCount > 99 ? '99+' : '$missedCount',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w800,
+                                color: _filter == option ? accent : Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ),
-          );
-        },
+          ],
+        ),
       ),
     );
   }
