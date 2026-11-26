@@ -1004,10 +1004,14 @@ class _ContactRow extends StatelessWidget {
         padding: const EdgeInsets.only(left: 10, right: 15, top: 14, bottom: 14),
         child: Row(
           children: [
-            PresenceIndicatorBar(
-              isOnline: user.isOnline,
-              status: user.status,
+            Container(
+              width: 4,
+              height: 36,
               margin: const EdgeInsets.only(right: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE4DDF5),
+                borderRadius: BorderRadius.circular(99),
+              ),
             ),
             _avatar(),
             const SizedBox(width: 13),
@@ -1024,8 +1028,8 @@ class _ContactRow extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontFamily: 'PlusJakartaSans',
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
                             color: theme.colorScheme.onSurface,
                           ),
                         ),
@@ -1052,7 +1056,7 @@ class _ContactRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontFamily: 'PlusJakartaSans',
-                      fontSize: 11.5,
+                      fontSize: 13,
                       fontWeight: FontWeight.w500,
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
