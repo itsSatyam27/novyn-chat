@@ -26,6 +26,7 @@ class GroupCallScreen extends StatefulWidget {
     required this.isVideo,
     required this.participants,
     this.initialMediaStates = const <String, dynamic>{},
+    this.initialPendingInvitations = const <Map<String, dynamic>>[],
     this.initialScreenSharer,
     this.initialScreenStreamId,
   });
@@ -35,6 +36,7 @@ class GroupCallScreen extends StatefulWidget {
   final bool isVideo;
   final List<Map<String, dynamic>> participants;
   final Map<String, dynamic> initialMediaStates;
+  final List<Map<String, dynamic>> initialPendingInvitations;
   final String? initialScreenSharer;
   final String? initialScreenStreamId;
 
@@ -52,6 +54,7 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
   final Map<String, List<Map<String, dynamic>>> _pendingSignals = {};
   final Map<String, bool> _remoteAudioEnabled = {};
   final Map<String, bool> _remoteVideoEnabled = {};
+  final Map<String, Map<String, dynamic>> _pendingInvites = {};
 
   WebRTCService? _mediaOwner;
   MediaStream? _localStream;
@@ -96,6 +99,12 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
       _remoteAudioEnabled[key] = state['audioEnabled'] != false;
       _remoteVideoEnabled[key] = state['videoEnabled'] != false;
     }
+    for (final invite in widget.initialPendingInvitations) {
+      final username = invite['username']?.toString().trim() ?? '';
+      if (username.isNotEmpty) {
+        _pendingInvites[username.toLowerCase()] = Map<String, dynamic>.from(invite);
+      }
+    }
     _addParticipantRecord({
       'username': _me,
       'displayName': context.read<AuthService>().user?.name ?? _me,
@@ -132,6 +141,8 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
     _socket.onGroupCallSignalCallback = _handleSignal;
     _socket.onGroupCallParticipantJoinedCallback = (data) {
       if (!_matchesCall(data)) return;
+      final joinedBy = data['joinedBy']?.toString().toLowerCase() ?? '';
+      if (joinedBy.isNotEmpty) _pendingInvites.remove(joinedBy);
       _applyParticipantSnapshot(data['participants']);
       _publishActiveCallNotification();
       _refreshMiniOverlay();
@@ -176,9 +187,22 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
     _socket.onGroupCallInvitationDeclinedCallback = (data) {
       if (!_matchesCall(data)) return;
       final username = data['username']?.toString() ?? 'Someone';
+      _pendingInvites.remove(username.toLowerCase());
       if (mounted) {
+        setState(() {});
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(username + ' declined the invitation.')),
+        );
+      }
+    };
+    _socket.onGroupCallInvitationExpiredCallback = (data) {
+      if (!_matchesCall(data)) return;
+      final username = data['username']?.toString() ?? 'Someone';
+      _pendingInvites.remove(username.toLowerCase());
+      if (mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(username + ' didn’t answer.')),
         );
       }
     };
@@ -527,7 +551,8 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
   }
 
   Future<void> _showInvitePicker() async {
-    if (_inviting || _participants.length >= _maxParticipants) return;
+    if (_inviting ||
+        _participants.length + _pendingInvites.length >= _maxParticipants) return;
     if (_me.isEmpty) return;
     setState(() => _inviting = true);
     final friendService = context.read<FriendService>();
@@ -546,7 +571,9 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
     }
     if (!mounted) return;
     setState(() => _inviting = false);
-    final existing = _participants.keys.toSet()..add(_meKey);
+    final existing = _participants.keys.toSet()
+      ..add(_meKey)
+      ..addAll(_pendingInvites.keys);
     final available = friends
         .where((person) => !existing.contains(person.username.toLowerCase()))
         .toList();
@@ -586,7 +613,7 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
                       ),
                     ),
                     Text(
-                      _participants.length.toString() + '/' + _maxParticipants.toString(),
+                      (_participants.length + _pendingInvites.length).toString() + '/' + _maxParticipants.toString(),
                       style: TextStyle(color: Theme.of(sheetContext).colorScheme.onSurfaceVariant),
                     ),
                   ],
@@ -613,10 +640,20 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
                           username: friend.username,
                         );
                         if (!mounted) return;
+                        if (result['ok'] == true) {
+                          setState(() {
+                            _pendingInvites[friend.username.toLowerCase()] = {
+                              'username': friend.username,
+                              'displayName': friend.name,
+                              'invitedBy': _me,
+                              'expiresAt': result['expiresAt'],
+                            };
+                          });
+                        }
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(result['ok'] == true
-                                ? 'Invitation sent to ' + friend.name + '.'
+                                ? 'Ringing ' + friend.name + '…'
                                 : (result['message']?.toString() ?? 'Could not send invitation.')),
                           ),
                         );
@@ -907,7 +944,7 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
             icon: Icons.person_add_alt_1_rounded,
             label: 'Add',
             onTap: _showInvitePicker,
-            disabled: _participants.length >= _maxParticipants || _inviting,
+            disabled: _participants.length + _pendingInvites.length >= _maxParticipants || _inviting,
           ),
           _GroupControl(
             icon: _muted ? Icons.mic_off_rounded : Icons.mic_rounded,
@@ -1194,6 +1231,26 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
                   child: Text(_error!, style: const TextStyle(color: Color(0xFFFFA5AA), fontSize: 12)),
                 ),
+              if (_pendingInvites.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 2, 14, 8),
+                  child: Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    alignment: WrapAlignment.center,
+                    children: _pendingInvites.values.map((invite) {
+                      final name = invite['displayName']?.toString().trim().isNotEmpty == true
+                          ? invite['displayName'].toString()
+                          : invite['username']?.toString() ?? 'Contact';
+                      return Chip(
+                        avatar: const Icon(Icons.ring_volume_rounded, size: 15),
+                        label: Text('Ringing ' + name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        visualDensity: VisualDensity.compact,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      );
+                    }).toList(growable: false),
+                  ),
+                ),
               Expanded(
                 child: _initializing
                     ? const Center(child: CircularProgressIndicator(color: Colors.white))
@@ -1228,6 +1285,7 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
     _socket.onGroupCallMediaStateCallback = null;
     _socket.onGroupCallScreenShareStateCallback = null;
     _socket.onGroupCallInvitationDeclinedCallback = null;
+    _socket.onGroupCallInvitationExpiredCallback = null;
     _socket.onGroupCallScreenShareDeniedCallback = null;
     if (!_ended && !_leaving) {
       unawaited(_socket.leaveGroupCall(widget.groupCallId));
