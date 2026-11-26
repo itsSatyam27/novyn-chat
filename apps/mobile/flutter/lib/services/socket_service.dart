@@ -924,8 +924,7 @@ class SocketService extends ChangeNotifier {
       // applied by ChatsScreen immediately, before preview decryption awaits.
       _markSocketAuthenticated();
       if (data is Map) _handleFriendList(data);
-      unawaited(_registerEncryptionIdentity()
-          .then((_) => _flushPendingMessageOutbox()));
+      unawaited(_flushPendingMessageOutbox());
     });
     // ── Initial data + friend list ────────────────────────────────────────
     _socket!.on('init', (data) {
@@ -933,9 +932,7 @@ class SocketService extends ChangeNotifier {
       if (data is Map && data['friends'] != null) {
         _handleFriendList(data);
       }
-      unawaited(
-        _registerEncryptionIdentity().then((_) => _flushPendingMessageOutbox()),
-      );
+      unawaited(_flushPendingMessageOutbox());
     });
 
     _socket!.on('friend_list', (data) => _handleFriendList(data));
