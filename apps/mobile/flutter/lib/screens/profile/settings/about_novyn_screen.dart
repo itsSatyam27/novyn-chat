@@ -2,10 +2,10 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../../theme/novyn_theme.dart';
 import '../../../services/app_update_service.dart';
 
@@ -910,7 +910,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                             style: GoogleFonts.dancingScript(
                               fontSize: 27,
                               fontWeight: FontWeight.w600,
-                              color: primary,
+                              color: const Color(0xFF7048F8),
                             ),
                           ),
                           WidgetSpan(
@@ -919,7 +919,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                               padding: const EdgeInsets.symmetric(horizontal: 4),
                               child: Icon(
                                 Icons.favorite_rounded,
-                                color: primary,
+                                color: const Color(0xFFE34D73),
                                 size: 19,
                               ),
                             ),
@@ -929,7 +929,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                             style: GoogleFonts.dancingScript(
                               fontSize: 27,
                               fontWeight: FontWeight.w600,
-                              color: primary,
+                              color: const Color(0xFF7048F8),
                             ),
                           ),
                         ],

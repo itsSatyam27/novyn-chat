@@ -2758,7 +2758,7 @@ class _NovynSettingsTile extends StatelessWidget {
                     child: Stack(
                       clipBehavior: Clip.none,
                       children: [
-                        Icon(icon, color: accent, size: 20),
+                        Center(child: Icon(icon, color: accent, size: 20)),
                         if (showDot)
                           Positioned(
                             top: -3,
