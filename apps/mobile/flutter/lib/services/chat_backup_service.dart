@@ -8,6 +8,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'api_service.dart';
+import 'backup_progress.dart';
 import 'local_db_service.dart';
 import 'message_encryption_service.dart';
 
@@ -49,16 +50,29 @@ class ChatBackupService {
     required String username,
     required String password,
     required MessageEncryptionService encryption,
+    BackupProgressCallback? onProgress,
+    BackupCancellationCheck? checkCancelled,
   }) async {
     if (password.length < 8) {
       throw const FormatException('Use a backup password with at least 8 characters.');
     }
+    checkCancelled?.call();
+    onProgress?.call('Reading your chats', 5);
     final data = await LocalDbService.exportChatBackupData();
+    checkCancelled?.call();
     if (data['username']?.toString().toLowerCase() != username.trim().toLowerCase()) {
       throw const FormatException('The active local chat account does not match the signed-in account.');
     }
-    await _includeMedia(data);
+    await _includeMedia(
+      data,
+      onProgress: onProgress,
+      checkCancelled: checkCancelled,
+    );
+    checkCancelled?.call();
+    onProgress?.call('Securing conversation keys', 62);
     data['messageKeys'] = await encryption.exportBackupKeys(username);
+    checkCancelled?.call();
+    onProgress?.call('Encrypting your backup', 70);
     final random = Random.secure();
     final salt = List<int>.generate(16, (_) => random.nextInt(256));
     final nonce = List<int>.generate(12, (_) => random.nextInt(256));
@@ -85,15 +99,30 @@ class ChatBackupService {
         'This backup is larger than 100 MB. Remove some media and try again.',
       );
     }
+    checkCancelled?.call();
+    onProgress?.call('Encrypted backup ready', 82);
     return Uint8List.fromList(utf8.encode(envelope));
   }
 
-  static Future<void> _includeMedia(Map<String, dynamic> data) async {
+  static Future<void> _includeMedia(
+    Map<String, dynamic> data, {
+    BackupProgressCallback? onProgress,
+    BackupCancellationCheck? checkCancelled,
+  }) async {
     final messages = data['messages'];
-    if (messages is! List) return;
+    if (messages is! List) {
+      onProgress?.call('Preparing backup contents', 56);
+      return;
+    }
     final mediaFiles = <String, dynamic>{};
     var totalBytes = 0;
-    for (final raw in messages) {
+    for (var index = 0; index < messages.length; index++) {
+      checkCancelled?.call();
+      final raw = messages[index];
+      onProgress?.call(
+        'Preparing attachments ${index + 1}/${messages.length}',
+        12 + (((index + 1) / (messages.isEmpty ? 1 : messages.length)) * 44).round(),
+      );
       if (raw is! Map || raw['attachment'] is! Map) continue;
       final message = Map<String, dynamic>.from(raw);
       final attachment = Map<String, dynamic>.from(message['attachment'] as Map);
@@ -109,6 +138,7 @@ class ChatBackupService {
         if (url.isEmpty) continue;
         bytes = await ApiService.downloadMediaBytes(url);
       }
+      checkCancelled?.call();
       totalBytes += bytes.length;
       if (totalBytes > _maxMediaBytes) {
         throw const FormatException(
@@ -122,6 +152,8 @@ class ChatBackupService {
       };
     }
     data['mediaFiles'] = mediaFiles;
+    onProgress?.call('Attachments prepared', 56);
+    checkCancelled?.call();
   }
 
   static Future<Uint8List?> pickBackupFileBytes() async {
