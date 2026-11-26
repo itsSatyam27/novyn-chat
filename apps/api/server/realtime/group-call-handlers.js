@@ -143,7 +143,8 @@ function registerGroupCallHandlers(socket, deps) {
     const peer = peerKey ? activeCalls.get(peerKey) : null;
     if (!active || active.callId !== callId || active.status !== 'connected' ||
         !peer || peer.peerKey !== userKey || peer.callId !== callId ||
-        peer.status !== 'connected') {
+        peer.status !== 'connected' ||
+        registry.userSessions.has(userKey) || registry.userSessions.has(peerKey)) {
       return respond(ack, { ok: false, message: 'Only a connected one-to-one call can be expanded.' });
     }
 
@@ -266,7 +267,7 @@ function registerGroupCallHandlers(socket, deps) {
       return respond(ack, { ok: false, message: 'Invitation not found.' });
     }
     session.pending.delete(userKey);
-    emitUser(session.createdBy, 'group_call_invitation_declined', {
+    emitUser(invitation.invitedBy, 'group_call_invitation_declined', {
       groupCallId,
       username: users.get(userKey)?.username || userKey,
     });
