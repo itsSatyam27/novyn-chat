@@ -68,6 +68,16 @@ void main() {
       expect(ratio, greaterThanOrEqualTo(.55));
     });
 
+    test('keeps wide landscape tiles within the available height', () {
+      final ratio = GroupCallGridSpec.aspectRatioFor(
+        participantCount: 2,
+        columns: 2,
+        width: 800,
+        height: 180,
+      );
+      expect(ratio, greaterThan(1.85));
+    });
+
     test('avoids invalid dimensions on very small surfaces', () {
       final ratio = GroupCallGridSpec.aspectRatioFor(
         participantCount: 4,
