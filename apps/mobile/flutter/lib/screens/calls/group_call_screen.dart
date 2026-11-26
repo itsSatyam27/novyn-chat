@@ -119,6 +119,7 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
     _socket.onGroupCallParticipantJoinedCallback = (data) {
       if (!_matchesCall(data)) return;
       _applyParticipantSnapshot(data['participants']);
+      _publishActiveCallNotification();
       _refreshMiniOverlay();
     };
     _socket.onGroupCallParticipantLeftCallback = (data) {
@@ -126,6 +127,7 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
       final username = data['participant']?.toString().trim() ?? '';
       if (username.isNotEmpty) unawaited(_removePeer(username));
       _applyParticipantSnapshot(data['participants']);
+      _publishActiveCallNotification();
       _refreshMiniOverlay();
     };
     _socket.onGroupCallEndedCallback = (data) {
@@ -223,7 +225,10 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
       _mediaOwner = owner;
       await owner.init();
       await owner.setEarpieceMode();
-      await owner.startLocalStream(video: widget.isVideo);
+      await owner.startLocalStream(
+        video: widget.isVideo,
+        groupCall: true,
+      );
       _localStream = owner.localStream;
       if (_localStream == null) {
         throw StateError('Could not start the microphone or camera.');
