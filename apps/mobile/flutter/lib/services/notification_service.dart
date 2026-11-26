@@ -2399,7 +2399,7 @@ class NotificationService {
         final remaining = expiresAt == null
             ? const Duration(seconds: 45)
             : Duration(milliseconds: (expiresAt - DateTime.now().millisecondsSinceEpoch)
-                .clamp(1, 45000));
+                .clamp(1, 45000).toInt());
         final accepted = await showDialog<bool>(
           context: context,
           barrierDismissible: false,
