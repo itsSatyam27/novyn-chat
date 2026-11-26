@@ -262,6 +262,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isIncoming: false,
     localStream: null,
     remoteStream: null,
+    remoteScreenStream: null,
   });
   const [callNotice, setCallNotice] = useState<{ text: string; error: boolean } | null>(null);
   const dismissCallNotice = useCallback(() => setCallNotice(null), []);
@@ -651,7 +652,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isIncoming: false,
         localStream: null,
         remoteStream: null,
-      remoteScreenStream: null,
+        remoteScreenStream: null,
       });
       triggerHaptic('medium');
     },
@@ -1261,7 +1262,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isIncoming: true,
         localStream: null,
         remoteStream: null,
-      remoteScreenStream: null,
+        remoteScreenStream: null,
       });
 
       if (presenceModeRef.current !== 'busy' && callSoundEnabled()) {
@@ -2018,7 +2019,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isIncoming: false,
         localStream,
         remoteStream: null,
-      remoteScreenStream: null,
+        remoteScreenStream: null,
       });
 
       playCallRing();
