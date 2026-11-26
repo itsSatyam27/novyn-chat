@@ -49,6 +49,7 @@ class WebRTCService extends ChangeNotifier {
 
   MediaStream? get localStream  => _localStream;
   MediaStream? get remoteStream => _remoteStream;
+  MediaStream? get localScreenStream => _screenStream;
 
   // Connection state tracking
   RTCPeerConnectionState _connectionState = RTCPeerConnectionState.RTCPeerConnectionStateNew;
@@ -538,7 +539,11 @@ class WebRTCService extends ChangeNotifier {
       _screenSender = sender;
       localScreenRenderer.srcObject = screen;
       _remoteScreenStreamId = screen.id;
-      socket.updateCallScreenShare(peerId, callId, screen.id);
+      if (_isGroupCall) {
+        socket.updateGroupCallScreenShare(callId, screen.id);
+      } else {
+        socket.updateCallScreenShare(peerId, callId, screen.id);
+      }
       track.onEnded = () {
         unawaited(stopScreenShare(
           socket, peerId, callId, renegotiate: true,
@@ -565,7 +570,15 @@ class WebRTCService extends ChangeNotifier {
       _screenSender = null;
       _remoteScreenStreamId = null;
       localScreenRenderer.srcObject = null;
+      if (_isGroupCall) {
+        socket.updateGroupCallScreenShare(callId, null);
+      } else {
+        if (_isGroupCall) {
+      socket.updateGroupCallScreenShare(callId, null);
+    } else {
       socket.updateCallScreenShare(peerId, callId, null);
+    }
+      }
       for (final track in screen?.getTracks() ?? <MediaStreamTrack>[]) {
         track.onEnded = null;
         try { await track.stop(); } catch (_) {}
@@ -586,7 +599,11 @@ class WebRTCService extends ChangeNotifier {
     localScreenRenderer.srcObject = null;
     _screenSender = null;
     _remoteScreenStreamId = null;
-    socket.updateCallScreenShare(peerId, callId, null);
+    if (_isGroupCall) {
+      socket.updateGroupCallScreenShare(callId, null);
+    } else {
+      socket.updateCallScreenShare(peerId, callId, null);
+    }
 
     try {
       if (sender != null && _peerConnection != null) {
