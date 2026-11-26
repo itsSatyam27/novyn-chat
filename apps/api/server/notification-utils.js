@@ -152,6 +152,7 @@ function createFcmMessage(userKey, user, payload = {}) {
 
   const optionalFields = [
     "url", "tag", "groupId", "callStatus", "callId", "callExpiresAt", "isVideo",
+    "groupCall", "groupCallId", "invitedBy", "invitedByDisplayName",
     "from", "displayName", "action", "build", "releaseTag", "releaseUrl",
     "gameId", "gameType", "mentionOrReply", "ciphertext", "iv",
     "senderPublicKey", "messageId",

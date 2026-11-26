@@ -282,6 +282,7 @@ class SocketService extends ChangeNotifier {
   final Map<String, String> _rajaMantriInviteSessions = <String, String>{};
   final Set<String> _rajaMantriExpiredInvites = <String>{};
   final Map<String, Map<String, dynamic>> _randomGames = <String, Map<String, dynamic>>{};
+  final List<Map<String, dynamic>> _pendingGroupCallSignals = [];
   // Game moves can arrive before the corresponding chat history page.
   final Map<String, Map<String, dynamic>> _pendingGameUpdates =
       <String, Map<String, dynamic>>{};
@@ -293,6 +294,17 @@ class SocketService extends ChangeNotifier {
   Function(Map)? onCallMediaUpgradeResponseCallback;
   Function(Map)? onCallScreenShareChangedCallback;
   Function(Map)? onWebRTCSignalCallback;
+  Function(Map)? onGroupCallPromotedCallback;
+  Function(Map)? onGroupCallInvitationCallback;
+  Function(Map)? onGroupCallJoinedCallback;
+  Function(Map)? onGroupCallParticipantJoinedCallback;
+  Function(Map)? onGroupCallParticipantLeftCallback;
+  Function(Map)? onGroupCallEndedCallback;
+  Function(Map)? onGroupCallSignalCallback;
+  Function(Map)? onGroupCallMediaStateCallback;
+  Function(Map)? onGroupCallScreenShareStateCallback;
+  Function(Map)? onGroupCallScreenShareDeniedCallback;
+  Function(Map)? onGroupCallInvitationDeclinedCallback;
 
   // Status and foreground message callbacks
   Function(String username, bool isOnline)? onUserStatusChanged;
@@ -786,6 +798,7 @@ class SocketService extends ChangeNotifier {
     });
 
     _socket!.onDisconnect((_) {
+      _pendingGroupCallSignals.clear();
       _socketAuthRetryTimer?.cancel();
       _socketAuthRetryTimer = null;
       _stopPendingOutboxRetry();
@@ -1651,6 +1664,50 @@ class SocketService extends ChangeNotifier {
     _socket!.on('call_screen_share_changed', (data) {
       onCallScreenShareChangedCallback
           ?.call(data is Map ? Map<String, dynamic>.from(data) : {});
+    });
+
+    _socket!.on('group_call_promoted', (data) {
+      if (data is Map) onGroupCallPromotedCallback?.call(Map<String, dynamic>.from(data));
+    });
+    _socket!.on('group_call_invitation', (data) {
+      if (data is Map) onGroupCallInvitationCallback?.call(Map<String, dynamic>.from(data));
+    });
+    _socket!.on('group_call_joined', (data) {
+      if (data is Map) onGroupCallJoinedCallback?.call(Map<String, dynamic>.from(data));
+    });
+    _socket!.on('group_call_participant_joined', (data) {
+      if (data is Map) onGroupCallParticipantJoinedCallback?.call(Map<String, dynamic>.from(data));
+    });
+    _socket!.on('group_call_participant_left', (data) {
+      if (data is Map) onGroupCallParticipantLeftCallback?.call(Map<String, dynamic>.from(data));
+    });
+    _socket!.on('group_call_ended', (data) {
+      if (data is Map) onGroupCallEndedCallback?.call(Map<String, dynamic>.from(data));
+    });
+    _socket!.on('group_call_invitation_declined', (data) {
+      if (data is Map) onGroupCallInvitationDeclinedCallback?.call(Map<String, dynamic>.from(data));
+    });
+    _socket!.on('group_call_media_state', (data) {
+      if (data is Map) onGroupCallMediaStateCallback?.call(Map<String, dynamic>.from(data));
+    });
+    _socket!.on('group_call_screen_share_state', (data) {
+      if (data is Map) onGroupCallScreenShareStateCallback?.call(Map<String, dynamic>.from(data));
+    });
+    _socket!.on('group_call_screen_share_denied', (data) {
+      if (data is Map) onGroupCallScreenShareDeniedCallback?.call(Map<String, dynamic>.from(data));
+    });
+    _socket!.on('group_call_signal', (data) {
+      if (data is! Map) return;
+      final packet = Map<String, dynamic>.from(data);
+      final handler = onGroupCallSignalCallback;
+      if (handler != null) {
+        handler(packet);
+      } else {
+        _pendingGroupCallSignals.add(packet);
+        if (_pendingGroupCallSignals.length > 120) {
+          _pendingGroupCallSignals.removeRange(0, _pendingGroupCallSignals.length - 120);
+        }
+      }
     });
 
     // ── WebRTC signaling ──────────────────────────────────────────────────
@@ -3771,6 +3828,125 @@ class SocketService extends ChangeNotifier {
       'to': toUsername,
       'callId': callId,
       'accepted': accepted,
+    });
+  }
+
+  Future<Map<String, dynamic>> promoteCallToGroup({
+    required String callId,
+    required bool isVideo,
+  }) async {
+    final socket = _socket;
+    if (socket == null || !_isConnected || !_isAuthenticated) {
+      return {'ok': false, 'message': 'Connect to Novyn before adding participants.'};
+    }
+    final completer = Completer<Map<String, dynamic>>();
+    socket.emitWithAck('group_call_promote', {
+      'callId': callId,
+      'isVideo': isVideo,
+    }, ack: (dynamic data) {
+      if (!completer.isCompleted) {
+        completer.complete(data is Map
+            ? Map<String, dynamic>.from(data)
+            : {'ok': false, 'message': 'Unexpected group-call response.'});
+      }
+    });
+    return completer.future.timeout(
+      const Duration(seconds: 8),
+      onTimeout: () => {'ok': false, 'message': 'Could not prepare the group call. Try again.'},
+    );
+  }
+
+  Future<Map<String, dynamic>> inviteToGroupCall({
+    required String groupCallId,
+    required String username,
+  }) async {
+    final socket = _socket;
+    if (socket == null || !_isConnected || !_isAuthenticated) {
+      return {'ok': false, 'message': 'Connect to Novyn before inviting someone.'};
+    }
+    final completer = Completer<Map<String, dynamic>>();
+    socket.emitWithAck('group_call_invite', {
+      'groupCallId': groupCallId,
+      'to': username,
+    }, ack: (dynamic data) {
+      if (!completer.isCompleted) {
+        completer.complete(data is Map
+            ? Map<String, dynamic>.from(data)
+            : {'ok': false, 'message': 'Unexpected invitation response.'});
+      }
+    });
+    return completer.future.timeout(
+      const Duration(seconds: 8),
+      onTimeout: () => {'ok': false, 'message': 'Invitation timed out. Try again.'},
+    );
+  }
+
+  Future<Map<String, dynamic>> acceptGroupCall(String groupCallId) async {
+    final socket = _socket;
+    if (socket == null || !_isConnected || !_isAuthenticated) {
+      return {'ok': false, 'message': 'Connect to Novyn before joining the call.'};
+    }
+    final completer = Completer<Map<String, dynamic>>();
+    socket.emitWithAck('group_call_accept', {'groupCallId': groupCallId},
+        ack: (dynamic data) {
+      if (!completer.isCompleted) {
+        completer.complete(data is Map
+            ? Map<String, dynamic>.from(data)
+            : {'ok': false, 'message': 'Unexpected join response.'});
+      }
+    });
+    return completer.future.timeout(
+      const Duration(seconds: 8),
+      onTimeout: () => {'ok': false, 'message': 'Could not join the group call. Try again.'},
+    );
+  }
+
+  Future<void> declineGroupCall(String groupCallId) async {
+    _socket?.emit('group_call_decline', {'groupCallId': groupCallId});
+  }
+
+  Future<void> leaveGroupCall(String groupCallId) async {
+    _socket?.emit('group_call_leave', {'groupCallId': groupCallId});
+    _pendingGroupCallSignals.removeWhere(
+      (packet) => packet['groupCallId']?.toString() == groupCallId,
+    );
+  }
+
+  void sendGroupWebRTCSignal(
+      String toUsername, String groupCallId, dynamic signal) {
+    _socket?.emit('group_call_signal', {
+      'groupCallId': groupCallId,
+      'to': toUsername,
+      'signal': signal,
+    });
+  }
+
+  List<Map<String, dynamic>> takePendingGroupCallSignals(String groupCallId) {
+    final matched = _pendingGroupCallSignals
+        .where((packet) => packet['groupCallId']?.toString() == groupCallId)
+        .toList(growable: false);
+    _pendingGroupCallSignals.removeWhere(
+      (packet) => packet['groupCallId']?.toString() == groupCallId,
+    );
+    return matched;
+  }
+
+  void updateGroupCallMediaState(
+    String groupCallId, {
+    required bool audioEnabled,
+    required bool videoEnabled,
+  }) {
+    _socket?.emit('group_call_media_state', {
+      'groupCallId': groupCallId,
+      'audioEnabled': audioEnabled,
+      'videoEnabled': videoEnabled,
+    });
+  }
+
+  void updateGroupCallScreenShare(String groupCallId, String? streamId) {
+    _socket?.emit('group_call_screen_share_state', {
+      'groupCallId': groupCallId,
+      'streamId': streamId,
     });
   }
 

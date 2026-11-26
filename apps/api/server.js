@@ -12,6 +12,8 @@ const { isAllowedSocketOrigin } = require("./server/security/origins");
 const { mediaNames, canReadMedia } = require("./server/security/media-access");
 const { registerMessageMutationHandlers } = require("./server/realtime/message-mutations");
 const { registerCallHandlers, cancelCallForUser } = require("./server/realtime/call-handlers");
+const { createGroupCallRegistry, registerGroupCallHandlers } = require("./server/realtime/group-call-handlers");
+const groupCallRegistry = createGroupCallRegistry();
 const { applyGameMove, createGameChallenge } = require("./server/realtime/game-rules");
 const { PublicGameMatchmaking } = require("./server/realtime/game-matchmaking");
 const { buildGameLeaderboard, normalizeLeaderboardGame } = require("./game-leaderboard");
@@ -9811,6 +9813,7 @@ io.on("connection", (socket) => {
     normalizeName,
     onlineUsers,
     activeCalls,
+    isUserInGroupCall: (userKey) => groupCallRegistry.userSessions.has(userKey),
     setCallPair,
     clearCallPair,
     io,
@@ -9827,6 +9830,20 @@ io.on("connection", (socket) => {
       user.callLogs = user.callLogs.slice(0, 500);
       schedulePersist();
     }
+  });
+
+  registerGroupCallHandlers(socket, {
+    registry: groupCallRegistry,
+    users,
+    normalizeName,
+    toDisplayName,
+    onlineUsers,
+    io,
+    activeCalls,
+    clearCallPair,
+    usersAreBlocked,
+    sendPushToUser,
+    allowSocketAction,
   });
 
   socket.on("private_message", (payload, callback) => {

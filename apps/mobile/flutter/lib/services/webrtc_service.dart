@@ -11,6 +11,7 @@ class WebRTCService extends ChangeNotifier {
   RTCPeerConnection? _peerConnection;
   MediaStream? _localStream;
   MediaStream? _remoteStream;
+  final Map<String, MediaStream> _remoteStreamsById = <String, MediaStream>{};
 
   final RTCVideoRenderer localRenderer  = RTCVideoRenderer();
   final RTCVideoRenderer remoteRenderer = RTCVideoRenderer();
@@ -24,6 +25,9 @@ class WebRTCService extends ChangeNotifier {
 
   bool _isInitialized = false;
   bool _remoteDescriptionSet = false;
+  bool _isGroupCall = false;
+  bool _ownsLocalStream = true;
+  bool _ownsScreenStream = true;
   bool _isOfferer = false;
   Timer? _iceRestartTimer;
   Timer? _qualityTimer;
@@ -46,6 +50,9 @@ class WebRTCService extends ChangeNotifier {
 
   MediaStream? get localStream  => _localStream;
   MediaStream? get remoteStream => _remoteStream;
+  bool get hasRemoteVideo =>
+      _remoteStream?.getVideoTracks().isNotEmpty ?? false;
+  MediaStream? get localScreenStream => _screenStream;
 
   // Connection state tracking
   RTCPeerConnectionState _connectionState = RTCPeerConnectionState.RTCPeerConnectionStateNew;
@@ -88,7 +95,13 @@ class WebRTCService extends ChangeNotifier {
   }
 
   // ── Start local media stream ─────────────────────────────────────────────
-  Future<void> startLocalStream({bool video = true}) async {
+  Future<void> startLocalStream({
+    bool video = true,
+    bool groupCall = false,
+  }) async {
+    final width = groupCall ? 640 : 1280;
+    final height = groupCall ? 360 : 720;
+    final frameRate = groupCall ? 20 : 30;
     final constraints = {
       'audio': {
         'echoCancellation': true,
@@ -98,15 +111,25 @@ class WebRTCService extends ChangeNotifier {
       'video': video
           ? {
               'facingMode': 'user',
-              'width': {'ideal': 1280, 'max': 1920},
-              'height': {'ideal': 720, 'max': 1080},
-              'frameRate': {'ideal': 30, 'max': 30},
+              'width': {'ideal': width, 'max': groupCall ? 960 : 1920},
+              'height': {'ideal': height, 'max': groupCall ? 540 : 1080},
+              'frameRate': {'ideal': frameRate, 'max': frameRate},
             }
           : false,
     };
 
     _localStream = await navigator.mediaDevices.getUserMedia(constraints);
     localRenderer.srcObject = _localStream;
+    _ownsLocalStream = true;
+    notifyListeners();
+  }
+
+  /// Reuse one captured microphone/camera stream across the peer connections
+  /// that form a small group-call mesh. Only the owning service may stop it.
+  void attachSharedLocalStream(MediaStream stream) {
+    _localStream = stream;
+    _ownsLocalStream = false;
+    localRenderer.srcObject = stream;
     notifyListeners();
   }
 
@@ -116,6 +139,7 @@ class WebRTCService extends ChangeNotifier {
     String peerId,
     bool isOffer, {
     required String callId,
+    bool groupCall = false,
   }) async {
     // Peer connection configuration with optimized settings
     final config = {
@@ -127,6 +151,7 @@ class WebRTCService extends ChangeNotifier {
 
     _remoteDescriptionSet = false;
     _isOfferer = isOffer;
+    _isGroupCall = groupCall;
     _activeSocket = socket;
     _activePeerId = peerId;
     _activeCallId = callId;
@@ -161,10 +186,13 @@ class WebRTCService extends ChangeNotifier {
       }
     }
 
-    // Handle remote stream
+    // Keep camera and screen streams separately. During negotiation the
+    // onTrack event can arrive before the screen-share state packet, so retain
+    // streams by id and re-route them once that packet identifies the sharer.
     _peerConnection!.onTrack = (event) {
       if (event.streams.isNotEmpty) {
         final stream = event.streams[0];
+        _remoteStreamsById[stream.id] = stream;
         if (stream.id == _remoteScreenStreamId) {
           remoteScreenRenderer.srcObject = stream;
         } else {
@@ -177,7 +205,8 @@ class WebRTCService extends ChangeNotifier {
 
     // Send ICE candidates to peer via socket
     _peerConnection!.onIceCandidate = (candidate) {
-      socket.sendIceCandidate(peerId, callId, {
+      _sendCallSignal(socket, peerId, callId, {
+        'type': 'candidate',
         'candidate': candidate.candidate,
         'sdpMid': candidate.sdpMid,
         'sdpMLineIndex': candidate.sdpMLineIndex,
@@ -368,7 +397,10 @@ class WebRTCService extends ChangeNotifier {
           'iceRestart': true,
         });
         await connection.setLocalDescription(offer);
-        socket.sendOffer(peerId, callId, {'sdp': offer.sdp, 'type': offer.type});
+        _sendCallSignal(socket, peerId, callId, {
+          'type': 'offer',
+          'sdp': offer.sdp,
+        });
         if (_networkQuality == 'poor') _scheduleIceRestart();
       } catch (error) {
         debugPrint('[NovynWebRTC] ICE restart attempt $_iceRestartAttempts failed: $error');
@@ -432,7 +464,10 @@ class WebRTCService extends ChangeNotifier {
       'offerToReceiveVideo': true,
     });
     await connection.setLocalDescription(offer);
-    socket.sendOffer(peerId, callId, {'sdp': offer.sdp, 'type': offer.type});
+    _sendCallSignal(socket, peerId, callId, {
+          'type': 'offer',
+          'sdp': offer.sdp,
+        });
     notifyListeners();
   }
 
@@ -485,6 +520,49 @@ class WebRTCService extends ChangeNotifier {
     }
   }
 
+  /// Captures the display once for a group call. Each peer connection then
+  /// attaches this same stream with [addSharedScreenStream].
+  Future<MediaStream> captureScreenForGroup() async {
+    if (_screenStream != null) return _screenStream!;
+    await _startScreenShareForegroundExecution();
+    try {
+      final screen = await navigator.mediaDevices.getDisplayMedia({
+        'audio': false,
+        'video': {
+          'frameRate': {'ideal': 12, 'max': 15},
+          'width': {'ideal': 1280, 'max': 1600},
+          'height': {'ideal': 720, 'max': 900},
+        },
+      });
+      if (screen.getVideoTracks().isEmpty) {
+        await screen.dispose();
+        throw StateError('Screen capture did not return a video track.');
+      }
+      _screenStream = screen;
+      _ownsScreenStream = true;
+      localScreenRenderer.srcObject = screen;
+      notifyListeners();
+      return screen;
+    } catch (_) {
+      await _stopScreenShareForegroundExecution();
+      rethrow;
+    }
+  }
+
+  Future<void> releaseGroupScreenCapture() async {
+    final screen = _screenStream;
+    _screenStream = null;
+    _screenSender = null;
+    localScreenRenderer.srcObject = null;
+    for (final track in screen?.getTracks() ?? <MediaStreamTrack>[]) {
+      track.onEnded = null;
+      try { await track.stop(); } catch (_) {}
+    }
+    try { await screen?.dispose(); } catch (_) {}
+    await _stopScreenShareForegroundExecution();
+    notifyListeners();
+  }
+
   Future<void> startScreenShare(SocketService socket, String peerId, String callId) async {
     final connection = _peerConnection;
     if (connection == null) throw StateError('Call connection is not ready.');
@@ -516,7 +594,11 @@ class WebRTCService extends ChangeNotifier {
       _screenSender = sender;
       localScreenRenderer.srcObject = screen;
       _remoteScreenStreamId = screen.id;
-      socket.updateCallScreenShare(peerId, callId, screen.id);
+      if (_isGroupCall) {
+        socket.updateGroupCallScreenShare(callId, screen.id);
+      } else {
+        socket.updateCallScreenShare(peerId, callId, screen.id);
+      }
       track.onEnded = () {
         unawaited(stopScreenShare(
           socket, peerId, callId, renegotiate: true,
@@ -530,7 +612,10 @@ class WebRTCService extends ChangeNotifier {
         'offerToReceiveVideo': true,
       });
       await connection.setLocalDescription(offer);
-      socket.sendOffer(peerId, callId, {'sdp': offer.sdp, 'type': offer.type});
+      _sendCallSignal(socket, peerId, callId, {
+          'type': 'offer',
+          'sdp': offer.sdp,
+        });
       notifyListeners();
     } catch (error) {
       if (sender != null) {
@@ -540,7 +625,11 @@ class WebRTCService extends ChangeNotifier {
       _screenSender = null;
       _remoteScreenStreamId = null;
       localScreenRenderer.srcObject = null;
-      socket.updateCallScreenShare(peerId, callId, null);
+      if (_isGroupCall) {
+        socket.updateGroupCallScreenShare(callId, null);
+      } else {
+        socket.updateCallScreenShare(peerId, callId, null);
+      }
       for (final track in screen?.getTracks() ?? <MediaStreamTrack>[]) {
         track.onEnded = null;
         try { await track.stop(); } catch (_) {}
@@ -561,7 +650,11 @@ class WebRTCService extends ChangeNotifier {
     localScreenRenderer.srcObject = null;
     _screenSender = null;
     _remoteScreenStreamId = null;
-    socket.updateCallScreenShare(peerId, callId, null);
+    if (_isGroupCall) {
+      socket.updateGroupCallScreenShare(callId, null);
+    } else {
+      socket.updateCallScreenShare(peerId, callId, null);
+    }
 
     try {
       if (sender != null && _peerConnection != null) {
@@ -579,7 +672,10 @@ class WebRTCService extends ChangeNotifier {
           'offerToReceiveVideo': true,
         });
         await _peerConnection!.setLocalDescription(offer);
-        socket.sendOffer(peerId, callId, {'sdp': offer.sdp, 'type': offer.type});
+        _sendCallSignal(socket, peerId, callId, {
+          'type': 'offer',
+          'sdp': offer.sdp,
+        });
       }
     } finally {
       await _stopScreenShareForegroundExecution();
@@ -587,10 +683,124 @@ class WebRTCService extends ChangeNotifier {
     }
   }
 
+  /// Attach an already-captured display stream to this peer connection.
+  /// Group calls capture the screen once and reuse its track for every peer.
+  Future<void> addSharedScreenStream(MediaStream screen) async {
+    final connection = _peerConnection;
+    final socket = _activeSocket;
+    final peerId = _activePeerId;
+    final callId = _activeCallId;
+    if (connection == null || socket == null || peerId == null || callId == null) {
+      throw StateError('Call connection is not ready.');
+    }
+    if (_screenStream != null) return;
+    final track = screen.getVideoTracks().firstOrNull;
+    if (track == null) throw StateError('Screen capture did not return a video track.');
+    _screenStream = screen;
+    _ownsScreenStream = false;
+    _screenSender = await connection.addTrack(track, screen);
+    localScreenRenderer.srcObject = screen;
+    final offer = await connection.createOffer({
+      'offerToReceiveAudio': true,
+      'offerToReceiveVideo': true,
+    });
+    await connection.setLocalDescription(offer);
+    _sendCallSignal(socket, peerId, callId, {'type': 'offer', 'sdp': offer.sdp});
+    notifyListeners();
+  }
+
+  /// Remove the shared display track without stopping the stream owned by the
+  /// group-call coordinator, then renegotiate this peer connection.
+  Future<void> removeSharedScreenStream() async {
+    final connection = _peerConnection;
+    final socket = _activeSocket;
+    final peerId = _activePeerId;
+    final callId = _activeCallId;
+    final sender = _screenSender;
+    _screenSender = null;
+    _screenStream = null;
+    localScreenRenderer.srcObject = null;
+    if (sender != null && connection != null) {
+      try { await connection.removeTrack(sender); } catch (_) {}
+    }
+    if (connection != null && socket != null && peerId != null && callId != null) {
+      final offer = await connection.createOffer({
+        'offerToReceiveAudio': true,
+        'offerToReceiveVideo': true,
+      });
+      await connection.setLocalDescription(offer);
+      _sendCallSignal(socket, peerId, callId, {'type': 'offer', 'sdp': offer.sdp});
+    }
+    notifyListeners();
+  }
+
   void setRemoteScreenShare(String? streamId) {
+    final previousScreenId = _remoteScreenStreamId;
     _remoteScreenStreamId = streamId;
     onRemoteScreenShareChanged?.call(streamId);
-    if (streamId == null) remoteScreenRenderer.srcObject = null;
+    if (streamId == null) {
+      remoteScreenRenderer.srcObject = null;
+      final cameraEntry = _remoteStreamsById.entries
+          .where((entry) => entry.key != previousScreenId)
+          .toList(growable: false);
+      if (cameraEntry.isNotEmpty) {
+        _remoteStream = cameraEntry.first.value;
+        remoteRenderer.srcObject = _remoteStream;
+      } else {
+        _remoteStream = null;
+        remoteRenderer.srcObject = null;
+      }
+      if (previousScreenId != null) {
+        _remoteStreamsById.remove(previousScreenId);
+      }
+      return;
+    }
+
+    final screen = _remoteStreamsById[streamId];
+    if (screen != null) remoteScreenRenderer.srcObject = screen;
+    final cameraEntry = _remoteStreamsById.entries
+        .where((entry) => entry.key != streamId)
+        .toList(growable: false);
+    if (cameraEntry.isNotEmpty) {
+      _remoteStream = cameraEntry.first.value;
+      remoteRenderer.srcObject = _remoteStream;
+    } else if (_remoteStream?.id == streamId) {
+      _remoteStream = null;
+      remoteRenderer.srcObject = null;
+    }
+  }
+
+  void _sendCallSignal(
+    SocketService socket,
+    String peerId,
+    String callId,
+    Map<String, dynamic> signal,
+  ) {
+    if (_isGroupCall) {
+      socket.sendGroupWebRTCSignal(peerId, callId, signal);
+      return;
+    }
+    switch (signal['type']) {
+      case 'offer':
+        socket.sendOffer(peerId, callId, {
+          'sdp': signal['sdp'],
+          'type': 'offer',
+        });
+        return;
+      case 'answer':
+        socket.sendAnswer(peerId, callId, {
+          'sdp': signal['sdp'],
+          'type': 'answer',
+        });
+        return;
+      case 'candidate':
+        socket.sendIceCandidate(peerId, callId, {
+          'candidate': signal['candidate'],
+          'sdpMid': signal['sdpMid'],
+          'sdpMLineIndex': signal['sdpMLineIndex'],
+        });
+        return;
+    }
   }
 
   // ── Create and send offer (caller) ───────────────────────────────────────
@@ -603,9 +813,9 @@ class WebRTCService extends ChangeNotifier {
     
     final offer = await _peerConnection!.createOffer(offerOptions);
     await _peerConnection!.setLocalDescription(offer);
-    socket.sendOffer(peerId, callId, {
+    _sendCallSignal(socket, peerId, callId, {
+      'type': 'offer',
       'sdp': offer.sdp,
-      'type': offer.type,
     });
   }
 
@@ -627,9 +837,9 @@ class WebRTCService extends ChangeNotifier {
     final answer = await _peerConnection!.createAnswer();
     await _peerConnection!.setLocalDescription(answer);
 
-    socket.sendAnswer(peerId, callId, {
+    _sendCallSignal(socket, peerId, callId, {
+      'type': 'answer',
       'sdp': answer.sdp,
-      'type': answer.type,
     });
   }
 
@@ -709,13 +919,15 @@ class WebRTCService extends ChangeNotifier {
     _screenStream = null;
     _screenSender = null;
     localScreenRenderer.srcObject = null;
-    for (final track in screen?.getTracks() ?? <MediaStreamTrack>[]) {
-      track.onEnded = null;
-      try { await track.stop(); } catch (_) {}
+    if (_ownsScreenStream) {
+      for (final track in screen?.getTracks() ?? <MediaStreamTrack>[]) {
+        track.onEnded = null;
+        try { await track.stop(); } catch (_) {}
+      }
+      try { await screen?.dispose(); } catch (_) {}
     }
-    try { await screen?.dispose(); } catch (_) {}
-    await _stopScreenShareForegroundExecution();
-    await _localStream?.dispose();
+    if (_ownsScreenStream) await _stopScreenShareForegroundExecution();
+    if (_ownsLocalStream) await _localStream?.dispose();
     await _remoteStream?.dispose();
     await _peerConnection?.close();
     await localRenderer.dispose();
@@ -723,7 +935,11 @@ class WebRTCService extends ChangeNotifier {
     await remoteScreenRenderer.dispose();
     await localScreenRenderer.dispose();
     _localStream = null;
+    _ownsLocalStream = true;
+    _ownsScreenStream = true;
+    _isGroupCall = false;
     _remoteStream = null;
+    _remoteStreamsById.clear();
     _peerConnection = null;
     _videoSender = null;
     _videoTrack = null;

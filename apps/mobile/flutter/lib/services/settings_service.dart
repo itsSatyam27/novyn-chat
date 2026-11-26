@@ -210,7 +210,7 @@ class SettingsService extends ChangeNotifier {
   bool _accentColorEnabled = true;
   String _dockStyle = 'slide_pill';
   String _alertStyle = 'snackbar';
-  String _callMiniStyle = 'top_banner';
+  String _callMiniStyle = 'video_card';
   bool _twoFactorAuth = false;
   String _lastSeenVisibility = 'everyone'; // 'everyone', 'contacts', 'nobody'
   String _profilePhotoVisibility = 'everyone'; // 'everyone', 'contacts', 'nobody'
@@ -732,10 +732,10 @@ class SettingsService extends ChangeNotifier {
       'avatar_bubble': 'floating_avatar',
       'video_focus': 'video_card',
     };
-    final savedCallMiniStyle = _prefs.getString(_kCallMiniStyle) ?? 'top_banner';
+    final savedCallMiniStyle = _prefs.getString(_kCallMiniStyle) ?? 'video_card';
     _callMiniStyle = callMiniStyles.contains(savedCallMiniStyle)
         ? savedCallMiniStyle
-        : legacyCallMiniStyles[savedCallMiniStyle] ?? 'top_banner';
+        : legacyCallMiniStyles[savedCallMiniStyle] ?? 'video_card';
     if (_callMiniStyle != savedCallMiniStyle) {
       await _prefs.setString(_kCallMiniStyle, _callMiniStyle);
     }

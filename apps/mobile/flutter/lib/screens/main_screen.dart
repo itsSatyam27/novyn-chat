@@ -355,6 +355,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     try {
       final socket = context.read<SocketService>();
       socket.onCallInviteCallback = null;
+      socket.onGroupCallInvitationCallback = null;
       socket.onUserStatusChanged = null;
     } catch (_) {}
     widget.onCallHostExit?.call();

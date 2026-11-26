@@ -21,6 +21,7 @@ import 'friend_service.dart';
 import '../screens/chats/chat_detail_screen.dart';
 import '../screens/calls/calls_screen.dart';
 import '../screens/calls/call_screen.dart';
+import '../screens/calls/group_call_screen.dart';
 import '../widgets/user_avatar.dart';
 
 int _callNotificationId(String callId) {
@@ -186,7 +187,8 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         .toSet();
     if (dndEnabled && !favoriteIds.contains(caller.trim().toLowerCase()))
       return;
-    final isVideo = data['isVideo']?.toString() == '1';
+    final isVideo = data['isVideo']?.toString() == '1' ||
+        data['isVideo']?.toString().toLowerCase() == 'true';
     if (!_preferenceEnabled(
       prefs,
       isIncoming
@@ -246,7 +248,14 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
           iOS: DarwinNotificationDetails(
               presentAlert: true, presentBadge: true, presentSound: sound),
         ),
-        payload: 'call:' + callId + '|' + caller + '|' + (isVideo ? '1' : '0') + '|' + (callExpiresAt?.millisecondsSinceEpoch.toString() ?? ''));
+        payload: data['groupCall']?.toString().toLowerCase() == 'true'
+            ? 'groupcall:' + callId + '|' +
+                (data['groupCallId']?.toString() ?? '') + '|' + caller + '|' +
+                (isVideo ? '1' : '0') + '|' +
+                (callExpiresAt?.millisecondsSinceEpoch.toString() ?? '')
+            : 'call:' + callId + '|' + caller + '|' +
+                (isVideo ? '1' : '0') + '|' +
+                (callExpiresAt?.millisecondsSinceEpoch.toString() ?? ''));
     return;
   }
   final notificationType = data['type']?.toString() ?? '';
@@ -1752,6 +1761,19 @@ class NotificationService {
         ));
       }
     };
+    _socket!.onGroupCallInvitationCallback = (data) {
+      if (!context.mounted) return;
+      final preferences = _settings;
+      final inviter = data['invitedBy']?.toString().trim() ?? '';
+      if (inviter.isEmpty) return;
+      if (preferences == null ||
+          !preferences.notificationsOn ||
+          _presenceAuth?.user?.presenceMode == 'busy' ||
+          _presenceAuth?.user?.presenceMode == 'invisible') return;
+      if (preferences.doNotDisturbEnabled &&
+          !preferences.favoriteChatIds.contains(inviter.toLowerCase())) return;
+      unawaited(_openIncomingGroupCall(data, context));
+    };
     _socket!.onCallInviteCallback = (data) {
       if (!context.mounted) return;
       final caller = data['from']?.toString().trim() ?? '';
@@ -1840,6 +1862,14 @@ class NotificationService {
         if (chatId.isNotEmpty) {
           unawaited(_openChatFromNotification(chatId, context, isGroup: isGroup));
         }
+      } else if (localPayload.startsWith('groupcall:')) {
+        unawaited(_handleIncomingCallAction(
+          actionId == 'incoming_call_decline'
+              ? 'incoming_call_decline'
+              : 'incoming_call_answer',
+          localPayload,
+          context,
+        ));
       } else if (localPayload.startsWith('call:')) {
         final parts = localPayload.substring(5).split('|');
         if (parts.length >= 3 && parts[0].isNotEmpty) {
@@ -2073,9 +2103,8 @@ class NotificationService {
     // sockets or app lifecycle states where the socket callback was missed.
     if (type == 'message') {
       // The authenticated socket handles live foreground message events.
-      // FCM remains the fallback when the socket has disconnected. Its
-      // encrypted direct-message preview must be decrypted locally just like
-      // the background handler; never display the generic ciphertext body.
+      // FCM remains the fallback for disconnected sockets. Its encrypted
+      // direct-message preview is decrypted locally; ciphertext is never shown.
       if (_socket?.isConnected == true) return;
       unawaited(_showPushMessageNotification(message.data));
     }
@@ -2281,6 +2310,20 @@ class NotificationService {
 
     if (type == 'call') {
       if (!context.mounted) return;
+      final groupCallId = message.data['groupCallId']?.toString().trim() ?? '';
+      if (groupCallId.isNotEmpty ||
+          message.data['groupCall']?.toString().toLowerCase() == 'true') {
+        await _openIncomingGroupCall({
+          'groupCallId': groupCallId,
+          'callId': message.data['callId']?.toString() ?? '',
+          'isVideo': message.data['isVideo']?.toString() == '1' ||
+              message.data['isVideo']?.toString().toLowerCase() == 'true',
+          'invitedBy': message.data['chat']?.toString() ?? '',
+          'invitedByDisplayName': message.data['body']?.toString() ?? 'A contact',
+          'expiresAt': message.data['callExpiresAt']?.toString() ?? '',
+        }, context);
+        return;
+      }
       final caller = message.data['chat']?.toString().trim() ?? '';
       final callId = message.data['callId']?.toString().trim() ?? '';
       if (message.data['callStatus'] == 'incoming' &&
@@ -2313,6 +2356,104 @@ class NotificationService {
   }
 
   static final Set<String> _openingCallIds = <String>{};
+  static final Set<String> _openingGroupCallIds = <String>{};
+
+  static Future<void> _openIncomingGroupCall(
+    Map invitation,
+    BuildContext context, {
+    bool autoAccept = false,
+  }) async {
+    final groupCallId = invitation['groupCallId']?.toString().trim() ?? '';
+    final callId = invitation['callId']?.toString().trim() ?? '';
+    final inviter = invitation['invitedBy']?.toString().trim() ??
+        invitation['from']?.toString().trim() ?? '';
+    if (groupCallId.isEmpty || inviter.isEmpty || !context.mounted ||
+        !_openingGroupCallIds.add(groupCallId)) return;
+
+    try {
+      final expiresAt = int.tryParse(invitation['expiresAt']?.toString() ??
+          invitation['callExpiresAt']?.toString() ?? '');
+      if (expiresAt != null && expiresAt <= DateTime.now().millisecondsSinceEpoch) {
+        await context.read<SocketService>().declineGroupCall(groupCallId);
+        return;
+      }
+      if (!autoAccept) {
+        final inviterName = invitation['invitedByDisplayName']?.toString() ??
+            invitation['fromDisplayName']?.toString() ?? inviter;
+        final accepted = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Group call invitation'),
+            content: Text(inviterName + ' invited you to a ' +
+                (invitation['isVideo'] == true ? 'video' : 'voice') +
+                ' call. Join the conversation?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Decline'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Join call'),
+              ),
+            ],
+          ),
+        );
+        if (!context.mounted) return;
+        if (accepted != true) {
+          await context.read<SocketService>().declineGroupCall(groupCallId);
+          return;
+        }
+      }
+
+      final socket = context.read<SocketService>();
+      final result = await socket.acceptGroupCall(groupCallId);
+      if (!context.mounted) {
+        if (result['ok'] == true) {
+          await socket.leaveGroupCall(groupCallId);
+        }
+        return;
+      }
+      if (result['ok'] != true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message']?.toString() ??
+                'This group call is no longer available.'),
+          ),
+        );
+        return;
+      }
+      if (callId.isNotEmpty) {
+        await clearIncomingCallNotification(callId);
+      }
+      final raw = result['participants'];
+      final participants = raw is List
+          ? raw.whereType<Map>()
+              .map((person) => Map<String, dynamic>.from(person))
+              .toList()
+          : <Map<String, dynamic>>[];
+      await Navigator.of(context).push(MaterialPageRoute<void>(
+        builder: (_) => GroupCallScreen(
+          groupCallId: groupCallId,
+          callId: callId.isNotEmpty
+              ? callId
+              : (result['callId']?.toString() ?? ''),
+          isVideo: invitation['isVideo'] == true || result['isVideo'] == true,
+          participants: participants,
+          initialMediaStates: result['mediaStates'] is Map
+              ? Map<String, dynamic>.from(result['mediaStates'] as Map)
+              : const <String, dynamic>{},
+          initialScreenSharer: result['screenSharer']?.toString(),
+          initialScreenStreamId: result['screenStreamId']?.toString(),
+        ),
+      ));
+    } catch (error) {
+      debugPrint('[NovynCalls] Could not join group call: $error');
+    } finally {
+      _openingGroupCallIds.remove(groupCallId);
+    }
+  }
 
   static Future<void> _handleIncomingCallAction(
     String actionId,
@@ -2320,7 +2461,26 @@ class NotificationService {
     BuildContext context,
   ) async {
     final payload = rawPayload?.trim() ?? '';
-    if (!context.mounted || !payload.startsWith('call:')) return;
+    if (!context.mounted) return;
+    if (payload.startsWith('groupcall:')) {
+      final parts = payload.substring('groupcall:'.length).split('|');
+      if (parts.length < 4 || parts[0].isEmpty || parts[1].isEmpty) return;
+      final callId = parts[0];
+      final groupCallId = parts[1];
+      if (actionId == 'incoming_call_decline') {
+        await context.read<SocketService>().declineGroupCall(groupCallId);
+        return;
+      }
+      await _openIncomingGroupCall({
+        'callId': callId,
+        'groupCallId': groupCallId,
+        'invitedBy': parts[2],
+        'isVideo': parts[3] == '1',
+        if (parts.length > 4) 'expiresAt': parts[4],
+      }, context, autoAccept: true);
+      return;
+    }
+    if (!payload.startsWith('call:')) return;
     final parts = payload.substring(5).split('|');
     if (parts.length < 3 || parts[0].isEmpty || parts[1].isEmpty) return;
     final callId = parts[0];
