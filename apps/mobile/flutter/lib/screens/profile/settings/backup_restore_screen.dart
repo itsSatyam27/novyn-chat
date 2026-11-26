@@ -150,7 +150,7 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Runs once a day',
+                              'Runs once a day when Novyn opens or reconnects',
                               style: theme.textTheme.bodyMedium?.copyWith(color: muted),
                             ),
                           ],
