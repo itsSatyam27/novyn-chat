@@ -412,7 +412,6 @@ class _ChatSettingsScreenState extends State<ChatSettingsScreen> {
                 leading: _iconBox(Icons.backup_rounded, const Color(0xFF6366F1),
                     isDark ? const Color(0xFF28234B) : const Color(0xFFEDE9FE)),
                 title: 'Chat backup & encryption',
-                subtitle: 'Back up chats and restore your encryption identity',
                 trailing: const Icon(Icons.chevron_right_rounded, color: Color(0xFF8F8BA0), size: 20),
                 onTap: () => Navigator.push(context, MaterialPageRoute(
                   builder: (_) => const BackupRestoreScreen(),

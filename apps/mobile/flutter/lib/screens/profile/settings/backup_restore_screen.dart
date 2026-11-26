@@ -62,7 +62,7 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
       body: SafeArea(
         child: ListView(
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(20, 10, 20, 30),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           children: [
             Row(
               children: [
@@ -73,13 +73,13 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
                     customBorder: const CircleBorder(),
                     onTap: () => Navigator.maybePop(context),
                     child: SizedBox(
-                      width: 54,
-                      height: 54,
-                      child: Icon(Icons.arrow_back_rounded, color: ink, size: 25),
+                      width: 44,
+                      height: 44,
+                      child: Icon(Icons.arrow_back_rounded, color: ink, size: 22),
                     ),
                   ),
                 ),
-                const SizedBox(width: 18),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     'Backup & restore',
@@ -87,22 +87,22 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
                       color: ink,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -.65,
-                      fontSize: 25,
+                      fontSize: 22,
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 16),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
                 color: dark ? const Color(0xFF292342) : const Color(0xFFEDE9FB),
-                borderRadius: BorderRadius.circular(26),
+                borderRadius: BorderRadius.circular(20),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.verified_user_outlined, color: colors.primary, size: 25),
+                  Icon(Icons.verified_user_outlined, color: colors.primary, size: 22),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Text(
@@ -117,13 +117,13 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 30),
+            const SizedBox(height: 22),
             _heading(context, 'Automatic backup'),
             const SizedBox(height: 12),
             Container(
-              padding: const EdgeInsets.all(18),
+              padding: const EdgeInsets.all(14),
               decoration: _cardDecoration(context).copyWith(
-                borderRadius: BorderRadius.circular(30),
+                borderRadius: BorderRadius.circular(18),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -175,7 +175,7 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
                       color: colors.primary.withValues(alpha: .10),
-                      borderRadius: BorderRadius.circular(22),
+                      borderRadius: BorderRadius.circular(18),
                     ),
                     child: Row(
                       children: [
@@ -230,7 +230,7 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 20),
             _heading(context, 'Back up'),
             const SizedBox(height: 12),
             Row(
@@ -254,7 +254,7 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 20),
             _heading(context, 'Restore'),
             const SizedBox(height: 12),
             Row(
@@ -278,7 +278,7 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 20),
             _heading(context, 'Encryption identity'),
             const SizedBox(height: 12),
             _actionCard(context, [
@@ -306,10 +306,10 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
             ],
             const SizedBox(height: 24),
             Container(
-              padding: const EdgeInsets.all(18),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: dark ? const Color(0xFF3A2027) : const Color(0xFFFDE8E8),
-                borderRadius: BorderRadius.circular(26),
+                borderRadius: BorderRadius.circular(20),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -392,33 +392,33 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
       color: Colors.transparent,
       child: InkWell(
         onTap: _working ? null : onTap,
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(18),
         child: Container(
-          height: 156,
-          padding: const EdgeInsets.all(18),
+          height: 124,
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: Theme.of(context).cardColor,
-            borderRadius: BorderRadius.circular(30),
+            borderRadius: BorderRadius.circular(18),
             border: Border.all(color: colors.outlineVariant.withValues(alpha: .25)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 64,
-                height: 64,
+                width: 52,
+                height: 52,
                 decoration: BoxDecoration(
                   color: dark ? colors.primary.withValues(alpha: .17) : const Color(0xFFEDE9FC),
-                  borderRadius: BorderRadius.circular(22),
+                  borderRadius: BorderRadius.circular(18),
                 ),
-                child: Icon(icon, color: colors.primary, size: 31),
+                child: Icon(icon, color: colors.primary, size: 26),
               ),
               const Spacer(),
               Text(
                 title,
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onSurface,
-                  fontSize: 16,
+                  fontSize: 14.5,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -430,9 +430,9 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
   }
 
   Widget _backupIcon(IconData icon, Color foreground, Color background) => Container(
-    width: 64, height: 64,
-    decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(22)),
-    child: Icon(icon, color: foreground, size: 29),
+    width: 52, height: 52,
+    decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(18)),
+    child: Icon(icon, color: foreground, size: 25),
   );
 
   Widget _heading(BuildContext context, String text) => Padding(
@@ -465,20 +465,20 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
   Widget _actionRow(BuildContext context, _ActionItem item) {
     final colors = Theme.of(context).colorScheme;
     return InkWell(
-      borderRadius: BorderRadius.circular(22),
+      borderRadius: BorderRadius.circular(18),
       onTap: _working ? null : item.onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
         child: Row(children: [
           Container(
-            width: 54, height: 54,
+            width: 46, height: 46,
             decoration: BoxDecoration(color: colors.primary.withValues(alpha: .10), borderRadius: BorderRadius.circular(18)),
-            child: Icon(item.icon, color: colors.primary, size: 25),
+            child: Icon(item.icon, color: colors.primary, size: 22),
           ),
           const SizedBox(width: 16),
           Expanded(child: Text(item.title, style: Theme.of(context).textTheme.titleMedium?.copyWith(
             color: colors.onSurface, fontWeight: FontWeight.w700))),
-          Icon(Icons.chevron_right_rounded, color: colors.onSurfaceVariant, size: 25),
+          Icon(Icons.chevron_right_rounded, color: colors.onSurfaceVariant, size: 22),
         ]),
       ),
     );
