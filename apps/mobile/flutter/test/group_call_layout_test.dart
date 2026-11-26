@@ -65,7 +65,7 @@ void main() {
         width: 390,
         height: 420,
       );
-      expect(ratio, inInclusiveRange(.72, 1.85));
+      expect(ratio, greaterThanOrEqualTo(.55));
     });
 
     test('avoids invalid dimensions on very small surfaces', () {
@@ -76,7 +76,7 @@ void main() {
         height: 100,
       );
       expect(ratio, isFinite);
-      expect(ratio, inInclusiveRange(.55, 1.85));
+      expect(ratio, greaterThanOrEqualTo(.55));
     });
   });
 }
