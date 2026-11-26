@@ -85,7 +85,7 @@ void main() {
         width: 120,
         height: 100,
       );
-      expect(ratio, isFinite);
+      expect(ratio.isFinite, isTrue);
       expect(ratio, greaterThanOrEqualTo(.55));
     });
   });
