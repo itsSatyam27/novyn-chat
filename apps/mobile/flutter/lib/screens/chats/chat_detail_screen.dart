@@ -1806,6 +1806,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
             messageStatus: socket.messageStatusFor(current.id),
             myUid: _myUid ?? '',
             quickEmojis: _quickEmojis,
+            chatWallpaper: snapshot.chatWallpaper,
             onReply: _startReply,
             onForward: _showForwardDialog,
           ),
@@ -5088,6 +5089,47 @@ ${htmlMessages}
   }
 }
 
+class _WallpaperBubblePalette {
+  const _WallpaperBubblePalette(this.outgoing, this.outgoingEnd, this.incoming, this.incomingBorder);
+  final Color outgoing;
+  final Color outgoingEnd;
+  final Color incoming;
+  final Color incomingBorder;
+}
+
+_WallpaperBubblePalette _wallpaperBubblePalette(String wallpaper, BuildContext context) {
+  const presets = <String, Color>{
+    '#EDE9FE': Color(0xFF7C5CE7), // Lavender
+    '#FCE7F3': Color(0xFFD95A9B), // Blush
+    '#F1F5F9': Color(0xFF64748B), // Cloud
+    '#D1FAE5': Color(0xFF16866A), // Mint
+    '#FFEDD5': Color(0xFFD97732), // Peach
+    '#111827': Color(0xFF6366F1), // Midnight
+    '#241B3D': Color(0xFF9B82E8), // Amethyst
+    '#0F172A': Color(0xFF6479B8), // Deep slate
+    '#0B2535': Color(0xFF368BB0), // Ocean
+    '#102A24': Color(0xFF3B9474), // Forest
+    '#351827': Color(0xFFB65A82), // Burgundy
+  };
+  final base = presets[wallpaper.trim().toUpperCase()];
+  final scheme = Theme.of(context).colorScheme;
+  if (base == null) {
+    final incoming = Theme.of(context).brightness == Brightness.dark
+        ? const Color(0xFF1D1C2A) : Colors.white;
+    return _WallpaperBubblePalette(scheme.primary,
+      Color.lerp(scheme.primary, Colors.black, .08)!, incoming,
+      Theme.of(context).brightness == Brightness.dark
+        ? const Color(0x18BEB8FF) : const Color(0x166D5DFC));
+  }
+  final dark = Theme.of(context).brightness == Brightness.dark;
+  final incoming = dark
+      ? Color.lerp(base, const Color(0xFF171827), .82)!
+      : Color.lerp(base, Colors.white, .91)!;
+  final border = base.withValues(alpha: dark ? .25 : .18);
+  return _WallpaperBubblePalette(base, Color.lerp(base, Colors.black, .09)!,
+      incoming, border);
+}
+
 // ── Message Bubble ─────────────────────────────────────────────────────────
 class _MessageBubble extends StatelessWidget {
   static final Map<String, Future<Map<String, dynamic>?>> _linkPreviewCache =
@@ -5193,6 +5235,7 @@ class _MessageBubble extends StatelessWidget {
   final String messageStatus;
   final String myUid;
   final List<String> quickEmojis;
+  final String chatWallpaper;
   final ValueChanged<dynamic>? onReply;
   final ValueChanged<dynamic>? onForward;
 
@@ -5205,6 +5248,7 @@ class _MessageBubble extends StatelessWidget {
     this.messageStatus = 'sent',
     this.myUid = '',
     this.quickEmojis = defaultQuickReactionEmojis,
+    this.chatWallpaper = '',
     this.onReply,
     this.onForward,
   });
@@ -5216,6 +5260,7 @@ class _MessageBubble extends StatelessWidget {
         message.createdAt, context.read<SettingsService>().timeFormat);
     final reactions = Map<String, String>.from(message.reactions ?? {});
     final labelScale = context.watch<SettingsService>().chatLabelSize;
+    final wallpaperPalette = _wallpaperBubblePalette(chatWallpaper, context);
     final bubbleKey = GlobalKey();
 
     return Padding(
@@ -5287,27 +5332,18 @@ class _MessageBubble extends StatelessWidget {
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                               colors: [
-                                Theme.of(context).colorScheme.primary,
-                                Color.lerp(
-                                  Theme.of(context).colorScheme.primary,
-                                  Colors.black,
-                                  0.08,
-                                )!,
+                                wallpaperPalette.outgoing,
+                                wallpaperPalette.outgoingEnd,
                               ],
                             )
                           : null,
                       color: isMe
                           ? null
-                          : (Theme.of(context).brightness == Brightness.dark
-                              ? const Color(0xFF1D1C2A)
-                              : Colors.white),
+                          : wallpaperPalette.incoming,
                       border: isMe
                           ? null
                           : Border.all(
-                              color: Theme.of(context).brightness ==
-                                      Brightness.dark
-                                  ? const Color(0x18BEB8FF)
-                                  : const Color(0x166D5DFC),
+                              color: wallpaperPalette.incomingBorder,
                             ),
                       borderRadius: BorderRadius.only(
                         topLeft: const Radius.circular(18),
