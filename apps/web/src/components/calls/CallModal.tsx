@@ -45,6 +45,10 @@ export const CallModal: React.FC = () => {
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const remoteVideoStream =
+    callState.remoteIsScreenSharing && callState.remoteScreenStream
+      ? callState.remoteScreenStream
+      : callState.remoteStream;
 
   const attachLocalVideo = useCallback((node: HTMLVideoElement | null) => {
     localVideoRef.current = node;
@@ -56,11 +60,11 @@ export const CallModal: React.FC = () => {
 
   const attachRemoteVideo = useCallback((node: HTMLVideoElement | null) => {
     remoteVideoRef.current = node;
-    if (node && callState.remoteStream) {
-      node.srcObject = callState.remoteStream;
+    if (node && remoteVideoStream) {
+      node.srcObject = remoteVideoStream;
       node.play().catch(() => {});
     }
-  }, [callState.remoteStream]);
+  }, [remoteVideoStream]);
 
   // Persistent Audio Playback (Ensures sound ALWAYS propagates across all modes)
   useEffect(() => {
@@ -85,11 +89,11 @@ export const CallModal: React.FC = () => {
 
   // Bind remote stream to video element
   useEffect(() => {
-    if (remoteVideoRef.current && callState.remoteStream) {
-      remoteVideoRef.current.srcObject = callState.remoteStream;
+    if (remoteVideoRef.current && remoteVideoStream) {
+      remoteVideoRef.current.srcObject = remoteVideoStream;
       remoteVideoRef.current.play().catch(() => {});
     }
-  }, [callState.remoteStream, callState.isVideo, isMinimized]);
+  }, [remoteVideoStream, callState.isVideo, isMinimized]);
 
   // Duration Timer
   useEffect(() => {
@@ -115,9 +119,9 @@ export const CallModal: React.FC = () => {
   };
 
   const hasRemoteVideo = Boolean(
-    callState.remoteStream &&
-    callState.remoteStream.getVideoTracks().length > 0 &&
-    callState.remoteStream.getVideoTracks().some((t) => t.enabled && t.readyState === 'live')
+    remoteVideoStream &&
+    remoteVideoStream.getVideoTracks().length > 0 &&
+    remoteVideoStream.getVideoTracks().some((track) => track.enabled && track.readyState === 'live')
   );
   const isScreenPresentation = Boolean(callState.isScreenSharing || callState.remoteIsScreenSharing);
 
