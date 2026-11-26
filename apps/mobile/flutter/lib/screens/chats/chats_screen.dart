@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import '../../widgets/novyn_alert.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/user_model.dart';
@@ -1227,6 +1228,142 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     _applyFilters();
   }
 
+
+  Widget _buildNovynWordmark() {
+    const ink = Color(0xFF1E1B3A);
+    final fillStyle = GoogleFonts.getFont(
+      'Playwrite FR Trad',
+      fontSize: 28,
+      fontWeight: FontWeight.w400,
+      height: 1,
+      color: ink,
+    );
+    final outlineStyle = fillStyle.copyWith(
+      color: null,
+      foreground: Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.7
+        ..color = ink,
+    );
+
+    return Transform.translate(
+      offset: const Offset(0, -3),
+      child: Padding(
+        padding: const EdgeInsets.only(left: 6),
+        child: SizedBox(
+          height: 44,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.centerLeft,
+              children: [
+                Text('novyn', style: outlineStyle, maxLines: 1),
+                Text('novyn', style: fillStyle, maxLines: 1),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderSearchCapsule() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final iconColor = Theme.of(context).colorScheme.onSurface;
+
+    return Container(
+      height: 54,
+      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 3),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF292542) : const Color(0xFFE9E5F6),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(999),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(999),
+              onTap: () {
+                setState(() => _isSearchVisible = !_isSearchVisible);
+                if (_isSearchVisible) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) _searchFocusNode.requestFocus();
+                  });
+                } else {
+                  _searchFocusNode.unfocus();
+                  _searchController.clear();
+                  _onSearch('');
+                }
+              },
+              child: SizedBox(
+                width: 52,
+                height: 48,
+                child: Icon(
+                  _isSearchVisible ? Icons.close_rounded : Icons.search_rounded,
+                  color: iconColor,
+                  size: 23,
+                ),
+              ),
+            ),
+          ),
+          Container(
+            width: 1,
+            height: 24,
+            color: isDark ? Colors.white24 : const Color(0xFFD0C9E8),
+          ),
+          ChatOverflowMenu(
+            archivedCount: _archivedChatUsernames.length,
+            lockedCount: _lockedChatUsernames.length,
+            onCreateGroup: _openCreateGroup,
+            onInviteFriends: _inviteFriends,
+            onArchivedChats: _showArchivedChats,
+            onLockedChats: _showLockedChats,
+            onStarredMessages: _openStarredMessages,
+            onSelectChats: _toggleSelectionMode,
+            onMarkAllRead: _markAllChatsRead,
+            onChatSettings: _openChatSettings,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStandaloneSearchButton() {
+    final color = Theme.of(context).colorScheme.onSurface;
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      borderRadius: BorderRadius.circular(17),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(17),
+        onTap: () {
+          setState(() => _isSearchVisible = !_isSearchVisible);
+          if (_isSearchVisible) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _searchFocusNode.requestFocus();
+            });
+          } else {
+            _searchFocusNode.unfocus();
+            _searchController.clear();
+            _onSearch('');
+          }
+        },
+        child: SizedBox(
+          width: 46,
+          height: 46,
+          child: Icon(
+            _isSearchVisible ? Icons.close_rounded : Icons.search_rounded,
+            color: color,
+            size: 23,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDecoy = context.watch<SettingsService>().decoyMode;
@@ -1293,24 +1430,24 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
                     const SizedBox(width: 10),
                   ],
                   Expanded(
-                    child: Text(
-                      _selectionMode
-                          ? 'Select chats'
-                          : _showingArchivedChats
-                              ? 'Archived chats'
-                              : _showingLockedChats
-                                  ? 'Locked chats'
-                                  : 'Chats',
-                      maxLines: 1,
-                      style: TextStyle(
-                        fontFamily: 'PlusJakartaSans',
-                        fontSize: 36,
-                        height: 1.12,
-                        letterSpacing: -1.25,
-                        fontWeight: FontWeight.w600,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                    ),
+                    child: _selectionMode || _showingArchivedChats || _showingLockedChats
+                        ? Text(
+                            _selectionMode
+                                ? 'Select chats'
+                                : _showingArchivedChats
+                                    ? 'Archived chats'
+                                    : 'Locked chats',
+                            maxLines: 1,
+                            style: TextStyle(
+                              fontFamily: 'PlusJakartaSans',
+                              fontSize: 30,
+                              height: 1.12,
+                              letterSpacing: -1.0,
+                              fontWeight: FontWeight.w700,
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
+                          )
+                        : _buildNovynWordmark(),
                   ),
                   if (_selectionMode)
                     Material(
@@ -1326,52 +1463,10 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
                         ),
                       ),
                     )
+                  else if (!_showingArchivedChats && !_showingLockedChats)
+                    _buildHeaderSearchCapsule()
                   else
-                    Material(
-                      color: Theme.of(context).colorScheme.surface,
-                      borderRadius: BorderRadius.circular(17),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(17),
-                        onTap: () {
-                          setState(() => _isSearchVisible = !_isSearchVisible);
-                          if (_isSearchVisible) {
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              if (mounted) _searchFocusNode.requestFocus();
-                            });
-                          } else {
-                            _searchFocusNode.unfocus();
-                            _searchController.clear();
-                            _onSearch('');
-                          }
-                        },
-                        child: SizedBox(
-                          width: 46,
-                          height: 46,
-                          child: Icon(
-                            _isSearchVisible
-                                ? Icons.close_rounded
-                                : Icons.search_rounded,
-                            color: Theme.of(context).colorScheme.onSurface,
-                            size: 23,
-                          ),
-                        ),
-                      ),
-                    ),
-                  if (!_selectionMode && !_showingArchivedChats && !_showingLockedChats) ...[
-                    const SizedBox(width: 8),
-                    ChatOverflowMenu(
-                      archivedCount: _archivedChatUsernames.length,
-                      lockedCount: _lockedChatUsernames.length,
-                      onCreateGroup: _openCreateGroup,
-                      onInviteFriends: _inviteFriends,
-                      onArchivedChats: _showArchivedChats,
-                      onLockedChats: _showLockedChats,
-                      onStarredMessages: _openStarredMessages,
-                      onSelectChats: _toggleSelectionMode,
-                      onMarkAllRead: _markAllChatsRead,
-                      onChatSettings: _openChatSettings,
-                    ),
-                  ],
+                    _buildStandaloneSearchButton(),
                 ],
               ),
             ),
@@ -1514,6 +1609,12 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final primary = theme.colorScheme.primary;
+    final unreadChatCount = _chats.where((chat) {
+      final peer = chat.peer.username.trim().toLowerCase();
+      return chat.unreadCount > 0 &&
+          !_archivedChatUsernames.contains(peer) &&
+          !_lockedChatUsernames.contains(peer);
+    }).length;
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -1552,17 +1653,57 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
                       ),
                     ],
                   ),
-                  child: Text(
-                    item.$2,
-                    style: TextStyle(
-                      fontFamily: 'PlusJakartaSans',
-                      fontSize: 14.5,
-                      fontWeight: _selectedTab == item.$1 ? FontWeight.w700 : FontWeight.w600,
-                      color: _selectedTab == item.$1
-                          ? Colors.white
-                          : (isDark ? Colors.white70 : const Color(0xFF2D2942)),
-                    ),
-                  ),
+                  child: item.$1 == 'unread'
+                      ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              item.$2,
+                              style: TextStyle(
+                                fontFamily: 'PlusJakartaSans',
+                                fontSize: 14.5,
+                                fontWeight: _selectedTab == item.$1 ? FontWeight.w700 : FontWeight.w600,
+                                color: _selectedTab == item.$1
+                                    ? Colors.white
+                                    : (isDark ? Colors.white70 : const Color(0xFF2D2942)),
+                              ),
+                            ),
+                            if (unreadChatCount > 0) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                constraints: const BoxConstraints(minWidth: 19, minHeight: 19),
+                                padding: const EdgeInsets.symmetric(horizontal: 5),
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: _selectedTab == item.$1
+                                      ? Colors.white.withValues(alpha: .22)
+                                      : primary,
+                                  borderRadius: BorderRadius.circular(99),
+                                ),
+                                child: Text(
+                                  unreadChatCount > 99 ? '99+' : '$unreadChatCount',
+                                  style: TextStyle(
+                                    fontFamily: 'PlusJakartaSans',
+                                    color: Colors.white,
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        )
+                      : Text(
+                          item.$2,
+                          style: TextStyle(
+                            fontFamily: 'PlusJakartaSans',
+                            fontSize: 14.5,
+                            fontWeight: _selectedTab == item.$1 ? FontWeight.w700 : FontWeight.w600,
+                            color: _selectedTab == item.$1
+                                ? Colors.white
+                                : (isDark ? Colors.white70 : const Color(0xFF2D2942)),
+                          ),
+                        ),
                 ),
               ),
             ),
@@ -2264,7 +2405,7 @@ class _ChatCard extends StatelessWidget {
       return UserAvatar(
         name: displayName,
         photoUrl: preview.peer.photoUrl.trim(),
-        radius: 26,
+        radius: 30,
         fallbackColor: color,
         showOnlineIndicator: false,
         isOnline: preview.peer.isOnline,
@@ -2273,8 +2414,8 @@ class _ChatCard extends StatelessWidget {
     }
 
     return Container(
-      width: 52,
-      height: 52,
+      width: 60,
+      height: 60,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: color,
@@ -2329,7 +2470,7 @@ class _ChatCard extends StatelessWidget {
       },
       onLongPress: onOptions == null ? null : () => onOptions!(context),
       child: Padding(
-        padding: const EdgeInsets.only(left: 10, right: 16, top: 13, bottom: 13),
+        padding: const EdgeInsets.only(left: 10, right: 16, top: 16, bottom: 16),
         child: Row(
           children: [
             if (selectionMode) ...[
@@ -2352,13 +2493,17 @@ class _ChatCard extends StatelessWidget {
               ),
             ],
             if (!preview.isGroup)
-              PresenceIndicatorBar(
-                isOnline: preview.peer.isOnline,
-                status: preview.peer.status,
+              Container(
+                width: 4,
+                height: 36,
                 margin: const EdgeInsets.only(right: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE4DDF5),
+                  borderRadius: BorderRadius.circular(99),
+                ),
               )
             else
-              const SizedBox(width: 13.5),
+              const SizedBox(width: 14),
             _buildAvatar(context),
             const SizedBox(width: 14),
             Expanded(
@@ -2375,8 +2520,8 @@ class _ChatCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontFamily: 'PlusJakartaSans',
-                            fontSize: 16.5,
-                            fontWeight: FontWeight.w500,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
                             letterSpacing: -.25,
                             color: titleColor,
                           ),
@@ -2460,8 +2605,8 @@ class _ChatCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontFamily: 'PlusJakartaSans',
-                        fontSize: 12.5,
-                        fontWeight: hasUnread ? FontWeight.w500 : FontWeight.w400,
+                        fontSize: 13,
+                        fontWeight: hasUnread ? FontWeight.w600 : FontWeight.w400,
                         color: hasUnread ? colors.primary : metaColor,
                       ),
                     ),
