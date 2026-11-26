@@ -50,151 +50,380 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
     final colors = theme.colorScheme;
     final dark = theme.brightness == Brightness.dark;
     final ink = dark ? Colors.white : const Color(0xFF1D1933);
-    final muted = dark ? Colors.white70 : const Color(0xFF6D6885);
+    final muted = dark ? Colors.white70 : const Color(0xFF625D85);
+    final lastBackupLabel = _lastAutomaticBackup == null
+        ? 'No successful backup yet'
+        : 'Last backup · ${DateFormat('dd MMM yyyy, HH:mm').format(_lastAutomaticBackup!.toLocal())}';
+
     return Scaffold(
-      backgroundColor: dark ? const Color(0xFF111019) : const Color(0xFFF5F1FC),
+      backgroundColor: dark ? const Color(0xFF111019) : const Color(0xFFF6F4FD),
       body: SafeArea(
         child: ListView(
           physics: const BouncingScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(20, 10, 20, 30),
           children: [
-            Row(children: [
-              IconButton(
-                onPressed: () => Navigator.maybePop(context),
-                icon: Icon(Icons.arrow_back_rounded, color: ink, size: 25),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 38, minHeight: 44),
-              ),
-              const SizedBox(width: 8),
-              Expanded(child: Text('Backup & restore',
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  color: ink, fontWeight: FontWeight.w800, letterSpacing: -0.6))),
-            ]),
-            const SizedBox(height: 14),
+            Row(
+              children: [
+                Material(
+                  color: dark ? const Color(0xFF211E32) : Colors.white,
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: () => Navigator.maybePop(context),
+                    child: SizedBox(
+                      width: 54,
+                      height: 54,
+                      child: Icon(Icons.arrow_back_rounded, color: ink, size: 25),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 18),
+                Expanded(
+                  child: Text(
+                    'Backup & restore',
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      color: ink,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -.65,
+                      fontSize: 25,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 22),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
               decoration: BoxDecoration(
-                color: dark ? const Color(0xFF292342) : const Color(0xFFEDE8FB),
-                borderRadius: BorderRadius.circular(28),
+                color: dark ? const Color(0xFF292342) : const Color(0xFFEDE9FB),
+                borderRadius: BorderRadius.circular(26),
               ),
-              child: Row(children: [
-                Icon(Icons.verified_user_outlined, color: colors.primary, size: 23),
-                const SizedBox(width: 12),
-                Expanded(child: Text('AES-256 encrypted · password required to restore',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: colors.primary, fontWeight: FontWeight.w800, height: 1.15))),
-              ]),
-            ),
-            const SizedBox(height: 30),
-            _heading(context, 'AUTOMATIC BACKUP'),
-            const SizedBox(height: 10),
-            Container(
-              decoration: _cardDecoration(context).copyWith(borderRadius: BorderRadius.circular(28)),
-              padding: const EdgeInsets.fromLTRB(18, 16, 12, 16),
-              child: Column(children: [
-                Row(children: [
-                  _backupIcon(Icons.calendar_month_rounded, const Color(0xFF3478C5),
-                    const Color(0xFFE6F0FC)),
+              child: Row(
+                children: [
+                  Icon(Icons.verified_user_outlined, color: colors.primary, size: 25),
                   const SizedBox(width: 14),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Daily Google Drive backup',
-                      style: theme.textTheme.titleMedium?.copyWith(color: ink, fontWeight: FontWeight.w800)),
-                    Text('Wi-Fi only',
-                      style: theme.textTheme.bodyMedium?.copyWith(color: muted)),
-                  ])),
-                  Switch.adaptive(value: _dailyEnabled,
-                    onChanged: _working ? null : _setDailyBackup),
-                ]),
-                if (_dailyEnabled || _lastAutomaticBackup != null) ...[
-                  const SizedBox(height: 8),
-                  Align(alignment: Alignment.centerLeft, child: Text(
-                    _lastAutomaticBackup == null
-                      ? 'Enabled · runs when Novyn opens on Wi-Fi'
-                      : 'Last backup · ${_lastAutomaticBackup!.toString().substring(0, 16)}',
-                    style: theme.textTheme.bodySmall?.copyWith(color: muted))),
+                  Expanded(
+                    child: Text(
+                      'AES-256 encrypted · password required to restore',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: colors.primary,
+                        fontWeight: FontWeight.w800,
+                        height: 1.2,
+                      ),
+                    ),
+                  ),
                 ],
-              ]),
+              ),
             ),
             const SizedBox(height: 30),
-            _heading(context, 'CREATE A BACKUP'),
-            const SizedBox(height: 10),
-            _actionCard(context, [
-              _ActionItem(Icons.add_to_drive_rounded, const Color(0xFF3478C5), 'Back up to Google Drive',
-                'Save an encrypted copy to your private Drive app folder.', () => _drive(restore: false)),
-              _ActionItem(Icons.file_upload_outlined, const Color(0xFF7652F5), 'Export backup file',
-                'Save an encrypted backup file to your device.', () => _file(restore: false)),
-            ]),
-            const SizedBox(height: 30),
-            _heading(context, 'RESTORE A BACKUP'),
-            const SizedBox(height: 10),
-            _actionCard(context, [
-              _ActionItem(Icons.cloud_download_outlined, const Color(0xFF3478C5), 'Restore from Google Drive',
-                'Find a Novyn backup in the Google account you select.', () => _drive(restore: true)),
-              _ActionItem(Icons.file_download_outlined, const Color(0xFF15966C), 'Restore from backup file',
-                'Choose a backup file from your device or storage.', () => _file(restore: true)),
-            ]),
-            const SizedBox(height: 30),
-            _heading(context, 'INCLUDED IN BACKUP'),
-            const SizedBox(height: 10),
+            _heading(context, 'Automatic backup'),
+            const SizedBox(height: 12),
             Container(
-              padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
-              decoration: _cardDecoration(context).copyWith(borderRadius: BorderRadius.circular(28)),
-              child: Column(children: [
-                Row(children: [
-                  Expanded(child: _included(context, Icons.chat_bubble_outline_rounded, 'Messages')),
-                  Expanded(child: _included(context, Icons.people_alt_outlined, 'Contacts')),
-                ]),
-                const SizedBox(height: 18),
-                Row(children: [
-                  Expanded(child: _included(context, Icons.call_outlined, 'Call history')),
-                  Expanded(child: _included(context, Icons.key_outlined, 'Encryption keys')),
-                ]),
-                const SizedBox(height: 18),
-                Divider(color: colors.outlineVariant.withValues(alpha: .6), height: 1),
-                const SizedBox(height: 16),
-                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Icon(Icons.info_outline_rounded, color: muted, size: 19),
-                  const SizedBox(width: 11),
-                  Expanded(child: Text(
-                    'Media up to 45 MB per backup, 100 MB in total. Restoring merges data and never erases newer local chats.',
-                    style: theme.textTheme.bodyMedium?.copyWith(color: muted, height: 1.45))),
-                ]),
-              ]),
+              padding: const EdgeInsets.all(18),
+              decoration: _cardDecoration(context).copyWith(
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      _backupIcon(
+                        Icons.calendar_month_rounded,
+                        colors.primary,
+                        colors.primary.withValues(alpha: .11),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Daily Google Drive backup',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: ink,
+                                fontWeight: FontWeight.w800,
+                                height: 1.2,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Runs once a day',
+                              style: theme.textTheme.bodyMedium?.copyWith(color: muted),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Switch.adaptive(
+                        value: _dailyEnabled,
+                        onChanged: _working ? null : _setDailyBackup,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    'Back up using',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      color: muted,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: colors.primary.withValues(alpha: .10),
+                      borderRadius: BorderRadius.circular(22),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _networkOption(
+                            value: BackupAutomationService.wifiOnly,
+                            label: 'Wi-Fi',
+                            icon: Icons.wifi_rounded,
+                          ),
+                        ),
+                        Expanded(
+                          child: _networkOption(
+                            value: BackupAutomationService.mobileDataOnly,
+                            label: 'Mobile data',
+                            icon: Icons.signal_cellular_alt_rounded,
+                          ),
+                        ),
+                        Expanded(
+                          child: _networkOption(
+                            value: BackupAutomationService.wifiAndMobileData,
+                            label: 'Both',
+                            icon: Icons.swap_vert_rounded,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: dark ? const Color(0xFF211E32) : const Color(0xFFF5F3FC),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.access_time_rounded, color: muted, size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            lastBackupLabel,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: dark ? Colors.white : const Color(0xFF3D3868),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 30),
-            _heading(context, 'ENCRYPTION IDENTITY'),
-            const SizedBox(height: 10),
+            const SizedBox(height: 28),
+            _heading(context, 'Back up'),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _backupGridTile(
+                    context,
+                    icon: Icons.cloud_upload_outlined,
+                    title: 'Google Drive',
+                    onTap: () => _drive(restore: false),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: _backupGridTile(
+                    context,
+                    icon: Icons.upload_rounded,
+                    title: 'Backup file',
+                    onTap: () => _file(restore: false),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 28),
+            _heading(context, 'Restore'),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _backupGridTile(
+                    context,
+                    icon: Icons.cloud_download_outlined,
+                    title: 'Google Drive',
+                    onTap: () => _drive(restore: true),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: _backupGridTile(
+                    context,
+                    icon: Icons.download_rounded,
+                    title: 'Backup file',
+                    onTap: () => _file(restore: true),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 28),
+            _heading(context, 'Encryption identity'),
+            const SizedBox(height: 12),
             _actionCard(context, [
-              _ActionItem(Icons.cloud_upload_outlined, const Color(0xFFAD7416), 'Protect encryption identity',
-                'Save an encrypted recovery copy to your Novyn account.', () => _identity(restore: false)),
-              _ActionItem(Icons.key_rounded, const Color(0xFFAD7416), 'Restore encryption identity',
-                'Recover your existing identity to decrypt old messages.', () => _identity(restore: true)),
+              _ActionItem(
+                Icons.cloud_upload_outlined,
+                colors.primary,
+                'Protect encryption identity',
+                'Save an encrypted recovery copy to your Novyn account.',
+                () => _identity(restore: false),
+              ),
+              _ActionItem(
+                Icons.key_rounded,
+                colors.primary,
+                'Restore encryption identity',
+                'Recover your existing identity to decrypt old messages.',
+                () => _identity(restore: true),
+              ),
             ]),
             if (_working) ...[
               const SizedBox(height: 20),
               LinearProgressIndicator(borderRadius: BorderRadius.circular(8)),
               const SizedBox(height: 8),
-              Center(child: Text(_activeAction ?? 'Working…',
-                style: theme.textTheme.bodySmall?.copyWith(color: muted))),
+              Center(
+                child: Text(
+                  _activeAction ?? 'Working…',
+                  style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                ),
+              ),
             ],
-            const SizedBox(height: 28),
+            const SizedBox(height: 24),
             Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
-                color: dark ? const Color(0xFF3A2027) : const Color(0xFFFDEBEC),
+                color: dark ? const Color(0xFF3A2027) : const Color(0xFFFDE8E8),
                 borderRadius: BorderRadius.circular(26),
               ),
-              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Icon(Icons.warning_amber_rounded, color: Color(0xFFC52E2E), size: 23),
-                const SizedBox(width: 12),
-                Expanded(child: Text(
-                  'Keep your backup password safe. Novyn can’t decrypt or reset a forgotten backup password.',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: dark ? const Color(0xFFFFB8B8) : const Color(0xFF9F2525),
-                    height: 1.4, fontWeight: FontWeight.w600))),
-              ]),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: Color(0xFFC52E2E), size: 23),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Keep your backup password safe. Novyn stores it securely on this device to reuse it for future backups. It is never uploaded in plaintext, and it cannot unlock backups on a new device.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: dark ? const Color(0xFFFFB8B8) : const Color(0xFF9F2525),
+                        height: 1.4,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _networkOption({
+    required String value,
+    required String label,
+    required IconData icon,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    final selected = _networkPreference == value;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: _working ? null : () => _setNetworkPreference(value),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          constraints: const BoxConstraints(minHeight: 48),
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 10),
+          decoration: BoxDecoration(
+            color: selected ? colors.primary : Colors.transparent,
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 19, color: selected ? Colors.white : colors.onSurfaceVariant),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                style: TextStyle(
+                  color: selected ? Colors.white : colors.onSurfaceVariant,
+                  fontSize: 11.5,
+                  height: 1.1,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _backupGridTile(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _working ? null : onTap,
+        borderRadius: BorderRadius.circular(30),
+        child: Container(
+          height: 156,
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(color: colors.outlineVariant.withValues(alpha: .25)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: dark ? colors.primary.withValues(alpha: .17) : const Color(0xFFEDE9FC),
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                child: Icon(icon, color: colors.primary, size: 31),
+              ),
+              const Spacer(),
+              Text(
+                title,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
