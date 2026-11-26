@@ -23,122 +23,215 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
     return Scaffold(
       backgroundColor: NovynTheme.pageBg(context),
       appBar: AppBar(
-        title: const Text('Account Info',
-          style: TextStyle(fontWeight: FontWeight.w800)),
-        backgroundColor: Colors.transparent,
+        backgroundColor: NovynTheme.pageBg(context),
         surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        leadingWidth: 64,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 12, top: 4, bottom: 4),
+          child: Material(
+            color: NovynTheme.cardBg(context),
+            shape: const CircleBorder(),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: () => Navigator.maybePop(context),
+              child: Icon(Icons.arrow_back_rounded, color: colors.onSurface, size: 23),
+            ),
+          ),
+        ),
+        titleSpacing: 8,
+        title: const Text('Account Info', style: TextStyle(fontSize: 23, fontWeight: FontWeight.w800, letterSpacing: -.5)),
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 36),
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 36),
         children: [
-          _buildUsernameCard(context, auth),
-          const SizedBox(height: 22),
           Container(
-            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: NovynTheme.cardBg(context),
-              borderRadius: BorderRadius.circular(30),
-              border: Border.all(color: colors.outlineVariant),
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: colors.outlineVariant.withValues(alpha: .35)),
             ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                CircleAvatar(radius: 23,
-                  backgroundColor: colors.primary.withValues(alpha: .12),
-                  child: Icon(Icons.alternate_email_rounded, color: colors.primary)),
-                const SizedBox(width: 12),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Account email', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 3),
-                    Text(email.isEmpty ? 'No email linked' : email,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: colors.onSurfaceVariant)),
-                  ])),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: (user?.emailVerified == true
-                      ? const Color(0xFF159A64) : colors.error).withValues(alpha: .12),
-                    borderRadius: BorderRadius.circular(30)),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(user?.emailVerified == true ? Icons.verified_rounded : Icons.error_outline_rounded,
-                      size: 14, color: user?.emailVerified == true ? const Color(0xFF159A64) : colors.error),
-                    const SizedBox(width: 5),
-                    Text(user?.emailVerified == true ? 'Verified' : 'Unverified',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
-                        color: user?.emailVerified == true ? const Color(0xFF159A64) : colors.error)),
-                  ]),
+            child: Column(
+              children: [
+                _buildUsernameCard(context, auth),
+                Divider(height: 1, indent: 16, endIndent: 16, color: colors.outlineVariant.withValues(alpha: .6)),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 48, height: 48,
+                            decoration: BoxDecoration(
+                              color: colors.primary.withValues(alpha: .11),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Icon(Icons.mail_outline_rounded, color: colors.primary, size: 25),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Account email', style: TextStyle(fontSize: 13, color: colors.onSurfaceVariant, fontWeight: FontWeight.w600)),
+                                const SizedBox(height: 5),
+                                Text(
+                                  email.isEmpty ? 'No email linked' : email,
+                                  style: TextStyle(fontSize: 16, height: 1.25, fontWeight: FontWeight.w800, color: colors.onSurface),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            width: 38, height: 38,
+                            decoration: BoxDecoration(
+                              color: (user?.emailVerified == true ? const Color(0xFF159A64) : const Color(0xFFE5A000)),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              user?.emailVerified == true ? Icons.check_rounded : Icons.schedule_rounded,
+                              color: Colors.white,
+                              size: 22,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        user?.emailVerified == true
+                            ? 'Your email is verified and can be used for account recovery.'
+                            : 'Your email is not verified yet. Verify it to use it for account recovery.',
+                        style: TextStyle(fontSize: 13.5, height: 1.45, color: colors.onSurfaceVariant),
+                      ),
+                      const SizedBox(height: 18),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: FilledButton.tonalIcon(
+                          onPressed: () => _changeEmail(socket, auth),
+                          icon: const Icon(Icons.edit_rounded, size: 18),
+                          label: const Text('Change email', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                          style: FilledButton.styleFrom(
+                            foregroundColor: colors.primary,
+                            backgroundColor: colors.primary.withValues(alpha: .10),
+                            shape: const StadiumBorder(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ]),
-              const SizedBox(height: 15),
-              Text(user?.emailVerified == true
-                ? 'Your email address is verified and can be used for account recovery.'
-                : 'Verify a new email address when you change it. Email verification for existing accounts may not be available yet.',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant, height: 1.4))),
-              const SizedBox(height: 14),
-              SizedBox(width: double.infinity, child: OutlinedButton.icon(
-                onPressed: () => _changeEmail(socket, auth),
-                icon: const Icon(Icons.edit_outlined, size: 18),
-                label: const Text('Change email'),
-              )),
-            ]),
+              ],
+            ),
           ),
           const SizedBox(height: 26),
-          Text('Password', style: TextStyle(color: colors.onSurfaceVariant, fontSize: 16,
-            fontWeight: FontWeight.w600, letterSpacing: 0)),
-          const SizedBox(height: 12),
-          Container(
-            decoration: BoxDecoration(color: NovynTheme.cardBg(context),
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: colors.outlineVariant)),
-            child: Column(children: [
-              ListTile(
-                leading: CircleAvatar(backgroundColor: colors.primary.withValues(alpha: .10),
-                  child: Icon(Icons.lock_outline_rounded, color: colors.primary)),
-                title: const Text('Change password', style: TextStyle(fontWeight: FontWeight.w800)),
-                subtitle: Text(user?.hasPassword == false
-                  ? 'Add a password to your account'
-                  : 'Update your current sign-in password'),
-                trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: () => _changePassword(auth),
-              ),
-              Divider(height: 1, indent: 68, color: colors.outlineVariant),
-              ListTile(
-                leading: CircleAvatar(backgroundColor: colors.secondaryContainer,
-                  child: Icon(Icons.lock_reset_rounded, color: colors.onSecondaryContainer)),
-                title: const Text('Forgot password?', style: TextStyle(fontWeight: FontWeight.w800)),
-                subtitle: const Text('Reset it using a code sent to your email'),
-                trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: () => _forgotPassword(auth, email),
-              ),
-            ]),
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 12),
+            child: Text('Password', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: colors.onSurfaceVariant)),
           ),
-          const SizedBox(height: 16),
+          Container(
+            decoration: BoxDecoration(
+              color: NovynTheme.cardBg(context),
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: colors.outlineVariant.withValues(alpha: .35)),
+            ),
+            child: Column(
+              children: [
+                ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                  minVerticalPadding: 10,
+                  leading: Container(
+                    width: 48, height: 48,
+                    decoration: BoxDecoration(color: colors.primary.withValues(alpha: .11), borderRadius: BorderRadius.circular(16)),
+                    child: Icon(Icons.lock_outline_rounded, color: colors.primary, size: 24),
+                  ),
+                  title: const Text('Change password', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                  subtitle: Text(user?.hasPassword == false ? 'Add a password to your account' : 'Update your current sign-in password',
+                    style: TextStyle(fontSize: 13, height: 1.35, color: colors.onSurfaceVariant)),
+                  trailing: Icon(Icons.chevron_right_rounded, color: colors.onSurface, size: 25),
+                  onTap: () => _changePassword(auth),
+                ),
+                Divider(height: 1, indent: 80, endIndent: 16, color: colors.outlineVariant.withValues(alpha: .65)),
+                ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                  minVerticalPadding: 10,
+                  leading: Container(
+                    width: 48, height: 48,
+                    decoration: BoxDecoration(color: colors.primary.withValues(alpha: .11), borderRadius: BorderRadius.circular(16)),
+                    child: Icon(Icons.lock_reset_rounded, color: colors.primary, size: 24),
+                  ),
+                  title: const Text('Forgot password?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                  subtitle: Text('Reset it with a code sent to your email',
+                    style: TextStyle(fontSize: 13, height: 1.35, color: colors.onSurfaceVariant)),
+                  trailing: Icon(Icons.chevron_right_rounded, color: colors.onSurface, size: 25),
+                  onTap: () => _forgotPassword(auth, email),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
           if (user?.isGoogleUser == true)
-            Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: colors.primary.withValues(alpha: .07), borderRadius: BorderRadius.circular(24)), child: Text('Google sign-in is also linked to this account. Changing your Novyn password does not change your Google password.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant, height: 1.4)),
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(color: colors.primary.withValues(alpha: .08), borderRadius: BorderRadius.circular(24)),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.info_outline_rounded, color: colors.primary, size: 22),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Google sign-in is also linked to this account. Changing your Novyn password does not change your Google password.',
+                      style: TextStyle(fontSize: 13, height: 1.5, color: colors.onSurface),
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );
   }
 
-
   Widget _buildUsernameCard(BuildContext context, AuthService auth) {
     final colors = Theme.of(context).colorScheme;
-    return Container(
-      decoration: BoxDecoration(color: NovynTheme.cardBg(context), borderRadius: BorderRadius.circular(28), border: Border.all(color: colors.outlineVariant)),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: ListTile(
-        leading: CircleAvatar(radius: 28,
-          backgroundColor: colors.primary.withValues(alpha: .12),
-          child: Icon(Icons.alternate_email_rounded, color: colors.primary),
-        ),
-        title: Text('Username', style: TextStyle(fontWeight: FontWeight.w600, color: colors.onSurfaceVariant)),
-        subtitle: Text('@${auth.user?.username ?? ''}', style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700)),
-        trailing: IconButton(
-          tooltip: 'Change username',
-          onPressed: () => _changeUsername(auth),
-          icon: Icon(Icons.edit_outlined, color: colors.primary),
-        ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      child: Row(
+        children: [
+          Container(
+            width: 48, height: 48,
+            decoration: BoxDecoration(color: colors.primary.withValues(alpha: .11), borderRadius: BorderRadius.circular(16)),
+            child: Icon(Icons.alternate_email_rounded, color: colors.primary, size: 25),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Username', style: TextStyle(fontSize: 13, color: colors.onSurfaceVariant, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 4),
+                Text('@${auth.user?.username ?? ''}', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: colors.onSurface)),
+              ],
+            ),
+          ),
+          Material(
+            color: colors.primary.withValues(alpha: .10),
+            shape: const CircleBorder(),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: () => _changeUsername(auth),
+              child: SizedBox(
+                width: 48, height: 48,
+                child: Icon(Icons.edit_outlined, color: colors.primary, size: 22),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
