@@ -1484,6 +1484,7 @@ class _CallScreenState extends State<CallScreen>
                             child: _CallTrayActionTile(
                               icon: Icons.flip_camera_android_rounded,
                               label: 'Flip camera',
+                              disabled: !_isVideo,
                               onTap: () async {
                                 HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.calls);
                                 await _webrtc.switchCamera();
@@ -1526,15 +1527,22 @@ class _CallScreenState extends State<CallScreen>
                   onTap: _toggleMute,
                   active: _muted,
                 ),
-                _CallDockButton(
-                  icon: _cameraOff ? Icons.videocam_off_rounded : Icons.videocam_rounded,
-                  onTap: () {
-                    HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.calls);
-                    setState(() => _cameraOff = !_cameraOff);
-                    _webrtc.toggleCamera(_cameraOff);
-                  },
-                  active: _cameraOff,
-                ),
+                if (_isVideo)
+                  _CallDockButton(
+                    icon: _cameraOff ? Icons.videocam_off_rounded : Icons.videocam_rounded,
+                    onTap: () {
+                      HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.calls);
+                      setState(() => _cameraOff = !_cameraOff);
+                      _webrtc.toggleCamera(_cameraOff);
+                    },
+                    active: _cameraOff,
+                  )
+                else
+                  _CallDockButton(
+                    icon: Icons.videocam_rounded,
+                    onTap: _handleVideoAction,
+                    active: _videoUpgradeQueued,
+                  ),
                 _CallDockButton(
                   icon: _speakerOn ? Icons.volume_up_rounded : Icons.volume_down_rounded,
                   onTap: _toggleSpeaker,
@@ -1842,7 +1850,9 @@ class _CallScreenState extends State<CallScreen>
                   ),
                 if (incoming)
                   _buildIncomingControls()
-                else if (calling || connected)
+                else if (connected)
+                  _buildSwipeCallTray()
+                else if (calling)
                   _buildCallingControls()
                 else
                   Padding(
@@ -3029,24 +3039,28 @@ class _CallTrayActionTile extends StatelessWidget {
     required this.label,
     required this.onTap,
     this.active = false,
+    this.disabled = false,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
   final bool active;
+  final bool disabled;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: active ? const Color(0xFF514A78) : const Color(0x3DFFFFFF),
-      borderRadius: BorderRadius.circular(23),
-      child: InkWell(
+    return Opacity(
+      opacity: disabled ? .42 : 1,
+      child: Material(
+        color: active ? const Color(0xFF514A78) : const Color(0x3DFFFFFF),
         borderRadius: BorderRadius.circular(23),
-        onTap: onTap,
-        child: SizedBox(
-          height: 86,
-          child: Column(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(23),
+          onTap: disabled ? null : onTap,
+          child: SizedBox(
+            height: 86,
+            child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon, color: Colors.white, size: 25),
@@ -3061,11 +3075,11 @@ class _CallTrayActionTile extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-            ],
+            ),
           ),
         ),
-      ),
-    );
+      );
+    }
   }
 }
 
