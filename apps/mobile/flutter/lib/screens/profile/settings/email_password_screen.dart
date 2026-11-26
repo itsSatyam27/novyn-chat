@@ -503,7 +503,7 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                         return;
                       }
                       final response = await auth.confirmPasswordReset(
-                        identifier: identifier.text, code: code.text, newPassword: password.text);
+                        identifier: email.trim(), code: code.text, newPassword: password.text);
                       if (response['ok'] == true && sheet.mounted) Navigator.pop(sheet, true);
                       else if (sheet.mounted) NovynAlert.show(sheet,
                         response['message']?.toString() ?? 'Password reset failed.', isError: true);
