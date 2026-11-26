@@ -58,7 +58,7 @@ class ChatOverflowMenu extends StatelessWidget {
                 action();
               },
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                 child: Row(
                   children: [
                     Container(
@@ -78,7 +78,7 @@ class ChatOverflowMenu extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: isDark ? Colors.white : const Color(0xFF20213E),
-                          fontSize: 14.5,
+                          fontSize: 15.5,
                           fontWeight: FontWeight.w700,
                           letterSpacing: -.15,
                         ),
@@ -133,9 +133,9 @@ class ChatOverflowMenu extends StatelessWidget {
                   borderRadius: BorderRadius.circular(24),
                   clipBehavior: Clip.antiAlias,
                   child: SizedBox(
-                    width: (media.size.width - 48).clamp(220.0, 252.0).toDouble(),
+                    width: (media.size.width - 48).clamp(220.0, 328.0).toDouble(),
                     child: ConstrainedBox(
-                      constraints: BoxConstraints(maxHeight: media.size.height * .68),
+                      constraints: BoxConstraints(maxHeight: media.size.height * .72),
                       child: SingleChildScrollView(
                         padding: const EdgeInsets.symmetric(vertical: 7),
                         child: Column(
@@ -224,16 +224,15 @@ class ChatOverflowMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final color = Theme.of(context).colorScheme.onSurface;
     return Material(
-      color: isDark ? const Color(0xFF191B2B) : Colors.white,
-      borderRadius: BorderRadius.circular(18),
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(999),
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(999),
         onTap: () => _show(context),
         child: SizedBox(
-          width: 48,
+          width: 52,
           height: 48,
           child: Icon(Icons.more_horiz_rounded, color: color, size: 25),
         ),
