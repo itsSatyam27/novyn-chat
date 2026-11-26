@@ -229,7 +229,8 @@ function registerGroupCallHandlers(socket, deps) {
         const rawInvitees = Array.isArray(payload?.invitees) ? payload.invitees : [];
         cleanupPending(existing);
         const requested = rawInvitees.map((value) => normalizeName(safeName(value)));
-        if (requested.length > MAX_GROUP_CALL_PARTICIPANTS - existing.participants.size - existing.pending.size) {
+        const newInvitees = requested.filter((key) => !existing.pending.has(key));
+        if (newInvitees.length > MAX_GROUP_CALL_PARTICIPANTS - existing.participants.size - existing.pending.size) {
           return respond(ack, { ok: false, message: 'There are not enough open places in this call.' });
         }
         if (requested.some((key) => !key) || new Set(requested).size !== requested.length) {
@@ -243,17 +244,26 @@ function registerGroupCallHandlers(socket, deps) {
           if (existing.participants.has(inviteeKey)) {
             return respond(ack, { ok: false, message: 'This person is already in the call.' });
           }
-          if (existing.pending.has(inviteeKey)) {
-            return respond(ack, { ok: false, message: 'An invitation is already pending.' });
-          }
+          if (existing.pending.has(inviteeKey)) continue;
           const denial = canInvite(userKey, inviteeKey);
           if (denial) return respond(ack, { ok: false, message: denial });
           if (registry.userSessions.has(inviteeKey) || activeCalls.has(inviteeKey)) {
             return respond(ack, { ok: false, message: 'This person is already in another call.' });
           }
         }
-        const invitations = requested.map((inviteeKey) =>
-          sendGroupInvitation(existing, inviteeKey, userKey));
+        const invitations = requested.map((inviteeKey) => {
+          const pending = existing.pending.get(inviteeKey);
+          return pending
+            ? {
+                ok: true,
+                username: users.get(inviteeKey)?.username || inviteeKey,
+                displayName: displayName(inviteeKey),
+                invitedBy: users.get(pending.invitedBy)?.username || pending.invitedBy,
+                expiresAt: pending.expiresAt,
+                remainingSlots: MAX_GROUP_CALL_PARTICIPANTS - existing.participants.size - existing.pending.size,
+              }
+            : sendGroupInvitation(existing, inviteeKey, userKey);
+        });
         const view = sessionView(existing);
         emitSession(existing, 'group_call_promoted', view);
         return respond(ack, { ok: true, ...view, invitations });
