@@ -218,4 +218,20 @@ test('screen-share state and WebRTC presentation signals reach the peer', () => 
   );
   assert.equal(browserCompatibleSignal?.payload.signal.replacesVideoTrack, true);
   assert.equal(browserCompatibleSignal?.payload.signal.streamId, 'alice-media-stream');
+
+  caller.handlers.get('call_screen_share_state')({
+    to: 'bob',
+    callId: 'share-call',
+    streamId: null,
+  });
+  const stoppedState = deps.delivered.filter((event) =>
+    event.socketId === 'bob-socket' &&
+    event.name === 'call_screen_share_changed',
+  ).at(-1);
+  assert.deepEqual(stoppedState?.payload, {
+    from: 'alice',
+    callId: 'share-call',
+    streamId: null,
+    replacesVideoTrack: false,
+  });
 });
