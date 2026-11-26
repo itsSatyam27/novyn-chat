@@ -282,6 +282,7 @@ class SocketService extends ChangeNotifier {
   final Map<String, String> _rajaMantriInviteSessions = <String, String>{};
   final Set<String> _rajaMantriExpiredInvites = <String>{};
   final Map<String, Map<String, dynamic>> _randomGames = <String, Map<String, dynamic>>{};
+  final List<Map<String, dynamic>> _pendingGroupCallSignals = [];
   // Game moves can arrive before the corresponding chat history page.
   final Map<String, Map<String, dynamic>> _pendingGameUpdates =
       <String, Map<String, dynamic>>{};
@@ -302,6 +303,7 @@ class SocketService extends ChangeNotifier {
   Function(Map)? onGroupCallSignalCallback;
   Function(Map)? onGroupCallMediaStateCallback;
   Function(Map)? onGroupCallScreenShareStateCallback;
+  Function(Map)? onGroupCallScreenShareDeniedCallback;
   Function(Map)? onGroupCallInvitationDeclinedCallback;
 
   // Status and foreground message callbacks
@@ -1690,8 +1692,21 @@ class SocketService extends ChangeNotifier {
     _socket!.on('group_call_screen_share_state', (data) {
       if (data is Map) onGroupCallScreenShareStateCallback?.call(Map<String, dynamic>.from(data));
     });
+    _socket!.on('group_call_screen_share_denied', (data) {
+      if (data is Map) onGroupCallScreenShareDeniedCallback?.call(Map<String, dynamic>.from(data));
+    });
     _socket!.on('group_call_signal', (data) {
-      if (data is Map) onGroupCallSignalCallback?.call(Map<String, dynamic>.from(data));
+      if (data is! Map) return;
+      final packet = Map<String, dynamic>.from(data);
+      final handler = onGroupCallSignalCallback;
+      if (handler != null) {
+        handler(packet);
+      } else {
+        _pendingGroupCallSignals.add(packet);
+        if (_pendingGroupCallSignals.length > 120) {
+          _pendingGroupCallSignals.removeRange(0, _pendingGroupCallSignals.length - 120);
+        }
+      }
     });
 
     // ── WebRTC signaling ──────────────────────────────────────────────────
@@ -3900,6 +3915,16 @@ class SocketService extends ChangeNotifier {
       'to': toUsername,
       'signal': signal,
     });
+  }
+
+  List<Map<String, dynamic>> takePendingGroupCallSignals(String groupCallId) {
+    final matched = _pendingGroupCallSignals
+        .where((packet) => packet['groupCallId']?.toString() == groupCallId)
+        .toList(growable: false);
+    _pendingGroupCallSignals.removeWhere(
+      (packet) => packet['groupCallId']?.toString() == groupCallId,
+    );
+    return matched;
   }
 
   void updateGroupCallMediaState(
