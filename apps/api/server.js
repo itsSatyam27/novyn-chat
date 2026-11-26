@@ -8519,8 +8519,17 @@ io.on("connection", (socket) => {
     for (const [key, choices] of Object.entries(privacyChoices)) if (choices.includes(payload?.[key])) user[key] = payload[key];
     if (typeof payload?.callsEnabled === "boolean") user.callsEnabled = payload.callsEnabled;
     if (typeof payload?.notificationsEnabled === "boolean") user.notificationsEnabled = payload.notificationsEnabled;
-    if (typeof payload?.messagePreviewEnabled === "boolean") user.messagePreviewEnabled = payload.messagePreviewEnabled;
-    if (typeof payload?.hideNotificationContent === "boolean") user.hideNotificationContent = payload.hideNotificationContent;
+    if (typeof payload?.messagePreviewEnabled === "boolean") {
+      user.messagePreviewEnabled = payload.messagePreviewEnabled;
+      // Enabling the visible preview setting clears a legacy hidden-content
+      // flag so FCM and in-app previews apply the same user choice.
+      if (payload.messagePreviewEnabled) user.hideNotificationContent = false;
+    }
+    if (typeof payload?.hideNotificationContent === "boolean") {
+      user.hideNotificationContent = payload.messagePreviewEnabled === true
+        ? false
+        : payload.hideNotificationContent;
+    }
     if (typeof payload?.doNotDisturbEnabled === "boolean") user.doNotDisturbEnabled = payload.doNotDisturbEnabled;
     if (Array.isArray(payload?.favoriteChatIds)) {
       user.favoriteChatIds = Array.from(new Set(

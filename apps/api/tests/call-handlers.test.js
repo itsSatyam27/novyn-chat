@@ -126,6 +126,31 @@ test('unanswered outgoing calls send a missed-call push only to the receiver', (
   assert.equal(deps.activeCalls.size, 0);
 });
 
+test('call direction, not the end reason, decides who receives a missed-call push', () => {
+  const deps = makeDeps();
+  const caller = makeSocket('alice');
+  registerCallHandlers(caller, deps);
+
+  caller.handlers.get('call_start')({ to: 'bob', callId: 'direction-call' });
+  // Even a misleading client reason must not make the caller look like the
+  // callee. The server's authenticated call record is authoritative.
+  caller.handlers.get('call_end')({
+    to: 'bob', callId: 'direction-call', reason: 'Call declined',
+  });
+
+  const missedPushes = deps.pushes.filter(
+    (entry) => entry.payload.callStatus === 'missed',
+  );
+  assert.equal(missedPushes.length, 1);
+  assert.equal(missedPushes[0].userKey, 'bob');
+  assert.equal(
+    deps.pushes.some((entry) =>
+      entry.userKey === 'alice' && entry.payload.callStatus === 'missed',
+    ),
+    false,
+  );
+});
+
 test('only the invited recipient can accept a ringing call, and acceptance is single-use', () => {
   const deps = makeDeps();
   const caller = makeSocket('alice');

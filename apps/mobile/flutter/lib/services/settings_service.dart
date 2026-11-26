@@ -384,6 +384,15 @@ class SettingsService extends ChangeNotifier {
     Map<String, dynamic> values,
   ) async {
     var changed = false;
+    // Older builds could leave the hidden-content flag enabled even when the
+    // visible Message previews preference was on. There is no separate UI
+    // control for that legacy flag, so the user's explicit preview choice wins.
+    if (values['messagePreviewEnabled'] == true &&
+        _hideNotificationContent) {
+      _hideNotificationContent = false;
+      await _prefs.setBool(_kHideNotificationContent, false);
+      changed = true;
+    }
     for (final entry in notificationPreferenceStorageKeys.entries) {
       final value = values[entry.key];
       if (value is bool) {
@@ -897,6 +906,10 @@ class SettingsService extends ChangeNotifier {
   Future<void> setMessagePreview(bool v, {bool recordPresenceOverride = true}) async {
     _messagePreview = v;
     await _prefs.setBool(_kMessagePreview, v);
+    if (v && _hideNotificationContent) {
+      _hideNotificationContent = false;
+      await _prefs.setBool(_kHideNotificationContent, false);
+    }
     if (recordPresenceOverride) await recordActiveSmartPresenceOverride('messagePreviewEnabled', v);
     notifyListeners();
   }

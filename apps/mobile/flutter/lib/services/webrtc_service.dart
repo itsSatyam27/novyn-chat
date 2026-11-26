@@ -26,6 +26,7 @@ class WebRTCService extends ChangeNotifier {
   void Function(String? streamId)? onRemoteScreenShareChanged;
 
   bool _isInitialized = false;
+  bool _disposing = false;
   bool _remoteDescriptionSet = false;
   bool _isGroupCall = false;
   bool _ownsLocalStream = true;
@@ -88,10 +89,15 @@ class WebRTCService extends ChangeNotifier {
 
   // ── Initialize renderers ─────────────────────────────────────────────────
   Future<void> init() async {
+    if (_disposing || _isInitialized) return;
     await localRenderer.initialize();
+    if (_disposing) return;
     await remoteRenderer.initialize();
+    if (_disposing) return;
     await remoteScreenRenderer.initialize();
+    if (_disposing) return;
     await localScreenRenderer.initialize();
+    if (_disposing) return;
     _isInitialized = true;
     notifyListeners();
   }
@@ -101,6 +107,7 @@ class WebRTCService extends ChangeNotifier {
     bool video = true,
     bool groupCall = false,
   }) async {
+    if (_disposing) throw StateError('Call media has already been released.');
     final width = groupCall ? 640 : 1280;
     final height = groupCall ? 360 : 720;
     final frameRate = groupCall ? 20 : 30;
@@ -120,7 +127,20 @@ class WebRTCService extends ChangeNotifier {
           : false,
     };
 
-    _localStream = await navigator.mediaDevices.getUserMedia(constraints);
+    final stream = await navigator.mediaDevices.getUserMedia(constraints);
+    if (_disposing) {
+      for (final track in stream.getTracks()) {
+        try {
+          track.enabled = false;
+          await track.stop();
+        } catch (_) {}
+      }
+      try {
+        await stream.dispose();
+      } catch (_) {}
+      throw StateError('Call ended while microphone access was starting.');
+    }
+    _localStream = stream;
     localRenderer.srcObject = _localStream;
     _ownsLocalStream = true;
     notifyListeners();
@@ -1003,9 +1023,34 @@ class WebRTCService extends ChangeNotifier {
     await Helper.setSpeakerphoneOn(false);
   }
 
+  /// Immediately stop local capture while the call route is still animating
+  /// away. Disabling first silences the tracks before the native stop finishes.
+  Future<void> stopLocalMediaCapture() async {
+    final stream = _localStream;
+    if (stream == null) return;
+    List<MediaStreamTrack> tracks;
+    try {
+      tracks = stream.getTracks();
+    } catch (_) {
+      return;
+    }
+    for (final track in tracks) {
+      try {
+        track.enabled = false;
+      } catch (_) {}
+    }
+    for (final track in tracks) {
+      try {
+        await track.stop();
+      } catch (_) {}
+    }
+  }
+
   // ── Cleanup ──────────────────────────────────────────────────────────────
   @override
   Future<void> dispose() async {
+    _disposing = true;
+    if (_ownsLocalStream) await stopLocalMediaCapture();
     final screen = _screenStream;
     _screenStream = null;
     _screenSender = null;

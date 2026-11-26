@@ -247,9 +247,18 @@ class _CallScreenState extends State<CallScreen>
       if (!WebRTC.platformIsAndroid) {
         await _webrtc.toggleSpeaker(route == 'speaker');
       }
-      final changed = await AudioManagerService.setAudioRoute(route);
+      final changed = WebRTC.platformIsAndroid
+          ? await AudioManagerService.setAudioRoute(route)
+          : route == 'speaker' || route == 'earpiece';
       if (changed && mounted) {
-        await _refreshAudioRoutes();
+        if (WebRTC.platformIsAndroid) {
+          await _refreshAudioRoutes();
+        } else {
+          setState(() {
+            _activeAudioRoute = route;
+            _speakerOn = route == 'speaker';
+          });
+        }
       } else if (!changed) {
         debugPrint('[NovynCalls] Native audio route change was not confirmed: $route');
       }
@@ -270,26 +279,37 @@ class _CallScreenState extends State<CallScreen>
   Future<void> _ensureCallAudioMode() {
     return _callAudioModeFuture ??= () async {
       await _webrtcInit;
-      await AudioManagerService.startCallMode();
+      if (WebRTC.platformIsAndroid) {
+        await AudioManagerService.startCallMode();
+      }
     }();
   }
 
   Future<void> _ensureLocalMedia() async {
     await _ensureCallAudioMode();
+    if (!mounted || _state == CallState.ended) return;
     if (_mediaStarted) return;
     if (_mediaInitializing) {
       while (_mediaInitializing) {
         await Future<void>.delayed(const Duration(milliseconds: 50));
+        if (!mounted || _state == CallState.ended) return;
       }
       if (_mediaStarted) return;
     }
     _mediaInitializing = true;
     try {
       await _webrtc.startLocalStream(video: _isVideo);
+      if (!mounted || _state == CallState.ended) {
+        await _webrtc.stopLocalMediaCapture();
+        return;
+      }
       if (_muted) _webrtc.toggleMute(true);
       if (_cameraOff) _webrtc.toggleCamera(true);
       _mediaStarted = true;
       _mediaError = null;
+    } catch (_) {
+      if (!mounted || _state == CallState.ended) return;
+      rethrow;
     } finally {
       _mediaInitializing = false;
     }
@@ -301,14 +321,16 @@ class _CallScreenState extends State<CallScreen>
       if (!mounted || _state != CallState.calling) return;
       // Ringing should be audible without holding the phone to the ear.
       await _setPlayerAudioRoute('speaker');
-      final routed = await AudioManagerService.setAudioRoute('speaker');
+      final routed = WebRTC.platformIsAndroid
+          ? await AudioManagerService.setAudioRoute('speaker')
+          : true;
       if (routed && mounted && _state == CallState.calling) {
         setState(() {
           _activeAudioRoute = 'speaker';
           _speakerOn = true;
         });
       }
-      await _refreshAudioRoutes();
+      if (WebRTC.platformIsAndroid) await _refreshAudioRoutes();
     } catch (error) {
       debugPrint('[NovynCalls] Could not route call ringtone: $error');
     }
@@ -344,6 +366,7 @@ class _CallScreenState extends State<CallScreen>
   }
 
   Future<void> _listenToAudioRoutes() async {
+    if (!WebRTC.platformIsAndroid) return;
     _audioRouteSubscription = AudioManagerService.routeChanges.listen(
       (routes) {
         if (!mounted) return;
@@ -357,10 +380,11 @@ class _CallScreenState extends State<CallScreen>
     try {
       await Permission.bluetoothConnect.request();
     } catch (_) {}
-    await _refreshAudioRoutes();
+    if (WebRTC.platformIsAndroid) await _refreshAudioRoutes();
   }
 
   Future<void> _refreshAudioRoutes() async {
+    if (!WebRTC.platformIsAndroid) return;
     final routes = await AudioManagerService.getAvailableRoutes();
     if (!mounted) return;
     _applyAudioRoutes(routes);
@@ -388,8 +412,10 @@ class _CallScreenState extends State<CallScreen>
   }
 
   Future<void> _selectAudioRoute(String routeId) async {
+    if (!mounted || _state == CallState.ended) return;
     HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.calls);
     await _ensureCallAudioMode();
+    if (!mounted || _state == CallState.ended) return;
     await _setPlayerAudioRoute(routeId);
     // Android routes communication audio through AudioManager's selected
     // communication device. The legacy WebRTC speaker flag can override it.
@@ -397,9 +423,18 @@ class _CallScreenState extends State<CallScreen>
         (routeId == 'speaker' || routeId == 'earpiece')) {
       try { await _webrtc.toggleSpeaker(routeId == 'speaker'); } catch (_) {}
     }
-    final changed = await AudioManagerService.setAudioRoute(routeId);
+    final changed = WebRTC.platformIsAndroid
+        ? await AudioManagerService.setAudioRoute(routeId)
+        : (routeId == 'speaker' || routeId == 'earpiece');
     if (changed) {
-      await _refreshAudioRoutes();
+      if (WebRTC.platformIsAndroid) {
+        await _refreshAudioRoutes();
+      } else if (mounted) {
+        setState(() {
+          _activeAudioRoute = routeId;
+          _speakerOn = routeId == 'speaker';
+        });
+      }
     } else if (mounted) {
       context.showNovynAlert(
         const SnackBar(content: Text('Could not switch call audio device.')),
@@ -481,7 +516,7 @@ class _CallScreenState extends State<CallScreen>
       if (!widget.isIncoming) {
         try {
           await _ensureLocalMedia();
-          if (!mounted) return;
+          if (!mounted || _state != CallState.connected) return;
           await _webrtc.createPeerConnection(socket, _peerId, true, callId: _callId);
         } catch (_) {
           socket.endCall(_peerId, callId: _callId, reason: 'Microphone or camera permission was denied.');
@@ -712,6 +747,11 @@ class _CallScreenState extends State<CallScreen>
     _timer?.cancel();
     _audioRouteSubscription?.cancel();
     _callTimeoutTimer?.cancel();
+    // Release the microphone/camera as soon as hang-up is observed; the call
+    // route remains visible briefly for its end animation and history update.
+    if (!_groupTransitioning && !_webrtcDisposedForGroup) {
+      unawaited(_webrtc.stopLocalMediaCapture());
+    }
     unawaited(NotificationService.clearIncomingCallNotification(_callId));
     if (!mounted || _hasLoggedCall) return;
     _hasLoggedCall = true;
@@ -727,7 +767,7 @@ class _CallScreenState extends State<CallScreen>
       );
     }
     // Reset audio mode back to normal
-    AudioManagerService.resetMode();
+    if (WebRTC.platformIsAndroid) unawaited(AudioManagerService.resetMode());
     unawaited(CallPlatformService.setCallActive(false));
 
     final auth = context.read<AuthService>();
@@ -871,23 +911,29 @@ class _CallScreenState extends State<CallScreen>
       _isScreenSharingLocal || (_remoteScreenStreamId?.isNotEmpty == true);
 
   Widget _buildScreenShareCall() {
-    final screenRenderer = _isScreenSharingLocal
-        ? _webrtc.localScreenRenderer
-        : _webrtc.remoteScreenRenderer;
+    final screenRenderer = _webrtc.remoteScreenRenderer;
     final cameraRenderer = _isScreenSharingLocal
         ? _webrtc.localRenderer
         : _webrtc.remoteRenderer;
-    final screenView = RTCVideoView(
-      screenRenderer,
-      objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
-    );
+    final screenView = _isScreenSharingLocal
+        ? const Center(
+            child: Icon(Icons.screen_share_rounded, color: Colors.white70, size: 42),
+          )
+        : RTCVideoView(
+            screenRenderer,
+            objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+          );
     final remoteShareReplacedCamera = !_isScreenSharingLocal &&
         _remoteScreenStreamId?.isNotEmpty == true &&
         identical(
           _webrtc.remoteScreenRenderer.srcObject,
           _webrtc.remoteRenderer.srcObject,
         );
-    final cameraView = remoteShareReplacedCamera
+    final cameraView = _isScreenSharingLocal && (!_showVideo || _cameraOff)
+        ? const Center(
+            child: Icon(Icons.screen_share_rounded, color: Colors.white70, size: 42),
+          )
+        : remoteShareReplacedCamera
         ? Center(
             child: UserAvatar(
               name: widget.peer.name,
@@ -905,8 +951,11 @@ class _CallScreenState extends State<CallScreen>
       children: [
         Container(color: const Color(0xFF090B14)),
         Positioned.fill(
-          child: _showSharedScreenFirst ? screenView : cameraView,
+          child: !_isScreenSharingLocal && _showSharedScreenFirst
+              ? screenView
+              : cameraView,
         ),
+        if (!_isScreenSharingLocal)
         Positioned(
           top: 54, right: 16,
           child: GestureDetector(
@@ -954,11 +1003,12 @@ class _CallScreenState extends State<CallScreen>
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _CallDockButton(
-                    icon: Icons.swap_horiz_rounded,
-                    onTap: () => setState(() => _showSharedScreenFirst = !_showSharedScreenFirst),
-                    active: true,
-                  ),
+                  if (!_isScreenSharingLocal)
+                    _CallDockButton(
+                      icon: Icons.swap_horiz_rounded,
+                      onTap: () => setState(() => _showSharedScreenFirst = !_showSharedScreenFirst),
+                      active: true,
+                    ),
                   _CallDockButton(
                     icon: _isScreenSharingLocal ? Icons.stop_screen_share_rounded : Icons.screen_share_rounded,
                     onTap: _toggleScreenShare,
@@ -998,7 +1048,7 @@ class _CallScreenState extends State<CallScreen>
     HapticService.vibrate(NovynHapticType.medium, category: HapticCategory.calls);
     try {
       await _ensureLocalMedia();
-      if (!mounted) return;
+      if (!mounted || _state != CallState.calling) return;
       if (widget.callExpiresAt != null &&
           !widget.callExpiresAt!.isAfter(DateTime.now())) {
         _rejectCall();
@@ -1064,6 +1114,8 @@ class _CallScreenState extends State<CallScreen>
       NotificationService.setActiveCallActionHandler(null);
       unawaited(NotificationService.clearActiveCallNotification());
       unawaited(CallPlatformService.setCallActive(false));
+      unawaited(_webrtc.stopLocalMediaCapture());
+      if (WebRTC.platformIsAndroid) unawaited(AudioManagerService.resetMode());
     }
     CallPlatformService.setPipListener(null);
     _timer?.cancel();
@@ -1114,7 +1166,7 @@ class _CallScreenState extends State<CallScreen>
   }
 
   Widget _buildSystemPipContent() {
-    final hasScreen = _hasAnyScreenShare;
+    final hasScreen = _hasAnyScreenShare && !_isScreenSharingLocal;
     final hasRemoteVideo = _showVideo && _webrtc.remoteStream != null;
     return ClipRRect(
       borderRadius: BorderRadius.circular(14),
@@ -1132,7 +1184,7 @@ class _CallScreenState extends State<CallScreen>
           ),
           if (hasScreen)
             RTCVideoView(
-              _isScreenSharingLocal ? _webrtc.localScreenRenderer : _webrtc.remoteScreenRenderer,
+              _webrtc.remoteScreenRenderer,
               objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
             )
           else if (hasRemoteVideo)

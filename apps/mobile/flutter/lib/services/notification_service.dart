@@ -2381,22 +2381,70 @@ class NotificationService {
                 Navigator.of(dialogContext).pop(false);
               }
             });
-            return AlertDialog(
-            title: const Text('Group call invitation'),
-            content: Text(inviterName + ' invited you to a ' +
-                (invitation['isVideo'] == true ? 'video' : 'voice') +
-                ' call. Join the conversation?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text('Decline'),
+            return Dialog(
+              backgroundColor: const Color(0xFF202127),
+              insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(28),
               ),
-              FilledButton(
-                onPressed: () => Navigator.pop(dialogContext, true),
-                child: const Text('Join call'),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    UserAvatar(name: inviterName, photoUrl: '', radius: 38),
+                    const SizedBox(height: 18),
+                    Text(
+                      inviterName,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 21,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    Text(
+                      'Incoming group ${invitation['isVideo'] == true ? 'video' : 'voice'} call',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white70, fontSize: 14),
+                    ),
+                    const SizedBox(height: 26),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => Navigator.pop(dialogContext, false),
+                            icon: const Icon(Icons.call_end_rounded),
+                            label: const Text('Decline'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFFFF7373),
+                              side: const BorderSide(color: Color(0x66FF7373)),
+                              padding: const EdgeInsets.symmetric(vertical: 13),
+                              shape: const StadiumBorder(),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: () => Navigator.pop(dialogContext, true),
+                            icon: const Icon(Icons.call_rounded),
+                            label: const Text('Join'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFF20B866),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 13),
+                              shape: const StadiumBorder(),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ],
-          );
+            );
           },
         );
         invitationExpiryTimer?.cancel();

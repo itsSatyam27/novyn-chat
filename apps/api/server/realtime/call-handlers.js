@@ -246,28 +246,34 @@ function registerCallHandlers(socket, deps) {
       if (!active || active.peerKey !== friendKey || active.callId !== callId) return;
       clearRingingTimer(callId);
       if (active.status === "ringing") {
-        const callerKey = reason === "Call declined" ? friendKey : userKey;
-        const missedKey = reason === "Call declined" ? userKey : friendKey;
+        // Determine the call direction from the authenticated call record,
+        // never from a client supplied reason string. Only the callee can
+        // receive a missed-call notification; a caller who hangs up while
+        // ringing must not be told that they missed their own call.
+        const callerKey = normalizeName(active.callerKey || friendKey);
+        const calleeKey = callerKey === userKey ? friendKey : userKey;
         const caller = users.get(callerKey);
-        const receiver = users.get(missedKey);
+        const receiver = users.get(calleeKey);
         const entry = {
           callId,
           callerId: caller?.username || callerKey,
-          receiverId: receiver?.username || missedKey,
+          receiverId: receiver?.username || calleeKey,
           type: active.type || "voice",
           status: "missed",
           duration: 0,
           createdAt: new Date().toISOString(),
         };
-        recordCallLog?.(missedKey, entry);
+        recordCallLog?.(calleeKey, entry);
         const missedCaller = users.get(callerKey);
         const missedName = missedCaller?.username || callerKey;
-        if (reason === "Call declined") {
-          Promise.resolve(sendPushToUser?.(userKey, {
+        if (userKey === calleeKey) {
+          // The callee declined from the app or its incoming-call alert.
+          // Clear that alert without posting a missed-call alert to the caller.
+          Promise.resolve(sendPushToUser?.(calleeKey, {
             type: "call", callStatus: "ended", callId, chat: missedName, isVideo: active.type === "video",
           })).catch(() => {});
         } else {
-          Promise.resolve(sendPushToUser?.(missedKey, {
+          Promise.resolve(sendPushToUser?.(calleeKey, {
             type: "call", callStatus: "missed", title: "Missed call",
             body: "You missed a call from " + (missedCaller?.displayName || missedName),
             chat: missedName, kind: "friend", callId, isVideo: active.type === "video", tag: "call-" + callId,
