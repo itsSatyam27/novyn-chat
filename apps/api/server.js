@@ -2786,6 +2786,7 @@ async function dispatchPasswordResetCode(user, code) {
     "Novyn Team",
   ].join("\n");
 
+  let timeoutId;
   try {
     const mailPayload = {
       from: SMTP_FROM,
@@ -2794,20 +2795,43 @@ async function dispatchPasswordResetCode(user, code) {
       text,
       ...(SMTP_REPLY_TO ? { replyTo: SMTP_REPLY_TO } : {}),
     };
-    await Promise.race([
+    const delivery = await Promise.race([
       passwordResetMailer.sendMail(mailPayload),
       new Promise((_, reject) => {
-        setTimeout(() => reject(new Error("SMTP send timeout")), SMTP_SEND_TIMEOUT_MS);
+        timeoutId = setTimeout(
+          () => reject(new Error("SMTP send timeout")),
+          SMTP_SEND_TIMEOUT_MS,
+        );
       }),
     ]);
+    const accepted = Array.isArray(delivery?.accepted)
+      ? delivery.accepted.map(normalizeEmail)
+      : null;
+    const rejected = Array.isArray(delivery?.rejected)
+      ? delivery.rejected.map(normalizeEmail)
+      : [];
+    if (rejected.includes(email) || (accepted && !accepted.includes(email))) {
+      console.warn("[NovynEmail] SMTP did not accept the password-reset recipient.");
+      return false;
+    }
     return true;
   } catch (err) {
-    console.warn(`Failed to send password reset email to ${email}:`, err?.message || err);
+    const diagnostic = toDisplayName(err?.response || err?.message || "SMTP error")
+      .replaceAll(email, maskEmailAddress(email))
+      .slice(0, 240);
+    console.warn("[NovynEmail] Password-reset SMTP delivery failed:", {
+      code: toDisplayName(err?.code) || "unknown",
+      responseCode: Number(err?.responseCode) || 0,
+      command: toDisplayName(err?.command) || "",
+      diagnostic,
+    });
     if (PASSWORD_RESET_LOG_CODES) {
       console.log(`[Password reset code fallback] ${email}: ${resetCode}`);
       return true;
     }
     return false;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
   }
 }
 
@@ -6642,6 +6666,75 @@ app.post("/api/auth/logout", createIpRateLimiter({ getStore: () => httpRateLimit
   res.json({ ok: true });
 });
 
+
+app.post("/api/account/password-reset/request",
+  createIpRateLimiter({ getStore: () => httpRateLimits }, "account-password-reset-request", 5, 15 * 60 * 1000),
+  requireCsrf,
+  requireUser,
+  async (req, res) => {
+    pruneExpiredPasswordResetTokens();
+    const user = users.get(normalizeName(req.userKey));
+    const userKey = normalizeName(user?.username || req.userKey);
+    if (!user?.isRegistered || !normalizeEmail(user.email)) {
+      res.status(400).json({
+        ok: false,
+        message: "No account email is linked. Add an email address before resetting your password.",
+      });
+      return;
+    }
+    if (!isPasswordResetDeliveryAvailable()) {
+      res.status(503).json({
+        ok: false,
+        message: "Password reset email delivery is not configured. Please contact Novyn support.",
+      });
+      return;
+    }
+
+    const rate = canIssuePasswordReset(userKey);
+    if (!rate.allowed) {
+      res.status(429).json({ ok: false, message: rate.message });
+      return;
+    }
+
+    const previousRate = passwordResetRate.get(userKey);
+    const previousRateSnapshot = previousRate ? { ...previousRate } : null;
+    markPasswordResetIssued(userKey, rate.state);
+
+    const token = createResetToken();
+    const salt = crypto.randomBytes(8).toString("hex");
+    const tokenHash = createResetTokenHash(token, salt);
+    const tokenId = createResetTokenId();
+    const dispatched = await dispatchPasswordResetCode(user, token);
+    if (!dispatched) {
+      if (passwordResetRate.get(userKey) === rate.state) {
+        if (previousRateSnapshot) passwordResetRate.set(userKey, previousRateSnapshot);
+        else passwordResetRate.delete(userKey);
+      }
+      res.status(502).json({
+        ok: false,
+        message: "Novyn could not deliver the reset email. Check the email service configuration and try again.",
+      });
+      return;
+    }
+
+    // Keep the previous code valid until the new code has actually been
+    // accepted by the configured mail provider.
+    const previousTokenId = passwordResetByUser.get(userKey);
+    if (previousTokenId) dropPasswordResetTokenById(previousTokenId);
+    passwordResetTokens.set(tokenId, {
+      userKey,
+      salt,
+      tokenHash,
+      expiresAt: Date.now() + PASSWORD_RESET_CODE_TTL_MS,
+      attemptsLeft: PASSWORD_RESET_MAX_ATTEMPTS,
+    });
+    passwordResetByUser.set(userKey, tokenId);
+    res.json({
+      ok: true,
+      message: `Reset code sent to ${maskEmailAddress(user.email)}.`,
+    });
+  }
+);
 
 app.post("/api/auth/password-reset/request",
   createIpRateLimiter({ getStore: () => httpRateLimits }, "auth-password-reset-request", 10, 15 * 60 * 1000),
