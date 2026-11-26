@@ -1839,7 +1839,9 @@ class NotificationService {
         context.mounted) {
       final response = localLaunch?.notificationResponse;
       final actionId = response?.actionId ?? '';
-      if (actionId == 'incoming_call_answer' ||
+      if (actionId == 'backup_cancel') {
+        _backupCancelHandler?.call();
+      } else if (actionId == 'incoming_call_answer' ||
           actionId == 'incoming_call_decline') {
         unawaited(_handleIncomingCallAction(
           actionId,
