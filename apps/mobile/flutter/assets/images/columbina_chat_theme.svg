@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1600" preserveAspectRatio="xMidYMid slice">
+<defs>
+ <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#171b48"/><stop offset=".55" stop-color="#4a478d"/><stop offset="1" stop-color="#9586d8"/></linearGradient>
+ <radialGradient id="glow"><stop stop-color="#e8dfff" stop-opacity=".8"/><stop offset="1" stop-color="#9e8ef9" stop-opacity="0"/></radialGradient>
+ <linearGradient id="hair" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#292750"/><stop offset=".55" stop-color="#171632"/><stop offset="1" stop-color="#6661a4"/></linearGradient>
+ <linearGradient id="dress" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#d5d2fa"/><stop offset=".5" stop-color="#8d83c6"/><stop offset="1" stop-color="#37365f"/></linearGradient>
+ <filter id="blur"><feGaussianBlur stdDeviation="38"/></filter>
+</defs>
+<rect width="900" height="1600" fill="url(#sky)"/>
+<ellipse cx="550" cy="380" rx="330" ry="280" fill="url(#glow)" filter="url(#blur)"/>
+<g fill="#d7d0ff" opacity=".8"><circle cx="84" cy="210" r="3"/><circle cx="180" cy="390" r="2"/><circle cx="780" cy="190" r="3"/><circle cx="730" cy="530" r="2"/><circle cx="335" cy="140" r="3"/><circle cx="490" cy="680" r="2"/><circle cx="118" cy="760" r="3"/><circle cx="820" cy="930" r="2"/><circle cx="245" cy="1020" r="3"/><circle cx="680" cy="1220" r="2"/><circle cx="360" cy="1460" r="3"/></g>
+<g fill="none" stroke="#bdb5ff" stroke-opacity=".22" stroke-width="3"><ellipse cx="450" cy="500" rx="410" ry="220" transform="rotate(-25 450 500)"/><ellipse cx="450" cy="500" rx="360" ry="280" transform="rotate(35 450 500)"/></g>
+<path d="M530 235a170 170 0 1 0 176 235a145 145 0 1 1-176-235" fill="#e5dfff"/><path d="M530 235a170 170 0 1 0 176 235" fill="none" stroke="#f5eeff" stroke-width="12" opacity=".18"/>
+<g fill="#dcd6ff" opacity=".9"><path d="M120 480q-80-90-42-150q20 90 88 105q-30 5-46 45z"/><path d="M770 670q-80-90-42-150q20 90 88 105q-30 5-46 45z"/><path d="M180 910q-80-90-42-150q20 90 88 105q-30 5-46 45z"/></g>
+<g fill="#a79be2" opacity=".55"><path d="M0 740q160-140 270-40q130-120 260-20q160-130 370 30v890H0z"/><path d="M0 1040q180-180 330-80q180-170 330-40q100-70 240 10v670H0z"/></g>
+<!-- rear-view celestial maiden -->
+<path d="M330 850q-150 90-240 400l-90 350h900l-160-420q-90-250-250-340z" fill="url(#dress)" opacity=".9"/>
+<path d="M360 550q-100 60-130 230q-20 150-140 270q150 0 260-170q70 160 210 240q-110-210-60-390q-90-200-140-180z" fill="url(#hair)"/>
+<path d="M350 600q-80 250-180 430q130-50 220-210q-50 220-200 420q210-120 280-330q70 240 200 320q-110-220-100-430q-50-210-220-200z" fill="#28264f"/>
+<path d="M280 830q-100 200-250 500q180-100 300-360q-40 300-220 560q260-150 340-440q100 260 250 370q-140-300-120-540q-100-170-300-90z" fill="url(#hair)" opacity=".9"/>
+<path d="M345 700q80-40 130 20q-80 30-130-20z" fill="#d7cfff"/><path d="M340 710q-60 30-80 70q70-15 110-55" fill="#a89bdf"/>
+<g fill="#d5cfff" opacity=".8"><path d="M260 900q-100 30-120 120q70-60 140-60z"/><path d="M610 1060q100 20 140 120q-70-60-130-80z"/><path d="M190 1290q-90 40-110 130q70-50 120-110z"/></g>
+<g fill="#c4b9fa" opacity=".45"><path d="M90 1450q110-150 190-40q80-100 150 0q100-140 210-30q70-90 260 20v200H0z"/></g>
+</svg>
