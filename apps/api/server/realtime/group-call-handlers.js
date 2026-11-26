@@ -32,7 +32,7 @@ function registerGroupCallHandlers(socket, deps) {
   const userKey = normalizeName(socket.data?.userKey || '');
   if (!userKey) return;
 
-  const safeName = (value) => toDisplayName(value).slice(0, 64);
+  const safeName = (value) => toDisplayName(value).slice(0, 128);
   const displayName = (key) => {
     const user = users.get(key);
     return user?.displayName || user?.username || key;
@@ -369,6 +369,8 @@ function registerGroupCallHandlers(socket, deps) {
   });
 
   socket.on('disconnect', () => {
+    const currentSocketId = onlineUsers.get(userKey);
+    if (currentSocketId && currentSocketId !== socket.id) return;
     const groupCallId = registry.userSessions.get(userKey);
     const session = groupCallId ? registry.sessions.get(groupCallId) : null;
     if (session) removeParticipant(session, userKey, 'disconnected');
