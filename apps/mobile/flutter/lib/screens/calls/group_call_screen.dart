@@ -310,9 +310,13 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
           widget.initialScreenStreamId != null) {
         peer.setRemoteScreenShare(widget.initialScreenStreamId);
       }
-      final queued = _pendingSignals.remove(key) ?? const [];
-      for (final signal in queued) {
-        await _applySignal(peer, username, signal);
+      // Signals may arrive while the initial batch is being drained.
+      // Continue until the peer has no queued offer/answer/ICE packets left.
+      while (_pendingSignals.containsKey(key)) {
+        final queued = _pendingSignals.remove(key) ?? const [];
+        for (final signal in queued) {
+          await _applySignal(peer, username, signal);
+        }
       }
     } catch (error) {
       _peers.remove(key);
