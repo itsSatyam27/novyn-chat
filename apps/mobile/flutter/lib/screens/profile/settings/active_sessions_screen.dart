@@ -161,9 +161,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
               ),
               const SizedBox(height: 10),
               _ThisDeviceCard(session: current),
-              const SizedBox(height: 18),
-
-              const SizedBox(height: 2),
+              const SizedBox(height: 20),
               // Pair a web device action card
               _PairWebDeviceCard(
                 onTap: () {
@@ -377,7 +375,6 @@ class _ActiveSessionsHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
     final ink = Theme.of(context).colorScheme.onSurface;
-    final border = Theme.of(context).colorScheme.outlineVariant;
 
     return Padding(
       padding: const EdgeInsets.only(top: 4, bottom: 8),
