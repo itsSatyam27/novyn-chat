@@ -990,6 +990,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                                     snapshot.peerIsTyping,
                                     peerIsRecordingVoice:
                                         snapshot.peerIsRecordingVoice,
+                                    isColumbinaTheme: snapshot.chatWallpaper == 'theme:columbina',
                                   ),
                       ),
                       if (_showJumpToLatest && messages.isNotEmpty)
@@ -1351,6 +1352,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       case 'mute-off':
         await _setPeerMuted(false);
         break;
+      case 'theme':
+        _showChatThemePicker();
+        break;
       case 'wallpaper':
         _showWallpaperPicker();
         break;
@@ -1670,6 +1674,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     List<Message> messages,
     bool peerIsTyping, {
     bool peerIsRecordingVoice = false,
+    bool isColumbinaTheme = false,
   }) {
     if (messages.length > _lastMessageCount) {
       final addedMessages = messages.length - _lastMessageCount;
@@ -1806,6 +1811,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
             messageStatus: socket.messageStatusFor(current.id),
             myUid: _myUid ?? '',
             quickEmojis: _quickEmojis,
+            isColumbinaTheme: isColumbinaTheme,
             onReply: _startReply,
             onForward: _showForwardDialog,
           ),
@@ -4392,6 +4398,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
 
   BoxDecoration _wallpaperDecoration(String wallpaper) {
     final value = wallpaper.trim();
+    if (value == 'theme:columbina') {
+      return const BoxDecoration(
+        image: DecorationImage(
+          image: AssetImage('assets/images/columbina_chat_theme.svg'),
+          fit: BoxFit.cover,
+        ),
+      );
+    }
     final defaultBg = Theme.of(context).brightness == Brightness.dark
         ? const Color(0xFF0B0B17)
         : const Color(0xFFF7F6FF);
@@ -4406,6 +4420,87 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       return BoxDecoration(color: color);
     }
     return BoxDecoration(color: defaultBg);
+  }
+
+  Future<void> _showChatThemePicker() async {
+    final current = _socketService.chatWallpaper == 'theme:columbina';
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        final scheme = Theme.of(sheetContext).colorScheme;
+        return SafeArea(
+          top: false,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 26),
+            decoration: BoxDecoration(
+              color: scheme.surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(child: Container(width: 38, height: 4, decoration: BoxDecoration(color: scheme.onSurfaceVariant.withValues(alpha: .35), borderRadius: BorderRadius.circular(8)))),
+                const SizedBox(height: 18),
+                Row(children: [
+                  Icon(Icons.palette_rounded, color: scheme.primary, size: 26),
+                  const SizedBox(width: 12),
+                  const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Chat themes', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+                    Text('Personalise this conversation'),
+                  ])),
+                ]),
+                const SizedBox(height: 18),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: SizedBox(
+                    height: 230,
+                    width: double.infinity,
+                    child: Stack(fit: StackFit.expand, children: [
+                      Image.asset('assets/images/columbina_chat_theme.svg', fit: BoxFit.cover),
+                      Align(alignment: Alignment.topLeft, child: Container(
+                        margin: const EdgeInsets.all(14), padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(color: const Color(0xE52B2855), borderRadius: BorderRadius.circular(18)),
+                        child: const Text('Moonlight whispers…', style: TextStyle(color: Color(0xFFEAE6FF))),
+                      )),
+                      Align(alignment: Alignment.bottomRight, child: Container(
+                        margin: const EdgeInsets.all(14), padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFFB8A8F7),Color(0xFF9686DF)]), borderRadius: BorderRadius.circular(18)),
+                        child: const Text('Moon’s Lullaby 🌙', style: TextStyle(color: Color(0xFF252344))),
+                      )),
+                    ]),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Container(width: 48, height: 48, decoration: BoxDecoration(color: const Color(0xFF7669C6), borderRadius: BorderRadius.circular(14)), child: const Icon(Icons.nightlight_round, color: Colors.white)),
+                  title: const Text('Columbina · Moon’s Lullaby', style: TextStyle(fontWeight: FontWeight.w700)),
+                  subtitle: const Text('Moonlit violet · feathered celestial wallpaper'),
+                  trailing: current ? const Icon(Icons.check_circle, color: Color(0xFF9D8CF0)) : null,
+                  onTap: () => Navigator.pop(sheetContext, 'theme:columbina'),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Container(width: 48, height: 48, decoration: BoxDecoration(color: scheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(14)), child: Icon(Icons.refresh_rounded, color: scheme.onSurface)),
+                  title: const Text('Default chat style', style: TextStyle(fontWeight: FontWeight.w700)),
+                  subtitle: const Text('Restore Novyn wallpaper and bubble colors'),
+                  onTap: () => Navigator.pop(sheetContext, 'default'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (selected == null || !mounted) return;
+    _socketService.setChatWallpaper(
+      selected == 'default' ? '' : selected,
+      widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
+      isGroup: widget.isGroup,
+    );
   }
 
   Future<void> _showWallpaperPicker() async {
@@ -5193,6 +5288,7 @@ class _MessageBubble extends StatelessWidget {
   final String messageStatus;
   final String myUid;
   final List<String> quickEmojis;
+  final bool isColumbinaTheme;
   final ValueChanged<dynamic>? onReply;
   final ValueChanged<dynamic>? onForward;
 
@@ -5205,6 +5301,7 @@ class _MessageBubble extends StatelessWidget {
     this.messageStatus = 'sent',
     this.myUid = '',
     this.quickEmojis = defaultQuickReactionEmojis,
+    this.isColumbinaTheme = false,
     this.onReply,
     this.onForward,
   });
@@ -5287,9 +5384,9 @@ class _MessageBubble extends StatelessWidget {
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                               colors: [
-                                Theme.of(context).colorScheme.primary,
+                                isColumbinaTheme ? const Color(0xFFB8A8F7) : Theme.of(context).colorScheme.primary,
                                 Color.lerp(
-                                  Theme.of(context).colorScheme.primary,
+                                  isColumbinaTheme ? const Color(0xFF9686DF) : Theme.of(context).colorScheme.primary,
                                   Colors.black,
                                   0.08,
                                 )!,
@@ -5298,16 +5395,20 @@ class _MessageBubble extends StatelessWidget {
                           : null,
                       color: isMe
                           ? null
-                          : (Theme.of(context).brightness == Brightness.dark
-                              ? const Color(0xFF1D1C2A)
-                              : Colors.white),
+                          : (isColumbinaTheme
+                              ? const Color(0xE52B2855)
+                              : (Theme.of(context).brightness == Brightness.dark
+                                  ? const Color(0xFF1D1C2A)
+                                  : Colors.white)),
                       border: isMe
                           ? null
                           : Border.all(
-                              color: Theme.of(context).brightness ==
-                                      Brightness.dark
-                                  ? const Color(0x18BEB8FF)
-                                  : const Color(0x166D5DFC),
+                              color: isColumbinaTheme
+                                  ? const Color(0x668F88D9)
+                                  : (Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? const Color(0x18BEB8FF)
+                                      : const Color(0x166D5DFC)),
                             ),
                       borderRadius: BorderRadius.only(
                         topLeft: const Radius.circular(18),
@@ -7729,8 +7830,15 @@ class _ChatMenuPopover extends StatelessWidget {
                       tint: Color(0xFF4388D7),
                     ),
                     const _MenuRow(
+                      value: 'theme',
+                      icon: Icons.palette_rounded,
+                      title: 'Chat Theme',
+                      tint: Color(0xFF8D78E8),
+                      chevron: true,
+                    ),
+                    const _MenuRow(
                       value: 'wallpaper',
-                      icon: Icons.palette_outlined,
+                      icon: Icons.wallpaper_rounded,
                       title: 'Chat wallpaper',
                       tint: Color(0xFFC83C77),
                     ),
