@@ -1,8 +1,12 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../services/auth_service.dart';
 import '../../../services/backup_automation_service.dart';
+import '../../../services/backup_password_service.dart';
 import '../../../services/chat_backup_service.dart';
 import '../../../services/google_drive_backup_service.dart';
 import '../../../services/socket_service.dart';
@@ -17,6 +21,7 @@ class BackupRestoreScreen extends StatefulWidget {
 class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
   bool _working = false;
   bool _dailyEnabled = false;
+  String _networkPreference = BackupAutomationService.wifiOnly;
   DateTime? _lastAutomaticBackup;
   String? _activeAction;
 
@@ -30,10 +35,12 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
     final username = context.read<AuthService>().user?.username;
     final enabled = await BackupAutomationService.isEnabled(username: username);
     final last = await BackupAutomationService.lastSuccessfulBackup(username: username);
+    final network = await BackupAutomationService.networkPreference();
     if (!mounted) return;
     setState(() {
       _dailyEnabled = enabled;
       _lastAutomaticBackup = last;
+      _networkPreference = network;
     });
   }
 
