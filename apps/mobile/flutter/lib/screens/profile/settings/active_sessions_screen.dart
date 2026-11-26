@@ -149,6 +149,19 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
               ),
               const SizedBox(height: 14),
 
+              // THIS DEVICE Section
+              Text(
+                'This device',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: -0.2,
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 10),
+              _ThisDeviceCard(session: current),
+              const SizedBox(height: 20),
               // Pair a web device action card
               _PairWebDeviceCard(
                 onTap: () {
@@ -161,43 +174,30 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
               ),
               const SizedBox(height: 22),
 
-              // THIS DEVICE Section
-              Text(
-                'THIS DEVICE',
-                style: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.1,
-                  color: colors.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 10),
-              _ThisDeviceCard(session: current),
               const SizedBox(height: 22),
-
               // OTHER DEVICES Section
               Row(
                 children: [
                   Expanded(
                     child: Text(
-                      'OTHER DEVICES',
+                      'Other devices',
                       style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.1,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.2,
                         color: colors.onSurfaceVariant,
                       ),
                     ),
                   ),
                   if (!_loading && remote.isNotEmpty)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
                       decoration: BoxDecoration(
                         color: isDark ? const Color(0xFF28234B) : const Color(0xFFEDE9FE),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Text(
-                        '${remote.length} active',
+                        '${remote.length}',
                         style: const TextStyle(
                           color: Color(0xFF6D5DFC),
                           fontWeight: FontWeight.w800,
@@ -230,21 +230,31 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                   'Paired web devices and other signed-in devices will appear here.',
                 )
               else
-                ...remote.map((session) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _RemoteDeviceCard(
-                        session: session,
-                        revoking: _revokingId == session['id']?.toString(),
-                        onSignOut: () => _revokeOne(session),
-                      ),
-                    )),
+                Container(
+                  decoration: BoxDecoration(
+                    color: NovynTheme.cardBg(context),
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(color: colors.outlineVariant.withValues(alpha: .45)),
+                  ),
+                  child: Column(
+                    children: [
+                      for (var index = 0; index < remote.length; index++)
+                        _RemoteDeviceCard(
+                          session: remote[index],
+                          revoking: _revokingId == remote[index]['id']?.toString(),
+                          onSignOut: () => _revokeOne(remote[index]),
+                          showDivider: index != remote.length - 1,
+                        ),
+                    ],
+                  ),
+                ),
               const SizedBox(height: 8),
 
               // Sign out all other devices button
               if (!_loading && remote.isNotEmpty) ...[
                 SizedBox(
                   height: 52,
-                  child: FilledButton.icon(
+                  child: OutlinedButton.icon(
                     onPressed: _isRevokingAll ? null : _revokeAll,
                     icon: _isRevokingAll
                         ? const SizedBox(
@@ -252,26 +262,22 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                             height: 18,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: Colors.white,
+                              color: const Color(0xFFC52E25),
                             ),
                           )
                         : const Icon(Icons.logout_rounded, size: 20),
                     label: Text(
                       _isRevokingAll ? 'Signing out…' : 'Sign out all other devices',
                       style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
                         letterSpacing: -0.2,
                       ),
                     ),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFFE11D48),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      elevation: 2,
-                      shadowColor: const Color(0xFFE11D48).withValues(alpha: 0.35),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFC52E25),
+                      side: const BorderSide(color: Color(0xFFF2BEBE), width: 1.4),
+                      shape: const StadiumBorder(),
                     ),
                   ),
                 ),
@@ -285,7 +291,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                   color: isDark
                       ? const Color(0xFF202035)
                       : const Color(0xFFF0EDFF).withValues(alpha: 0.85),
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(24),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -300,8 +306,8 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
                       child: Text(
                         'Signing out a device revokes its Novyn session. It will need to sign in or pair again.',
                         style: TextStyle(
-                          fontSize: 12,
-                          height: 1.45,
+                          fontSize: 13,
+                          height: 1.5,
                           color: colors.onSurfaceVariant,
                         ),
                       ),
@@ -323,7 +329,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: NovynTheme.cardBg(context),
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(28),
         border: Border.all(color: colors.outlineVariant),
       ),
       child: Column(
@@ -369,7 +375,6 @@ class _ActiveSessionsHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
     final ink = Theme.of(context).colorScheme.onSurface;
-    final border = Theme.of(context).colorScheme.outlineVariant;
 
     return Padding(
       padding: const EdgeInsets.only(top: 4, bottom: 8),
@@ -377,16 +382,15 @@ class _ActiveSessionsHeader extends StatelessWidget {
         children: [
           Material(
             color: dark ? const Color(0xFF161726) : Colors.white,
-            borderRadius: BorderRadius.circular(14),
+            shape: const CircleBorder(),
             child: InkWell(
               onTap: onBack,
-              borderRadius: BorderRadius.circular(14),
+              customBorder: const CircleBorder(),
               child: Container(
-                width: 42,
-                height: 42,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: border),
+                  shape: BoxShape.circle,
                 ),
                 child: Icon(Icons.arrow_back_rounded, color: ink, size: 20),
               ),
@@ -398,7 +402,7 @@ class _ActiveSessionsHeader extends StatelessWidget {
                 title,
                 style: TextStyle(
                   color: ink,
-                  fontSize: 18,
+                  fontSize: 22,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -0.3,
                 ),
@@ -407,18 +411,17 @@ class _ActiveSessionsHeader extends StatelessWidget {
           ),
           Material(
             color: dark ? const Color(0xFF161726) : Colors.white,
-            borderRadius: BorderRadius.circular(14),
+            shape: const CircleBorder(),
             child: InkWell(
               onTap: onRefresh,
-              borderRadius: BorderRadius.circular(14),
+              customBorder: const CircleBorder(),
               child: Container(
-                width: 42,
-                height: 42,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: border),
+                  shape: BoxShape.circle,
                 ),
-                child: Icon(Icons.refresh_rounded, color: ink, size: 20),
+                child: Icon(Icons.refresh_rounded, color: ink, size: 22),
               ),
             ),
           ),
@@ -430,82 +433,46 @@ class _ActiveSessionsHeader extends StatelessWidget {
 
 class _PairWebDeviceCard extends StatelessWidget {
   final VoidCallback onTap;
-
   const _PairWebDeviceCard({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
+    final colors = Theme.of(context).colorScheme;
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(28),
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: isDark
-                ? const Color(0xFF221F3A)
-                : const Color(0xFFF5F3FF).withValues(alpha: 0.9),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(
-              color: const Color(0xFF6D5DFC).withValues(alpha: 0.35),
-              width: 1.2,
-            ),
+            color: colors.primary.withValues(alpha: .09),
+            borderRadius: BorderRadius.circular(28),
           ),
           child: Row(
             children: [
               Container(
-                width: 48,
-                height: 48,
+                width: 48, height: 48,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF6D5DFC),
-                  borderRadius: BorderRadius.circular(15),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF6D5DFC).withValues(alpha: 0.28),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
+                  color: NovynTheme.cardBg(context),
+                  borderRadius: BorderRadius.circular(17),
                 ),
-                child: const Icon(
-                  Icons.grid_view_rounded,
-                  color: Colors.white,
-                  size: 22,
-                ),
+                child: Icon(Icons.qr_code_2_rounded, color: colors.primary, size: 25),
               ),
               const SizedBox(width: 14),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Pair a web device',
-                      style: TextStyle(
-                        fontFamily: 'PlusJakartaSans',
-                        fontSize: 15.5,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF6D5DFC),
-                      ),
-                    ),
-                    SizedBox(height: 3),
-                    Text(
-                      'Scan a code to link a browser',
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        color: Color(0xFF64748B),
-                      ),
-                    ),
+                    Text('Pair a web device',
+                      style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 16, fontWeight: FontWeight.w800, color: colors.primary)),
+                    const SizedBox(height: 3),
+                    Text('Scan a code to link a browser',
+                      style: TextStyle(fontSize: 13, color: colors.onSurfaceVariant)),
                   ],
                 ),
               ),
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: Color(0xFF6D5DFC),
-                size: 22,
-              ),
+              Icon(Icons.chevron_right_rounded, color: colors.primary, size: 26),
             ],
           ),
         ),
@@ -516,88 +483,58 @@ class _PairWebDeviceCard extends StatelessWidget {
 
 class _ThisDeviceCard extends StatelessWidget {
   final Map<String, dynamic>? session;
-
   const _ThisDeviceCard({this.session});
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final dark = theme.brightness == Brightness.dark;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: NovynTheme.cardBg(context),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: const Color(0xFF10B981).withValues(alpha: 0.55),
-          width: 1.2,
-        ),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: colors.outlineVariant.withValues(alpha: .45)),
       ),
-      child: Row(
+      child: Column(
         children: [
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF28234B) : const Color(0xFFEDE9FE),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Icon(
-              Icons.phone_android_rounded,
-              color: Color(0xFF6D5DFC),
-              size: 23,
-            ),
+          Row(
+            children: [
+              Container(
+                width: 48, height: 48,
+                decoration: BoxDecoration(
+                  color: colors.primary,
+                  borderRadius: BorderRadius.circular(17),
+                ),
+                child: const Icon(Icons.phone_android_rounded, color: Colors.white, size: 25),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('This device', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: colors.onSurface)),
+                    const SizedBox(height: 3),
+                    Text('Android · Current session', style: TextStyle(fontSize: 13, color: colors.onSurfaceVariant)),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'This device',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: colors.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  'Android · Current session',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: colors.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          const SizedBox(height: 14),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
             decoration: BoxDecoration(
-              color: const Color(0xFFE8F8F0),
-              borderRadius: BorderRadius.circular(16),
+              color: dark ? const Color(0xFF153E31) : const Color(0xFFDCF4E9),
+              borderRadius: BorderRadius.circular(18),
             ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.check_circle_rounded,
-                  size: 15,
-                  color: Color(0xFF10B981),
-                ),
-                SizedBox(width: 5),
-                Text(
-                  'Active',
-                  style: TextStyle(
-                    color: Color(0xFF10B981),
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
+            child: Row(children: [
+              const Icon(Icons.circle, size: 9, color: Color(0xFF16A36A)),
+              const SizedBox(width: 9),
+              const Text('Active now', style: TextStyle(color: Color(0xFF176844), fontSize: 14, fontWeight: FontWeight.w800)),
+            ]),
           ),
         ],
       ),
@@ -609,132 +546,88 @@ class _RemoteDeviceCard extends StatelessWidget {
   final Map<String, dynamic> session;
   final bool revoking;
   final VoidCallback onSignOut;
+  final bool showDivider;
 
   const _RemoteDeviceCard({
     required this.session,
     required this.revoking,
     required this.onSignOut,
+    this.showDivider = true,
   });
 
   String _relativeTime(DateTime time) {
     final difference = DateTime.now().difference(time.toLocal());
     if (difference.inMinutes < 1) return 'just now';
-    if (difference.inHours < 1) return '${difference.inMinutes}m ago';
-    if (difference.inDays < 1) return '${difference.inHours}h ago';
-    return '${difference.inDays}d ago';
+    if (difference.inHours < 1) return '${difference.inMinutes} minutes ago';
+    if (difference.inDays < 1) return '${difference.inHours} hours ago';
+    if (difference.inDays == 1) return 'yesterday';
+    return '${difference.inDays} days ago';
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isWeb = session['client'] == 'web';
     final deviceName = session['deviceName']?.toString().trim() ?? '';
-    final title = deviceName.isNotEmpty
-        ? deviceName
-        : (isWeb ? 'Chrome · Windows browser' : 'Mobile device');
-
+    final title = deviceName.isNotEmpty ? deviceName : (isWeb ? 'Web browser' : 'Mobile device');
     final rawActiveAt = session['lastActiveAt'];
     final activeAt = rawActiveAt is num && rawActiveAt > 0
         ? DateTime.fromMillisecondsSinceEpoch(rawActiveAt.toInt())
-        : rawActiveAt is String
-            ? DateTime.tryParse(rawActiveAt)
-            : null;
-    final activeLabel = activeAt == null ? 'Signed in' : 'Last active ${_relativeTime(activeAt)}';
+        : rawActiveAt is String ? DateTime.tryParse(rawActiveAt) : null;
+    final activeLabel = activeAt == null
+        ? (isWeb ? 'Web · Signed in' : 'Mobile · Signed in')
+        : '${isWeb ? 'Web' : 'Mobile'} · Active ${_relativeTime(activeAt)}';
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-      decoration: BoxDecoration(
-        color: NovynTheme.cardBg(context),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: colors.outlineVariant),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF28234B) : const Color(0xFFEDE9FE),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(
-              isWeb ? Icons.laptop_mac_rounded : Icons.phone_android_rounded,
-              color: const Color(0xFF6D5DFC),
-              size: 23,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w800,
-                    color: colors.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  activeLabel,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: colors.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: revoking ? null : onSignOut,
-              borderRadius: BorderRadius.circular(16),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                width: 48, height: 48,
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF381F26) : const Color(0xFFFEE8E8),
-                  borderRadius: BorderRadius.circular(16),
+                  color: colors.primary.withValues(alpha: .11),
+                  borderRadius: BorderRadius.circular(17),
                 ),
-                child: revoking
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Color(0xFFE11D48),
-                        ),
-                      )
-                    : const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.logout_rounded,
-                            size: 15,
-                            color: Color(0xFFDC2626),
-                          ),
-                          SizedBox(width: 6),
-                          Text(
-                            'Sign out',
-                            style: TextStyle(
-                              color: Color(0xFFDC2626),
-                              fontWeight: FontWeight.w800,
-                              fontSize: 12.5,
-                            ),
-                          ),
-                        ],
-                      ),
+                child: Icon(isWeb ? Icons.laptop_rounded : Icons.phone_android_rounded,
+                    color: colors.primary, size: 25),
               ),
-            ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: colors.onSurface)),
+                    const SizedBox(height: 3),
+                    Text(activeLabel, maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 13, color: colors.onSurfaceVariant)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Material(
+                color: const Color(0xFFFDE8E8),
+                shape: const CircleBorder(),
+                child: InkWell(
+                  onTap: revoking ? null : onSignOut,
+                  customBorder: const CircleBorder(),
+                  child: SizedBox(
+                    width: 44, height: 44,
+                    child: Center(
+                      child: revoking
+                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFC52E25)))
+                          : const Icon(Icons.logout_rounded, color: Color(0xFFC52E25), size: 22),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+        if (showDivider) Divider(height: 1, indent: 16, endIndent: 16, color: colors.outlineVariant.withValues(alpha: .55)),
+      ],
     );
   }
 }
