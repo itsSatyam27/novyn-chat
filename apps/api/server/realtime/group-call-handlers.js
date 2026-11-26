@@ -123,6 +123,7 @@ function registerGroupCallHandlers(socket, deps) {
     if (registry.userSessions.get(participantKey) === session.groupCallId) {
       registry.userSessions.delete(participantKey);
     }
+    session.mediaStates.delete(participantKey);
     if (session.screenSharer === participantKey) {
       session.screenSharer = null;
       session.screenStreamId = null;
