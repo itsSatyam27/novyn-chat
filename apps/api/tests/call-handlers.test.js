@@ -125,3 +125,97 @@ test('unanswered outgoing calls send a missed-call push only to the receiver', (
   );
   assert.equal(deps.activeCalls.size, 0);
 });
+
+test('only the invited recipient can accept a ringing call, and acceptance is single-use', () => {
+  const deps = makeDeps();
+  const caller = makeSocket('alice');
+  const recipient = makeSocket('bob');
+  registerCallHandlers(caller, deps);
+  registerCallHandlers(recipient, deps);
+
+  caller.handlers.get('call_start')({ to: 'bob', callId: 'accept-once' });
+  let callerAck = null;
+  caller.handlers.get('call_accept')(
+    { to: 'bob', callId: 'accept-once' },
+    (result) => { callerAck = result; },
+  );
+  assert.equal(callerAck?.ok, false);
+  assert.equal(deps.activeCalls.get('alice')?.status, 'ringing');
+  assert.equal(deps.delivered.some((event) =>
+    event.name === 'call_accepted' && event.payload.callId === 'accept-once',
+  ), false);
+
+  let recipientAck = null;
+  recipient.handlers.get('call_accept')(
+    { to: 'alice', callId: 'accept-once' },
+    (result) => { recipientAck = result; },
+  );
+  assert.deepEqual(recipientAck, {
+    ok: true, callId: 'accept-once', status: 'connected',
+  });
+  assert.equal(deps.activeCalls.get('alice')?.status, 'connected');
+  assert.equal(deps.delivered.some((event) =>
+    event.socketId === 'alice-socket' &&
+    event.name === 'call_accepted' &&
+    event.payload.callId === 'accept-once',
+  ), true);
+
+  let repeatedAck = null;
+  recipient.handlers.get('call_accept')(
+    { to: 'alice', callId: 'accept-once' },
+    (result) => { repeatedAck = result; },
+  );
+  assert.equal(repeatedAck?.ok, false);
+  assert.equal(deps.delivered.filter((event) =>
+    event.name === 'call_accepted' && event.payload.callId === 'accept-once',
+  ).length, 1);
+});
+
+test('screen-share state and WebRTC presentation signals reach the peer', () => {
+  const deps = makeDeps();
+  const caller = makeSocket('alice');
+  const recipient = makeSocket('bob');
+  registerCallHandlers(caller, deps);
+  registerCallHandlers(recipient, deps);
+
+  caller.handlers.get('call_start')({ to: 'bob', isVideo: true, callId: 'share-call' });
+  recipient.handlers.get('call_accept')(
+    { to: 'alice', callId: 'share-call' },
+    () => {},
+  );
+
+  caller.handlers.get('call_screen_share_state')({
+    to: 'bob',
+    callId: 'share-call',
+    streamId: 'alice-media-stream',
+    replacesVideoTrack: true,
+  });
+  const shareState = deps.delivered.find((event) =>
+    event.socketId === 'bob-socket' &&
+    event.name === 'call_screen_share_changed',
+  );
+  assert.deepEqual(shareState?.payload, {
+    from: 'alice',
+    callId: 'share-call',
+    streamId: 'alice-media-stream',
+    replacesVideoTrack: true,
+  });
+
+  caller.handlers.get('webrtc_signal')({
+    to: 'bob',
+    callId: 'share-call',
+    signal: {
+      type: 'screen_share_state',
+      isSharing: true,
+      streamId: 'alice-media-stream',
+      replacesVideoTrack: true,
+    },
+  });
+  const browserCompatibleSignal = deps.delivered.find((event) =>
+    event.socketId === 'bob-socket' &&
+    event.name === 'webrtc_signal' &&
+    event.payload.signal?.type === 'screen_share_state',
+  );
+  assert.equal(browserCompatibleSignal?.payload.signal.replacesVideoTrack, true);
+  assert.equal(browserCompatibleSignal?.payload.signal.streamId, 'alice-media-stream');
+});

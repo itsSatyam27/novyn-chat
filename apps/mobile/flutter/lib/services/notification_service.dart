@@ -1764,44 +1764,16 @@ class NotificationService {
     };
     _socket!.onGroupCallInvitationCallback = (data) {
       if (!context.mounted) return;
-      final preferences = _settings;
       final inviter = data['invitedBy']?.toString().trim() ?? '';
       if (inviter.isEmpty) return;
-      if (preferences == null ||
-          !preferences.notificationsOn ||
-          _presenceAuth?.user?.presenceMode == 'busy' ||
-          _presenceAuth?.user?.presenceMode == 'invisible') return;
-      if (preferences.doNotDisturbEnabled &&
-          !preferences.favoriteChatIds.contains(inviter.toLowerCase())) return;
+      // A live invitation has already passed backend call-privacy checks.
+      // Notification settings only control notification delivery, not the
+      // foreground incoming-call prompt.
       unawaited(_openIncomingGroupCall(data, context));
     };
-    _socket!.onCallInviteCallback = (data) {
-      if (!context.mounted) return;
-      final caller = data['from']?.toString().trim() ?? '';
-      final callId = data['callId']?.toString().trim() ?? '';
-      if (caller.isEmpty || callId.isEmpty) return;
-      final preferences = _settings;
-      if (preferences == null ||
-          !preferences.notificationsOn ||
-          _presenceAuth?.user?.presenceMode == 'busy' ||
-          _presenceAuth?.user?.presenceMode == 'invisible') return;
-      if (preferences.doNotDisturbEnabled &&
-          !preferences.favoriteChatIds.contains(caller.toLowerCase())) {
-        return;
-      }
-      // This callback opens the active in-app call UI. The per-category
-      // notification preference only suppresses alert delivery, not calls
-      // while the app is already connected.
-      unawaited(
-        _openIncomingCall(
-          caller,
-          callId,
-          data['isVideo'] == true,
-          context,
-          expiresAt: int.tryParse(data['callExpiresAt']?.toString() ?? ''),
-        ),
-      );
-    };
+    // Direct socket invitations are owned by MainScreen. Keeping a second
+    // callback here used to overwrite that handler during async notification
+    // initialization and could leave a caller ringing until "missed call".
     _socket!.onAuthenticated = () {
       unawaited(_syncUserPreferences());
       unawaited(_syncDeviceToken());
@@ -2577,11 +2549,25 @@ class NotificationService {
       return;
     }
     try {
-      final peer = await context.read<FriendService>().getUser(caller);
-      if (peer == null || !context.mounted) return;
+      UserModel? peer;
+      try {
+        peer = await context.read<FriendService>().getUser(caller);
+      } catch (error) {
+        debugPrint('[NovynCalls] Caller profile lookup failed; using username: $error');
+      }
+      if (!context.mounted) return;
+      // A stale local contacts cache must not suppress an incoming call UI.
+      peer ??= UserModel(
+        uid: caller,
+        name: caller,
+        username: caller,
+        email: '',
+        bio: '',
+        createdAt: DateTime.now(),
+      );
       await Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => CallScreen(
-          peer: peer,
+          peer: peer!,
           callType: isVideo ? 'video' : 'voice',
           isIncoming: true,
           callerId: caller,

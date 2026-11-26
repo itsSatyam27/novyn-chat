@@ -181,7 +181,10 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
         _showScreenFirst = streamId != null && streamId.isNotEmpty;
       });
       for (final peer in _peers.values) {
-        peer.setRemoteScreenShare(streamId);
+        peer.setRemoteScreenShare(
+          streamId,
+          replacesVideoTrack: streamId == null ? null : widget.isVideo,
+        );
       }
       _refreshMiniOverlay();
     };
@@ -268,7 +271,7 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
       final owner = WebRTCService();
       _mediaOwner = owner;
       await owner.init();
-      await owner.setEarpieceMode();
+      await AudioManagerService.startCallMode();
       await owner.startLocalStream(
         video: widget.isVideo,
         groupCall: true,
@@ -277,8 +280,11 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
       if (_localStream == null) {
         throw StateError('Could not start the microphone or camera.');
       }
-      await _mediaOwner!.toggleSpeaker(widget.isVideo);
-      await AudioManagerService.setAudioRoute(widget.isVideo ? 'speaker' : 'earpiece');
+      final defaultRoute = widget.isVideo ? 'speaker' : 'earpiece';
+      if (!WebRTC.platformIsAndroid) {
+        await _mediaOwner!.toggleSpeaker(widget.isVideo);
+      }
+      await AudioManagerService.setAudioRoute(defaultRoute);
       _speakerOn = widget.isVideo;
       if (mounted) setState(() => _initializing = false);
       _startTimer();
@@ -336,7 +342,10 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
       if (widget.initialScreenSharer != null &&
           widget.initialScreenSharer!.toLowerCase() == key &&
           widget.initialScreenStreamId != null) {
-        peer.setRemoteScreenShare(widget.initialScreenStreamId);
+        peer.setRemoteScreenShare(
+          widget.initialScreenStreamId,
+          replacesVideoTrack: widget.isVideo,
+        );
       }
       // Signals may arrive while the initial batch is being drained.
       // Continue until the peer has no queued offer/answer/ICE packets left.
@@ -454,9 +463,31 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
   }
 
   Future<void> _toggleSpeaker() async {
-    _speakerOn = !_speakerOn;
-    await _mediaOwner?.toggleSpeaker(_speakerOn);
-    await AudioManagerService.setAudioRoute(_speakerOn ? 'speaker' : 'earpiece');
+    final nextSpeakerOn = !_speakerOn;
+    try {
+      if (!WebRTC.platformIsAndroid) {
+        await _mediaOwner?.toggleSpeaker(nextSpeakerOn);
+      }
+      final changed = await AudioManagerService.setAudioRoute(
+        nextSpeakerOn ? 'speaker' : 'earpiece',
+      );
+      if (!changed) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not switch call audio device.')),
+          );
+        }
+        return;
+      }
+      _speakerOn = nextSpeakerOn;
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not switch call audio device: $error')),
+        );
+      }
+      return;
+    }
     if (mounted) setState(() {});
     _publishActiveCallNotification();
     _refreshMiniOverlay();
@@ -510,7 +541,11 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
       _sharingScreen = true;
       _screenSharer = _me;
       _showScreenFirst = true;
-      _socket.updateGroupCallScreenShare(widget.groupCallId, screen.id);
+      _socket.updateGroupCallScreenShare(
+        widget.groupCallId,
+        widget.isVideo ? (_localStream?.id ?? screen.id) : screen.id,
+        replacesVideoTrack: widget.isVideo,
+      );
       screen.getVideoTracks().first.onEnded = () => unawaited(_stopScreenShare());
       if (mounted) setState(() {});
       _refreshMiniOverlay();
@@ -839,6 +874,17 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
             mirror: true,
             objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
           );
+        } else if (!isMe &&
+            key == _screenSharer?.toLowerCase() &&
+            service != null &&
+            service.remoteScreenRenderer.srcObject != null &&
+            identical(
+              service.remoteScreenRenderer.srcObject,
+              service.remoteRenderer.srcObject,
+            )) {
+          // When the camera sender is replaced by the display track, don't
+          // render the same shared screen again as the participant's camera.
+          video = _avatarFor(participant, radius: avatarRadius);
         } else if (!isMe && service?.hasRemoteVideo == true) {
           video = RTCVideoView(
             service!.remoteRenderer,
