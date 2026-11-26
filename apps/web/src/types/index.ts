@@ -175,6 +175,8 @@ export interface CallState {
   status: 'idle' | 'calling' | 'ringing' | 'connected' | 'ended';
   localStream?: MediaStream | null;
   remoteStream?: MediaStream | null;
+  /** Separate display stream when the peer adds a screen-share sender. */
+  remoteScreenStream?: MediaStream | null;
 }
 
 export interface CallLog {
