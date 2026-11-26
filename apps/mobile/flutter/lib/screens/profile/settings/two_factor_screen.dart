@@ -10,19 +10,41 @@ import '../../../theme/novyn_theme.dart';
 class _TwoFactorStep extends StatelessWidget {
   final String number;
   final String text;
-  const _TwoFactorStep({required this.number, required this.text});
+  final bool isLast;
+  const _TwoFactorStep({required this.number, required this.text, this.isLast = false});
+
   @override
   Widget build(BuildContext context) {
-    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Row(children: [
-        Container(width: 36, height: 36, alignment: Alignment.center,
-          decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withValues(alpha: .10), shape: BoxShape.circle),
-          child: Text(number, style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w800))),
-        const SizedBox(width: 14),
-        Expanded(child: Text(text, style: TextStyle(color: muted, fontWeight: FontWeight.w600))),
-      ]),
+    final colors = Theme.of(context).colorScheme;
+    return SizedBox(
+      height: 45,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 42,
+            child: Column(
+              children: [
+                Container(
+                  width: 34, height: 34,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(color: colors.primary.withValues(alpha: .11), shape: BoxShape.circle),
+                  child: Text(number, style: TextStyle(color: colors.primary, fontSize: 15, fontWeight: FontWeight.w800)),
+                ),
+                if (!isLast)
+                  Expanded(child: Container(width: 2, color: colors.primary.withValues(alpha: .12))),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 5),
+              child: Text(text, style: TextStyle(color: colors.onSurface, fontSize: 14, fontWeight: FontWeight.w600)),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -329,9 +351,26 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
     return Scaffold(
       backgroundColor: NovynTheme.pageBg(context),
       appBar: AppBar(
-        title: const Text('Two-Factor Authentication'),
+        toolbarHeight: 68,
         backgroundColor: NovynTheme.pageBg(context),
         surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        leadingWidth: 64,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 12, top: 4, bottom: 4),
+          child: Material(
+            color: NovynTheme.cardBg(context),
+            shape: const CircleBorder(),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: () => Navigator.maybePop(context),
+              child: Icon(Icons.arrow_back_rounded, color: ink, size: 23),
+            ),
+          ),
+        ),
+        titleSpacing: 8,
+        title: const Text('Two-Factor Authentication',
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -.55)),
       ),
       body: _loading
           ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -368,34 +407,16 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
                     physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
                     padding: const EdgeInsets.fromLTRB(20, 20, 20, 36),
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(30),
-                          gradient: LinearGradient(
-                            colors: _enabled
-                                ? [const Color(0xFF147D59), const Color(0xFF24A879)]
-                                : dark
-                                    ? [const Color(0xFF39318F), const Color(0xFF6657C8)]
-                                    : [const Color(0xFF6657D9), const Color(0xFF8878E8)],
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(8, 8, 8, 22),
+                        child: Center(
+                          child: Text(
+                            'Add a second step to your sign-in.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 15, color: muted, height: 1.4),
                           ),
-                          boxShadow: [BoxShadow(color: (_enabled ? const Color(0xFF147D59) : accent).withValues(alpha: .16), blurRadius: 22, offset: const Offset(0, 9))],
                         ),
-                        child: Row(children: [
-                          Container(
-                            width: 54, height: 54,
-                            decoration: BoxDecoration(color: Colors.white.withValues(alpha: .16), borderRadius: BorderRadius.circular(17)),
-                            child: const Icon(Icons.verified_user_rounded, color: Colors.white, size: 29),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Text(_enabled ? 'Extra protection is on' : 'Protect your Novyn account', style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800)),
-                            const SizedBox(height: 5),
-                            Text(_enabled ? 'Your sign-ins require a second verification step.' : 'Add another layer of security to your sign-in.', style: TextStyle(color: Colors.white.withValues(alpha: .88), height: 1.4, fontSize: 12)),
-                          ])),
-                        ]),
                       ),
-                      const SizedBox(height: 20),
                       if (_error != null)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 14),
@@ -445,46 +466,113 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
                           ),
                         ])),
                       ] else if (_setupToken == null) ...[
-                        infoCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Row(children: [
-                            Icon(Icons.phone_iphone_rounded, color: accent),
-                            const SizedBox(width: 9),
-                            Text('Authenticator app', style: TextStyle(color: ink, fontSize: 15, fontWeight: FontWeight.w800)),
-                          ]),
-                          const SizedBox(height: 10),
-                          Text('Use an app such as Google Authenticator, Microsoft Authenticator, or 1Password to generate a one-time code when you sign in.', style: TextStyle(color: muted, height: 1.5, fontSize: 13)),
-                          const SizedBox(height: 18),
-                          const Divider(),
-                          const SizedBox(height: 16),
-                          Text('HOW IT WORKS', style: TextStyle(color: muted, fontWeight: FontWeight.w700, letterSpacing: .8)),
-                          const SizedBox(height: 16),
-                          _TwoFactorStep(number: '1', text: 'Install an authenticator app'),
-                          _TwoFactorStep(number: '2', text: 'Scan the QR code we show you'),
-                          _TwoFactorStep(number: '3', text: 'Enter the one-time code to finish'),
-                          const SizedBox(height: 18),
-                          SizedBox(width: double.infinity, child: FilledButton.icon(
-                            onPressed: _working ? null : _beginSetup,
-                            icon: _working ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.qr_code_2_rounded),
-                            label: const Text('Set up authenticator'),
-                            style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
-                          )),
-                        ])),
+                        infoCard(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 48, height: 48,
+                                    decoration: BoxDecoration(
+                                      color: accent.withValues(alpha: .11),
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    child: Icon(Icons.phone_iphone_rounded, color: accent, size: 25),
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text('Authenticator app', style: TextStyle(color: ink, fontSize: 16, fontWeight: FontWeight.w800)),
+                                        const SizedBox(height: 3),
+                                        Text('Google, Microsoft, 1Password', style: TextStyle(color: muted, fontSize: 13)),
+                                      ],
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 7),
+                                    decoration: BoxDecoration(
+                                      color: accent.withValues(alpha: .10),
+                                      borderRadius: BorderRadius.circular(24),
+                                    ),
+                                    child: Text('Off', style: TextStyle(color: colors.onSurface, fontSize: 12, fontWeight: FontWeight.w700)),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 20),
+                              Divider(color: border),
+                              const SizedBox(height: 18),
+                              Text('HOW IT WORKS', style: TextStyle(color: muted, fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: .9)),
+                              const SizedBox(height: 18),
+                              const _TwoFactorStep(number: '1', text: 'Install an authenticator app'),
+                              const _TwoFactorStep(number: '2', text: 'Scan the QR code we show you'),
+                              const _TwoFactorStep(number: '3', text: 'Enter the one-time code to finish', isLast: true),
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                width: double.infinity,
+                                height: 54,
+                                child: FilledButton.icon(
+                                  onPressed: _working ? null : _beginSetup,
+                                  icon: _working
+                                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                      : const Icon(Icons.qr_code_2_rounded, size: 20),
+                                  label: const Text('Set up authenticator', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: accent,
+                                    foregroundColor: Colors.white,
+                                    shape: const StadiumBorder(),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                         const SizedBox(height: 14),
-                        infoCard(child: Row(children: [
-                          Icon(Icons.receipt_long_rounded, color: accent),
-                          const SizedBox(width: 12),
-                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Text('Backup codes', style: TextStyle(color: ink, fontWeight: FontWeight.w700)),
-                            const SizedBox(height: 4),
-                            Text('Generated once during setup', style: TextStyle(color: muted)),
-                          ])),
-                        ])),
-                        const SizedBox(height: 14),
-                        Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: accent.withValues(alpha: .08), borderRadius: BorderRadius.circular(24)), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Icon(Icons.info_outline_rounded, color: accent),
-                          const SizedBox(width: 12),
-                          Expanded(child: Text('Keep your backup codes private and store them somewhere safe.', style: TextStyle(color: ink, height: 1.45))),
-                        ])),
+                        infoCard(
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 48, height: 48,
+                                decoration: BoxDecoration(color: accent.withValues(alpha: .11), borderRadius: BorderRadius.circular(16)),
+                                child: Icon(Icons.receipt_long_rounded, color: accent, size: 24),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('Backup codes', style: TextStyle(color: ink, fontSize: 15, fontWeight: FontWeight.w800)),
+                                    const SizedBox(height: 3),
+                                    Text('Generated once during setup', style: TextStyle(color: muted, fontSize: 13)),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        Container(
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            color: accent.withValues(alpha: .08),
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(Icons.info_outline_rounded, color: accent, size: 22),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'Keep your backup codes private and store them somewhere safe.',
+                                  style: TextStyle(color: ink, fontSize: 13, height: 1.5),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ] else ...[
                         infoCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Row(children: [
