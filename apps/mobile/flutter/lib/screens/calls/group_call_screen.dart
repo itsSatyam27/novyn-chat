@@ -767,6 +767,36 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
           width: constraints.maxWidth,
           height: constraints.maxHeight,
         );
+        if (count == 3 && columns == 2) {
+          final tileWidth =
+              ((constraints.maxWidth - 24 - 10) / 2).clamp(1.0, double.infinity);
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 18),
+            child: Column(
+              children: [
+                Expanded(
+                  child: Row(
+                    children: [
+                      Expanded(child: _buildParticipantTile(people[0])),
+                      const SizedBox(width: 10),
+                      Expanded(child: _buildParticipantTile(people[1])),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Expanded(
+                  child: Center(
+                    child: SizedBox(
+                      width: tileWidth,
+                      child: _buildParticipantTile(people[2]),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
         return GridView.builder(
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 18),
           physics: const NeverScrollableScrollPhysics(),
