@@ -4511,9 +4511,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       },
     );
     if (selected == null || !mounted) return;
+    // The server resolves direct-message recipients by canonical username.
+    // Group conversations continue to use their group ID.
+    final chatTarget = widget.isGroup
+        ? (widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username)
+        : widget.peer.username;
     _socketService.setChatTheme(
       selected == 'default' ? '' : selected,
-      widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username,
+      chatTarget,
       isGroup: widget.isGroup,
     );
   }
