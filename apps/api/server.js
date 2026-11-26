@@ -9839,6 +9839,7 @@ io.on("connection", (socket) => {
     onlineUsers,
     io,
     activeCalls,
+    clearCallPair,
     usersAreBlocked,
     sendPushToUser,
     allowSocketAction,
