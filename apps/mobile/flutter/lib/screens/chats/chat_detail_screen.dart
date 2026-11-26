@@ -4538,6 +4538,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   }
 
   Future<void> _showWallpaperPicker() async {
+    final chatTarget = widget.isGroup
+        ? (widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username)
+        : widget.peer.username;
     const presets = <Map<String, String>>[
       {'name': 'Classic', 'value': 'doodle:classic', 'asset': 'assets/images/chat_doodle_classic.svg'},
       {'name': 'Midnight', 'value': 'doodle:night', 'asset': 'assets/images/chat_doodle_night.svg'},
@@ -4619,9 +4622,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                       onPressed: () {
                         context.read<SocketService>().setChatWallpaper(
                               '',
-                              widget.peer.uid.isNotEmpty
-                                  ? widget.peer.uid
-                                  : widget.peer.username,
+                              chatTarget,
                               isGroup: widget.isGroup,
                             );
                         Navigator.pop(sheetContext);
@@ -4649,9 +4650,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                         onTap: () {
                           context.read<SocketService>().setChatWallpaper(
                                 value,
-                                widget.peer.uid.isNotEmpty
-                                    ? widget.peer.uid
-                                    : widget.peer.username,
+                                chatTarget,
                                 isGroup: widget.isGroup,
                               );
                           Navigator.pop(sheetContext);
