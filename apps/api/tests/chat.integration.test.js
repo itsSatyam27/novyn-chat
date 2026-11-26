@@ -112,6 +112,26 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   const bob = await signup('bob');
   const eve = await signup('eve');
 
+  // Account Info reset requests must be authenticated and tied to the
+  // currently signed-in account, not an editable email supplied by the client.
+  const aliceCsrfCookie = alice.cookie.split('; ').find((part) => part.startsWith('novyn_csrf='));
+  assert.ok(aliceCsrfCookie, 'signup must issue the CSRF cookie');
+  const aliceCsrf = decodeURIComponent(aliceCsrfCookie.slice('novyn_csrf='.length));
+  const accountResetResponse = await fetch(`${base}/api/account/password-reset/request`, {
+    method: 'POST',
+    headers: {
+      Cookie: alice.cookie,
+      Origin: origin,
+      'x-novyn-csrf': aliceCsrf,
+    },
+  });
+  assert.equal(accountResetResponse.status, 200, await accountResetResponse.clone().text());
+  const accountResetBody = await accountResetResponse.json();
+  assert.equal(accountResetBody.ok, true);
+  assert.ok(accountResetBody.message.includes('@example.test'));
+  assert.ok(logs.includes('[Password reset code] alice@example.test:'));
+
+
   // A refresh response must not expose the rotated cookie until its new
   // allow-list entry is durably persisted and the old one is revoked.
   const oldRefreshJti = refreshTokenId(alice.cookie);
