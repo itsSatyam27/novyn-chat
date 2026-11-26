@@ -174,9 +174,13 @@ function createFcmMessage(userKey, user, payload = {}) {
   // FCM's combined notification + data payload is limited to 4 KB. Trim
   // non-routing metadata first; keep recipient/chat/type/eventId/title/body.
   const dataBytes = () => Buffer.byteLength(JSON.stringify(data), "utf8");
+  // Preserve the E2EE envelope for Android's local notification decrypt.
+  // Trim optional routing/display fields first; otherwise oversized payloads
+  // silently degrade every encrypted preview to the generic fallback.
   for (const key of [
-    "ciphertext", "senderPublicKey", "iv", "releaseUrl", "url",
-    "displayName", "gameType", "gameId", "action", "from", "tag", "messageId",
+    "releaseUrl", "url", "displayName", "gameType", "gameId", "action",
+    "from", "tag", "mentionOrReply", "messageId",
+    "ciphertext", "senderPublicKey", "iv",
   ]) {
     if (dataBytes() <= 3400) break;
     delete data[key];
