@@ -325,7 +325,8 @@ test('late joiners receive current microphone, camera and screen-share state', (
   assert.equal(joined.screenSharer, 'alice');
   assert.equal(joined.screenStreamId, 'screen-a');
   assert.equal(
-    fixture.sockets.get('carol').events.some((entry) =>
+    fixture.delivered.some((entry) =>
+      entry.socketId === 'carol-socket' &&
       entry.name === 'group_call_screen_share_state' &&
       entry.payload.streamId === 'screen-a',
     ),
