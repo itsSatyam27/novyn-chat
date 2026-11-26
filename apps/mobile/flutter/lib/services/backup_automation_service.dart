@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -97,7 +95,7 @@ class BackupAutomationService {
   }) {
     progress.value = BackupProgress(
       stage: stage,
-      percent: percent.clamp(0, 100),
+      percent: percent.clamp(0, 100).toInt(),
       completed: completed,
       cancelled: cancelled,
       failed: failed,
