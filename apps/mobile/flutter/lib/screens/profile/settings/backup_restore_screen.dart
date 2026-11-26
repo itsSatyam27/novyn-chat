@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -629,6 +630,13 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
       await BackupAutomationService.setNetworkPreference(preference);
       if (!mounted) return;
       setState(() => _networkPreference = preference);
+      final username = context.read<AuthService>().user?.username.trim() ?? '';
+      if (_dailyEnabled && username.isNotEmpty) {
+        unawaited(BackupAutomationService.runIfDue(
+          username: username,
+          encryption: context.read<SocketService>().encryption,
+        ));
+      }
       final label = switch (preference) {
         BackupAutomationService.mobileDataOnly => 'Mobile data',
         BackupAutomationService.wifiAndMobileData => 'Wi-Fi and mobile data',
