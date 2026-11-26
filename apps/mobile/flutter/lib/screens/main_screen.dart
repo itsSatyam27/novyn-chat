@@ -69,6 +69,10 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       NotificationService.setGroupNotificationTapHandler(() {
         if (mounted) _onTabTap(0);
       });
+      NotificationService.setBackupCancelHandler(
+        BackupAutomationService.cancelActiveBackup,
+      );
+      BackupAutomationService.progress.addListener(_handleBackupProgressChanged);
     }
     WidgetsBinding.instance.addObserver(this);
     _connectivitySubscription =
@@ -101,6 +105,13 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       _authService!.addListener(_handleAuthChanged);
       _handleAuthChanged();
     });
+  }
+
+  void _handleBackupProgressChanged() {
+    final current = BackupAutomationService.progress.value;
+    if (current != null) {
+      unawaited(NotificationService.showBackupProgress(current));
+    }
   }
 
   void _openProfileLink(String rawLink) {
@@ -333,6 +344,10 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     NotificationService.setAppUpdateTapHandler(null);
     NotificationService.setSocialNotificationTapHandler(null);
     NotificationService.setGroupNotificationTapHandler(null);
+    if (widget.managePresence) {
+      BackupAutomationService.progress.removeListener(_handleBackupProgressChanged);
+      NotificationService.setBackupCancelHandler(null);
+    }
     _authService?.removeListener(_handleAuthChanged);
     if (widget.managePresence && _authService?.user != null) {
       _authService!.setOnline(false);
