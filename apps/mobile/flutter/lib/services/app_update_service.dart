@@ -16,7 +16,7 @@ import 'package:workmanager/workmanager.dart';
 import 'notification_service.dart';
 
 const String _releasesApi =
-    'https://api.github.com/repos/itsSatyam27/novyn-chat/releases?per_page=50';
+    'https://api.github.com/repos/itsSatyam27/novyn-chat/releases?per_page=100';
 const String _arm64ApkName = 'Novyn-Android-ARM64.apk';
 const String _updateTaskName = 'novyn_periodic_update_check';
 const String _lastNotifiedBuildKey = 'novyn_last_notified_update_build';
@@ -93,6 +93,7 @@ class AppUpdateCheckResult {
     required this.release,
     required this.upToDate,
     this.message,
+    this.installedReleaseDate,
   });
 
   final int installedBuild;
@@ -100,6 +101,8 @@ class AppUpdateCheckResult {
   final AppUpdateInfo? release;
   final bool upToDate;
   final String? message;
+  /// Publication date of the GitHub ARM64 release matching the installed APK build.
+  final DateTime? installedReleaseDate;
 }
 
 class AppUpdateService extends ChangeNotifier {
@@ -184,11 +187,13 @@ class AppUpdateService extends ChangeNotifier {
       throw const FormatException('The update service returned an invalid release list.');
     }
 
-    // Ignore universal releases and select the highest published stable ARM64 build.
+    // Match the installed APK to its published release for an accurate date,
+    // while independently selecting the newest available ARM64 update.
     final tagPattern = RegExp(r'^novyn-arm64-build-(\d+)(?:-\d+)*$');
     Map<String, dynamic>? selectedAsset;
     Map<String, dynamic>? selectedRelease;
     var selectedBuild = -1;
+    DateTime? installedReleaseDate;
 
     for (final rawRelease in decoded) {
       if (rawRelease is! Map ||
@@ -200,7 +205,6 @@ class AppUpdateService extends ChangeNotifier {
       final match = tagPattern.firstMatch((release['tag_name'] ?? '').toString());
       if (match == null) continue;
       final candidateBuild = int.tryParse(match.group(1) ?? '') ?? -1;
-      if (candidateBuild <= selectedBuild) continue;
 
       final assets = release['assets'];
       if (assets is! List) continue;
@@ -212,6 +216,19 @@ class AppUpdateService extends ChangeNotifier {
         }
       }
       if (candidateAsset == null) continue;
+
+      if (candidateBuild == installedBuild) {
+        final publishedAt = DateTime.tryParse(
+          (release['published_at'] ?? '').toString(),
+        );
+        if (publishedAt != null &&
+            (installedReleaseDate == null ||
+                publishedAt.isAfter(installedReleaseDate))) {
+          installedReleaseDate = publishedAt;
+        }
+      }
+
+      if (candidateBuild <= selectedBuild) continue;
       selectedBuild = candidateBuild;
       selectedAsset = candidateAsset;
       selectedRelease = release;
@@ -247,6 +264,7 @@ class AppUpdateService extends ChangeNotifier {
         release: null,
         upToDate: true,
         message: 'You are up to date. Novyn is running the latest ARM64 release.',
+        installedReleaseDate: installedReleaseDate,
       );
     }
 
@@ -268,6 +286,7 @@ class AppUpdateService extends ChangeNotifier {
       release: release,
       upToDate: false,
       message: 'A new ARM64 update is available.',
+      installedReleaseDate: installedReleaseDate,
     );
   }
 

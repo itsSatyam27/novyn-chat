@@ -25,6 +25,8 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
   List<String> _releaseNotes = const [];
   int? _apkSize;
   int _installedBuild = 0, _latestBuild = 0;
+  String? _packageVersion;
+  DateTime? _installedReleaseDate;
   double _downloadProgress = 0;
   DateTime? _lastProgressAt;
   DateTime? _lastCheckedAt;
@@ -146,12 +148,14 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
       if (mounted) {
         setState(() {
           _installedBuild = int.tryParse(packageInfo.buildNumber) ?? 0;
+          _packageVersion = packageInfo.version;
           _appVersion = AppUpdateService.displayVersion;
         });
       }
       final result = await _updateService.checkForUpdates();
       if (!mounted) return;
       _installedBuild = result.installedBuild;
+      _installedReleaseDate = result.installedReleaseDate;
       _appVersion = AppUpdateService.displayVersion;
       final release = result.release;
       if (release != null) {
@@ -903,6 +907,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                 child: Column(
                   children: [
                     Text.rich(
+                      key: const ValueKey('about-credit-footer'),
                       TextSpan(
                         children: [
                           TextSpan(
@@ -913,15 +918,11 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                               color: const Color(0xFF7048F8),
                             ),
                           ),
-                          WidgetSpan(
+                          const WidgetSpan(
                             alignment: PlaceholderAlignment.middle,
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 4),
-                              child: Icon(
-                                Icons.favorite_rounded,
-                                color: const Color(0xFFE34D73),
-                                size: 19,
-                              ),
+                              padding: EdgeInsets.symmetric(horizontal: 4),
+                              child: Text('💜', style: TextStyle(fontSize: 19)),
                             ),
                           ),
                           TextSpan(
@@ -976,8 +977,22 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
     );
   }
 
+  String _installedReleaseDateLabel() {
+    final date = _installedReleaseDate?.toLocal();
+    if (date == null) return 'Unavailable';
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${date.day.toString().padLeft(2, '0')} ${months[date.month - 1]} ${date.year}';
+  }
+
   Widget _buildDetailsCard(BuildContext context, Color surface, Color border, Color ink, Color muted) {
-    final buildStr = _installedBuild > 0 ? '1.0.0 ($_installedBuild)' : '1.0.0 (24)';
+    final rawVersion = (_packageVersion ?? '').split('+').first.trim();
+    final displayPackageVersion = rawVersion.split('-').first.trim();
+    final buildStr = _installedBuild > 0
+        ? '${displayPackageVersion.isEmpty ? 'Build' : displayPackageVersion} ($_installedBuild)'
+        : 'Unavailable';
     return Container(
       decoration: BoxDecoration(
         color: surface,
@@ -997,7 +1012,7 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
           Divider(height: 1, thickness: 1, color: border.withValues(alpha: 0.6)),
           _detailRow('Build number', buildStr, ink, muted),
           Divider(height: 1, thickness: 1, color: border.withValues(alpha: 0.6)),
-          _detailRow('Release date', '24 Nov 2026', ink, muted),
+          _detailRow('Release date', _installedReleaseDateLabel(), ink, muted),
         ],
       ),
     );
