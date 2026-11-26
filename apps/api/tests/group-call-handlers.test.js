@@ -181,6 +181,50 @@ test('a direct call can be promoted and ring the selected invitee in the same ac
   );
 });
 
+
+test('the second participant can add a contact after the first participant promotes the call', () => {
+  const fixture = makeFixture();
+  const promoted = invoke(fixture.sockets.get('alice'), 'group_call_promote', {
+    callId: 'call-1',
+  });
+  assert.equal(promoted.ok, true);
+
+  const addedByBob = invoke(fixture.sockets.get('bob'), 'group_call_promote', {
+    callId: 'call-1',
+    invitees: ['carol'],
+  });
+  assert.equal(addedByBob.ok, true);
+  assert.equal(addedByBob.pendingInvitations[0].username, 'carol');
+  assert.equal(
+    fixture.delivered.filter((entry) =>
+      entry.socketId === 'carol-socket' && entry.name === 'group_call_invitation',
+    ).length,
+    1,
+  );
+});
+
+test('retries from both original participants do not ring the same pending invite twice', () => {
+  const fixture = makeFixture();
+  const first = invoke(fixture.sockets.get('alice'), 'group_call_promote', {
+    callId: 'call-1',
+    invitees: ['carol'],
+  });
+  const retry = invoke(fixture.sockets.get('bob'), 'group_call_promote', {
+    callId: 'call-1',
+    invitees: ['carol'],
+  });
+
+  assert.equal(first.ok, true);
+  assert.equal(retry.ok, true);
+  assert.equal(retry.invitations[0].expiresAt, first.invitations[0].expiresAt);
+  assert.equal(
+    fixture.delivered.filter((entry) =>
+      entry.socketId === 'carol-socket' && entry.name === 'group_call_invitation',
+    ).length,
+    1,
+  );
+});
+
 test('promotion validates the selected invitee before changing the live one-to-one call', () => {
   const fixture = makeFixture();
   fixture.users.get('carol').callsEnabled = false;
