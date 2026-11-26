@@ -399,7 +399,12 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Initialize WebRTC Manager
   useEffect(() => {
     const handleRemoteStream = (stream: MediaStream) => {
-      setCallState((prev) => ({ ...prev, remoteStream: stream, status: 'connected' }));
+      setCallState((prev) => ({
+        ...prev,
+        remoteStream: stream,
+        remoteScreenStream: webrtcManagerRef.current?.getRemoteScreenStream() ?? null,
+        status: 'connected',
+      }));
       stopRingtone();
       if (callTimeoutTimerRef.current) {
         clearTimeout(callTimeoutTimerRef.current);
@@ -420,7 +425,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         socket.emit('webrtc_signal', {
           to: current.remoteUser,
           callId: current.callId,
-          signal: { type: 'screen_share_state', isSharing: false },
+          signal: { type: 'screen_share_state', isSharing: false, replacesVideoTrack: false },
         });
       }
     };
@@ -646,6 +651,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isIncoming: false,
         localStream: null,
         remoteStream: null,
+      remoteScreenStream: null,
       });
       triggerHaptic('medium');
     },
@@ -1255,6 +1261,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isIncoming: true,
         localStream: null,
         remoteStream: null,
+      remoteScreenStream: null,
       });
 
       if (presenceModeRef.current !== 'busy' && callSoundEnabled()) {
@@ -1302,7 +1309,21 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const targetUser = callStateRef.current.remoteUser || from;
       try {
         if (signal.type === 'screen_share_state') {
-          setCallState((prev) => ({ ...prev, remoteIsScreenSharing: Boolean(signal.isSharing) }));
+          const isSharing = signal.isSharing === true;
+          const streamId = isSharing
+            ? (typeof signal.streamId === 'string' && signal.streamId.trim()
+              ? signal.streamId.trim()
+              : '__remote_screen_share__')
+            : null;
+          webrtcManagerRef.current.setRemoteScreenShare(
+            streamId,
+            isSharing && (signal.replacesVideoTrack === true || streamId === '__remote_screen_share__')
+          );
+          setCallState((prev) => ({
+            ...prev,
+            remoteIsScreenSharing: isSharing,
+            remoteScreenStream: webrtcManagerRef.current?.getRemoteScreenStream() ?? null,
+          }));
         } else if (signal.type === 'offer') {
           const answer = await webrtcManagerRef.current.handleOffer(signal.sdp);
           socket.emit('webrtc_signal', {
@@ -1318,6 +1339,38 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch (err) {
         console.error('WebRTC signal error:', err);
       }
+    });
+
+    // Android publishes presentation state as a dedicated event. Listen to it
+    // as well as the WebRTC signal so both platform directions are symmetric.
+    socket.on('call_screen_share_changed', ({
+      from, callId, streamId, replacesVideoTrack,
+    }: {
+      from: string;
+      callId?: string;
+      streamId?: string | null;
+      replacesVideoTrack?: boolean;
+    }) => {
+      const current = callStateRef.current;
+      if (!callId || current.callId !== callId) return;
+      if (
+        from &&
+        current.remoteUser &&
+        from.trim().toLowerCase() !== current.remoteUser.trim().toLowerCase()
+      ) return;
+
+      const normalizedStreamId =
+        typeof streamId === 'string' && streamId.trim() ? streamId.trim() : null;
+      const manager = webrtcManagerRef.current;
+      manager?.setRemoteScreenShare(
+        normalizedStreamId,
+        normalizedStreamId !== null && replacesVideoTrack === true
+      );
+      setCallState((prev) => ({
+        ...prev,
+        remoteIsScreenSharing: normalizedStreamId !== null,
+        remoteScreenStream: manager?.getRemoteScreenStream() ?? null,
+      }));
     });
 
     socket.on('call_ended', ({ reason, callId }: { reason?: string; callId?: string }) => {
@@ -1360,6 +1413,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       socket.off('call_incoming');
       socket.off('call_accepted');
       socket.off('call_ended');
+      socket.off('call_screen_share_changed');
       socket.off('webrtc_signal');
     };
   }, [user, setUser, endCall, removeChatPreferences]);
@@ -1964,6 +2018,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isIncoming: false,
         localStream,
         remoteStream: null,
+      remoteScreenStream: null,
       });
 
       playCallRing();
@@ -2062,7 +2117,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       socket.emit('webrtc_signal', {
         to: current.remoteUser,
         callId: current.callId,
-        signal: { type: 'screen_share_state', isSharing: nextIsSharing },
+        signal: {
+          type: 'screen_share_state',
+          isSharing: nextIsSharing,
+          replacesVideoTrack: nextIsSharing,
+        },
       });
     }
     triggerHaptic('medium');
