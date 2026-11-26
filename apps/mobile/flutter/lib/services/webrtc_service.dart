@@ -573,11 +573,7 @@ class WebRTCService extends ChangeNotifier {
       if (_isGroupCall) {
         socket.updateGroupCallScreenShare(callId, null);
       } else {
-        if (_isGroupCall) {
-      socket.updateGroupCallScreenShare(callId, null);
-    } else {
-      socket.updateCallScreenShare(peerId, callId, null);
-    }
+        socket.updateCallScreenShare(peerId, callId, null);
       }
       for (final track in screen?.getTracks() ?? <MediaStreamTrack>[]) {
         track.onEnded = null;
