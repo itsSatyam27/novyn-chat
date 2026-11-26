@@ -56,6 +56,16 @@ function registerGroupCallHandlers(socket, deps) {
     isVideo: session.isVideo,
     createdBy: users.get(session.createdBy)?.username || session.createdBy,
     participants: Array.from(session.participants, participantView),
+    mediaStates: Object.fromEntries(
+      Array.from(session.mediaStates.entries()).map(([key, state]) => [
+        users.get(key)?.username || key,
+        { audioEnabled: state.audioEnabled, videoEnabled: state.videoEnabled },
+      ]),
+    ),
+    screenSharer: session.screenSharer
+      ? users.get(session.screenSharer)?.username || session.screenSharer
+      : null,
+    screenStreamId: session.screenStreamId || null,
     capacity: MAX_GROUP_CALL_PARTICIPANTS,
   });
   const respond = (ack, result) => {
@@ -164,8 +174,10 @@ function registerGroupCallHandlers(socket, deps) {
       isVideo: payload?.isVideo === true || active.type === 'video',
       participants: new Set([userKey, peerKey]),
       pending: new Map(),
+      mediaStates: new Map(),
       createdAt: Date.now(),
       screenSharer: null,
+      screenStreamId: null,
     };
     registry.sessions.set(groupCallId, session);
     // The legacy direct-call lock is no longer authoritative once the group
@@ -265,6 +277,23 @@ function registerGroupCallHandlers(socket, deps) {
     };
     emitSession(session, 'group_call_participant_joined', joined, userKey);
     socket.emit('group_call_joined', joined);
+    // A late joiner needs the existing members' microphone/camera states and
+    // any screen currently being shared; those events are not replayed by Socket.IO.
+    for (const [participantKey, state] of session.mediaStates.entries()) {
+      emitUser(userKey, 'group_call_media_state', {
+        groupCallId: session.groupCallId,
+        username: users.get(participantKey)?.username || participantKey,
+        audioEnabled: state.audioEnabled,
+        videoEnabled: state.videoEnabled,
+      });
+    }
+    if (session.screenSharer && session.screenStreamId) {
+      emitUser(userKey, 'group_call_screen_share_state', {
+        groupCallId: session.groupCallId,
+        username: users.get(session.screenSharer)?.username || session.screenSharer,
+        streamId: session.screenStreamId,
+      });
+    }
     respond(ack, { ok: true, ...joined });
   });
 
@@ -327,11 +356,15 @@ function registerGroupCallHandlers(socket, deps) {
   socket.on('group_call_media_state', (payload) => {
     const session = getSession(payload);
     if (!session) return;
+    const state = {
+      audioEnabled: payload?.audioEnabled !== false,
+      videoEnabled: payload?.videoEnabled !== false,
+    };
+    session.mediaStates.set(userKey, state);
     emitSession(session, 'group_call_media_state', {
       groupCallId: session.groupCallId,
       username: users.get(userKey)?.username || userKey,
-      audioEnabled: payload?.audioEnabled !== false,
-      videoEnabled: payload?.videoEnabled !== false,
+      ...state,
     });
   });
 
@@ -348,8 +381,10 @@ function registerGroupCallHandlers(socket, deps) {
     }
     if (streamId) {
       session.screenSharer = userKey;
+      session.screenStreamId = streamId;
     } else if (session.screenSharer === userKey) {
       session.screenSharer = null;
+      session.screenStreamId = null;
     } else {
       return;
     }
