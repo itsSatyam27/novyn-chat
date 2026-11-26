@@ -11,6 +11,7 @@ class WebRTCService extends ChangeNotifier {
   RTCPeerConnection? _peerConnection;
   MediaStream? _localStream;
   MediaStream? _remoteStream;
+  final Map<String, MediaStream> _remoteStreamsById = <String, MediaStream>{};
 
   final RTCVideoRenderer localRenderer  = RTCVideoRenderer();
   final RTCVideoRenderer remoteRenderer = RTCVideoRenderer();
@@ -185,10 +186,13 @@ class WebRTCService extends ChangeNotifier {
       }
     }
 
-    // Handle remote stream
+    // Keep camera and screen streams separately. During negotiation the
+    // onTrack event can arrive before the screen-share state packet, so retain
+    // streams by id and re-route them once that packet identifies the sharer.
     _peerConnection!.onTrack = (event) {
       if (event.streams.isNotEmpty) {
         final stream = event.streams[0];
+        _remoteStreamsById[stream.id] = stream;
         if (stream.id == _remoteScreenStreamId) {
           remoteScreenRenderer.srcObject = stream;
         } else {
@@ -735,10 +739,28 @@ class WebRTCService extends ChangeNotifier {
     onRemoteScreenShareChanged?.call(streamId);
     if (streamId == null) {
       remoteScreenRenderer.srcObject = null;
+      final cameraEntry = _remoteStreamsById.entries
+          .where((entry) => entry.key != _remoteScreenStreamId)
+          .toList(growable: false);
+      if (cameraEntry.isNotEmpty) {
+        _remoteStream = cameraEntry.first.value;
+        remoteRenderer.srcObject = _remoteStream;
+      }
+      return;
+    }
+
+    final screen = _remoteStreamsById[streamId];
+    if (screen != null) {
+      remoteScreenRenderer.srcObject = screen;
+    }
+    final cameraEntry = _remoteStreamsById.entries
+        .where((entry) => entry.key != streamId)
+        .toList(growable: false);
+    if (cameraEntry.isNotEmpty) {
+      _remoteStream = cameraEntry.first.value;
+      remoteRenderer.srcObject = _remoteStream;
     } else if (_remoteStream?.id == streamId) {
-      // Signaling and media tracks can cross in flight. Re-route the already
-      // received stream if it arrived before the screen-share state event.
-      remoteScreenRenderer.srcObject = _remoteStream;
+      _remoteStream = null;
       remoteRenderer.srcObject = null;
     }
   }
@@ -912,6 +934,7 @@ class WebRTCService extends ChangeNotifier {
     _ownsScreenStream = true;
     _isGroupCall = false;
     _remoteStream = null;
+    _remoteStreamsById.clear();
     _peerConnection = null;
     _videoSender = null;
     _videoTrack = null;
