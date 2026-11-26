@@ -2269,6 +2269,11 @@ class NotificationService {
               : (result['callId']?.toString() ?? ''),
           isVideo: invitation['isVideo'] == true || result['isVideo'] == true,
           participants: participants,
+          initialMediaStates: result['mediaStates'] is Map
+              ? Map<String, dynamic>.from(result['mediaStates'] as Map)
+              : const <String, dynamic>{},
+          initialScreenSharer: result['screenSharer']?.toString(),
+          initialScreenStreamId: result['screenStreamId']?.toString(),
         ),
       ));
     } catch (error) {
