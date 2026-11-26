@@ -149,6 +149,21 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
               ),
               const SizedBox(height: 14),
 
+              // THIS DEVICE Section
+              Text(
+                'This device',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: -0.2,
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 10),
+              _ThisDeviceCard(session: current),
+              const SizedBox(height: 22),
+
+              const SizedBox(height: 20),
               // Pair a web device action card
               _PairWebDeviceCard(
                 onTap: () {
@@ -161,26 +176,13 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
               ),
               const SizedBox(height: 22),
 
-              // THIS DEVICE Section
-              Text(
-                'THIS DEVICE',
-                style: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.1,
-                  color: colors.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 10),
-              _ThisDeviceCard(session: current),
               const SizedBox(height: 22),
-
               // OTHER DEVICES Section
               Row(
                 children: [
                   Expanded(
                     child: Text(
-                      'OTHER DEVICES',
+                      'Other devices',
                       style: TextStyle(
                         fontSize: 11.5,
                         fontWeight: FontWeight.w800,
@@ -323,7 +325,7 @@ class _ActiveSessionsScreenState extends State<ActiveSessionsScreen> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: NovynTheme.cardBg(context),
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(28),
         border: Border.all(color: colors.outlineVariant),
       ),
       child: Column(
@@ -382,8 +384,8 @@ class _ActiveSessionsHeader extends StatelessWidget {
               onTap: onBack,
               borderRadius: BorderRadius.circular(14),
               child: Container(
-                width: 42,
-                height: 42,
+                width: 54,
+                height: 54,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: border),
@@ -398,7 +400,7 @@ class _ActiveSessionsHeader extends StatelessWidget {
                 title,
                 style: TextStyle(
                   color: ink,
-                  fontSize: 18,
+                  fontSize: 24,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -0.3,
                 ),
