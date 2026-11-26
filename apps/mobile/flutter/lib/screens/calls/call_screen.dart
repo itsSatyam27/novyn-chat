@@ -14,6 +14,7 @@ import '../../services/call_overlay_service.dart';
 import '../../models/user_model.dart';
 import '../../services/socket_service.dart';
 import '../../services/webrtc_service.dart';
+import '../../services/friend_service.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/audio_manager_service.dart';
@@ -1096,6 +1097,101 @@ class _CallScreenState extends State<CallScreen>
     );
   }
 
+  Future<UserModel?> _pickGroupCallInvitee() async {
+    final socket = context.read<SocketService>();
+    final account = context.read<AuthService>().user?.username ?? '';
+    if (account.isEmpty) return null;
+
+    final friendService = context.read<FriendService>();
+    List<UserModel> friends;
+    try {
+      friends = friendService.cachedFriends ?? socket.contacts.friends;
+      if (friends.isEmpty) {
+        friends = await friendService
+            .friendsStream(account)
+            .first
+            .timeout(const Duration(seconds: 5));
+      }
+    } catch (_) {
+      friends = socket.contacts.friends;
+    }
+    if (!mounted) return null;
+
+    final excluded = <String>{account.toLowerCase(), _peerId.toLowerCase()};
+    final available = friends
+        .where((friend) =>
+            friend.username.trim().isNotEmpty &&
+            !excluded.contains(friend.username.toLowerCase()))
+        .toList(growable: false);
+    if (available.isEmpty) {
+      context.showNovynAlert(
+        const SnackBar(content: Text('No other available contacts to add.')),
+      );
+      return null;
+    }
+
+    return showModalBottomSheet<UserModel>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      builder: (sheetContext) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.sizeOf(sheetContext).height * .62,
+          child: Column(
+            children: [
+              const SizedBox(height: 14),
+              Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Theme.of(sheetContext).colorScheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Add a person to this call',
+                        style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    Text(
+                      '2/4',
+                      style: TextStyle(color: Theme.of(sheetContext).colorScheme.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView.separated(
+                  itemCount: available.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1, indent: 72),
+                  itemBuilder: (context, index) {
+                    final friend = available[index];
+                    return ListTile(
+                      leading: UserAvatar(
+                        name: friend.name,
+                        photoUrl: friend.photoUrl,
+                        radius: 22,
+                      ),
+                      title: Text(friend.name),
+                      subtitle: Text('@' + friend.username),
+                      trailing: const Icon(Icons.add_circle_outline_rounded),
+                      onTap: () => Navigator.pop(sheetContext, friend),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _promoteToGroupCall() async {
     if (_groupTransitioning || _state != CallState.connected) return;
     if (!_webrtc.hasPeerConnection || _webrtc.localStream == null) {
@@ -1104,10 +1200,18 @@ class _CallScreenState extends State<CallScreen>
       );
       return;
     }
+
+    // Pick the invitee before converting the live 1:1 session. Cancelling the
+    // picker or failing server validation therefore leaves the current call
+    // untouched and avoids the old second "Add people" step on the group UI.
+    final invitee = await _pickGroupCallInvitee();
+    if (invitee == null || !mounted) return;
+
     setState(() => _groupTransitioning = true);
     final result = await context.read<SocketService>().promoteCallToGroup(
       callId: _callId,
       isVideo: _isVideo,
+      invitees: <String>[invitee.username],
     );
     if (!mounted) return;
     if (result['ok'] == true) {
@@ -1115,7 +1219,7 @@ class _CallScreenState extends State<CallScreen>
     } else {
       setState(() => _groupTransitioning = false);
       context.showNovynAlert(
-        SnackBar(content: Text(result['message']?.toString() ?? 'Could not start a group call.')),
+        SnackBar(content: Text(result['message']?.toString() ?? 'Could not invite this person. Your call is still active.')),
       );
     }
   }
@@ -1147,6 +1251,12 @@ class _CallScreenState extends State<CallScreen>
           initialMediaStates: data['mediaStates'] is Map
               ? Map<String, dynamic>.from(data['mediaStates'] as Map)
               : const <String, dynamic>{},
+          initialPendingInvitations: data['pendingInvitations'] is List
+              ? (data['pendingInvitations'] as List)
+                  .whereType<Map>()
+                  .map((item) => Map<String, dynamic>.from(item))
+                  .toList()
+              : const <Map<String, dynamic>>[],
           initialScreenSharer: data['screenSharer']?.toString(),
           initialScreenStreamId: data['screenStreamId']?.toString(),
         ),
@@ -1795,6 +1905,22 @@ class _CallScreenState extends State<CallScreen>
             icon: _muted ? Icons.mic_off_rounded : Icons.mic_off_outlined,
             label: 'Mute', active: _muted, onTap: _toggleMute),
         ]),
+        if (_state == CallState.connected) ...[
+          const SizedBox(height: 17),
+          OutlinedButton.icon(
+            onPressed: _groupTransitioning ? null : _promoteToGroupCall,
+            icon: _groupTransitioning
+                ? const SizedBox(width: 17, height: 17, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.person_add_alt_1_rounded, size: 18),
+            label: Text(_groupTransitioning ? 'Preparing invite…' : 'Add people'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.primary,
+              side: BorderSide(color: Theme.of(context).colorScheme.primary.withValues(alpha: .35)),
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 11),
+              shape: const StadiumBorder(),
+            ),
+          ),
+        ],
         const SizedBox(height: 23),
         Column(mainAxisSize: MainAxisSize.min, children: [
           _CallButton(icon: Icons.call_end_rounded, label: 'End',

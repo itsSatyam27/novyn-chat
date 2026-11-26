@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart'
     hide Message;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart'
@@ -2370,6 +2371,7 @@ class NotificationService {
     if (groupCallId.isEmpty || inviter.isEmpty || !context.mounted ||
         !_openingGroupCallIds.add(groupCallId)) return;
 
+    AudioPlayer? invitationRingtone;
     try {
       final expiresAt = int.tryParse(invitation['expiresAt']?.toString() ??
           invitation['callExpiresAt']?.toString() ?? '');
@@ -2380,10 +2382,34 @@ class NotificationService {
       if (!autoAccept) {
         final inviterName = invitation['invitedByDisplayName']?.toString() ??
             invitation['fromDisplayName']?.toString() ?? inviter;
+        final ringtoneName = _settings?.callRingtone ?? 'Default';
+        if (ringtoneName != 'None') {
+          invitationRingtone = AudioPlayer();
+          try {
+            await invitationRingtone!.setReleaseMode(ReleaseMode.loop);
+            await invitationRingtone!.setVolume(
+              (_settings?.callVolume ?? 0.8).clamp(0.0, 1.0).toDouble(),
+            );
+            await invitationRingtone!.play(AssetSource('audio/ringtone.mp3'));
+          } catch (error) {
+            debugPrint('[NovynCalls] Could not play group-call ringtone: $error');
+          }
+        }
+        Timer? invitationExpiryTimer;
+        final remaining = expiresAt == null
+            ? const Duration(seconds: 45)
+            : Duration(milliseconds: (expiresAt - DateTime.now().millisecondsSinceEpoch)
+                .clamp(1, 45000).toInt());
         final accepted = await showDialog<bool>(
           context: context,
           barrierDismissible: false,
-          builder: (dialogContext) => AlertDialog(
+          builder: (dialogContext) {
+            invitationExpiryTimer ??= Timer(remaining, () {
+              if (dialogContext.mounted && Navigator.of(dialogContext).canPop()) {
+                Navigator.of(dialogContext).pop(false);
+              }
+            });
+            return AlertDialog(
             title: const Text('Group call invitation'),
             content: Text(inviterName + ' invited you to a ' +
                 (invitation['isVideo'] == true ? 'video' : 'voice') +
@@ -2398,8 +2424,10 @@ class NotificationService {
                 child: const Text('Join call'),
               ),
             ],
-          ),
+          );
+          },
         );
+        invitationExpiryTimer?.cancel();
         if (!context.mounted) return;
         if (accepted != true) {
           await context.read<SocketService>().declineGroupCall(groupCallId);
@@ -2444,6 +2472,12 @@ class NotificationService {
           initialMediaStates: result['mediaStates'] is Map
               ? Map<String, dynamic>.from(result['mediaStates'] as Map)
               : const <String, dynamic>{},
+          initialPendingInvitations: result['pendingInvitations'] is List
+              ? (result['pendingInvitations'] as List)
+                  .whereType<Map>()
+                  .map((item) => Map<String, dynamic>.from(item))
+                  .toList()
+              : const <Map<String, dynamic>>[],
           initialScreenSharer: result['screenSharer']?.toString(),
           initialScreenStreamId: result['screenStreamId']?.toString(),
         ),
@@ -2451,6 +2485,10 @@ class NotificationService {
     } catch (error) {
       debugPrint('[NovynCalls] Could not join group call: $error');
     } finally {
+      if (invitationRingtone != null) {
+        try { await invitationRingtone!.stop(); } catch (_) {}
+        try { await invitationRingtone!.dispose(); } catch (_) {}
+      }
       _openingGroupCallIds.remove(groupCallId);
     }
   }

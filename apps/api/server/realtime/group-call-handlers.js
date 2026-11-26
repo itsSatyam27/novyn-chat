@@ -24,6 +24,12 @@ function registerGroupCallHandlers(socket, deps) {
     sendPushToUser,
     allowSocketAction,
   } = deps;
+  const scheduleInviteTimeout = deps.scheduleInviteTimeout || ((callback, delay) => {
+    const timer = setTimeout(callback, delay);
+    timer.unref?.();
+    return timer;
+  });
+  const clearInviteTimeout = deps.clearInviteTimeout || clearTimeout;
 
   if (!registry?.sessions || !registry?.userSessions) {
     throw new TypeError('A group-call registry is required.');
@@ -66,6 +72,12 @@ function registerGroupCallHandlers(socket, deps) {
       ? users.get(session.screenSharer)?.username || session.screenSharer
       : null,
     screenStreamId: session.screenStreamId || null,
+    pendingInvitations: Array.from(session.pending.entries(), ([key, invite]) => ({
+      username: users.get(key)?.username || key,
+      displayName: displayName(key),
+      invitedBy: users.get(invite.invitedBy)?.username || invite.invitedBy,
+      expiresAt: invite.expiresAt,
+    })),
     capacity: MAX_GROUP_CALL_PARTICIPANTS,
   });
   const respond = (ack, result) => {
@@ -77,10 +89,31 @@ function registerGroupCallHandlers(socket, deps) {
     const session = registry.sessions.get(id);
     return session && session.participants.has(userKey) ? session : null;
   };
+  const clearInviteTimer = (invite) => {
+    if (invite?.timer) {
+      clearInviteTimeout(invite.timer);
+      invite.timer = null;
+    }
+  };
+  const expirePendingInvite = (session, inviteeKey, expectedInvite = null) => {
+    const invite = session.pending.get(inviteeKey);
+    if (!invite || (expectedInvite && invite !== expectedInvite)) return false;
+    session.pending.delete(inviteeKey);
+    clearInviteTimer(invite);
+    emitSession(session, 'group_call_invitation_expired', {
+      groupCallId: session.groupCallId,
+      callId: session.callId,
+      username: users.get(inviteeKey)?.username || inviteeKey,
+      displayName: displayName(inviteeKey),
+      invitedBy: users.get(invite.invitedBy)?.username || invite.invitedBy,
+      status: 'no_answer',
+    });
+    return true;
+  };
   const cleanupPending = (session) => {
     const now = Date.now();
     for (const [invitee, invite] of session.pending.entries()) {
-      if (invite.expiresAt <= now) session.pending.delete(invitee);
+      if (invite.expiresAt <= now) expirePendingInvite(session, invitee, invite);
     }
   };
   const canInvite = (inviterKey, inviteeKey) => {
@@ -103,6 +136,45 @@ function registerGroupCallHandlers(socket, deps) {
     }
     return null;
   };
+  const sendGroupInvitation = (session, inviteeKey, invitedByKey) => {
+    const expiresAt = Date.now() + GROUP_CALL_INVITE_TTL_MS;
+    const invite = { invitedBy: invitedByKey, expiresAt, timer: null };
+    session.pending.set(inviteeKey, invite);
+    invite.timer = scheduleInviteTimeout(() => {
+      expirePendingInvite(session, inviteeKey, invite);
+    }, GROUP_CALL_INVITE_TTL_MS);
+    const invitation = {
+      ...sessionView(session),
+      invitedBy: users.get(invitedByKey)?.username || invitedByKey,
+      invitedByDisplayName: displayName(invitedByKey),
+      expiresAt,
+    };
+    emitUser(inviteeKey, 'group_call_invitation', invitation);
+    Promise.resolve(sendPushToUser?.(inviteeKey, {
+      type: 'call',
+      callStatus: 'incoming',
+      title: session.isVideo ? 'Incoming group video call' : 'Incoming group voice call',
+      body: displayName(invitedByKey) + ' invited you to a group call',
+      chat: users.get(invitedByKey)?.username || invitedByKey,
+      kind: 'friend',
+      callId: session.callId,
+      groupCallId: session.groupCallId,
+      groupCall: true,
+      isVideo: session.isVideo,
+      tag: 'group-call-' + session.groupCallId,
+      callExpiresAt: expiresAt,
+    })).catch((error) => {
+      console.warn('[GroupCall] Invitation push failed:', error?.message || error);
+    });
+    return {
+      ok: true,
+      username: users.get(inviteeKey)?.username || inviteeKey,
+      displayName: displayName(inviteeKey),
+      invitedBy: users.get(invitedByKey)?.username || invitedByKey,
+      expiresAt,
+      remainingSlots: MAX_GROUP_CALL_PARTICIPANTS - session.participants.size - session.pending.size,
+    };
+  };
   const endSession = (session, reason) => {
     if (!registry.sessions.has(session.groupCallId)) return;
     registry.sessions.delete(session.groupCallId);
@@ -116,6 +188,7 @@ function registerGroupCallHandlers(socket, deps) {
         reason: reason || 'The group call has ended.',
       });
     }
+    for (const invite of session.pending.values()) clearInviteTimer(invite);
     session.pending.clear();
   };
   const removeParticipant = (session, participantKey, reason) => {
@@ -152,8 +225,48 @@ function registerGroupCallHandlers(socket, deps) {
     const current = registry.userSessions.get(userKey);
     if (current) {
       const existing = registry.sessions.get(current);
-      if (existing?.callId === callId) {
-        return respond(ack, { ok: true, ...sessionView(existing) });
+      if (existing?.callId === callId && existing.participants.has(userKey)) {
+        const rawInvitees = Array.isArray(payload?.invitees) ? payload.invitees : [];
+        cleanupPending(existing);
+        const requested = rawInvitees.map((value) => normalizeName(safeName(value)));
+        const newInvitees = requested.filter((key) => !existing.pending.has(key));
+        if (newInvitees.length > MAX_GROUP_CALL_PARTICIPANTS - existing.participants.size - existing.pending.size) {
+          return respond(ack, { ok: false, message: 'There are not enough open places in this call.' });
+        }
+        if (requested.some((key) => !key) || new Set(requested).size !== requested.length) {
+          return respond(ack, { ok: false, message: 'Choose valid, unique contacts.' });
+        }
+        if (allowSocketAction && requested.length > 0 &&
+            !allowSocketAction(socket, 'group_call_invite', 5, 60_000)) {
+          return respond(ack, { ok: false, message: 'Too many invitations. Try again shortly.' });
+        }
+        for (const inviteeKey of requested) {
+          if (existing.participants.has(inviteeKey)) {
+            return respond(ack, { ok: false, message: 'This person is already in the call.' });
+          }
+          if (existing.pending.has(inviteeKey)) continue;
+          const denial = canInvite(userKey, inviteeKey);
+          if (denial) return respond(ack, { ok: false, message: denial });
+          if (registry.userSessions.has(inviteeKey) || activeCalls.has(inviteeKey)) {
+            return respond(ack, { ok: false, message: 'This person is already in another call.' });
+          }
+        }
+        const invitations = requested.map((inviteeKey) => {
+          const pending = existing.pending.get(inviteeKey);
+          return pending
+            ? {
+                ok: true,
+                username: users.get(inviteeKey)?.username || inviteeKey,
+                displayName: displayName(inviteeKey),
+                invitedBy: users.get(pending.invitedBy)?.username || pending.invitedBy,
+                expiresAt: pending.expiresAt,
+                remainingSlots: MAX_GROUP_CALL_PARTICIPANTS - existing.participants.size - existing.pending.size,
+              }
+            : sendGroupInvitation(existing, inviteeKey, userKey);
+        });
+        const view = sessionView(existing);
+        emitSession(existing, 'group_call_promoted', view);
+        return respond(ack, { ok: true, ...view, invitations });
       }
       return respond(ack, { ok: false, message: 'You are already in another group call.' });
     }
@@ -166,6 +279,29 @@ function registerGroupCallHandlers(socket, deps) {
         peer.status !== 'connected' ||
         registry.userSessions.has(userKey) || registry.userSessions.has(peerKey)) {
       return respond(ack, { ok: false, message: 'Only a connected one-to-one call can be expanded.' });
+    }
+
+    const rawInvitees = Array.isArray(payload?.invitees) ? payload.invitees : [];
+    if (rawInvitees.length > MAX_GROUP_CALL_PARTICIPANTS - 2) {
+      return respond(ack, { ok: false, message: 'You can add up to two people to this call.' });
+    }
+    const inviteeKeys = rawInvitees.map((value) => normalizeName(safeName(value)));
+    if (inviteeKeys.some((key) => !key) || new Set(inviteeKeys).size !== inviteeKeys.length) {
+      return respond(ack, { ok: false, message: 'Choose valid, unique contacts.' });
+    }
+    if (allowSocketAction && inviteeKeys.length > 0 &&
+        !allowSocketAction(socket, 'group_call_invite', 5, 60_000)) {
+      return respond(ack, { ok: false, message: 'Too many invitations. Try again shortly.' });
+    }
+    for (const inviteeKey of inviteeKeys) {
+      if (inviteeKey === peerKey) {
+        return respond(ack, { ok: false, message: 'This person is already in the call.' });
+      }
+      const denial = canInvite(userKey, inviteeKey);
+      if (denial) return respond(ack, { ok: false, message: denial });
+      if (registry.userSessions.has(inviteeKey) || activeCalls.has(inviteeKey)) {
+        return respond(ack, { ok: false, message: 'This person is already in another call.' });
+      }
     }
 
     const groupCallId = 'group-' + callId;
@@ -188,10 +324,12 @@ function registerGroupCallHandlers(socket, deps) {
     clearCallPair?.(userKey);
     registry.userSessions.set(userKey, groupCallId);
     registry.userSessions.set(peerKey, groupCallId);
+    const invitations = inviteeKeys.map((inviteeKey) =>
+      sendGroupInvitation(session, inviteeKey, userKey));
 
     const view = sessionView(session);
     emitSession(session, 'group_call_promoted', view);
-    respond(ack, { ok: true, ...view });
+    respond(ack, { ok: true, ...view, invitations });
   });
 
   socket.on('group_call_invite', (payload, ack) => {
@@ -219,32 +357,8 @@ function registerGroupCallHandlers(socket, deps) {
       return respond(ack, { ok: false, message: 'This person is already in another call.' });
     }
 
-    const expiresAt = Date.now() + GROUP_CALL_INVITE_TTL_MS;
-    session.pending.set(inviteeKey, { invitedBy: userKey, expiresAt });
-    const invitation = {
-      ...sessionView(session),
-      invitedBy: users.get(userKey)?.username || userKey,
-      invitedByDisplayName: displayName(userKey),
-      expiresAt,
-    };
-    emitUser(inviteeKey, 'group_call_invitation', invitation);
-    Promise.resolve(sendPushToUser?.(inviteeKey, {
-      type: 'call',
-      callStatus: 'incoming',
-      title: session.isVideo ? 'Incoming group video call' : 'Incoming group voice call',
-      body: displayName(userKey) + ' invited you to a group call',
-      chat: users.get(userKey)?.username || userKey,
-      kind: 'friend',
-      callId: session.callId,
-      groupCallId: session.groupCallId,
-      groupCall: true,
-      isVideo: session.isVideo,
-      tag: 'group-call-' + session.groupCallId,
-      callExpiresAt: expiresAt,
-    })).catch((error) => {
-      console.warn('[GroupCall] Invitation push failed:', error?.message || error);
-    });
-    respond(ack, { ok: true, expiresAt, remainingSlots: MAX_GROUP_CALL_PARTICIPANTS - session.participants.size - session.pending.size });
+    const invitation = sendGroupInvitation(session, inviteeKey, userKey);
+    respond(ack, invitation);
   });
 
   socket.on('group_call_accept', (payload, ack) => {
@@ -252,24 +366,47 @@ function registerGroupCallHandlers(socket, deps) {
     const session = registry.sessions.get(groupCallId);
     const invitation = session?.pending.get(userKey);
     if (!session || !invitation || invitation.expiresAt <= Date.now()) {
-      session?.pending.delete(userKey);
+      if (session && invitation) expirePendingInvite(session, userKey, invitation);
+      else session?.pending.delete(userKey);
       return respond(ack, { ok: false, message: 'This group call invitation has expired.' });
     }
     cleanupPending(session);
+    if (session.pending.get(userKey) !== invitation) {
+      return respond(ack, { ok: false, message: 'This group call invitation has expired.' });
+    }
     if (registry.userSessions.has(userKey) || activeCalls.has(userKey)) {
+      clearInviteTimer(invitation);
       session.pending.delete(userKey);
+      emitUser(invitation.invitedBy, 'group_call_invitation_declined', {
+        groupCallId,
+        username: users.get(userKey)?.username || userKey,
+        reason: 'The invited person is already in another call.',
+      });
       return respond(ack, { ok: false, message: 'End your current call before joining another.' });
     }
     if (session.participants.size >= MAX_GROUP_CALL_PARTICIPANTS) {
+      clearInviteTimer(invitation);
       session.pending.delete(userKey);
+      emitUser(invitation.invitedBy, 'group_call_invitation_declined', {
+        groupCallId,
+        username: users.get(userKey)?.username || userKey,
+        reason: 'The group call became full before the invitation was accepted.',
+      });
       return respond(ack, { ok: false, message: 'This group call is full.' });
     }
     const denial = canInvite(invitation.invitedBy, userKey);
     if (denial) {
+      clearInviteTimer(invitation);
       session.pending.delete(userKey);
+      emitUser(invitation.invitedBy, 'group_call_invitation_declined', {
+        groupCallId,
+        username: users.get(userKey)?.username || userKey,
+        reason: denial,
+      });
       return respond(ack, { ok: false, message: denial });
     }
 
+    clearInviteTimer(invitation);
     session.pending.delete(userKey);
     session.participants.add(userKey);
     registry.userSessions.set(userKey, groupCallId);
@@ -306,6 +443,7 @@ function registerGroupCallHandlers(socket, deps) {
     if (!session || !invitation) {
       return respond(ack, { ok: false, message: 'Invitation not found.' });
     }
+    clearInviteTimer(invitation);
     session.pending.delete(userKey);
     emitUser(invitation.invitedBy, 'group_call_invitation_declined', {
       groupCallId,
