@@ -145,13 +145,13 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
       _refreshMiniOverlay();
     };
     _socket.onGroupCallEndedCallback = (data) {
-      if (!_matchesCall(data)) return;
+      if (!_matchesCall(data) || !mounted) return;
       unawaited(_finishFromServer(
         data['reason']?.toString() ?? 'The group call has ended.',
       ));
     };
     _socket.onGroupCallMediaStateCallback = (data) {
-      if (!_matchesCall(data)) return;
+      if (!_matchesCall(data) || !mounted) return;
       final username = data['username']?.toString().toLowerCase() ?? '';
       if (username.isEmpty) return;
       setState(() {
@@ -161,7 +161,7 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
       _refreshMiniOverlay();
     };
     _socket.onGroupCallScreenShareStateCallback = (data) {
-      if (!_matchesCall(data)) return;
+      if (!_matchesCall(data) || !mounted) return;
       final username = data['username']?.toString().trim() ?? '';
       final streamId = data['streamId']?.toString();
       setState(() {
@@ -700,7 +700,7 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
 
   WebRTCService? _firstRemoteVideoService() {
     for (final peer in _peers.values) {
-      if (peer.remoteStream != null) return peer;
+      if (peer.hasRemoteVideo) return peer;
     }
     return null;
   }
