@@ -246,7 +246,14 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
           iOS: DarwinNotificationDetails(
               presentAlert: true, presentBadge: true, presentSound: sound),
         ),
-        payload: 'call:' + callId + '|' + caller + '|' + (isVideo ? '1' : '0') + '|' + (callExpiresAt?.millisecondsSinceEpoch.toString() ?? ''));
+        payload: data['groupCall']?.toString().toLowerCase() == 'true'
+            ? 'groupcall:' + callId + '|' +
+                (data['groupCallId']?.toString() ?? '') + '|' + caller + '|' +
+                (isVideo ? '1' : '0') + '|' +
+                (callExpiresAt?.millisecondsSinceEpoch.toString() ?? '')
+            : 'call:' + callId + '|' + caller + '|' +
+                (isVideo ? '1' : '0') + '|' +
+                (callExpiresAt?.millisecondsSinceEpoch.toString() ?? ''));
     return;
   }
   final notificationType = data['type']?.toString() ?? '';
