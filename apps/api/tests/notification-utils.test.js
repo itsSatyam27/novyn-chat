@@ -115,6 +115,31 @@ test("calls use a short high-priority delivery window", () => {
   assert.equal(call.android.ttl, 45 * 1000);
 });
 
+test("group call push payloads preserve join routing metadata", () => {
+  const call = createFcmMessage("carol", { username: "carol" }, {
+    type: "call",
+    callStatus: "incoming",
+    callId: "call-123",
+    groupCall: true,
+    groupCallId: "group-call-123",
+    invitedBy: "bob",
+    invitedByDisplayName: "Bob",
+    chat: "bob",
+    isVideo: true,
+    callExpiresAt: 123456789,
+  });
+  assert.equal(call.notification, undefined);
+  assert.equal(call.data.type, "call");
+  assert.equal(call.data.callStatus, "incoming");
+  assert.equal(call.data.groupCall, "true");
+  assert.equal(call.data.groupCallId, "group-call-123");
+  assert.equal(call.data.invitedBy, "bob");
+  assert.equal(call.data.invitedByDisplayName, "Bob");
+  assert.equal(call.data.isVideo, "1");
+  assert.equal(call.android.priority, "high");
+  assert.equal(call.android.ttl, 45 * 1000);
+});
+
 test("social notifications include OS-visible alerts and retain account routing", () => {
   const social = createFcmMessage("alice", { username: "alice" }, {
     type: "friend_request", eventId: "request-1", from: "bob",
