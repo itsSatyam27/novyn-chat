@@ -125,6 +125,7 @@ function registerGroupCallHandlers(socket, deps) {
     }
     if (session.screenSharer === participantKey) {
       session.screenSharer = null;
+      session.screenStreamId = null;
       emitSession(session, 'group_call_screen_share_state', {
         groupCallId: session.groupCallId,
         username: users.get(participantKey)?.username || participantKey,
