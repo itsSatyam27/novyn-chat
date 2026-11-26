@@ -94,7 +94,13 @@ class WebRTCService extends ChangeNotifier {
   }
 
   // ── Start local media stream ─────────────────────────────────────────────
-  Future<void> startLocalStream({bool video = true}) async {
+  Future<void> startLocalStream({
+    bool video = true,
+    bool groupCall = false,
+  }) async {
+    final width = groupCall ? 640 : 1280;
+    final height = groupCall ? 360 : 720;
+    final frameRate = groupCall ? 20 : 30;
     final constraints = {
       'audio': {
         'echoCancellation': true,
@@ -104,9 +110,9 @@ class WebRTCService extends ChangeNotifier {
       'video': video
           ? {
               'facingMode': 'user',
-              'width': {'ideal': 1280, 'max': 1920},
-              'height': {'ideal': 720, 'max': 1080},
-              'frameRate': {'ideal': 30, 'max': 30},
+              'width': {'ideal': width, 'max': groupCall ? 960 : 1920},
+              'height': {'ideal': height, 'max': groupCall ? 540 : 1080},
+              'frameRate': {'ideal': frameRate, 'max': frameRate},
             }
           : false,
     };
@@ -893,7 +899,7 @@ class WebRTCService extends ChangeNotifier {
       }
       try { await screen?.dispose(); } catch (_) {}
     }
-    await _stopScreenShareForegroundExecution();
+    if (_ownsScreenStream) await _stopScreenShareForegroundExecution();
     if (_ownsLocalStream) await _localStream?.dispose();
     await _remoteStream?.dispose();
     await _peerConnection?.close();
