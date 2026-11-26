@@ -38,6 +38,7 @@ function makeFixture() {
     ['bob', { peerKey: 'alice', status: 'connected', callId: 'call-1', type: 'video' }],
   ]);
   const delivered = [];
+  const scheduledInvites = [];
   const registry = createGroupCallRegistry();
   const deps = {
     registry,
@@ -62,6 +63,14 @@ function makeFixture() {
     },
     usersAreBlocked: () => false,
     sendPushToUser: async () => {},
+    scheduleInviteTimeout(callback, delay) {
+      const timer = { callback, delay, cancelled: false };
+      scheduledInvites.push(timer);
+      return timer;
+    },
+    clearInviteTimeout(timer) {
+      if (timer) timer.cancelled = true;
+    },
     allowSocketAction: () => true,
   };
   const sockets = new Map();
@@ -70,7 +79,7 @@ function makeFixture() {
     sockets.set(name, socket);
     registerGroupCallHandlers(socket, deps);
   }
-  return { ...deps, delivered, sockets };
+  return { ...deps, delivered, scheduledInvites, sockets };
 }
 
 function invoke(socket, event, payload = {}) {
@@ -143,6 +152,113 @@ test('any current participant can invite another person until all four slots are
   });
   assert.equal(fullInvite.ok, false);
   assert.match(fullInvite.message, /four people/i);
+});
+
+
+test('a direct call can be promoted and ring the selected invitee in the same action', () => {
+  const fixture = makeFixture();
+  const result = invoke(fixture.sockets.get('alice'), 'group_call_promote', {
+    callId: 'call-1',
+    isVideo: false,
+    invitees: ['carol'],
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.isVideo, false);
+  assert.equal(result.pendingInvitations.length, 1);
+  assert.equal(result.pendingInvitations[0].username, 'carol');
+  assert.equal(result.invitations[0].username, 'carol');
+  assert.equal(fixture.registry.userSessions.get('alice'), result.groupCallId);
+  assert.equal(fixture.registry.userSessions.get('bob'), result.groupCallId);
+  assert.equal(fixture.activeCalls.size, 0);
+  assert.equal(
+    fixture.delivered.some((entry) =>
+      entry.socketId === 'carol-socket' &&
+      entry.name === 'group_call_invitation' &&
+      entry.payload.groupCallId === result.groupCallId,
+    ),
+    true,
+  );
+});
+
+test('promotion validates the selected invitee before changing the live one-to-one call', () => {
+  const fixture = makeFixture();
+  fixture.users.get('carol').callsEnabled = false;
+  const result = invoke(fixture.sockets.get('alice'), 'group_call_promote', {
+    callId: 'call-1',
+    invitees: ['carol'],
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.message, /not accepting calls/i);
+  assert.equal(fixture.activeCalls.size, 2);
+  assert.equal(fixture.registry.sessions.size, 0);
+  assert.equal(fixture.registry.userSessions.size, 0);
+});
+
+test('group invitations notify the active call when the invitee does not answer', () => {
+  const fixture = makeFixture();
+  const promoted = invoke(fixture.sockets.get('alice'), 'group_call_promote', {
+    callId: 'call-1',
+  });
+  const invited = invoke(fixture.sockets.get('alice'), 'group_call_invite', {
+    groupCallId: promoted.groupCallId,
+    to: 'carol',
+  });
+  assert.equal(invited.ok, true);
+  assert.equal(fixture.scheduledInvites.length, 1);
+  const timer = fixture.scheduledInvites[0];
+  assert.equal(timer.delay, 45_000);
+  assert.equal(timer.cancelled, false);
+
+  timer.callback();
+  assert.equal(timer.cancelled, true);
+  assert.equal(fixture.registry.sessions.get(promoted.groupCallId).pending.size, 0);
+  assert.equal(
+    fixture.delivered.filter((entry) =>
+      entry.name === 'group_call_invitation_expired' &&
+      entry.payload.username === 'carol',
+    ).length,
+    2,
+    'both active call participants receive the no-answer status',
+  );
+
+  // A stale timer callback cannot emit a second no-answer result.
+  timer.callback();
+  assert.equal(
+    fixture.delivered.filter((entry) =>
+      entry.name === 'group_call_invitation_expired' &&
+      entry.payload.username === 'carol',
+    ).length,
+    2,
+  );
+});
+
+test('accepting an invitation cancels its no-answer timer and releases the pending seat', () => {
+  const fixture = makeFixture();
+  const promoted = invoke(fixture.sockets.get('alice'), 'group_call_promote', {
+    callId: 'call-1',
+  });
+  invoke(fixture.sockets.get('alice'), 'group_call_invite', {
+    groupCallId: promoted.groupCallId,
+    to: 'carol',
+  });
+  const timer = fixture.scheduledInvites[0];
+  const joined = invoke(fixture.sockets.get('carol'), 'group_call_accept', {
+    groupCallId: promoted.groupCallId,
+  });
+
+  assert.equal(joined.ok, true);
+  assert.equal(timer.cancelled, true);
+  assert.equal(joined.pendingInvitations.length, 0);
+  timer.callback();
+  assert.equal(
+    fixture.delivered.some((entry) =>
+      entry.name === 'group_call_invitation_expired' &&
+      entry.payload.username === 'carol',
+    ),
+    false,
+  );
 });
 
 test('only active group participants can relay signaling to another participant', () => {
