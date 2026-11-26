@@ -78,9 +78,38 @@ jobs:
         working-directory: apps/mobile/flutter
         run: flutter pub get
 
-      - name: Build release APK
+      - name: Verify encrypted symbol backup secret
+        env:
+          DEBUG_SYMBOLS_PASSPHRASE: ${{ secrets.DEBUG_SYMBOLS_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          test -n "${DEBUG_SYMBOLS_PASSPHRASE}" || (echo "::error::Missing DEBUG_SYMBOLS_PASSPHRASE Actions secret." && exit 1)
+
+      - name: Build obfuscated release APK
         working-directory: apps/mobile/flutter
-        run: flutter build apk --release
+        run: >-
+          flutter build apk --release
+          --build-number="${GITHUB_RUN_NUMBER}"
+          --obfuscate
+          --split-debug-info=build/secure-symbols/legacy-release-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}
+
+      - name: Encrypt Dart obfuscation symbols
+        id: archive-symbols
+        env:
+          DEBUG_SYMBOLS_PASSPHRASE: ${{ secrets.DEBUG_SYMBOLS_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          bash scripts/security/archive-obfuscation-symbols.sh \
+            "apps/mobile/flutter/build/secure-symbols/legacy-release-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}" \
+            "novyn-android-legacy-release-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
+
+      - name: Upload encrypted Dart symbols
+        uses: actions/upload-artifact@v4
+        with:
+          name: novyn-obfuscated-symbols-legacy-release-${{ github.run_number }}-${{ github.run_attempt }}
+          path: ${{ steps.archive-symbols.outputs.encrypted_file }}
+          if-no-files-found: error
+          retention-days: 90
 
       - name: Publish direct APK download
         env:

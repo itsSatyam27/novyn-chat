@@ -45,6 +45,12 @@ jobs:
             echo "::error::No changed files found for this push."
             exit 1
           fi
+          DART_SOURCE_FILES="$(printf '%s\n' "${CHANGED_FILES}" | grep -E '^apps/mobile/flutter/lib/.+\.dart$' || true)"
+          if [ -z "${DART_SOURCE_FILES}" ]; then
+            echo "Skipping OTA patch because this push contains no Dart source changes."
+            echo "dart_only=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
           NON_DART_RUNTIME_FILES="$(printf '%s\n' "${CHANGED_FILES}" | grep '^apps/mobile/flutter/' | grep -Ev '^apps/mobile/flutter/lib/.+\.dart$|^apps/mobile/flutter/test/|^apps/mobile/flutter/README\.md$' || true)"
           if [ -n "${NON_DART_RUNTIME_FILES}" ]; then
             echo "Skipping OTA patch because this push includes Flutter platform, asset, or dependency changes:"
@@ -56,11 +62,14 @@ jobs:
 
       - name: Verify Shorebird configuration
         if: steps.change-scope.outputs.dart_only == 'true'
+        env:
+          DEBUG_SYMBOLS_PASSPHRASE: ${{ secrets.DEBUG_SYMBOLS_PASSPHRASE }}
         run: |
           set -euo pipefail
           test -f apps/mobile/flutter/shorebird.yaml || (echo "::error::Missing apps/mobile/flutter/shorebird.yaml" && exit 1)
           test -n "${SHOREBIRD_TOKEN}" || (echo "::error::Missing SHOREBIRD_TOKEN repository secret" && exit 1)
           test -n "${SHOREBIRD_RELEASE_VERSION}" || (echo "::error::Missing SHOREBIRD_RELEASE_VERSION repository variable. Set it to the installed ARM64 Shorebird release version." && exit 1)
+          test -n "${DEBUG_SYMBOLS_PASSPHRASE}" || (echo "::error::Missing DEBUG_SYMBOLS_PASSPHRASE repository secret." && exit 1)
 
       - name: Set up Java
         if: steps.change-scope.outputs.dart_only == 'true'
@@ -119,7 +128,29 @@ jobs:
           working-directory: apps/mobile/flutter
           release-version: ${{ vars.SHOREBIRD_RELEASE_VERSION }}
           track: stable
-          args: --allow-asset-diffs
+          args: >-
+            --allow-asset-diffs
+            --split-debug-info=build/secure-symbols/patch-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Encrypt this patch's Dart obfuscation symbols
+        id: archive-symbols
+        if: steps.change-scope.outputs.dart_only == 'true'
+        env:
+          DEBUG_SYMBOLS_PASSPHRASE: ${{ secrets.DEBUG_SYMBOLS_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          bash scripts/security/archive-obfuscation-symbols.sh \
+            "apps/mobile/flutter/build/secure-symbols/patch-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            "novyn-android-patch-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+      - name: Upload encrypted patch Dart symbols
+        if: steps.change-scope.outputs.dart_only == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: novyn-obfuscated-symbols-patch-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.archive-symbols.outputs.encrypted_file }}
+          if-no-files-found: error
+          retention-days: 90
 
       - name: Summarize patch
         if: steps.change-scope.outputs.dart_only == 'true'
