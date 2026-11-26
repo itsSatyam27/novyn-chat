@@ -86,10 +86,11 @@ class _CallScreenState extends State<CallScreen>
 
   // Draggable PiP position
   Offset _pipPosition = const Offset(0, 0); // Will be set in initState
-  final double _pipWidth = 120;
-  final double _pipHeight = 160;
+  final double _pipWidth = 132;
+  final double _pipHeight = 176;
 
   bool _isVideo = false;
+  bool _localVideoExpanded = false;
   bool _networkAudioOnly = false;
   bool get _showVideo => _isVideo && !_networkAudioOnly;
   bool _isScreenSharingLocal = false;
@@ -1556,52 +1557,68 @@ class _CallScreenState extends State<CallScreen>
   // ── Video call UI ──────────────────────────────────────────────────────
   Widget _buildVideoCall() {
     final connected = _state == CallState.connected;
+    final localVideoIsMain = _localVideoExpanded && _webrtc.localStream != null;
+    final remoteVideoIsMain = !localVideoIsMain && _webrtc.remoteStream != null;
     return Stack(
       fit: StackFit.expand,
       children: [
         Positioned.fill(
-          child: _webrtc.remoteStream != null
+          child: localVideoIsMain && !_cameraOff
               ? RTCVideoView(
-                  _webrtc.remoteRenderer,
+                  _webrtc.localRenderer,
+                  mirror: _frontCamera,
                   objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
                 )
-              : Container(
-                  decoration: const BoxDecoration(
-                    gradient: RadialGradient(
-                      center: Alignment(-0.35, -0.55),
-                      radius: 1.25,
-                      colors: [Color(0xFF5967B8), Color(0xFF25294D), Color(0xFF0B0D1B)],
-                      stops: [0, .52, 1],
-                    ),
-                  ),
-                  child: Stack(children: [
-                    Positioned(
-                      right: -100, bottom: 60,
-                      child: Container(
-                        width: 360, height: 360,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: RadialGradient(colors: [Color(0x886D4C91), Color(0x006D4C91)]),
+              : remoteVideoIsMain
+                  ? RTCVideoView(
+                      _webrtc.remoteRenderer,
+                      objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                    )
+                  : Container(
+                      decoration: const BoxDecoration(
+                        gradient: RadialGradient(
+                          center: Alignment(-0.35, -0.55),
+                          radius: 1.25,
+                          colors: [Color(0xFF5967B8), Color(0xFF25294D), Color(0xFF0B0D1B)],
+                          stops: [0, .52, 1],
                         ),
                       ),
+                      child: localVideoIsMain && _cameraOff
+                          ? const Center(
+                              child: Icon(
+                                Icons.videocam_off_rounded,
+                                color: Colors.white70,
+                                size: 48,
+                              ),
+                            )
+                          : Stack(children: [
+                              Positioned(
+                                right: -100, bottom: 60,
+                                child: Container(
+                                  width: 360, height: 360,
+                                  decoration: const BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    gradient: RadialGradient(colors: [Color(0x886D4C91), Color(0x006D4C91)]),
+                                  ),
+                                ),
+                              ),
+                              Center(
+                                child: AnimatedBuilder(
+                                  animation: _pulse,
+                                  builder: (_, child) => Transform.scale(
+                                    scale: _state == CallState.calling ? _pulse.value : 1,
+                                    child: child,
+                                  ),
+                                  child: UserAvatar(
+                                    name: widget.peer.name,
+                                    photoUrl: widget.peer.photoUrl,
+                                    radius: 112,
+                                    fallbackColor: const Color(0xFF6D5DFC),
+                                  ),
+                                ),
+                              ),
+                            ]),
                     ),
-                    Center(
-                      child: AnimatedBuilder(
-                        animation: _pulse,
-                        builder: (_, child) => Transform.scale(
-                          scale: _state == CallState.calling ? _pulse.value : 1,
-                          child: child,
-                        ),
-                        child: UserAvatar(
-                          name: widget.peer.name,
-                          photoUrl: widget.peer.photoUrl,
-                          radius: 112,
-                          fallbackColor: const Color(0xFF6D5DFC),
-                        ),
-                      ),
-                    ),
-                  ]),
-                ),
         ),
         Positioned.fill(
           child: IgnorePointer(
@@ -1648,10 +1665,10 @@ class _CallScreenState extends State<CallScreen>
                 child: Padding(
                   padding: const EdgeInsets.only(top: 22, right: 18),
                   child: GestureDetector(
-                    onTap: () async {
+                    onTap: () {
+                      if (_webrtc.localStream == null || _webrtc.remoteStream == null) return;
                       HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.calls);
-                      await _webrtc.switchCamera();
-                      if (mounted) setState(() => _frontCamera = !_frontCamera);
+                      setState(() => _localVideoExpanded = !_localVideoExpanded);
                     },
                     onPanUpdate: (details) => setState(() {
                       _pipPosition = Offset(
@@ -1664,16 +1681,37 @@ class _CallScreenState extends State<CallScreen>
                       decoration: BoxDecoration(
                         color: const Color(0xFF17192B),
                         borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: Colors.white.withValues(alpha: .75), width: 1.5),
                         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .28), blurRadius: 20, offset: const Offset(0, 8))],
                       ),
                       clipBehavior: Clip.antiAlias,
-                      child: _cameraOff
-                          ? const Center(child: Icon(Icons.videocam_off_rounded, color: Colors.white70, size: 28))
-                          : _webrtc.localStream != null
-                              ? RTCVideoView(_webrtc.localRenderer, mirror: _frontCamera, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover)
-                              : Center(child: UserAvatar(name: 'You', photoUrl: '', radius: 34)),
+                      child: localVideoIsMain
+                          ? _webrtc.remoteStream != null
+                              ? RTCVideoView(
+                                  _webrtc.remoteRenderer,
+                                  objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                                )
+                              : Center(
+                                  child: UserAvatar(
+                                    name: widget.peer.name,
+                                    photoUrl: widget.peer.photoUrl,
+                                    radius: 42,
+                                  ),
+                                )
+                          : _cameraOff
+                              ? const Center(
+                                  child: Icon(Icons.videocam_off_rounded, color: Colors.white70, size: 30),
+                                )
+                              : _webrtc.localStream != null
+                                  ? RTCVideoView(
+                                      _webrtc.localRenderer,
+                                      mirror: _frontCamera,
+                                      objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                                    )
+                                  : const Center(
+                                      child: Icon(Icons.videocam_rounded, color: Colors.white70, size: 30),
+                                    ),
                     ),
+                  ),
                   ),
                 ),
               ),
