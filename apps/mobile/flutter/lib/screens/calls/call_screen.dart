@@ -1144,6 +1144,11 @@ class _CallScreenState extends State<CallScreen>
           callId: _callId,
           isVideo: data['isVideo'] == true || _isVideo,
           participants: participants,
+          initialMediaStates: data['mediaStates'] is Map
+              ? Map<String, dynamic>.from(data['mediaStates'] as Map)
+              : const <String, dynamic>{},
+          initialScreenSharer: data['screenSharer']?.toString(),
+          initialScreenStreamId: data['screenStreamId']?.toString(),
         ),
       ),
     );
