@@ -496,7 +496,7 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
                                       color: accent.withValues(alpha: .10),
                                       borderRadius: BorderRadius.circular(24),
                                     ),
-                                    child: Text('Off', style: TextStyle(color: colors.onSurface, fontSize: 12, fontWeight: FontWeight.w700)),
+                                    child: Text('Off', style: TextStyle(color: ink, fontSize: 12, fontWeight: FontWeight.w700)),
                                   ),
                                 ],
                               ),
