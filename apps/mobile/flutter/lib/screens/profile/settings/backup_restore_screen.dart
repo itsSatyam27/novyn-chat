@@ -359,20 +359,22 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
             color: selected ? colors.primary : Colors.transparent,
             borderRadius: BorderRadius.circular(18),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 19, color: selected ? Colors.white : colors.onSurfaceVariant),
-              const SizedBox(height: 4),
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                style: TextStyle(
-                  color: selected ? Colors.white : colors.onSurfaceVariant,
-                  fontSize: 11.5,
-                  height: 1.1,
-                  fontWeight: FontWeight.w800,
+              Icon(icon, size: 18, color: selected ? Colors.white : colors.onSurfaceVariant),
+              const SizedBox(width: 5),
+              Flexible(
+                child: Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  style: TextStyle(
+                    color: selected ? Colors.white : colors.onSurfaceVariant,
+                    fontSize: 11.5,
+                    height: 1.1,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
             ],
