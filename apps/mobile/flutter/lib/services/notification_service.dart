@@ -186,7 +186,8 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         .toSet();
     if (dndEnabled && !favoriteIds.contains(caller.trim().toLowerCase()))
       return;
-    final isVideo = data['isVideo']?.toString() == '1';
+    final isVideo = data['isVideo']?.toString() == '1' ||
+        data['isVideo']?.toString().toLowerCase() == 'true';
     if (!_preferenceEnabled(
       prefs,
       isIncoming
