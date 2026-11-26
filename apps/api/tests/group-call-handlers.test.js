@@ -157,6 +157,8 @@ test('any current participant can invite another person until all four slots are
 
 test('a direct call can be promoted and ring the selected invitee in the same action', () => {
   const fixture = makeFixture();
+  fixture.activeCalls.get('alice').type = 'voice';
+  fixture.activeCalls.get('bob').type = 'voice';
   const result = invoke(fixture.sockets.get('alice'), 'group_call_promote', {
     callId: 'call-1',
     isVideo: false,
