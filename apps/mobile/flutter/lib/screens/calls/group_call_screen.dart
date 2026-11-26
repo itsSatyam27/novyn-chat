@@ -874,6 +874,17 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
             mirror: true,
             objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
           );
+        } else if (!isMe &&
+            key == _screenSharer?.toLowerCase() &&
+            service != null &&
+            service.remoteScreenRenderer.srcObject != null &&
+            identical(
+              service.remoteScreenRenderer.srcObject,
+              service.remoteRenderer.srcObject,
+            )) {
+          // When the camera sender is replaced by the display track, don't
+          // render the same shared screen again as the participant's camera.
+          video = _avatarFor(participant, radius: avatarRadius);
         } else if (!isMe && service?.hasRemoteVideo == true) {
           video = RTCVideoView(
             service!.remoteRenderer,
