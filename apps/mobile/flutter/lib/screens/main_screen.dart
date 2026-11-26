@@ -156,6 +156,18 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     }
     final networkReturned = _networkWasUnavailable;
     _networkWasUnavailable = false;
+
+    // Re-check the daily backup whenever the active transport changes, not
+    // only after an offline-to-online transition. The backup service applies
+    // the user's Wi-Fi / mobile-data / both policy and its 24-hour guard.
+    final auth = _authService ?? context.read<AuthService>();
+    final backupUsername = auth.user?.username.trim() ?? '';
+    if (backupUsername.isNotEmpty) {
+      unawaited(BackupAutomationService.runIfDue(
+        username: backupUsername,
+        encryption: context.read<SocketService>().encryption,
+      ));
+    }
     unawaited(_restoreSessionAndRecover(forceSocketReconnect: networkReturned));
   }
 

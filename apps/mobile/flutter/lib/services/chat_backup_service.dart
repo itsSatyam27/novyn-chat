@@ -124,11 +124,7 @@ class ChatBackupService {
     data['mediaFiles'] = mediaFiles;
   }
 
-  static Future<Map<String, int>?> restoreBackup({
-    required String username,
-    required String password,
-    required MessageEncryptionService encryption,
-  }) async {
+  static Future<Uint8List?> pickBackupFileBytes() async {
     final picked = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['json'],
@@ -137,9 +133,19 @@ class ChatBackupService {
     );
     if (picked == null || picked.files.isEmpty) return null;
     final bytes = picked.files.single.bytes;
-    if (bytes == null || bytes.length > 100 * 1024 * 1024) {
+    if (bytes == null || bytes.isEmpty || bytes.length > _maxBackupBytes) {
       throw const FormatException('Backup file is missing or larger than 100 MB.');
     }
+    return bytes;
+  }
+
+  static Future<Map<String, int>?> restoreBackup({
+    required String username,
+    required String password,
+    required MessageEncryptionService encryption,
+  }) async {
+    final bytes = await pickBackupFileBytes();
+    if (bytes == null) return null;
     return restoreBackupBytes(
       bytes: bytes,
       username: username,
