@@ -7,6 +7,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 
 import 'firebase_configuration.dart';
+import 'backup_progress.dart';
 
 /// Stores only password-encrypted Novyn backup envelopes in Drive's hidden
 /// appDataFolder. The Drive OAuth scope cannot access the user's other files.
@@ -56,9 +57,14 @@ class GoogleDriveBackupService {
   static Future<void> save(
     Uint8List encryptedBackup, {
     bool interactive = true,
+    void Function(int sentBytes, int totalBytes)? onProgress,
+    BackupCancellationCheck? checkCancelled,
   }) async {
+    checkCancelled?.call();
     final token = await _accessToken(interactive: interactive);
+    checkCancelled?.call();
     final existing = await _findBackup(token);
+    checkCancelled?.call();
     final boundary = 'novyn_${Random.secure().nextInt(1 << 32)}';
     final metadata = jsonEncode({
       'name': _fileName,
@@ -77,22 +83,52 @@ class GoogleDriveBackupService {
       ..setRange(0, prefix.length, prefix)
       ..setRange(prefix.length, prefix.length + encryptedBackup.length, encryptedBackup)
       ..setRange(prefix.length + encryptedBackup.length, prefix.length + encryptedBackup.length + suffix.length, suffix);
-    final path = existing == null
+    final uploadPath = existing == null
         ? '/upload/drive/v3/files'
         : '/upload/drive/v3/files/${Uri.encodeComponent(existing['id'].toString())}';
-    final request = http.Request(existing == null ? 'POST' : 'PATCH', Uri.https(
+    final request = http.StreamedRequest(existing == null ? 'POST' : 'PATCH', Uri.https(
       'www.googleapis.com',
-      path,
+      uploadPath,
       {'uploadType': 'multipart', 'fields': 'id,name,modifiedTime'},
     ))
       ..headers['Authorization'] = 'Bearer $token'
       ..headers['Content-Type'] = 'multipart/related; boundary=$boundary'
-      ..bodyBytes = body;
-    final streamed = await request.send();
-    if (streamed.statusCode < 200 || streamed.statusCode >= 300) {
-      final details = await streamed.stream.bytesToString();
-      debugPrint('[NovynBackup] Drive upload failed: ${streamed.statusCode} $details');
-      throw StateError('Google Drive could not save the encrypted backup (${streamed.statusCode}).');
+      ..contentLength = body.length;
+
+    // Send in bounded chunks so the UI and Android notification can report
+    // actual upload progress and cancellation can close the active request.
+    final client = http.Client();
+    final responseFuture = client.send(request);
+    var sentBytes = 0;
+    try {
+      const chunkSize = 64 * 1024;
+      while (sentBytes < body.length) {
+        checkCancelled?.call();
+        final end = (sentBytes + chunkSize).clamp(0, body.length).toInt();
+        request.sink.add(body.sublist(sentBytes, end));
+        sentBytes = end;
+        onProgress?.call(sentBytes, body.length);
+        await Future<void>.delayed(Duration.zero);
+      }
+      checkCancelled?.call();
+      await request.sink.close();
+      final streamed = await responseFuture;
+      if (streamed.statusCode < 200 || streamed.statusCode >= 300) {
+        final details = await streamed.stream.bytesToString();
+        debugPrint('[NovynBackup] Drive upload failed: ${streamed.statusCode} $details');
+        throw StateError('Google Drive could not save the encrypted backup (${streamed.statusCode}).');
+      }
+      checkCancelled?.call();
+    } catch (_) {
+      // Abort the in-flight upload and consume its response future so a
+      // cancelled request cannot leak an asynchronous ClientException.
+      client.close();
+      try {
+        await responseFuture;
+      } catch (_) {}
+      rethrow;
+    } finally {
+      client.close();
     }
   }
 

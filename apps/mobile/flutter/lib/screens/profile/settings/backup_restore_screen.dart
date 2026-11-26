@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../../../services/auth_service.dart';
 import '../../../services/backup_automation_service.dart';
+import '../../../services/backup_progress.dart';
 import '../../../services/backup_password_service.dart';
 import '../../../services/chat_backup_service.dart';
 import '../../../services/google_drive_backup_service.dart';
@@ -26,11 +27,25 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
   String _networkPreference = BackupAutomationService.wifiOnly;
   DateTime? _lastAutomaticBackup;
   String? _activeAction;
+  BackupProgress? _backupProgress;
 
   @override
   void initState() {
     super.initState();
+    _backupProgress = BackupAutomationService.progress.value;
+    BackupAutomationService.progress.addListener(_onBackupProgressChanged);
     _loadAutomaticBackupStatus();
+  }
+
+  @override
+  void dispose() {
+    BackupAutomationService.progress.removeListener(_onBackupProgressChanged);
+    super.dispose();
+  }
+
+  void _onBackupProgressChanged() {
+    if (!mounted) return;
+    setState(() => _backupProgress = BackupAutomationService.progress.value);
   }
 
   Future<void> _loadAutomaticBackupStatus() async {
@@ -226,6 +241,76 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
                         ),
                       ],
                     ),
+                  ),
+                  const SizedBox(height: 14),
+                  if (_backupProgress != null) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: dark ? const Color(0xFF211E32) : const Color(0xFFF5F3FC),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  _backupProgress!.stage,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: ink,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                _backupProgress!.completed
+                                    ? (_backupProgress!.cancelled ? 'Cancelled' : _backupProgress!.failed ? 'Failed' : 'Done')
+                                    : '${_backupProgress!.percent}%',
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  color: muted,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          LinearProgressIndicator(
+                            value: _backupProgress!.completed
+                                ? (_backupProgress!.cancelled || _backupProgress!.failed ? 0 : 1)
+                                : _backupProgress!.percent / 100,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                  Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: _working || (_backupProgress != null && !_backupProgress!.completed)
+                              ? null
+                              : _backupNow,
+                          icon: const Icon(Icons.cloud_upload_outlined, size: 18),
+                          label: const Text('Backup now'),
+                        ),
+                      ),
+                      if (_backupProgress != null && !_backupProgress!.completed) ...[
+                        const SizedBox(width: 10),
+                        OutlinedButton.icon(
+                          onPressed: _cancelBackup,
+                          icon: const Icon(Icons.close_rounded, size: 18),
+                          label: const Text('Cancel'),
+                        ),
+                      ],
+                    ],
                   ),
                 ],
               ),
@@ -537,6 +622,27 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
     });
   }
 
+  Future<void> _backupNow() async {
+    final username = context.read<AuthService>().user?.username.trim() ?? '';
+    if (username.isEmpty) return _show('Sign in to your Novyn account first.');
+    final password = await _passwordForNewBackup(username);
+    if (password == null || !mounted) return;
+    await _busy('Starting encrypted Drive backup…', () async {
+      final savedAt = await BackupAutomationService.backupNow(
+        username: username,
+        password: password,
+        encryption: context.read<SocketService>().encryption,
+      );
+      if (mounted) setState(() => _lastAutomaticBackup = savedAt);
+      return 'Encrypted backup saved to your Google Drive.';
+    });
+  }
+
+  void _cancelBackup() {
+    BackupAutomationService.cancelActiveBackup();
+    _show('Cancelling backup…');
+  }
+
   Future<void> _drive({required bool restore}) async {
     final username = context.read<AuthService>().user?.username.trim() ?? '';
     if (username.isEmpty) return _show('Sign in to your Novyn account first.');
@@ -692,7 +798,11 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
       final message = await action();
       if (mounted) _show(message);
     } catch (error) {
-      if (mounted) _show(error.toString().replaceFirst('FormatException: ', '').replaceFirst('Bad state: ', ''));
+      if (mounted) {
+        _show(error is BackupCancelledException
+            ? 'Backup cancelled.'
+            : error.toString().replaceFirst('FormatException: ', '').replaceFirst('Bad state: ', ''));
+      }
     } finally {
       if (mounted) setState(() { _working = false; _activeAction = null; });
     }

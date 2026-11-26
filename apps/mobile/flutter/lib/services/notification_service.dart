@@ -9,6 +9,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart'
     as fln;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'message_encryption_service.dart';
+import 'backup_progress.dart';
 import 'firebase_configuration.dart';
 import '../models/chat_models.dart';
 import '../models/user_model.dart';
@@ -548,6 +549,8 @@ class NotificationService {
   static const int _activeCallNotificationId = 781204;
   static const int _appUpdateNotificationId = 781205;
   static const int _appUpdateDownloadNotificationId = 781206;
+  static const int _backupProgressNotificationId = 781207;
+  static VoidCallback? _backupCancelHandler;
   static ValueChanged<BuildContext>? _appUpdateTapHandler;
 
   static void setSocialNotificationTapHandler(ValueChanged<String>? handler) {
@@ -737,6 +740,90 @@ class NotificationService {
 
   static void setAppUpdateTapHandler(ValueChanged<BuildContext>? handler) {
     _appUpdateTapHandler = handler;
+  }
+
+  static void setBackupCancelHandler(VoidCallback? handler) {
+    _backupCancelHandler = handler;
+  }
+
+  static Future<void> showBackupProgress(BackupProgress progress) async {
+    const channelId = 'novyn_backup_progress';
+    if (!_localNotificationsReady) {
+      await _localNotifications.initialize(
+        const InitializationSettings(
+          android: AndroidInitializationSettings('@drawable/novyn_wings_icon'),
+          iOS: DarwinInitializationSettings(),
+        ),
+        onDidReceiveNotificationResponse: (response) {
+          if (response.actionId == 'backup_cancel') {
+            _backupCancelHandler?.call();
+          }
+        },
+      );
+      _localNotificationsReady = true;
+    }
+    final android = _localNotifications.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    await android?.createNotificationChannel(const AndroidNotificationChannel(
+      channelId,
+      'Backup progress',
+      description: 'Progress and controls for encrypted Novyn backups',
+      importance: Importance.low,
+      playSound: false,
+      enableVibration: false,
+    ));
+
+    final title = progress.cancelled
+        ? 'Backup cancelled'
+        : progress.failed
+            ? 'Backup could not finish'
+            : progress.completed
+                ? 'Novyn backup complete'
+                : 'Backing up Novyn · ${progress.percent}%';
+    final body = progress.failed
+        ? 'The backup could not be saved. Open Backup & restore to try again.'
+        : progress.cancelled
+            ? 'The backup was stopped. Your previous Drive backup remains available.'
+            : progress.stage;
+    await _localNotifications.show(
+      _backupProgressNotificationId,
+      title,
+      body,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          channelId,
+          'Backup progress',
+          channelDescription: 'Progress and controls for encrypted Novyn backups',
+          importance: progress.completed ? Importance.defaultImportance : Importance.low,
+          priority: progress.completed ? Priority.defaultPriority : Priority.low,
+          icon: '@drawable/novyn_wings_icon',
+          showProgress: !progress.completed,
+          maxProgress: 100,
+          progress: progress.percent,
+          onlyAlertOnce: true,
+          ongoing: !progress.completed,
+          autoCancel: progress.completed,
+          playSound: false,
+          enableVibration: false,
+          actions: progress.completed
+              ? const <AndroidNotificationAction>[]
+              : const <AndroidNotificationAction>[
+                  AndroidNotificationAction(
+                    'backup_cancel',
+                    'Cancel',
+                    showsUserInterface: true,
+                    cancelNotification: false,
+                  ),
+                ],
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: progress.completed,
+          presentBadge: false,
+          presentSound: false,
+        ),
+      ),
+      payload: 'backup_progress',
+    );
   }
 
   static Future<void> showAppUpdateAvailable({
@@ -1107,6 +1194,10 @@ class NotificationService {
       ),
       onDidReceiveNotificationResponse: (response) {
         final actionId = response.actionId ?? '';
+        if (actionId == 'backup_cancel') {
+          _backupCancelHandler?.call();
+          return;
+        }
         if (actionId == 'incoming_call_answer' ||
             actionId == 'incoming_call_decline') {
           unawaited(_handleIncomingCallAction(
@@ -1726,7 +1817,9 @@ class NotificationService {
         context.mounted) {
       final response = localLaunch?.notificationResponse;
       final actionId = response?.actionId ?? '';
-      if (actionId == 'incoming_call_answer' ||
+      if (actionId == 'backup_cancel') {
+        _backupCancelHandler?.call();
+      } else if (actionId == 'incoming_call_answer' ||
           actionId == 'incoming_call_decline') {
         unawaited(_handleIncomingCallAction(
           actionId,
@@ -1980,22 +2073,102 @@ class NotificationService {
     // sockets or app lifecycle states where the socket callback was missed.
     if (type == 'message') {
       // The authenticated socket handles live foreground message events.
-      // FCM remains the fallback when the socket has disconnected.
+      // FCM remains the fallback when the socket has disconnected. Its
+      // encrypted direct-message preview must be decrypted locally just like
+      // the background handler; never display the generic ciphertext body.
       if (_socket?.isConnected == true) return;
-      final username = message.data['chat']?.toString().trim() ?? '';
-      if (username.isNotEmpty) {
-        final body = message.data['body']?.toString().trim();
-        unawaited(_showForegroundMessageNotification(
-          username,
-          body?.isNotEmpty == true
-              ? body!
-              : message.notification?.body ?? 'You have a new message',
-          isGroup: message.data['kind'] == 'group',
-          mentionOrReply: message.data['mentionOrReply']?.toString() == '1' ||
-              message.data['mentionOrReply']?.toString().toLowerCase() == 'true',
-        ));
+      unawaited(_showPushMessageNotification(message.data));
+    }
+  }
+
+  static Future<void> _showPushMessageNotification(
+    Map<String, dynamic> data,
+  ) async {
+    final sender = data['chat']?.toString().trim() ?? '';
+    if (sender.isEmpty) return;
+    final isGroup = data['kind']?.toString() == 'group';
+    final mentionOrReply = data['mentionOrReply']?.toString() == '1' ||
+        data['mentionOrReply']?.toString().toLowerCase() == 'true';
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+
+    final storedAccount =
+        (prefs.getString('novyn_notification_account') ?? '').trim().toLowerCase();
+    final activeAccount =
+        (_presenceAuth?.user?.username ?? _activeUsername ?? '').trim().toLowerCase();
+    final recipient = data['recipient']?.toString().trim().toLowerCase() ?? '';
+    final account = activeAccount.isNotEmpty
+        ? activeAccount
+        : storedAccount.isNotEmpty
+            ? storedAccount
+            : recipient;
+    if (recipient.isNotEmpty && account.isNotEmpty && recipient != account) {
+      debugPrint('[NovynNotifications] Ignored foreground push for another account.');
+      return;
+    }
+
+    var body = data['body']?.toString().trim() ?? '';
+    final previewEnabled = (prefs.getBool('message_preview') ?? true) &&
+        data['previewEnabled']?.toString() != '0';
+    final hideContent = prefs.getBool('hide_notification_content') ?? false;
+    if (!previewEnabled || hideContent) {
+      body = isGroup ? 'New group message' : 'You have a new message';
+    } else if (!isGroup) {
+      final ciphertext = data['ciphertext']?.toString() ?? '';
+      final iv = data['iv']?.toString() ?? '';
+      final peerKey = data['senderPublicKey']?.toString() ?? '';
+      final isGeneric = body.isEmpty ||
+          body == 'You have a new message' ||
+          body == 'New message';
+      if (isGeneric && ciphertext.isNotEmpty && iv.isNotEmpty &&
+          peerKey.isNotEmpty && account.isNotEmpty) {
+        try {
+          final encrypted = Message(
+            id: data['messageId']?.toString() ?? 'notification',
+            text: '🔒 Encrypted message',
+            isFromMe: false,
+            chatId: sender,
+            senderId: sender,
+            isEncrypted: true,
+            ciphertext: ciphertext,
+            iv: iv,
+          );
+          final decrypted = await MessageEncryptionService().decryptForNotification(
+            encrypted,
+            account,
+            peerKey,
+          );
+          if (!decrypted.needsMessageKey &&
+              decrypted.text.trim().isNotEmpty &&
+              decrypted.text != '🔒 Encrypted message') {
+            body = decrypted.text.trim();
+            await prefs.remove('novyn_notification_preview_last_failure');
+          } else {
+            throw StateError('The local conversation key is unavailable.');
+          }
+        } catch (error) {
+          await prefs.setString(
+            'novyn_notification_preview_last_failure',
+            error is StateError
+                ? 'local_identity_or_conversation_key_unavailable'
+                : error is FormatException
+                    ? 'invalid_encryption_envelope'
+                    : error.runtimeType.toString(),
+          );
+          debugPrint('[NovynNotifications] Foreground E2EE preview could not be decrypted: $error');
+          body = isGroup ? 'New group message' : 'You have a new message';
+        }
       }
     }
+    if (body.isEmpty || body == 'New message') {
+      body = isGroup ? 'New group message' : 'You have a new message';
+    }
+    await _showForegroundMessageNotification(
+      sender,
+      body,
+      isGroup: isGroup,
+      mentionOrReply: mentionOrReply,
+    );
   }
 
   static Future<void> _showForegroundMessageNotification(

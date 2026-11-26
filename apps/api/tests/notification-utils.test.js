@@ -202,6 +202,30 @@ test("encrypted direct messages use Android data-only delivery and keep iOS aler
   assert.doesNotMatch(JSON.stringify(encrypted), /secret plaintext/);
 });
 
+test("oversized encrypted push metadata is trimmed before its decryptable envelope", () => {
+  const encrypted = createFcmMessage("alice", { username: "alice" }, {
+    type: "message",
+    chat: "bob",
+    body: "private plaintext must never enter an E2EE push",
+    ciphertext: "ciphertext-" + "x".repeat(2200),
+    iv: "nonce-value",
+    senderPublicKey: "public-key-value",
+    messageId: "msg-envelope-preserved",
+    url: "https://example.invalid/" + "u".repeat(800),
+    displayName: "Display name " + "d".repeat(300),
+    releaseUrl: "https://example.invalid/" + "r".repeat(400),
+  });
+
+  assert.equal(encrypted.data.ciphertext, "ciphertext-" + "x".repeat(2200));
+  assert.equal(encrypted.data.iv, "nonce-value");
+  assert.equal(encrypted.data.senderPublicKey, "public-key-value");
+  assert.equal(encrypted.data.messageId, "msg-envelope-preserved");
+  assert.equal(encrypted.data.url, undefined);
+  assert.equal(encrypted.data.releaseUrl, undefined);
+  assert.equal(encrypted.notification, undefined);
+  assert.doesNotMatch(JSON.stringify(encrypted), /private plaintext must never enter/);
+});
+
 test("disabled message previews use a private system notification fallback", () => {
   const message = createFcmMessage("alice", { username: "alice" }, {
     type: "message",
