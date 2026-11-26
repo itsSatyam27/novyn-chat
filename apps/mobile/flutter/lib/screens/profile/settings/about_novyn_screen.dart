@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -901,16 +902,41 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
               Center(
                 child: Column(
                   children: [
-                    const Text(
-                      'Made with ❤️ by Team Novyn',
-                      style: TextStyle(
-                        color: Color(0xFF7048F8),
-                        fontStyle: FontStyle.italic,
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w700,
+                    Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(
+                            text: 'Made with ',
+                            style: GoogleFonts.dancingScript(
+                              fontSize: 27,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF7048F8),
+                            ),
+                          ),
+                          WidgetSpan(
+                            alignment: PlaceholderAlignment.middle,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              child: Icon(
+                                Icons.favorite_rounded,
+                                color: const Color(0xFFE34D73),
+                                size: 19,
+                              ),
+                            ),
+                          ),
+                          TextSpan(
+                            text: ' by Team Novyn',
+                            style: GoogleFonts.dancingScript(
+                              fontSize: 27,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF7048F8),
+                            ),
+                          ),
+                        ],
                       ),
+                      textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     Text(
                       '© 2026 Novyn. All rights reserved.',
                       style: TextStyle(
