@@ -798,6 +798,7 @@ class SocketService extends ChangeNotifier {
     });
 
     _socket!.onDisconnect((_) {
+      _pendingGroupCallSignals.clear();
       _socketAuthRetryTimer?.cancel();
       _socketAuthRetryTimer = null;
       _stopPendingOutboxRetry();
@@ -3906,6 +3907,9 @@ class SocketService extends ChangeNotifier {
 
   Future<void> leaveGroupCall(String groupCallId) async {
     _socket?.emit('group_call_leave', {'groupCallId': groupCallId});
+    _pendingGroupCallSignals.removeWhere(
+      (packet) => packet['groupCallId']?.toString() == groupCallId,
+    );
   }
 
   void sendGroupWebRTCSignal(
