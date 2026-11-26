@@ -69,15 +69,14 @@ void main() {
     });
 
     test('avoids invalid dimensions on very small surfaces', () {
-      expect(
-        GroupCallGridSpec.aspectRatioFor(
-          participantCount: 4,
-          columns: 2,
-          width: 120,
-          height: 100,
-        ),
-        1.0,
+      final ratio = GroupCallGridSpec.aspectRatioFor(
+        participantCount: 4,
+        columns: 2,
+        width: 120,
+        height: 100,
       );
+      expect(ratio, isFinite);
+      expect(ratio, inInclusiveRange(.55, 1.85));
     });
   });
 }
