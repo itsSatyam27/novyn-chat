@@ -93,6 +93,10 @@ export class WebRTCManager {
   private cameraTrack: MediaStreamTrack | null = null;
   private screenTrack: MediaStreamTrack | null = null;
   private remoteStream: MediaStream = new MediaStream();
+  private remoteScreenStream: MediaStream | null = null;
+  private readonly remoteStreamsById = new Map<string, MediaStream>();
+  private remoteScreenStreamId: string | null = null;
+  private remoteScreenReplacesVideoTrack = false;
   private pendingCandidates: RTCIceCandidateInit[] = [];
   private onRemoteStreamCallback: ((stream: MediaStream) => void) | null = null;
   private onLocalStreamCallback: ((stream: MediaStream) => void) | null = null;
@@ -220,6 +224,10 @@ export class WebRTCManager {
     }
 
     this.remoteStream = new MediaStream();
+    this.remoteScreenStream = null;
+    this.remoteStreamsById.clear();
+    this.remoteScreenStreamId = null;
+    this.remoteScreenReplacesVideoTrack = false;
     this.pendingCandidates = [];
 
     const pc = new RTCPeerConnection(this.rtcConfiguration);
@@ -237,18 +245,27 @@ export class WebRTCManager {
 
     pc.ontrack = (event) => {
       console.log('[WebRTC] Track received:', event.track.kind, event.streams);
-      if (event.streams && event.streams[0]) {
-        this.remoteStream = event.streams[0];
-      } else if (event.track) {
-        // Ensure track is in our persistent remote stream
-        if (!this.remoteStream.getTracks().some((t) => t.id === event.track.id)) {
-          this.remoteStream.addTrack(event.track);
-        }
+      const sourceStream = event.streams?.[0] || new MediaStream([event.track]);
+      this.remoteStreamsById.set(sourceStream.id, sourceStream);
+      if (!sourceStream.getTracks().some((track) => track.id === event.track.id)) {
+        sourceStream.addTrack(event.track);
       }
 
-      if (this.onRemoteStreamCallback) {
-        this.onRemoteStreamCallback(this.remoteStream);
-      }
+      // A separately-added display sender must not replace the audio/camera
+      // stream. A replaced camera sender keeps its original stream ID and stays
+      // part of the primary A/V stream.
+      this.publishRemoteMedia();
+      event.track.addEventListener('ended', () => {
+        const current = this.remoteStreamsById.get(sourceStream.id);
+        if (!current) return;
+        for (const track of current.getTracks()) {
+          if (track.id === event.track.id) current.removeTrack(track);
+        }
+        if (current.getTracks().length === 0) {
+          this.remoteStreamsById.delete(sourceStream.id);
+        }
+        this.publishRemoteMedia();
+      }, { once: true });
     };
 
     if (this.localStream) {
@@ -431,6 +448,69 @@ export class WebRTCManager {
     return this.remoteStream;
   }
 
+  public getRemoteScreenStream(): MediaStream | null {
+    return this.remoteScreenStream;
+  }
+
+  public setRemoteScreenShare(
+    streamId: string | null,
+    replacesVideoTrack = false
+  ) {
+    const previousStreamId = this.remoteScreenStreamId;
+    const previousReplacedCamera = this.remoteScreenReplacesVideoTrack;
+
+    this.remoteScreenStreamId = streamId;
+    this.remoteScreenReplacesVideoTrack = Boolean(streamId && replacesVideoTrack);
+
+    // A separate display sender can be removed on stop. A replaced camera
+    // sender retains its original stream ID, which also carries the audio track.
+    if (
+      !streamId &&
+      previousStreamId &&
+      previousStreamId !== '__remote_screen_share__' &&
+      !previousReplacedCamera
+    ) {
+      this.remoteStreamsById.delete(previousStreamId);
+    }
+
+    this.publishRemoteMedia();
+  }
+
+  private resolveRemoteScreenStream(): MediaStream | null {
+    const streamId = this.remoteScreenStreamId;
+    if (!streamId) return null;
+    if (streamId !== '__remote_screen_share__') {
+      const exact = this.remoteStreamsById.get(streamId);
+      if (exact) return exact;
+    }
+    if (this.remoteScreenReplacesVideoTrack) {
+      return Array.from(this.remoteStreamsById.values()).find((stream) =>
+        stream.getVideoTracks().some((track) => track.readyState === 'live')
+      ) || null;
+    }
+    return null;
+  }
+
+  private publishRemoteMedia() {
+    const screenStream = this.resolveRemoteScreenStream();
+    const combinedStream = new MediaStream();
+
+    for (const stream of this.remoteStreamsById.values()) {
+      const separateScreenStream =
+        stream === screenStream && !this.remoteScreenReplacesVideoTrack;
+      for (const track of stream.getTracks()) {
+        if (separateScreenStream && track.kind === 'video') continue;
+        if (!combinedStream.getTracks().some((existing) => existing.id === track.id)) {
+          combinedStream.addTrack(track);
+        }
+      }
+    }
+
+    this.remoteScreenStream = screenStream;
+    this.remoteStream = combinedStream;
+    this.onRemoteStreamCallback?.(this.remoteStream);
+  }
+
   public stopLocalMedia() {
     if (this.screenTrack) {
       this.screenTrack.onended = null;
@@ -454,5 +534,9 @@ export class WebRTCManager {
       this.pc = null;
     }
     this.remoteStream = new MediaStream();
+    this.remoteScreenStream = null;
+    this.remoteStreamsById.clear();
+    this.remoteScreenStreamId = null;
+    this.remoteScreenReplacesVideoTrack = false;
   }
 }
