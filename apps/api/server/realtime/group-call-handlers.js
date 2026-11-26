@@ -113,6 +113,14 @@ function registerGroupCallHandlers(socket, deps) {
     if (registry.userSessions.get(participantKey) === session.groupCallId) {
       registry.userSessions.delete(participantKey);
     }
+    if (session.screenSharer === participantKey) {
+      session.screenSharer = null;
+      emitSession(session, 'group_call_screen_share_state', {
+        groupCallId: session.groupCallId,
+        username: users.get(participantKey)?.username || participantKey,
+        streamId: null,
+      });
+    }
     emitSession(session, 'group_call_participant_left', {
       groupCallId: session.groupCallId,
       callId: session.callId,
@@ -310,7 +318,20 @@ function registerGroupCallHandlers(socket, deps) {
     const session = getSession(payload);
     if (!session) return;
     const streamId = payload?.streamId == null ? null : safeName(payload.streamId);
-    session.screenSharer = streamId ? userKey : null;
+    if (streamId && session.screenSharer && session.screenSharer !== userKey) {
+      socket.emit('group_call_screen_share_denied', {
+        groupCallId: session.groupCallId,
+        reason: 'Another participant is already sharing their screen.',
+      });
+      return;
+    }
+    if (streamId) {
+      session.screenSharer = userKey;
+    } else if (session.screenSharer === userKey) {
+      session.screenSharer = null;
+    } else {
+      return;
+    }
     emitSession(session, 'group_call_screen_share_state', {
       groupCallId: session.groupCallId,
       username: users.get(userKey)?.username || userKey,
