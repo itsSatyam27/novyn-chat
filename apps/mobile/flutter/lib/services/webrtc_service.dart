@@ -735,24 +735,29 @@ class WebRTCService extends ChangeNotifier {
   }
 
   void setRemoteScreenShare(String? streamId) {
+    final previousScreenId = _remoteScreenStreamId;
     _remoteScreenStreamId = streamId;
     onRemoteScreenShareChanged?.call(streamId);
     if (streamId == null) {
       remoteScreenRenderer.srcObject = null;
       final cameraEntry = _remoteStreamsById.entries
-          .where((entry) => entry.key != _remoteScreenStreamId)
+          .where((entry) => entry.key != previousScreenId)
           .toList(growable: false);
       if (cameraEntry.isNotEmpty) {
         _remoteStream = cameraEntry.first.value;
         remoteRenderer.srcObject = _remoteStream;
+      } else {
+        _remoteStream = null;
+        remoteRenderer.srcObject = null;
+      }
+      if (previousScreenId != null) {
+        _remoteStreamsById.remove(previousScreenId);
       }
       return;
     }
 
     final screen = _remoteStreamsById[streamId];
-    if (screen != null) {
-      remoteScreenRenderer.srcObject = screen;
-    }
+    if (screen != null) remoteScreenRenderer.srcObject = screen;
     final cameraEntry = _remoteStreamsById.entries
         .where((entry) => entry.key != streamId)
         .toList(growable: false);
