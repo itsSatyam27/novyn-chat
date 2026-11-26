@@ -330,7 +330,6 @@ class _TwoFactorScreenState extends State<TwoFactorScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final dark = theme.brightness == Brightness.dark;
     final ink = theme.colorScheme.onSurface;
     final muted = theme.colorScheme.onSurfaceVariant;
     final card = NovynTheme.cardBg(context);
