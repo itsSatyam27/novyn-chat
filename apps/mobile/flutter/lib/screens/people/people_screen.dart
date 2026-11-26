@@ -17,8 +17,6 @@ import 'received_friend_requests_screen.dart';
 import 'discover_screen.dart';
 import 'package:novyn/services/haptic_service.dart';
 
-enum _PeopleMenuAction { discover, requests, invite }
-
 class PeopleScreen extends StatefulWidget {
   const PeopleScreen({super.key});
 
@@ -784,135 +782,201 @@ class _PeopleScreenState extends State<PeopleScreen> {
     required String myUid,
   }) {
     final accent = theme.colorScheme.primary;
-    return PopupMenuButton<_PeopleMenuAction>(
-      tooltip: 'More contact options',
-      position: PopupMenuPosition.under,
-      offset: const Offset(0, 12),
-      color: theme.colorScheme.surface,
-      surfaceTintColor: Colors.transparent,
-      elevation: 10,
-      shadowColor: Colors.black.withValues(alpha: .16),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-      ),
-      constraints: const BoxConstraints(minWidth: 224),
-      onSelected: (action) {
-        HapticService.vibrate(
-          NovynHapticType.selection,
-          category: HapticCategory.navigation,
-        );
-        switch (action) {
-          case _PeopleMenuAction.discover:
-            _openDiscover();
-          case _PeopleMenuAction.requests:
-            _showReceivedRequests(myUid);
-          case _PeopleMenuAction.invite:
-            _shareInvite(myUid);
-        }
-      },
-      itemBuilder: (context) => [
-        PopupMenuItem<_PeopleMenuAction>(
-          value: _PeopleMenuAction.discover,
-          height: 54,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: _buildOverflowMenuRow(
-            icon: Icons.person_search_rounded,
-            title: 'Find buddies',
-            accent: accent,
-          ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: () => _showContactsOverflowMenu(
+          requestCount: requestCount,
+          myUid: myUid,
         ),
-        PopupMenuItem<_PeopleMenuAction>(
-          value: _PeopleMenuAction.requests,
-          height: 54,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: _buildOverflowMenuRow(
-            icon: Icons.person_add_alt_1_rounded,
-            title: 'Buddy requests',
-            accent: accent,
-            badge: requestCount,
-          ),
-        ),
-        PopupMenuItem<_PeopleMenuAction>(
-          value: _PeopleMenuAction.invite,
-          height: 54,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: _buildOverflowMenuRow(
-            icon: Icons.link_rounded,
-            title: 'Invite buddies',
-            accent: accent,
-          ),
-        ),
-      ],
-      child: SizedBox(
-        width: 48,
-        height: 46,
-        child: Center(
+        child: SizedBox(
+          width: 48,
+          height: 46,
           child: Icon(
             Icons.more_horiz_rounded,
-            size: 24,
             color: accent,
+            size: 25,
           ),
         ),
       ),
     );
   }
 
-  Widget _buildOverflowMenuRow({
-    required IconData icon,
-    required String title,
-    required Color accent,
-    int badge = 0,
+  void _showContactsOverflowMenu({
+    required int requestCount,
+    required String myUid,
   }) {
-    final theme = Theme.of(context);
-    return SizedBox(
-      width: 198,
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: .11),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            alignment: Alignment.center,
-            child: Icon(icon, size: 19, color: accent),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontFamily: 'PlusJakartaSans',
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: theme.colorScheme.onSurface,
-              ),
-            ),
-          ),
-          if (badge > 0)
-            Container(
-              constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
-              padding: const EdgeInsets.symmetric(horizontal: 6),
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: accent,
-                shape: BoxShape.circle,
-              ),
-              child: Text(
-                '$badge',
-                style: const TextStyle(
-                  fontFamily: 'PlusJakartaSans',
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white,
+    showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Close buddy actions',
+      barrierColor: Colors.black.withValues(alpha: .26),
+      transitionDuration: const Duration(milliseconds: 170),
+      pageBuilder: (dialogContext, animation, secondaryAnimation) {
+        final media = MediaQuery.of(dialogContext);
+        final isDark = Theme.of(dialogContext).brightness == Brightness.dark;
+        final accent = Theme.of(dialogContext).colorScheme.primary;
+        final panelColor = isDark ? const Color(0xFF191B2B) : Colors.white;
+        final textColor = isDark ? Colors.white : const Color(0xFF20213E);
+        final lineColor = isDark
+            ? Colors.white.withValues(alpha: .08)
+            : const Color(0xFFECE7F7);
+
+        Widget item({
+          required IconData icon,
+          required String title,
+          required VoidCallback action,
+          int badge = 0,
+        }) {
+          return Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () {
+                Navigator.of(dialogContext).pop();
+                HapticService.vibrate(
+                  NovynHapticType.selection,
+                  category: HapticCategory.navigation,
+                );
+                action();
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 5,
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: isDark ? .17 : .12),
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                      alignment: Alignment.center,
+                      child: Icon(icon, color: accent, size: 21),
+                    ),
+                    const SizedBox(width: 11),
+                    Expanded(
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          color: textColor,
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -.15,
+                        ),
+                      ),
+                    ),
+                    if (badge > 0) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        constraints: const BoxConstraints(
+                          minWidth: 26,
+                          minHeight: 26,
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 7),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: accent.withValues(alpha: .11),
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                        child: Text(
+                          badge > 99 ? '99+' : '$badge',
+                          style: TextStyle(
+                            color: accent,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ),
-        ],
-      ),
+          );
+        }
+
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: () => Navigator.of(dialogContext).pop(),
+                child: const SizedBox.expand(),
+              ),
+            ),
+            Positioned(
+              top: media.padding.top + 72,
+              right: 14,
+              child: SafeArea(
+                child: Material(
+                  color: panelColor,
+                  elevation: 18,
+                  shadowColor: Colors.black.withValues(alpha: .18),
+                  borderRadius: BorderRadius.circular(24),
+                  clipBehavior: Clip.antiAlias,
+                  child: SizedBox(
+                    width: (media.size.width - 48)
+                        .clamp(220.0, 252.0)
+                        .toDouble(),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 7),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              item(
+                                icon: Icons.person_search_rounded,
+                                title: 'Find buddies',
+                                action: _openDiscover,
+                              ),
+                              item(
+                                icon: Icons.person_add_alt_1_rounded,
+                                title: 'Buddy requests',
+                                badge: requestCount,
+                                action: () => _showReceivedRequests(myUid),
+                              ),
+                              item(
+                                icon: Icons.link_rounded,
+                                title: 'Invite buddies',
+                                action: () => _shareInvite(myUid),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+        );
+        return FadeTransition(
+          opacity: curved,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, -.035),
+              end: Offset.zero,
+            ).animate(curved),
+            child: child,
+          ),
+        );
+      },
     );
   }
 
