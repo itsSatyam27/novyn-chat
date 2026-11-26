@@ -120,7 +120,7 @@ class ChatBackupService {
       checkCancelled?.call();
       final raw = messages[index];
       onProgress?.call(
-        'Preparing attachments ${index + 1}/${messages.length}',
+        'Preparing attachments',
         12 + (((index + 1) / (messages.isEmpty ? 1 : messages.length)) * 44).round(),
       );
       if (raw is! Map || raw['attachment'] is! Map) continue;
