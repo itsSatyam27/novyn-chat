@@ -530,18 +530,19 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
     if (_inviting || _participants.length >= _maxParticipants) return;
     if (_me.isEmpty) return;
     setState(() => _inviting = true);
+    final friendService = context.read<FriendService>();
+    final fallbackFriends = _socket.contacts.friends;
     List<UserModel> friends;
     try {
-      final service = context.read<FriendService>();
-      friends = service.cachedFriends ?? _socket.contacts.friends;
+      friends = friendService.cachedFriends ?? fallbackFriends;
       if (friends.isEmpty) {
-        friends = await service
+        friends = await friendService
             .friendsStream(_me)
             .first
             .timeout(const Duration(seconds: 4));
       }
     } catch (_) {
-      friends = _socket.contacts.friends;
+      friends = fallbackFriends;
     }
     if (!mounted) return;
     setState(() => _inviting = false);
