@@ -11,7 +11,6 @@ import '../../widgets/novyn_empty_state.dart';
 import '../../widgets/user_avatar.dart';
 import '../../widgets/novyn_header_actions.dart';
 import '../../utils/presence_utils.dart';
-import '../../widgets/novyn_ui.dart';
 import '../../theme/novyn_theme.dart';
 import '../chats/chat_detail_screen.dart';
 import 'received_friend_requests_screen.dart';

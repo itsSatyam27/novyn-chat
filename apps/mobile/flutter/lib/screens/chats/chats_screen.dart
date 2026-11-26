@@ -1325,7 +1325,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
                               ),
                             ),
                           ),
-                  )
+                  ),
                   if (_selectionMode)
                     Material(
                       color: Theme.of(context).colorScheme.surface,
