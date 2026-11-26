@@ -599,6 +599,7 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
     var password = await BackupPasswordService.read(username, identity: true);
     password ??= await _passwordDialog(restore: restore, identity: true);
     if (password == null || !mounted) return;
+    var activePassword = password;
 
     await _busy(
       restore ? 'Restoring encryption identity…' : 'Saving encryption identity…',
@@ -606,18 +607,18 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
         final socket = context.read<SocketService>();
         if (restore) {
           try {
-            await socket.restoreE2eeIdentityBackup(password!);
+            await socket.restoreE2eeIdentityBackup(activePassword);
           } on FormatException {
             final replacement = await _askRestorePassword(identity: true);
             if (replacement == null || !mounted) return 'Identity restore was cancelled.';
             await socket.restoreE2eeIdentityBackup(replacement);
-            password = replacement;
+            activePassword = replacement;
           }
-          await BackupPasswordService.save(username, password!, identity: true);
+          await BackupPasswordService.save(username, activePassword, identity: true);
           return 'Encryption identity restored. Reopen chats to decrypt messages.';
         }
-        await socket.saveE2eeIdentityBackup(password!);
-        await BackupPasswordService.save(username, password, identity: true);
+        await socket.saveE2eeIdentityBackup(activePassword);
+        await BackupPasswordService.save(username, activePassword, identity: true);
         return 'Encrypted identity recovery backup saved. Its recovery password is remembered securely on this device.';
       },
     );
