@@ -11,6 +11,8 @@ function createFakeMongoClient(hooks = {}) {
     closeCalls: 0,
     indexCalls: 0,
     databaseNames: [],
+    collectionNames: [],
+    indexOperations: [],
   };
 
   class FakeMongoClient {
@@ -30,9 +32,11 @@ function createFakeMongoClient(hooks = {}) {
       metrics.databaseNames.push(name);
       return {
         collection(collectionName) {
+          metrics.collectionNames.push(collectionName);
           return {
             async createIndex(keys, options) {
               metrics.indexCalls += 1;
+              metrics.indexOperations.push({ collectionName, keys, options });
               if (hooks.createIndex) {
                 await hooks.createIndex({ collectionName, keys, options });
               }
@@ -72,10 +76,21 @@ test("concurrent MongoDB connect calls share one client and one index setup", as
   assert.deepEqual(results, [true, true, true, true]);
   assert.equal(metrics.clientsCreated, 1);
   assert.equal(metrics.connectCalls, 1);
-  assert.equal(metrics.indexCalls, 5);
+  assert.equal(metrics.indexCalls, 7);
   assert.equal(storage.isConnected(), true);
   assert.ok(storage.db);
   assert.deepEqual(metrics.databaseNames, ["novyn"]);
+  assert.ok(storage.getCollection("game_history"));
+  assert.ok(storage.getCollection("feedback"));
+  assert.ok(metrics.indexOperations.some((entry) =>
+    entry.collectionName === "game_history" &&
+    entry.keys.userKey === 1 && entry.keys.playedAt === 1 &&
+    entry.options.name === "game_history_user_played_at"
+  ));
+  assert.ok(metrics.indexOperations.some((entry) =>
+    entry.collectionName === "feedback" &&
+    entry.keys.createdAt === -1 && entry.options.name === "feedback_created_at_idx"
+  ));
   await storage.close();
   assert.equal(metrics.closeCalls, 1);
   assert.equal(storage.isConnected(), false);

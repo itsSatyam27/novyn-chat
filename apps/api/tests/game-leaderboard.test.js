@@ -3,6 +3,9 @@ const assert = require("node:assert/strict");
 
 const {
   buildGameLeaderboard,
+  buildGameLeaderboardFromAggregates,
+  buildMongoGameLeaderboardPipeline,
+  isMongoWindowStageUnsupportedError,
   normalizeLeaderboardGame,
 } = require("../game-leaderboard");
 
@@ -70,4 +73,104 @@ test("keeps the signed-in account visible without completed matches", () => {
   assert.equal(rows[0].isSelf, true);
   assert.equal(rows[0].score, 0);
   assert.equal(rows[0].matches, 0);
+});
+
+
+test("Mongo leaderboard aggregation filters bots, normalizes aliases and groups streaks in storage", () => {
+  const globalPipeline = buildMongoGameLeaderboardPipeline();
+  assert.deepEqual(globalPipeline[0].$match.isBotMatch, { $ne: true });
+  assert.deepEqual(globalPipeline[0].$match.opponentType, { $ne: "bot" });
+  assert.equal(globalPipeline[0].$match.userKey.$type, "string");
+  assert.deepEqual(globalPipeline[0].$match.result.$in, ["win", "loss", "draw"]);
+  assert.ok(globalPipeline.some((stage) => stage.$addFields?.parsedPlayedAt?.$dateFromString));
+  assert.ok(globalPipeline.some((stage) => stage.$setWindowFields));
+  assert.ok(globalPipeline.some((stage) => stage.$group?._id?.streakSegment));
+  assert.ok(globalPipeline.some((stage) => stage.$group?.overallScore));
+  assert.ok(globalPipeline.some((stage) => stage.$project?.overall));
+
+  const friendsPipeline = buildMongoGameLeaderboardPipeline(["alice", "bob"]);
+  assert.deepEqual(friendsPipeline[0].$match.userKey, { $in: ["alice", "bob"] });
+
+  const ticTacToePipeline = buildMongoGameLeaderboardPipeline(null, "tictactoe");
+  const ticTacToeFilter = ticTacToePipeline.find((stage) => stage.$match?.normalizedGameType);
+  assert.equal(ticTacToeFilter.$match.normalizedGameType, "tictactoe");
+
+  const rpsAliasPipeline = buildMongoGameLeaderboardPipeline(null, "rock-paper-scissors");
+  const rpsFilter = rpsAliasPipeline.find((stage) => stage.$match?.normalizedGameType);
+  assert.equal(rpsFilter.$match.normalizedGameType, "rps");
+});
+
+test("Mongo aggregate summaries preserve score, win-rate, streak bonus, and empty self row", () => {
+  const users = new Map([
+    ["alice", account("alice")],
+    ["bob", account("bob")],
+  ]);
+  const aggregates = [
+    {
+      userKey: "alice",
+      overall: {
+        matches: 4, wins: 3, losses: 1, draws: 0, score: 130,
+        lastPlayedAt: "2026-01-01T10:03:00.000Z",
+      },
+      games: [
+        {
+          gameType: "tictactoe", matches: 3, wins: 3, losses: 0, draws: 0,
+          score: 120, lastPlayedAt: "2026-01-01T10:02:00.000Z",
+        },
+        {
+          gameType: "rps", matches: 1, wins: 0, losses: 1, draws: 0,
+          score: 10, lastPlayedAt: "2026-01-01T10:03:00.000Z",
+        },
+      ],
+    },
+    {
+      userKey: "bob",
+      overall: {
+        matches: 1, wins: 1, losses: 0, draws: 0, score: 35,
+        lastPlayedAt: "2026-01-01T10:00:00.000Z",
+      },
+      games: [
+        {
+          gameType: "rps", matches: 1, wins: 1, losses: 0, draws: 0,
+          score: 35, lastPlayedAt: "2026-01-01T10:00:00.000Z",
+        },
+      ],
+    },
+  ];
+
+  const overall = buildGameLeaderboardFromAggregates({
+    aggregates, users, viewerKey: "alice", selectedGame: "overall",
+  });
+  assert.deepEqual(overall.map((entry) => entry.username), ["alice", "bob"]);
+  assert.equal(overall[0].score, 130);
+  assert.equal(overall[0].winRate, 75);
+  assert.equal(overall[0].lastPlayedAt, "2026-01-01T10:03:00.000Z");
+
+  const ticTacToe = buildGameLeaderboardFromAggregates({
+    aggregates, users, viewerKey: "alice", selectedGame: "tictactoe",
+  });
+  assert.equal(ticTacToe.length, 1);
+  assert.equal(ticTacToe[0].score, 120);
+  assert.equal(ticTacToe[0].matches, 3);
+
+  const emptySelf = buildGameLeaderboardFromAggregates({
+    aggregates: [], users, viewerKey: "alice", selectedGame: "rps",
+  });
+  assert.equal(emptySelf.length, 1);
+  assert.equal(emptySelf[0].isSelf, true);
+  assert.equal(emptySelf[0].score, 0);
+});
+
+test("only falls back for MongoDB versions that reject $setWindowFields", () => {
+  assert.equal(
+    isMongoWindowStageUnsupportedError({ code: 40324, message: "Unrecognized pipeline stage name: '$setWindowFields'" }),
+    true
+  );
+  assert.equal(
+    isMongoWindowStageUnsupportedError(new Error("Unrecognized pipeline stage name: '$setWindowFields'")),
+    true
+  );
+  assert.equal(isMongoWindowStageUnsupportedError({ code: 50, message: "operation exceeded time limit" }), false);
+  assert.equal(isMongoWindowStageUnsupportedError(new Error("MongoServerSelectionError: connection timed out")), false);
+  assert.equal(isMongoWindowStageUnsupportedError(new Error("not authorized on novyn to execute aggregate")), false);
 });

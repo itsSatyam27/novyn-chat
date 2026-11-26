@@ -211,3 +211,69 @@ keeps the scheduled item in durable state and retries it with capped exponential
 backoff. Normal delivery rejections remain terminal and are reported to the
 sender. Overdue deliveries use tracked timers so shutdown can cancel them
 before the final persistence flush.
+
+
+## Phase 5 performance groundwork
+
+MongoDB connection setup now exposes the `game_history` collection and creates
+its user/time compound index before storage becomes available. This supports
+account-scoped recent-history reads and the existing user-ordered leaderboard
+scan. Feedback also has a descending `createdAt` index for the admin dashboard.
+The previous API startup-only game-history index attempt has been moved into
+the connection's required index setup, so a missing collection handle or failed
+index can no longer be silently treated as a connected database.
+
+Media metadata is now fetched on demand from MongoDB (or asynchronously from
+the local metadata file) instead of loading the complete MongoDB metadata
+collection into RAM at startup. The in-process metadata cache is LRU-bounded to
+5,000 entries. Legacy local metadata migration uses a completion marker written
+only after the scan finishes, making restarts skip the full directory scan once
+migration has completed. Cache eviction does not affect access: a miss reloads
+the authoritative metadata from storage.
+
+These changes reduce startup I/O and keep media-metadata memory bounded, but
+they do not change the one-replica/whole-state snapshot architecture. Run the
+backend tests and CI build after changes; measure real production latency and
+MongoDB query plans before increasing replica count or changing pool limits.
+
+
+The Games leaderboard now requests server-side per-user/per-game aggregates
+instead of downloading every historical match into Node.js. MongoDB computes
+win/loss/draw totals, XP, and consecutive-win bonuses; the API only joins the
+small aggregate result to the in-memory registered-account directory and ranks
+it. The aggregate uses `$setWindowFields` (MongoDB 5.0+); if the configured
+cluster does not support that stage, the endpoint logs the compatibility
+fallback and uses the previous query path without changing scoring rules.
+Malformed timestamps and bot matches are excluded consistently with the
+in-memory implementation.
+
+
+Leaderboard compatibility handling only falls back to the legacy full-history reader
+when MongoDB explicitly reports that `$setWindowFields` is an unsupported stage
+(older server versions). Transient network errors, operation timeouts, permission
+errors, and resource failures are surfaced as a temporary API failure instead of
+triggering a second, potentially larger in-memory query.
+
+For game-specific leaderboard requests, the selected game filter is applied
+inside the MongoDB pipeline after alias normalization. This avoids aggregating
+other game types when the client asks for one game; the overall leaderboard
+continues to aggregate all supported game types so per-game streak bonuses are
+preserved.
+
+### Read-only leaderboard query-plan diagnostic
+
+Run the explain diagnostic from a trusted staging shell (or during a low-traffic
+window on production) to inspect the actual MongoDB plan without changing data:
+
+```sh
+npm run explain:leaderboard
+LEADERBOARD_GAME=tictactoe npm run explain:leaderboard
+LEADERBOARD_GAME=rps LEADERBOARD_USER_KEYS=user_key_1,user_key_2 npm run explain:leaderboard
+```
+
+It reports explain wall time, cursor documents/keys examined, pipeline return
+count, and index names. It never prints the MongoDB URI or supplied user keys.
+The diagnostic is read-only, but `executionStats` can still consume database
+CPU and scan history; start with staging or a low-traffic window. Use
+`LEADERBOARD_EXPLAIN_MAX_TIME_MS` to bound the explain command (1,000–120,000 ms).
+Compare overall and game-specific plans before changing indexes or pool limits.
