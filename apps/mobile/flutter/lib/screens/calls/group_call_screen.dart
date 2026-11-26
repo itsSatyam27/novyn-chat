@@ -25,12 +25,18 @@ class GroupCallScreen extends StatefulWidget {
     required this.callId,
     required this.isVideo,
     required this.participants,
+    this.initialMediaStates = const <String, dynamic>{},
+    this.initialScreenSharer,
+    this.initialScreenStreamId,
   });
 
   final String groupCallId;
   final String callId;
   final bool isVideo;
   final List<Map<String, dynamic>> participants;
+  final Map<String, dynamic> initialMediaStates;
+  final String? initialScreenSharer;
+  final String? initialScreenStreamId;
 
   @override
   State<GroupCallScreen> createState() => _GroupCallScreenState();
@@ -80,6 +86,15 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
     _me = context.read<AuthService>().user?.username ?? '';
     for (final participant in widget.participants) {
       _addParticipantRecord(participant);
+    }
+    _screenSharer = widget.initialScreenSharer;
+    _showScreenFirst = widget.initialScreenSharer != null;
+    for (final entry in widget.initialMediaStates.entries) {
+      if (entry.value is! Map) continue;
+      final key = entry.key.toLowerCase();
+      final state = Map<String, dynamic>.from(entry.value as Map);
+      _remoteAudioEnabled[key] = state['audioEnabled'] != false;
+      _remoteVideoEnabled[key] = state['videoEnabled'] != false;
     }
     _addParticipantRecord({
       'username': _me,
@@ -151,7 +166,7 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
       final streamId = data['streamId']?.toString();
       setState(() {
         _screenSharer = streamId == null || streamId.isEmpty ? null : username;
-        _showScreenFirst = true;
+        _showScreenFirst = streamId != null && streamId.isNotEmpty;
       });
       for (final peer in _peers.values) {
         peer.setRemoteScreenShare(streamId);
@@ -290,6 +305,11 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
         callId: widget.groupCallId,
         groupCall: true,
       );
+      if (widget.initialScreenSharer != null &&
+          widget.initialScreenSharer!.toLowerCase() == key &&
+          widget.initialScreenStreamId != null) {
+        peer.setRemoteScreenShare(widget.initialScreenStreamId);
+      }
       final queued = _pendingSignals.remove(key) ?? const [];
       for (final signal in queued) {
         await _applySignal(peer, username, signal);
