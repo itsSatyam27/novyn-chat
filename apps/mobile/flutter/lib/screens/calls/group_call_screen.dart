@@ -52,7 +52,6 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
   MediaStream? _groupScreenStream;
   String _me = '';
   String? _screenSharer;
-  String? _screenStreamId;
   bool _showScreenFirst = true;
   bool _muted = false;
   bool _cameraOff = false;
@@ -152,7 +151,6 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
       final streamId = data['streamId']?.toString();
       setState(() {
         _screenSharer = streamId == null || streamId.isEmpty ? null : username;
-        _screenStreamId = streamId;
         _showScreenFirst = true;
       });
       for (final peer in _peers.values) {
@@ -212,6 +210,9 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
         ..clear()
         ..addAll(next);
     });
+    _publishMediaState();
+    _publishActiveCallNotification();
+    _refreshMiniOverlay();
     unawaited(_ensurePeerConnections());
   }
 
@@ -456,7 +457,6 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
       }
       _sharingScreen = true;
       _screenSharer = _me;
-      _screenStreamId = screen.id;
       _showScreenFirst = true;
       _socket.updateGroupCallScreenShare(widget.groupCallId, screen.id);
       screen.getVideoTracks().first.onEnded = () => unawaited(_stopScreenShare());
@@ -497,7 +497,6 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
     if (mounted) {
       setState(() {
         _screenSharer = null;
-        _screenStreamId = null;
       });
     }
     _refreshMiniOverlay();
