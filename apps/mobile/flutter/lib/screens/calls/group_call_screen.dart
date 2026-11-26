@@ -123,6 +123,7 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
       final username = data['participant']?.toString().trim() ?? '';
       if (username.isNotEmpty) unawaited(_removePeer(username));
       _applyParticipantSnapshot(data['participants']);
+      _refreshMiniOverlay();
     };
     _socket.onGroupCallEndedCallback = (data) {
       if (!_matchesCall(data)) return;
@@ -161,6 +162,22 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
         );
       }
     };
+    _socket.onGroupCallScreenShareDeniedCallback = (data) {
+      if (!_matchesCall(data)) return;
+      if (_sharingScreen) unawaited(_stopScreenShare());
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(data['reason']?.toString() ??
+                'Another participant is already sharing their screen.'),
+          ),
+        );
+      }
+    };
+    _socket.onGroupCallPromotedCallback = null;
+    for (final packet in _socket.takePendingGroupCallSignals(widget.groupCallId)) {
+      unawaited(_handleSignal(packet));
+    }
   }
 
   bool _matchesCall(Map data) =>
@@ -1298,6 +1315,7 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
     _socket.onGroupCallMediaStateCallback = null;
     _socket.onGroupCallScreenShareStateCallback = null;
     _socket.onGroupCallInvitationDeclinedCallback = null;
+    _socket.onGroupCallScreenShareDeniedCallback = null;
     if (!_ended && !_leaving) {
       unawaited(_socket.leaveGroupCall(widget.groupCallId));
     }
