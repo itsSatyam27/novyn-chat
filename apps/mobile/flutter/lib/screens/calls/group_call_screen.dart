@@ -751,19 +751,34 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
   }
 
   Widget _buildParticipantGrid() {
-    final people = _participantList;
-    final count = people.length.clamp(1, _maxParticipants);
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 18),
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: count,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        mainAxisSpacing: 10,
-        crossAxisSpacing: 10,
-        childAspectRatio: count == 1 ? 1.1 : .82,
-      ),
-      itemBuilder: (context, index) => _buildParticipantTile(people[index]),
+    final people = _participantList.take(_maxParticipants).toList(growable: false);
+    final count = people.length.clamp(1, _maxParticipants).toInt();
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = GroupCallGridSpec.columnsFor(
+          participantCount: count,
+          width: constraints.maxWidth,
+          height: constraints.maxHeight,
+        );
+        final aspectRatio = GroupCallGridSpec.aspectRatioFor(
+          participantCount: count,
+          columns: columns,
+          width: constraints.maxWidth,
+          height: constraints.maxHeight,
+        );
+        return GridView.builder(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 18),
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: count,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: columns,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            childAspectRatio: aspectRatio,
+          ),
+          itemBuilder: (context, index) => _buildParticipantTile(people[index]),
+        );
+      },
     );
   }
 
@@ -774,160 +789,184 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
     final service = _peers[key];
     final videoEnabled = widget.isVideo &&
         (isMe ? !_cameraOff : (_remoteVideoEnabled[key] != false));
-    Widget video;
-    if (!videoEnabled) {
-      video = _avatarFor(participant);
-    } else if (isMe && _mediaOwner?.localStream != null) {
-      video = RTCVideoView(
-        _mediaOwner!.localRenderer,
-        mirror: true,
-        objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
-      );
-    } else if (!isMe && service?.hasRemoteVideo == true) {
-      video = RTCVideoView(
-        service!.remoteRenderer,
-        objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
-      );
-    } else {
-      video = _avatarFor(participant);
-    }
-
     final audioMuted = isMe ? _muted : (_remoteAudioEnabled[key] == false);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(22),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          Container(color: const Color(0xFF25283A), child: video),
-          Positioned(
-            left: 10,
-            right: 10,
-            bottom: 10,
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    isMe ? 'You' : (participant['displayName']?.toString() ?? username),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
-                  ),
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final shortestSide = constraints.maxWidth < constraints.maxHeight
+            ? constraints.maxWidth
+            : constraints.maxHeight;
+        final avatarRadius = (shortestSide * .22).clamp(22.0, 46.0).toDouble();
+        final compact = shortestSide < 150;
+        Widget video;
+        if (!videoEnabled) {
+          video = _avatarFor(participant, radius: avatarRadius);
+        } else if (isMe && _mediaOwner?.localStream != null) {
+          video = RTCVideoView(
+            _mediaOwner!.localRenderer,
+            mirror: true,
+            objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+          );
+        } else if (!isMe && service?.hasRemoteVideo == true) {
+          video = RTCVideoView(
+            service!.remoteRenderer,
+            objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+          );
+        } else {
+          video = _avatarFor(participant, radius: avatarRadius);
+        }
+
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(compact ? 16 : 22),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Container(color: const Color(0xFF25283A), child: video),
+              Positioned(
+                left: compact ? 7 : 10,
+                right: compact ? 7 : 10,
+                bottom: compact ? 7 : 10,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        isMe ? 'You' : (participant['displayName']?.toString() ?? username),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: compact ? 11 : 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    if (audioMuted)
+                      Icon(Icons.mic_off_rounded, color: Colors.white, size: compact ? 13 : 16),
+                  ],
                 ),
-                if (audioMuted)
-                  const Icon(Icons.mic_off_rounded, color: Colors.white, size: 16),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _avatarFor(Map<String, dynamic> participant) => Container(
+  Widget _avatarFor(
+    Map<String, dynamic> participant, {
+    double radius = 38,
+  }) =>
+      Container(
         color: const Color(0xFF25283A),
         child: Center(
           child: UserAvatar(
             name: participant['displayName']?.toString() ??
                 participant['username']?.toString() ?? '?',
             photoUrl: participant['photoUrl']?.toString() ?? '',
-            radius: 38,
+            radius: radius,
           ),
         ),
       );
 
   Widget _buildScreenShareArea() {
-    RTCVideoRenderer? screenRenderer;
-    if (_screenSharer?.toLowerCase() == _meKey) {
-      screenRenderer = _mediaOwner?.localScreenRenderer;
-    } else {
-      screenRenderer = _peers[_screenSharer?.toLowerCase()]?.remoteScreenRenderer;
-    }
-    final screenView = screenRenderer?.srcObject == null
-        ? const Center(
-            child: Text('Connecting shared screen…', style: TextStyle(color: Colors.white70)),
-          )
-        : RTCVideoView(
-            screenRenderer!,
-            objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
-          );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        RTCVideoRenderer? screenRenderer;
+        if (_screenSharer?.toLowerCase() == _meKey) {
+          screenRenderer = _mediaOwner?.localScreenRenderer;
+        } else {
+          screenRenderer = _peers[_screenSharer?.toLowerCase()]?.remoteScreenRenderer;
+        }
+        final screenView = screenRenderer?.srcObject == null
+            ? const Center(
+                child: Text('Connecting shared screen…', style: TextStyle(color: Colors.white70)),
+              )
+            : RTCVideoView(
+                screenRenderer!,
+                objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+              );
+        final miniWidth = (constraints.maxWidth * .30).clamp(88.0, 156.0).toDouble();
+        final miniHeight = (constraints.maxHeight * .38).clamp(104.0, 184.0).toDouble();
 
-    if (!_showScreenFirst) {
-      return Stack(
-        fit: StackFit.expand,
-        children: [
-          Positioned.fill(child: _buildParticipantGrid()),
-          Positioned(
-            right: 12,
-            top: 12,
-            width: 112,
-            height: 160,
-            child: GestureDetector(
-              onTap: () => setState(() => _showScreenFirst = true),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Container(color: const Color(0xFF171927), child: screenView),
-              ),
-            ),
-          ),
-          Positioned(
-            left: 12,
-            top: 12,
-            child: _GroupTag(
-              icon: Icons.screen_share_rounded,
-              text: 'Screen shared',
-            ),
-          ),
-        ],
-      );
-    }
-
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Container(color: const Color(0xFF080A12), child: screenView),
-        Positioned(
-          top: 12,
-          right: 12,
-          width: 106,
-          height: 154,
-          child: GestureDetector(
-            onTap: () => setState(() => _showScreenFirst = false),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: _buildParticipantTile({
-                'username': _me,
-                'displayName': 'You',
-              }),
-            ),
-          ),
-        ),
-        Positioned(
-          left: 12,
-          top: 12,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
+        if (!_showScreenFirst) {
+          return Stack(
+            fit: StackFit.expand,
             children: [
-              _GroupTag(
-                icon: Icons.screen_share_rounded,
-                text: _screenSharer?.toLowerCase() == _meKey
-                    ? 'You are sharing'
-                    : (_screenSharer ?? 'Participant') + ' is sharing',
+              Positioned.fill(child: _buildParticipantGrid()),
+              Positioned(
+                right: 10,
+                top: 10,
+                width: miniWidth,
+                height: miniHeight,
+                child: GestureDetector(
+                  onTap: () => setState(() => _showScreenFirst = true),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(color: const Color(0xFF171927), child: screenView),
+                  ),
+                ),
               ),
-              const SizedBox(width: 8),
-              Material(
-                color: Colors.black.withValues(alpha: .56),
-                shape: const CircleBorder(),
-                child: IconButton(
-                  visualDensity: VisualDensity.compact,
-                  onPressed: () => setState(() => _showScreenFirst = false),
-                  icon: const Icon(Icons.swap_horiz_rounded, color: Colors.white),
-                  tooltip: 'Show participants',
+              Positioned(
+                left: 10,
+                top: 10,
+                child: _GroupTag(
+                  icon: Icons.screen_share_rounded,
+                  text: 'Screen shared',
                 ),
               ),
             ],
-          ),
-        ),
-      ],
+          );
+        }
+
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            Container(color: const Color(0xFF080A12), child: screenView),
+            Positioned(
+              top: 10,
+              right: 10,
+              width: miniWidth,
+              height: miniHeight,
+              child: GestureDetector(
+                onTap: () => setState(() => _showScreenFirst = false),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: _buildParticipantTile({
+                    'username': _me,
+                    'displayName': 'You',
+                  }),
+                ),
+              ),
+            ),
+            Positioned(
+              left: 10,
+              top: 10,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _GroupTag(
+                    icon: Icons.screen_share_rounded,
+                    text: _screenSharer?.toLowerCase() == _meKey
+                        ? 'You are sharing'
+                        : (_screenSharer ?? 'Participant') + ' is sharing',
+                  ),
+                  const SizedBox(width: 8),
+                  Material(
+                    color: Colors.black.withValues(alpha: .56),
+                    shape: const CircleBorder(),
+                    child: IconButton(
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () => setState(() => _showScreenFirst = false),
+                      icon: const Icon(Icons.swap_horiz_rounded, color: Colors.white),
+                      tooltip: 'Show participants',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -940,54 +979,57 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
         borderRadius: BorderRadius.circular(30),
         border: Border.all(color: Colors.white.withValues(alpha: .10)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _GroupControl(
-            icon: Icons.person_add_alt_1_rounded,
-            label: 'Add',
-            onTap: _showInvitePicker,
-            disabled: _participants.length + _pendingInvites.length >= _maxParticipants || _inviting,
-          ),
-          _GroupControl(
-            icon: _muted ? Icons.mic_off_rounded : Icons.mic_rounded,
-            label: 'Mute',
-            active: _muted,
-            onTap: _toggleMute,
-          ),
-          if (widget.isVideo) ...[
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
             _GroupControl(
-              icon: _cameraOff ? Icons.videocam_off_rounded : Icons.videocam_rounded,
-              label: 'Camera',
-              active: _cameraOff,
-              onTap: _toggleCamera,
+              icon: Icons.person_add_alt_1_rounded,
+              label: 'Add',
+              onTap: _showInvitePicker,
+              disabled: _participants.length + _pendingInvites.length >= _maxParticipants || _inviting,
             ),
             _GroupControl(
-              icon: Icons.flip_camera_android_rounded,
-              label: 'Flip',
-              onTap: _switchCamera,
+              icon: _muted ? Icons.mic_off_rounded : Icons.mic_rounded,
+              label: 'Mute',
+              active: _muted,
+              onTap: _toggleMute,
+            ),
+            if (widget.isVideo) ...[
+              _GroupControl(
+                icon: _cameraOff ? Icons.videocam_off_rounded : Icons.videocam_rounded,
+                label: 'Camera',
+                active: _cameraOff,
+                onTap: _toggleCamera,
+              ),
+              _GroupControl(
+                icon: Icons.flip_camera_android_rounded,
+                label: 'Flip',
+                onTap: _switchCamera,
+              ),
+            ],
+            _GroupControl(
+              icon: _sharingScreen ? Icons.stop_screen_share_rounded : Icons.screen_share_rounded,
+              label: _sharingScreen ? 'Stop' : 'Share',
+              active: _sharingScreen,
+              disabled: !_sharingScreen && _screenSharer != null,
+              onTap: _toggleScreenShare,
+            ),
+            _GroupControl(
+              icon: _speakerOn ? Icons.volume_up_rounded : Icons.hearing_rounded,
+              label: 'Speaker',
+              active: _speakerOn,
+              onTap: _toggleSpeaker,
+            ),
+            _GroupControl(
+              icon: Icons.call_end_rounded,
+              label: 'Leave',
+              danger: true,
+              onTap: _leaveCall,
             ),
           ],
-          _GroupControl(
-            icon: _sharingScreen ? Icons.stop_screen_share_rounded : Icons.screen_share_rounded,
-            label: _sharingScreen ? 'Stop' : 'Share',
-            active: _sharingScreen,
-            disabled: !_sharingScreen && _screenSharer != null,
-            onTap: _toggleScreenShare,
-          ),
-          _GroupControl(
-            icon: _speakerOn ? Icons.volume_up_rounded : Icons.hearing_rounded,
-            label: 'Speaker',
-            active: _speakerOn,
-            onTap: _toggleSpeaker,
-          ),
-          _GroupControl(
-            icon: Icons.call_end_rounded,
-            label: 'Leave',
-            danger: true,
-            onTap: _leaveCall,
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -1047,16 +1089,18 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
   Widget _buildMiniOverlay() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        const width = 166.0;
-        const height = 224.0;
+        final width = (constraints.maxWidth * .44).clamp(132.0, 166.0).toDouble();
+        final height = (constraints.maxHeight * .74).clamp(148.0, 224.0).toDouble();
         final maxX = (constraints.maxWidth - width - 8)
             .clamp(0.0, double.infinity).toDouble();
-        final maxY = (constraints.maxHeight - height - 32)
+        final maxY = (constraints.maxHeight - height - 8)
             .clamp(0.0, double.infinity).toDouble();
+        final minX = maxX < 4 ? maxX : 4.0;
+        final minY = maxY < 24 ? maxY : 24.0;
         _miniPosition ??= Offset(maxX, maxY * .45);
         final position = Offset(
-          _miniPosition!.dx.clamp(4.0, maxX).toDouble(),
-          _miniPosition!.dy.clamp(24.0, maxY).toDouble(),
+          _miniPosition!.dx.clamp(minX, maxX).toDouble(),
+          _miniPosition!.dy.clamp(minY, maxY).toDouble(),
         );
         return Stack(
           children: [
@@ -1076,8 +1120,8 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
                       child: GestureDetector(
                         onPanUpdate: (details) {
                           _miniPosition = Offset(
-                            (position.dx + details.delta.dx).clamp(4.0, maxX).toDouble(),
-                            (position.dy + details.delta.dy).clamp(24.0, maxY).toDouble(),
+                            (position.dx + details.delta.dx).clamp(minX, maxX).toDouble(),
+                            (position.dy + details.delta.dy).clamp(minY, maxY).toDouble(),
                           );
                           CallOverlayService.show(_buildMiniOverlay());
                         },
