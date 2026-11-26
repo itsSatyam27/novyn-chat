@@ -29,15 +29,15 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
         surfaceTintColor: Colors.transparent,
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 36),
         children: [
           _buildUsernameCard(context, auth),
-          const SizedBox(height: 16),
+          const SizedBox(height: 22),
           Container(
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: NovynTheme.cardBg(context),
-              borderRadius: BorderRadius.circular(22),
+              borderRadius: BorderRadius.circular(30),
               border: Border.all(color: colors.outlineVariant),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -82,13 +82,13 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
               )),
             ]),
           ),
-          const SizedBox(height: 18),
-          Text('PASSWORD', style: TextStyle(color: colors.primary, fontSize: 11,
-            fontWeight: FontWeight.w800, letterSpacing: 1.3)),
-          const SizedBox(height: 9),
+          const SizedBox(height: 26),
+          Text('Password', style: TextStyle(color: colors.onSurfaceVariant, fontSize: 16,
+            fontWeight: FontWeight.w600, letterSpacing: 0)),
+          const SizedBox(height: 12),
           Container(
             decoration: BoxDecoration(color: NovynTheme.cardBg(context),
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(28),
               border: Border.all(color: colors.outlineVariant)),
             child: Column(children: [
               ListTile(
@@ -114,7 +114,7 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
           ),
           const SizedBox(height: 16),
           if (user?.isGoogleUser == true)
-            Text('Google sign-in is also linked to this account. Changing your Novyn password does not change your Google password.',
+            Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: colors.primary.withValues(alpha: .07), borderRadius: BorderRadius.circular(24)), child: Text('Google sign-in is also linked to this account. Changing your Novyn password does not change your Google password.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant, height: 1.4)),
         ],
       ),
@@ -124,15 +124,16 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
 
   Widget _buildUsernameCard(BuildContext context, AuthService auth) {
     final colors = Theme.of(context).colorScheme;
-    return Card(
-      color: NovynTheme.cardBg(context),
+    return Container(
+      decoration: BoxDecoration(color: NovynTheme.cardBg(context), borderRadius: BorderRadius.circular(28), border: Border.all(color: colors.outlineVariant)),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: ListTile(
-        leading: CircleAvatar(
+        leading: CircleAvatar(radius: 28,
           backgroundColor: colors.primary.withValues(alpha: .12),
           child: Icon(Icons.alternate_email_rounded, color: colors.primary),
         ),
-        title: const Text('Username', style: TextStyle(fontWeight: FontWeight.w800)),
-        subtitle: Text('@${auth.user?.username ?? ''}'),
+        title: Text('Username', style: TextStyle(fontWeight: FontWeight.w600, color: colors.onSurfaceVariant)),
+        subtitle: Text('@${auth.user?.username ?? ''}', style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700)),
         trailing: IconButton(
           tooltip: 'Change username',
           onPressed: () => _changeUsername(auth),
