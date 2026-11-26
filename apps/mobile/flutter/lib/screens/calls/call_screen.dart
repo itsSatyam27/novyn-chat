@@ -1098,6 +1098,12 @@ class _CallScreenState extends State<CallScreen>
 
   Future<void> _promoteToGroupCall() async {
     if (_groupTransitioning || _state != CallState.connected) return;
+    if (!_webrtc.hasPeerConnection || _webrtc.localStream == null) {
+      context.showNovynAlert(
+        const SnackBar(content: Text('Call audio is still connecting. Try adding people in a moment.')),
+      );
+      return;
+    }
     setState(() => _groupTransitioning = true);
     final result = await context.read<SocketService>().promoteCallToGroup(
       callId: _callId,
@@ -1235,7 +1241,9 @@ class _CallScreenState extends State<CallScreen>
                           Expanded(
                             child: _CallTrayActionTile(
                               icon: Icons.person_add_alt_1_rounded,
-                              label: _groupTransitioning ? 'Starting…' : 'Add people',
+                              label: _groupTransitioning
+                                  ? 'Starting…'
+                                  : (!_webrtc.hasPeerConnection ? 'Connecting…' : 'Add people'),
                               active: false,
                               onTap: _promoteToGroupCall,
                             ),
