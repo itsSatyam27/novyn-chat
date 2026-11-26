@@ -22,6 +22,7 @@ import '../security/app_lock_screen.dart';
 import '../profile/settings/chat_settings_screen.dart';
 import 'starred_messages_screen.dart';
 import '../../widgets/chat_overflow_menu.dart';
+import '../../widgets/novyn_header_actions.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:novyn/services/haptic_service.dart';
 import '../../utils/presence_utils.dart';
@@ -1293,25 +1294,38 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
                     const SizedBox(width: 10),
                   ],
                   Expanded(
-                    child: Text(
-                      _selectionMode
-                          ? 'Select chats'
-                          : _showingArchivedChats
-                              ? 'Archived chats'
-                              : _showingLockedChats
-                                  ? 'Locked chats'
-                                  : 'Chats',
-                      maxLines: 1,
-                      style: TextStyle(
-                        fontFamily: 'PlusJakartaSans',
-                        fontSize: 36,
-                        height: 1.12,
-                        letterSpacing: -1.25,
-                        fontWeight: FontWeight.w600,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                    ),
-                  ),
+                    child: (_selectionMode || _showingArchivedChats || _showingLockedChats)
+                        ? Text(
+                            _selectionMode
+                                ? 'Select chats'
+                                : _showingArchivedChats
+                                    ? 'Archived chats'
+                                    : 'Locked chats',
+                            maxLines: 1,
+                            style: TextStyle(
+                              fontFamily: 'PlusJakartaSans',
+                              fontSize: 36,
+                              height: 1.12,
+                              letterSpacing: -1.25,
+                              fontWeight: FontWeight.w600,
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
+                          )
+                        : Align(
+                            alignment: Alignment.centerLeft,
+                            child: Semantics(
+                              label: 'Novyn',
+                              image: true,
+                              child: Image.asset(
+                                'assets/images/novyn-wordmark.png',
+                                width: 98,
+                                height: 46,
+                                fit: BoxFit.contain,
+                                filterQuality: FilterQuality.high,
+                              ),
+                            ),
+                          ),
+                  )
                   if (_selectionMode)
                     Material(
                       color: Theme.of(context).colorScheme.surface,
@@ -1327,51 +1341,35 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
                       ),
                     )
                   else
-                    Material(
-                      color: Theme.of(context).colorScheme.surface,
-                      borderRadius: BorderRadius.circular(17),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(17),
-                        onTap: () {
-                          setState(() => _isSearchVisible = !_isSearchVisible);
-                          if (_isSearchVisible) {
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              if (mounted) _searchFocusNode.requestFocus();
-                            });
-                          } else {
-                            _searchFocusNode.unfocus();
-                            _searchController.clear();
-                            _onSearch('');
-                          }
-                        },
-                        child: SizedBox(
-                          width: 46,
-                          height: 46,
-                          child: Icon(
-                            _isSearchVisible
-                                ? Icons.close_rounded
-                                : Icons.search_rounded,
-                            color: Theme.of(context).colorScheme.onSurface,
-                            size: 23,
-                          ),
-                        ),
-                      ),
+                    NovynHeaderActions(
+                      searchVisible: _isSearchVisible,
+                      onSearchTap: () {
+                        setState(() => _isSearchVisible = !_isSearchVisible);
+                        if (_isSearchVisible) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (mounted) _searchFocusNode.requestFocus();
+                          });
+                        } else {
+                          _searchFocusNode.unfocus();
+                          _searchController.clear();
+                          _onSearch('');
+                        }
+                      },
+                      trailingAction: (_showingArchivedChats || _showingLockedChats)
+                          ? null
+                          : ChatOverflowMenu(
+                              archivedCount: _archivedChatUsernames.length,
+                              lockedCount: _lockedChatUsernames.length,
+                              onCreateGroup: _openCreateGroup,
+                              onInviteFriends: _inviteFriends,
+                              onArchivedChats: _showArchivedChats,
+                              onLockedChats: _showLockedChats,
+                              onStarredMessages: _openStarredMessages,
+                              onSelectChats: _toggleSelectionMode,
+                              onMarkAllRead: _markAllChatsRead,
+                              onChatSettings: _openChatSettings,
+                            ),
                     ),
-                  if (!_selectionMode && !_showingArchivedChats && !_showingLockedChats) ...[
-                    const SizedBox(width: 8),
-                    ChatOverflowMenu(
-                      archivedCount: _archivedChatUsernames.length,
-                      lockedCount: _lockedChatUsernames.length,
-                      onCreateGroup: _openCreateGroup,
-                      onInviteFriends: _inviteFriends,
-                      onArchivedChats: _showArchivedChats,
-                      onLockedChats: _showLockedChats,
-                      onStarredMessages: _openStarredMessages,
-                      onSelectChats: _toggleSelectionMode,
-                      onMarkAllRead: _markAllChatsRead,
-                      onChatSettings: _openChatSettings,
-                    ),
-                  ],
                 ],
               ),
             ),

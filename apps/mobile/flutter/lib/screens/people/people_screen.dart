@@ -9,6 +9,7 @@ import '../../models/user_model.dart';
 import '../../widgets/novyn_shimmer.dart';
 import '../../widgets/novyn_empty_state.dart';
 import '../../widgets/user_avatar.dart';
+import '../../widgets/novyn_header_actions.dart';
 import '../../utils/presence_utils.dart';
 import '../../widgets/novyn_ui.dart';
 import '../../theme/novyn_theme.dart';
@@ -226,12 +227,9 @@ class _PeopleScreenState extends State<PeopleScreen> {
                       ),
                     ),
                   ),
-                  NovynIconButton(
-                    icon: _isSearchVisible ? Icons.close_rounded : Icons.search_rounded,
-                    size: 46,
-                    radius: 18,
-                    iconSize: 22,
-                    onTap: () {
+                  NovynHeaderActions(
+                    searchVisible: _isSearchVisible,
+                    onSearchTap: () {
                       setState(() {
                         _isSearchVisible = !_isSearchVisible;
                         if (!_isSearchVisible) {
@@ -249,17 +247,16 @@ class _PeopleScreenState extends State<PeopleScreen> {
                         _searchFocusNode.unfocus();
                       }
                     },
-                  ),
-                  const SizedBox(width: 10),
-                  StreamBuilder<int>(
-                    stream: friends.pendingRequestsCountStream(myUid),
-                    builder: (context, requestSnapshot) {
-                      return _buildContactsOverflowMenu(
-                        theme: Theme.of(context),
-                        requestCount: requestSnapshot.data ?? 0,
-                        myUid: myUid,
-                      );
-                    },
+                    trailingAction: StreamBuilder<int>(
+                      stream: friends.pendingRequestsCountStream(myUid),
+                      builder: (context, requestSnapshot) {
+                        return _buildContactsOverflowMenu(
+                          theme: Theme.of(context),
+                          requestCount: requestSnapshot.data ?? 0,
+                          myUid: myUid,
+                        );
+                      },
+                    ),
                   ),
                 ],
               ),
@@ -847,18 +844,15 @@ class _PeopleScreenState extends State<PeopleScreen> {
           ),
         ),
       ],
-      child: Container(
+      child: SizedBox(
         width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        alignment: Alignment.center,
-        child: Icon(
-          Icons.more_horiz_rounded,
-          size: 24,
-          color: theme.colorScheme.onSurface,
+        height: 46,
+        child: Center(
+          child: Icon(
+            Icons.more_horiz_rounded,
+            size: 24,
+            color: accent,
+          ),
         ),
       ),
     );

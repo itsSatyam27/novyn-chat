@@ -224,17 +224,15 @@ class ChatOverflowMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final color = Theme.of(context).colorScheme.onSurface;
+    final color = Theme.of(context).colorScheme.primary;
     return Material(
-      color: isDark ? const Color(0xFF191B2B) : Colors.white,
-      borderRadius: BorderRadius.circular(18),
+      color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(999),
         onTap: () => _show(context),
         child: SizedBox(
           width: 48,
-          height: 48,
+          height: 46,
           child: Icon(Icons.more_horiz_rounded, color: color, size: 25),
         ),
       ),
