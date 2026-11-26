@@ -33,6 +33,7 @@ function registerCallHandlers(socket, deps) {
     normalizeName,
     onlineUsers,
     activeCalls,
+    isUserInGroupCall,
     setCallPair,
     clearCallPair,
     io,
@@ -110,7 +111,8 @@ function registerCallHandlers(socket, deps) {
     console.log(`[Call] Call started from ${userKey} to ${friendKey} (socket: ${friendSocketId})`);
 
     if (friendSocketId) {
-      if (activeCalls.has(userKey) || activeCalls.has(friendKey)) {
+      if (activeCalls.has(userKey) || activeCalls.has(friendKey) ||
+          isUserInGroupCall?.(userKey) || isUserInGroupCall?.(friendKey)) {
         socket.emit("call_ended", { callId, reason: "User is busy" });
         return;
       }
