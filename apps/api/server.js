@@ -9813,6 +9813,7 @@ io.on("connection", (socket) => {
     normalizeName,
     onlineUsers,
     activeCalls,
+    isUserInGroupCall: (userKey) => groupCallRegistry.userSessions.has(userKey),
     setCallPair,
     clearCallPair,
     io,
