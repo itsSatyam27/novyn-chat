@@ -104,7 +104,7 @@ class GoogleDriveBackupService {
       const chunkSize = 64 * 1024;
       while (sentBytes < body.length) {
         checkCancelled?.call();
-        final end = (sentBytes + chunkSize).clamp(0, body.length);
+        final end = (sentBytes + chunkSize).clamp(0, body.length).toInt();
         request.sink.add(body.sublist(sentBytes, end));
         sentBytes = end;
         onProgress?.call(sentBytes, body.length);
