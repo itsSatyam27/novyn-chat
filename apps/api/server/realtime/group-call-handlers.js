@@ -225,8 +225,38 @@ function registerGroupCallHandlers(socket, deps) {
     const current = registry.userSessions.get(userKey);
     if (current) {
       const existing = registry.sessions.get(current);
-      if (existing?.callId === callId) {
-        return respond(ack, { ok: true, ...sessionView(existing) });
+      if (existing?.callId === callId && existing.participants.has(userKey)) {
+        const rawInvitees = Array.isArray(payload?.invitees) ? payload.invitees : [];
+        cleanupPending(existing);
+        const requested = rawInvitees.map((value) => normalizeName(safeName(value)));
+        if (requested.length > MAX_GROUP_CALL_PARTICIPANTS - existing.participants.size - existing.pending.size) {
+          return respond(ack, { ok: false, message: 'There are not enough open places in this call.' });
+        }
+        if (requested.some((key) => !key) || new Set(requested).size !== requested.length) {
+          return respond(ack, { ok: false, message: 'Choose valid, unique contacts.' });
+        }
+        if (allowSocketAction && requested.length > 0 &&
+            !allowSocketAction(socket, 'group_call_invite', 5, 60_000)) {
+          return respond(ack, { ok: false, message: 'Too many invitations. Try again shortly.' });
+        }
+        for (const inviteeKey of requested) {
+          if (existing.participants.has(inviteeKey)) {
+            return respond(ack, { ok: false, message: 'This person is already in the call.' });
+          }
+          if (existing.pending.has(inviteeKey)) {
+            return respond(ack, { ok: false, message: 'An invitation is already pending.' });
+          }
+          const denial = canInvite(userKey, inviteeKey);
+          if (denial) return respond(ack, { ok: false, message: denial });
+          if (registry.userSessions.has(inviteeKey) || activeCalls.has(inviteeKey)) {
+            return respond(ack, { ok: false, message: 'This person is already in another call.' });
+          }
+        }
+        const invitations = requested.map((inviteeKey) =>
+          sendGroupInvitation(existing, inviteeKey, userKey));
+        const view = sessionView(existing);
+        emitSession(existing, 'group_call_promoted', view);
+        return respond(ack, { ok: true, ...view, invitations });
       }
       return respond(ack, { ok: false, message: 'You are already in another group call.' });
     }
@@ -337,11 +367,21 @@ function registerGroupCallHandlers(socket, deps) {
     if (registry.userSessions.has(userKey) || activeCalls.has(userKey)) {
       clearInviteTimer(invitation);
       session.pending.delete(userKey);
+      emitUser(invitation.invitedBy, 'group_call_invitation_declined', {
+        groupCallId,
+        username: users.get(userKey)?.username || userKey,
+        reason: 'The invited person is already in another call.',
+      });
       return respond(ack, { ok: false, message: 'End your current call before joining another.' });
     }
     if (session.participants.size >= MAX_GROUP_CALL_PARTICIPANTS) {
       clearInviteTimer(invitation);
       session.pending.delete(userKey);
+      emitUser(invitation.invitedBy, 'group_call_invitation_declined', {
+        groupCallId,
+        username: users.get(userKey)?.username || userKey,
+        reason: 'The group call became full before the invitation was accepted.',
+      });
       return respond(ack, { ok: false, message: 'This group call is full.' });
     }
     const denial = canInvite(invitation.invitedBy, userKey);
