@@ -462,11 +462,11 @@ class _CallScreenState extends State<CallScreen>
     socket.onCallAccepted((data) async {
       if (data['callId']?.toString().isNotEmpty == true &&
           data['callId']?.toString() != _callId) return;
-      if (!mounted) return;
+      if (!mounted || _state != CallState.calling) return;
       _callTimeoutTimer?.cancel();
       _stopRingtone();
       await _applyConnectedAudioDefault();
-      if (!mounted) return;
+      if (!mounted || _state != CallState.calling) return;
       setState(() => _state = CallState.connected);
       _publishActiveCallNotification();
       _refreshMiniOverlay();
@@ -1035,7 +1035,7 @@ class _CallScreenState extends State<CallScreen>
       }
       _stopRingtone();
       await _applyConnectedAudioDefault();
-      if (!mounted) return;
+      if (!mounted || _state != CallState.calling) return;
       setState(() => _state = CallState.connected);
       _publishActiveCallNotification();
       _refreshMiniOverlay();
