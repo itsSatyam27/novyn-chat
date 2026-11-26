@@ -1712,7 +1712,6 @@ class _CallScreenState extends State<CallScreen>
                                     ),
                     ),
                   ),
-                  ),
                 ),
               ),
               const Spacer(),
