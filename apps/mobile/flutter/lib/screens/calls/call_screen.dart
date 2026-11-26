@@ -21,6 +21,7 @@ import '../../services/settings_service.dart';
 import '../../services/notification_service.dart';
 import '../../widgets/user_avatar.dart';
 import 'package:novyn/services/haptic_service.dart';
+import 'group_call_screen.dart';
 
 enum CallState { calling, connected, ended }
 
@@ -94,6 +95,7 @@ class _CallScreenState extends State<CallScreen>
   bool _screenShareTransitioning = false;
   bool _showSharedScreenFirst = true;
   bool _videoUpgradeQueued = false;
+  bool _groupTransitioning = false;
   String? _remoteScreenStreamId;
 
   @override
@@ -420,6 +422,12 @@ class _CallScreenState extends State<CallScreen>
 
   void _listenToCallEvents() {
     final socket = context.read<SocketService>();
+
+    socket.onGroupCallPromotedCallback = (data) {
+      if (!mounted || _state != CallState.connected ||
+          data['callId']?.toString() != _callId) return;
+      unawaited(_enterGroupCall(data));
+    };
 
     // Peer accepted → start WebRTC as caller
     socket.onCallAccepted((data) async {
@@ -976,6 +984,7 @@ class _CallScreenState extends State<CallScreen>
     socket.onCallAcceptedCallback = null;
     socket.onCallRejectedCallback = null;
     socket.onCallEndedCallback = null;
+    if (!_groupTransitioning) socket.onGroupCallPromotedCallback = null;
     super.dispose();
   }
 
@@ -1083,6 +1092,50 @@ class _CallScreenState extends State<CallScreen>
     );
   }
 
+  Future<void> _promoteToGroupCall() async {
+    if (_groupTransitioning || _state != CallState.connected) return;
+    setState(() => _groupTransitioning = true);
+    final result = await context.read<SocketService>().promoteCallToGroup(
+      callId: _callId,
+      isVideo: _isVideo,
+    );
+    if (!mounted) return;
+    if (result['ok'] == true) {
+      await _enterGroupCall(result);
+    } else {
+      setState(() => _groupTransitioning = false);
+      context.showNovynAlert(
+        SnackBar(content: Text(result['message']?.toString() ?? 'Could not start a group call.')),
+      );
+    }
+  }
+
+  Future<void> _enterGroupCall(Map data) async {
+    if (_groupTransitioning && ModalRoute.of(context)?.isCurrent != true) return;
+    if (_state != CallState.connected || !mounted) return;
+    final groupCallId = data['groupCallId']?.toString().trim() ?? '';
+    if (groupCallId.isEmpty) return;
+    _groupTransitioning = true;
+    _callTimeoutTimer?.cancel();
+    _stopRingtone();
+    final rawParticipants = data['participants'];
+    final participants = rawParticipants is List
+        ? rawParticipants.whereType<Map>()
+            .map((person) => Map<String, dynamic>.from(person))
+            .toList()
+        : <Map<String, dynamic>>[];
+    await Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (_) => GroupCallScreen(
+          groupCallId: groupCallId,
+          callId: _callId,
+          isVideo: data['isVideo'] == true || _isVideo,
+          participants: participants,
+        ),
+      ),
+    );
+  }
+
   void _toggleControlsTray() {
     HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.calls);
     setState(() => _controlsExpanded = !_controlsExpanded);
@@ -1169,6 +1222,15 @@ class _CallScreenState extends State<CallScreen>
                               label: _isScreenSharingLocal ? 'Stop sharing' : 'Share screen',
                               active: _isScreenSharingLocal,
                               onTap: _toggleScreenShare,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _CallTrayActionTile(
+                              icon: Icons.person_add_alt_1_rounded,
+                              label: _groupTransitioning ? 'Starting…' : 'Add people',
+                              active: false,
+                              onTap: _promoteToGroupCall,
                             ),
                           ),
                         ],
