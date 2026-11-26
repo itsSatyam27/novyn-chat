@@ -9,6 +9,7 @@ import '../../../services/backup_automation_service.dart';
 import '../../../services/backup_password_service.dart';
 import '../../../services/chat_backup_service.dart';
 import '../../../services/google_drive_backup_service.dart';
+import '../../../services/message_encryption_service.dart';
 import '../../../services/socket_service.dart';
 
 class BackupRestoreScreen extends StatefulWidget {
@@ -435,15 +436,17 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
     child: Icon(icon, color: foreground, size: 29),
   );
 
-  Widget _heading(BuildContext context, String text) => Text(text,
-      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-        color: Theme.of(context).colorScheme.primary,
-        fontWeight: FontWeight.w800, letterSpacing: 1.15));
+  Widget _heading(BuildContext context, String text) => Padding(
+    padding: const EdgeInsets.only(left: 4),
+    child: Text(text, style: Theme.of(context).textTheme.titleMedium?.copyWith(
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
+      fontWeight: FontWeight.w600, letterSpacing: -.2)),
+  );
 
   BoxDecoration _cardDecoration(BuildContext context) => BoxDecoration(
     color: Theme.of(context).cardColor,
-    borderRadius: BorderRadius.circular(22),
-    border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .65)),
+    borderRadius: BorderRadius.circular(28),
+    border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .25)),
   );
 
   Widget _actionCard(BuildContext context, List<_ActionItem> items) => Container(
@@ -451,10 +454,11 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
     child: Column(children: [
       for (var i = 0; i < items.length; i++) ...[
         _actionRow(context, items[i]),
-        if (i != items.length - 1) Padding(
-          padding: const EdgeInsets.only(left: 66),
-          child: Divider(height: 1, color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .55)),
-        ),
+        if (i != items.length - 1)
+          Padding(
+            padding: const EdgeInsets.only(left: 80, right: 16),
+            child: Divider(height: 1, color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: .55)),
+          ),
       ],
     ]),
   );
@@ -462,76 +466,130 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
   Widget _actionRow(BuildContext context, _ActionItem item) {
     final colors = Theme.of(context).colorScheme;
     return InkWell(
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(22),
       onTap: _working ? null : item.onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(children: [
-          Container(width: 42, height: 42, decoration: BoxDecoration(
-            color: item.color.withValues(alpha: .12), borderRadius: BorderRadius.circular(14)),
-            child: Icon(item.icon, color: item.color, size: 21)),
-          const SizedBox(width: 13),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(item.title, style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 3),
-            Text(item.subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant, height: 1.35)),
-          ])),
-          const SizedBox(width: 6),
-          Icon(Icons.chevron_right_rounded, color: colors.onSurfaceVariant),
+          Container(
+            width: 54, height: 54,
+            decoration: BoxDecoration(color: colors.primary.withValues(alpha: .10), borderRadius: BorderRadius.circular(18)),
+            child: Icon(item.icon, color: colors.primary, size: 25),
+          ),
+          const SizedBox(width: 16),
+          Expanded(child: Text(item.title, style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            color: colors.onSurface, fontWeight: FontWeight.w700))),
+          Icon(Icons.chevron_right_rounded, color: colors.onSurfaceVariant, size: 25),
         ]),
       ),
     );
   }
 
-  Widget _included(BuildContext context, IconData icon, String label) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 6),
-    child: Row(children: [Icon(icon, size: 19, color: Theme.of(context).colorScheme.primary), const SizedBox(width: 11),
-      Expanded(child: Text(label, style: Theme.of(context).textTheme.bodyMedium))]),
-  );
+  Future<String?> _passwordForNewBackup(String username) async {
+    final remembered = await BackupPasswordService.read(username);
+    if (remembered != null) return remembered;
+    return _passwordDialog(restore: false);
+  }
 
-  Future<void> _file({required bool restore}) => _run(
-    label: restore ? 'Restoring backup file…' : 'Creating encrypted backup…',
-    restore: restore,
-    action: (username, password) async {
-      final socket = context.read<SocketService>();
-      if (restore) {
-        final counts = await ChatBackupService.restoreBackup(
-          username: username,
-          password: password,
-          encryption: socket.encryption,
-        );
-        return counts == null
-            ? 'Backup selection was cancelled.'
-            : _restoreSummary(counts);
-      }
+  Future<String?> _askRestorePassword({bool identity = false}) async {
+    if (mounted && _working) {
+      setState(() {
+        _working = false;
+        _activeAction = null;
+      });
+    }
+    final password = await _passwordDialog(restore: true, identity: identity);
+    if (mounted && password != null) {
+      setState(() {
+        _working = true;
+        _activeAction = 'Verifying backup password…';
+      });
+    }
+    return password;
+  }
+
+  Future<void> _file({required bool restore}) async {
+    final username = context.read<AuthService>().user?.username.trim() ?? '';
+    if (username.isEmpty) return _show('Sign in to your Novyn account first.');
+    final encryption = context.read<SocketService>().encryption;
+
+    if (restore) {
+      await _busy('Restoring encrypted backup file…', () async {
+        final bytes = await ChatBackupService.pickBackupFileBytes();
+        if (bytes == null) return 'Backup selection was cancelled.';
+        return _restoreBackupBytes(bytes, username, encryption);
+      });
+      return;
+    }
+
+    final password = await _passwordForNewBackup(username);
+    if (password == null || !mounted) return;
+    await _busy('Creating encrypted backup file…', () async {
       final saved = await ChatBackupService.exportBackup(
         username: username,
         password: password,
-        encryption: socket.encryption,
+        encryption: encryption,
       );
-      return saved
-          ? 'Encrypted backup file saved.'
-          : 'Backup selection was cancelled.';
-    },
-  );
+      if (saved) {
+        await BackupPasswordService.save(username, password);
+        return 'Encrypted backup file saved. Your backup password is remembered securely on this device.';
+      }
+      return 'Backup selection was cancelled.';
+    });
+  }
 
-  Future<void> _drive({required bool restore}) => _run(
-    label: restore ? 'Restoring from Google Drive…' : 'Saving encrypted backup to Drive…',
-    restore: restore,
-    action: (username, password) async {
-      final socket = context.read<SocketService>();
-      if (restore) {
+  Future<void> _drive({required bool restore}) async {
+    final username = context.read<AuthService>().user?.username.trim() ?? '';
+    if (username.isEmpty) return _show('Sign in to your Novyn account first.');
+    final encryption = context.read<SocketService>().encryption;
+
+    if (restore) {
+      await _busy('Restoring from Google Drive…', () async {
         final bytes = await GoogleDriveBackupService.restore();
         if (bytes == null) return 'No Novyn backup was found in that Google Drive account.';
-        return _restoreSummary(await ChatBackupService.restoreBackupBytes(
-          bytes: bytes, username: username, password: password, encryption: socket.encryption));
-      }
+        return _restoreBackupBytes(bytes, username, encryption);
+      });
+      return;
+    }
+
+    final password = await _passwordForNewBackup(username);
+    if (password == null || !mounted) return;
+    await _busy('Saving encrypted backup to Drive…', () async {
       final bytes = await ChatBackupService.createEncryptedBackup(
-        username: username, password: password, encryption: socket.encryption);
+        username: username,
+        password: password,
+        encryption: encryption,
+      );
       await GoogleDriveBackupService.save(bytes);
-      return 'Encrypted backup saved to your Google Drive app folder.';
-    },
-  );
+      await BackupPasswordService.save(username, password);
+      return 'Encrypted backup saved to your Google Drive app folder. Your backup password is remembered securely on this device.';
+    });
+  }
+
+  Future<String> _restoreBackupBytes(
+    Uint8List bytes,
+    String username,
+    MessageEncryptionService encryption,
+  ) async {
+    final remembered = await BackupPasswordService.read(username);
+    if (remembered != null) {
+      try {
+        final counts = await ChatBackupService.restoreBackupBytes(
+          bytes: bytes, username: username, password: remembered, encryption: encryption,
+        );
+        return _restoreSummary(counts);
+      } on FormatException catch (error) {
+        if (!error.message.toLowerCase().contains('incorrect backup password')) rethrow;
+      }
+    }
+    final entered = await _askRestorePassword();
+    if (entered == null || !mounted) return 'Restore was cancelled.';
+    final counts = await ChatBackupService.restoreBackupBytes(
+      bytes: bytes, username: username, password: entered, encryption: encryption,
+    );
+    await BackupPasswordService.save(username, entered);
+    return _restoreSummary(counts);
+  }
 
   String _restoreSummary(Map<String, int> counts) =>
       'Restored ${counts['messages'] ?? 0} messages, ${counts['chats'] ?? 0} chats, ${counts['contacts'] ?? 0} contacts, ${counts['callLogs'] ?? 0} call logs, ${counts['encryptionKeys'] ?? 0} conversation keys and ${counts['mediaFiles'] ?? 0} media files. Reopen Chats to refresh.';
@@ -539,17 +597,47 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
   Future<void> _identity({required bool restore}) async {
     final username = context.read<AuthService>().user?.username.trim() ?? '';
     if (username.isEmpty) return _show('Sign in to your Novyn account first.');
-    final password = await _passwordDialog(restore: restore, identity: true);
+    var password = await BackupPasswordService.read(username, identity: true);
+    password ??= await _passwordDialog(restore: restore, identity: true);
     if (password == null || !mounted) return;
-    await _busy(restore ? 'Restoring encryption identity…' : 'Saving encryption identity…', () async {
-      final socket = context.read<SocketService>();
-      if (restore) {
-        await socket.restoreE2eeIdentityBackup(password);
-        return 'Encryption identity restored. Reopen chats to decrypt messages.';
-      }
-      await socket.saveE2eeIdentityBackup(password);
-      return 'Encrypted identity recovery backup saved to your Novyn account.';
-    });
+
+    await _busy(
+      restore ? 'Restoring encryption identity…' : 'Saving encryption identity…',
+      () async {
+        final socket = context.read<SocketService>();
+        if (restore) {
+          try {
+            await socket.restoreE2eeIdentityBackup(password!);
+          } on FormatException {
+            final replacement = await _askRestorePassword(identity: true);
+            if (replacement == null || !mounted) return 'Identity restore was cancelled.';
+            await socket.restoreE2eeIdentityBackup(replacement);
+            password = replacement;
+          }
+          await BackupPasswordService.save(username, password!, identity: true);
+          return 'Encryption identity restored. Reopen chats to decrypt messages.';
+        }
+        await socket.saveE2eeIdentityBackup(password!);
+        await BackupPasswordService.save(username, password, identity: true);
+        return 'Encrypted identity recovery backup saved. Its recovery password is remembered securely on this device.';
+      },
+    );
+  }
+
+  Future<void> _setNetworkPreference(String preference) async {
+    try {
+      await BackupAutomationService.setNetworkPreference(preference);
+      if (!mounted) return;
+      setState(() => _networkPreference = preference);
+      final label = switch (preference) {
+        BackupAutomationService.mobileDataOnly => 'Mobile data',
+        BackupAutomationService.wifiAndMobileData => 'Wi-Fi and mobile data',
+        _ => 'Wi-Fi',
+      };
+      _show('Automatic backups will use $label.');
+    } catch (error) {
+      if (mounted) _show('Could not update the network preference: $error');
+    }
   }
 
   Future<void> _setDailyBackup(bool enabled) async {
@@ -560,7 +648,7 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
         );
         if (!mounted) return;
         setState(() => _dailyEnabled = false);
-        _show('Daily automatic backup turned off.');
+        _show('Daily automatic backup turned off. Your saved backup password is kept for future restores.');
       } catch (error) {
         if (mounted) _show('Could not update the backup setting: $error');
       }
@@ -571,12 +659,14 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
       _show('Sign in to your Novyn account first.');
       return;
     }
-    final password = await _passwordDialog(restore: false);
+    var password = await BackupPasswordService.read(username);
+    password ??= await _passwordDialog(restore: false);
     if (password == null || !mounted) return;
+    final selectedPassword = password;
     await _busy('Creating first encrypted Drive backup…', () async {
       final savedAt = await BackupAutomationService.enableDaily(
         username: username,
-        password: password,
+        password: selectedPassword,
         encryption: context.read<SocketService>().encryption,
       );
       if (mounted) {
@@ -587,15 +677,6 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
       }
       return 'Daily backup enabled. Your first encrypted Drive backup is saved.';
     });
-  }
-
-  Future<void> _run({required String label, required bool restore,
-      required Future<String> Function(String username, String password) action}) async {
-    final username = context.read<AuthService>().user?.username.trim() ?? '';
-    if (username.isEmpty) return _show('Sign in to your Novyn account first.');
-    final password = await _passwordDialog(restore: restore);
-    if (password == null || !mounted) return;
-    await _busy(label, () => action(username, password));
   }
 
   Future<void> _busy(String label, Future<String> Function() action) async {
