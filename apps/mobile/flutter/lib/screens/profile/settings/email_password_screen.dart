@@ -459,7 +459,6 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
   }
 
   Future<void> _forgotPassword(AuthService auth, String email) async {
-    final identifier = TextEditingController(text: email);
     final code = TextEditingController();
     final password = TextEditingController();
     var sent = false;
@@ -478,13 +477,11 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                 Text(sent ? 'Reset password' : 'Forgot password?',
                   style: Theme.of(sheet).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
                 const SizedBox(height: 8),
-                Text(sent ? 'Enter the code sent to your account email and choose a new password.' :
-                  'We will send a one-time reset code if this account is eligible.',
+                Text(sent
+                    ? 'Enter the code sent to your account email and choose a new password.'
+                    : 'We will send a one-time reset code to ${email.trim().isNotEmpty ? email.trim() : 'your account email'}.',
                   style: Theme.of(sheet).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant)),
                 const SizedBox(height: 14),
-                if (!sent) TextField(controller: identifier,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(labelText: 'Email or username')),
                 if (sent) ...[
                   TextField(controller: code, keyboardType: TextInputType.number,
                     decoration: const InputDecoration(labelText: 'Reset code')),
@@ -496,7 +493,7 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                 SizedBox(width: double.infinity, child: FilledButton(
                   onPressed: () async {
                     if (!sent) {
-                      final response = await auth.requestPasswordReset(identifier.text);
+                      final response = await auth.requestAccountPasswordReset();
                       if (response['ok'] == true && sheet.mounted) setSheet(() => sent = true);
                       else if (sheet.mounted) NovynAlert.show(sheet,
                         response['message']?.toString() ?? 'Could not request a reset code.', isError: true);
@@ -506,7 +503,7 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                         return;
                       }
                       final response = await auth.confirmPasswordReset(
-                        identifier: identifier.text, code: code.text, newPassword: password.text);
+                        identifier: email.trim(), code: code.text, newPassword: password.text);
                       if (response['ok'] == true && sheet.mounted) Navigator.pop(sheet, true);
                       else if (sheet.mounted) NovynAlert.show(sheet,
                         response['message']?.toString() ?? 'Password reset failed.', isError: true);
@@ -519,7 +516,7 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
         );
       }),
     );
-    identifier.dispose(); code.dispose(); password.dispose();
+    code.dispose(); password.dispose();
     if (result == true && mounted) NovynAlert.show(context, 'Password reset successfully. Please sign in again.');
   }
 }

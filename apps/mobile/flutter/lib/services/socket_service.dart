@@ -572,23 +572,21 @@ class SocketService extends ChangeNotifier {
       'clientTempId': pending.tempId,
     };
 
-    if (!pending.isGroup) {
-      if (pending.attachment != null && pending.attachment?['encrypted'] != true) {
+    if (!pending.isGroup && pending.attachment != null) {
+      if (pending.attachment?['encrypted'] != true) {
         throw const PendingMessageRejectedException(
-          'This attachment is not end-to-end encrypted. Please select it again and retry.',
+          'This attachment is not encrypted. Please select it again and retry.',
         );
       }
 
+      // Text messages are relayed as plaintext so the Novyn service can
+      // synchronize them across clients and render user-enabled previews.
+      // Keep media encrypted independently. Revalidate its peer key before
+      // delivery so an upload cannot be sent with stale recipient key data.
       await _registerEncryptionIdentity();
       if (_registeredIdentityAccount != account.toLowerCase()) {
-        throw StateError('Secure identity registration is pending.');
+        throw StateError('Secure media identity registration is pending.');
       }
-
-      // A contact may have re-created their E2EE identity while this
-      // device was offline. The in-memory peer-key cache can then point to
-      // the old public key, producing ciphertext the recipient can no longer
-      // decrypt. Resolve the authoritative key for every send; never fall
-      // back to a stale cached key when the server has no current key.
       final keyReply = Completer<Map<String, dynamic>>();
       connection.emitWithAck(
         'get_public_key',
@@ -613,41 +611,13 @@ class SocketService extends ChangeNotifier {
       }
       if (peerPublicKey.isEmpty) {
         throw const PendingMessageDeferredException(
-          'The contact encryption key is not available yet.',
+          'The contact media key is not available yet.',
         );
       }
-      if (pending.attachment != null &&
-          pending.attachment?['peerPublicKey'] != peerPublicKey) {
+      if (pending.attachment?['peerPublicKey'] != peerPublicKey) {
         throw const PendingMessageRejectedException(
           'The contact encryption key changed during upload. Please select the attachment again.',
         );
-      }
-
-      final encrypted = await encryption.encrypt(
-        pending.text,
-        account,
-        pending.receiverId,
-        peerPublicKey,
-      );
-      if (encrypted == null || encrypted['isEncrypted'] != true) {
-        throw const PendingMessageDeferredException(
-          'Message encryption could not complete with the current contact key.',
-        );
-      }
-      if (pending.attachment != null &&
-          pending.attachment?['senderPublicKey'] != encrypted['senderPublicKey']) {
-        throw const PendingMessageRejectedException(
-          'Your secure identity changed during upload. Please select the attachment again.',
-        );
-      }
-      payload
-        ..['text'] = '🔒 Encrypted message'
-        ..['isEncrypted'] = true
-        ..['ciphertext'] = encrypted['ciphertext']
-        ..['iv'] = encrypted['iv']
-        ..['senderPublicKey'] = encrypted['senderPublicKey'];
-      if (payload['replyTo'] is Map) {
-        (payload['replyTo'] as Map)['text'] = '🔒 Encrypted message';
       }
     }
 
@@ -707,7 +677,7 @@ class SocketService extends ChangeNotifier {
       replyToText: pending.replyToText,
       replyToSender: pending.replyToSender,
       attachment: pending.attachment,
-      isEncrypted: !pending.isGroup,
+      isEncrypted: false,
       ciphertext: payload['ciphertext']?.toString(),
       iv: payload['iv']?.toString(),
       senderPublicKey: payload['senderPublicKey']?.toString(),
@@ -954,8 +924,10 @@ class SocketService extends ChangeNotifier {
       // applied by ChatsScreen immediately, before preview decryption awaits.
       _markSocketAuthenticated();
       if (data is Map) _handleFriendList(data);
-      unawaited(_registerEncryptionIdentity()
-          .then((_) => _flushPendingMessageOutbox()));
+      // Keep media identity registration in the background; text delivery
+      // and notification previews do not wait for an E2EE key exchange.
+      unawaited(_registerEncryptionIdentity().catchError((Object _) {}));
+      unawaited(_flushPendingMessageOutbox());
     });
     // ── Initial data + friend list ────────────────────────────────────────
     _socket!.on('init', (data) {
@@ -963,9 +935,10 @@ class SocketService extends ChangeNotifier {
       if (data is Map && data['friends'] != null) {
         _handleFriendList(data);
       }
-      unawaited(
-        _registerEncryptionIdentity().then((_) => _flushPendingMessageOutbox()),
-      );
+      // Keep media identity registration in the background; text delivery
+      // and notification previews do not wait for an E2EE key exchange.
+      unawaited(_registerEncryptionIdentity().catchError((Object _) {}));
+      unawaited(_flushPendingMessageOutbox());
     });
 
     _socket!.on('friend_list', (data) => _handleFriendList(data));
@@ -2631,9 +2604,9 @@ class SocketService extends ChangeNotifier {
       await HybridDbService.saveMessage(tempMsg);
 
       // Offline sends are accepted into the durable outbox immediately.
-      // Authenticated reconnect and key registration trigger the actual send.
+      // Authenticated reconnect flushes text; encrypted media registers its
+      // own identity and recipient key on demand before sending.
       if (_isConnected && _isAuthenticated) {
-        if (!isGroup) await _registerEncryptionIdentity();
         await _flushPendingMessageOutbox();
       }
     } catch (error) {

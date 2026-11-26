@@ -885,6 +885,9 @@ class AuthService extends ChangeNotifier {
     }
   }
 
+  Future<Map<String, dynamic>> requestAccountPasswordReset() =>
+      ApiService.requestAccountPasswordReset();
+
   Future<Map<String, dynamic>> requestPasswordReset(String identifier) =>
       ApiService.requestPasswordReset(identifier);
 

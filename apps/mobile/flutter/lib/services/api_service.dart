@@ -942,6 +942,31 @@ class ApiService {
   }
 
 
+  // ── Authenticated Account Info password reset ─────────────────────────
+  static Future<Map<String, dynamic>> requestAccountPasswordReset() async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/api/account/password-reset/request'),
+            headers: await _csrfHeaders(),
+          )
+          .timeout(const Duration(seconds: 25));
+      final body = jsonDecode(response.body);
+      if (body is Map) {
+        return {
+          ...Map<String, dynamic>.from(body),
+          'httpStatus': response.statusCode,
+        };
+      }
+      return {'ok': false, 'message': 'Unexpected server response.'};
+    } catch (_) {
+      return {
+        'ok': false,
+        'message': 'Could not reach Novyn. Check your connection and try again.',
+      };
+    }
+  }
+
   // ── Password reset (email/username + emailed one-time code) ─────────────
   static Future<Map<String, dynamic>> requestPasswordReset(
       String identifier) async {
