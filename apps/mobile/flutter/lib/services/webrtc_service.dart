@@ -49,9 +49,8 @@ class WebRTCService extends ChangeNotifier {
 
   MediaStream? get localStream  => _localStream;
   MediaStream? get remoteStream => _remoteStream;
-  bool get hasRemoteVideo => _remoteStream?.getVideoTracks().any(
-        (track) => track.readyState == 'live',
-      ) ?? false;
+  bool get hasRemoteVideo =>
+      _remoteStream?.getVideoTracks().isNotEmpty ?? false;
   MediaStream? get localScreenStream => _screenStream;
 
   // Connection state tracking
