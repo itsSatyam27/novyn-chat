@@ -21,8 +21,23 @@ class BackupPasswordService {
     String username, {
     bool identity = false,
   }) async {
-    final value = await _storage.read(key: _key(username, identity: identity));
-    return value == null || value.isEmpty ? null : value;
+    final currentKey = _key(username, identity: identity);
+    final value = await _storage.read(key: currentKey);
+    if (value != null && value.isNotEmpty) return value;
+
+    // Migrate passwords saved by the original daily-backup implementation.
+    // That version used this key only for automatic backups.
+    if (!identity) {
+      final account = username.trim().toLowerCase();
+      final legacyKey = 'novyn_daily_backup_password_$account';
+      final legacyValue = await _storage.read(key: legacyKey);
+      if (legacyValue != null && legacyValue.isNotEmpty) {
+        await _storage.write(key: currentKey, value: legacyValue);
+        await _storage.delete(key: legacyKey);
+        return legacyValue;
+      }
+    }
+    return null;
   }
 
   static Future<void> save(
