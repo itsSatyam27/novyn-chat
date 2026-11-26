@@ -77,6 +77,7 @@ class _CallScreenState extends State<CallScreen>
   Route<dynamic>? _callRoute;
   bool _mediaStarted = false;
   bool _mediaInitializing = false;
+  Future<void>? _callAudioModeFuture;
   String? _mediaError;
   String? _endReason;
 
@@ -238,31 +239,43 @@ class _CallScreenState extends State<CallScreen>
     }
   }
 
-  Future<void> _applyVideoSpeakerDefault() async {
-    if (!_isVideo) return;
+  Future<void> _applyConnectedAudioDefault() async {
+    final route = _isVideo ? 'speaker' : 'earpiece';
     try {
-      // Video calls start on loudspeaker; voice calls keep the earpiece default.
-      await _setPlayerAudioRoute('speaker');
-      await _webrtc.toggleSpeaker(true);
-      await AudioManagerService.setAudioRoute('speaker');
-      if (mounted) await _refreshAudioRoutes();
+      await _ensureCallAudioMode();
+      await _setPlayerAudioRoute(route);
+      if (!WebRTC.platformIsAndroid) {
+        await _webrtc.toggleSpeaker(route == 'speaker');
+      }
+      final changed = await AudioManagerService.setAudioRoute(route);
+      if (changed && mounted) {
+        await _refreshAudioRoutes();
+      } else if (!changed) {
+        debugPrint('[NovynCalls] Native audio route change was not confirmed: $route');
+      }
     } catch (error) {
-      debugPrint('[NovynCalls] Could not apply default video speaker route: $error');
+      debugPrint('[NovynCalls] Could not apply connected audio route: $error');
     }
   }
 
   Future<void> _initWebRTC() async {
     try {
       await _webrtc.init();
-      await _webrtc.setEarpieceMode();
       if (mounted) setState(() {});
     } catch (_) {
       if (mounted) setState(() => _mediaError = 'Call audio/video could not be initialized. Check device permissions.');
     }
   }
 
+  Future<void> _ensureCallAudioMode() {
+    return _callAudioModeFuture ??= () async {
+      await _webrtcInit;
+      await AudioManagerService.startCallMode();
+    }();
+  }
+
   Future<void> _ensureLocalMedia() async {
-    await _webrtcInit;
+    await _ensureCallAudioMode();
     if (_mediaStarted) return;
     if (_mediaInitializing) {
       while (_mediaInitializing) {
@@ -283,13 +296,24 @@ class _CallScreenState extends State<CallScreen>
   }
 
   Future<void> _playRingtone() async {
-    // WebRTC's initial earpiece selection must finish before ringtone routing,
-    // otherwise it can race with the user's speaker selection.
-    try { await _webrtcInit; } catch (_) {}
-    await AudioManagerService.startCallMode();
-    await _setPlayerAudioRoute('earpiece');
-    await AudioManagerService.setAudioRoute('earpiece');
-    if (!mounted || context.read<AuthService>().user?.presenceMode == 'busy') return;
+    try {
+      await _ensureCallAudioMode();
+      if (!mounted || _state != CallState.calling) return;
+      // Ringing should be audible without holding the phone to the ear.
+      await _setPlayerAudioRoute('speaker');
+      final routed = await AudioManagerService.setAudioRoute('speaker');
+      if (routed && mounted && _state == CallState.calling) {
+        setState(() {
+          _activeAudioRoute = 'speaker';
+          _speakerOn = true;
+        });
+      }
+      await _refreshAudioRoutes();
+    } catch (error) {
+      debugPrint('[NovynCalls] Could not route call ringtone: $error');
+    }
+    if (!mounted || _state != CallState.calling ||
+        context.read<AuthService>().user?.presenceMode == 'busy') return;
     final preferences = context.read<SettingsService>();
     if (preferences.callRingtone == 'None') return;
     await _audioPlayer.setReleaseMode(ReleaseMode.loop);
@@ -365,10 +389,12 @@ class _CallScreenState extends State<CallScreen>
 
   Future<void> _selectAudioRoute(String routeId) async {
     HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.calls);
-    // Route the ringtone player and WebRTC media together; Android's native
-    // communication device remains the final authority (including Bluetooth).
+    await _ensureCallAudioMode();
     await _setPlayerAudioRoute(routeId);
-    if (routeId == 'speaker' || routeId == 'earpiece') {
+    // Android routes communication audio through AudioManager's selected
+    // communication device. The legacy WebRTC speaker flag can override it.
+    if (!WebRTC.platformIsAndroid &&
+        (routeId == 'speaker' || routeId == 'earpiece')) {
       try { await _webrtc.toggleSpeaker(routeId == 'speaker'); } catch (_) {}
     }
     final changed = await AudioManagerService.setAudioRoute(routeId);
@@ -439,7 +465,7 @@ class _CallScreenState extends State<CallScreen>
       if (!mounted) return;
       _callTimeoutTimer?.cancel();
       _stopRingtone();
-      await _applyVideoSpeakerDefault();
+      await _applyConnectedAudioDefault();
       if (!mounted) return;
       setState(() => _state = CallState.connected);
       _publishActiveCallNotification();
@@ -467,7 +493,7 @@ class _CallScreenState extends State<CallScreen>
     // Incoming WebRTC offer → create peer connection as receiver
     socket.onWebRTCOffer = (data) async {
       if (!mounted) return;
-      if (_isVideo) await _applyVideoSpeakerDefault();
+      if (_isVideo) await _applyConnectedAudioDefault();
       if (!mounted) return;
       if (!_webrtc.hasPeerConnection) {
         await _webrtc.createPeerConnection(socket, _peerId, false, callId: _callId);
@@ -531,7 +557,31 @@ class _CallScreenState extends State<CallScreen>
     socket.onCallScreenShareChangedCallback = (data) {
       if (!mounted || data['callId']?.toString() != _callId) return;
       final streamId = data['streamId']?.toString();
-      _webrtc.setRemoteScreenShare(streamId == null || streamId.isEmpty ? null : streamId);
+      _webrtc.setRemoteScreenShare(
+        streamId == null || streamId.isEmpty ? null : streamId,
+        replacesVideoTrack: data['replacesVideoTrack'] == true,
+      );
+      setState(() => _remoteScreenStreamId = streamId);
+    };
+
+    // Web clients publish screen-share state through the normal WebRTC
+    // signaling channel. Their camera sender may keep its original stream ID.
+    socket.onWebRTCSignalCallback = (data) {
+      if (!mounted || data['callId']?.toString() != _callId) return;
+      final signal = data['signal'];
+      if (signal is! Map || signal['type']?.toString() != 'screen_share_state') return;
+      final isSharing = signal['isSharing'] == true;
+      final rawId = signal['streamId']?.toString().trim() ?? '';
+      final streamId = isSharing
+          ? (rawId.isNotEmpty ? rawId : '__remote_screen_share__')
+          : null;
+      _webrtc.setRemoteScreenShare(
+        streamId,
+        replacesVideoTrack: streamId == null
+            ? null
+            : (signal['replacesVideoTrack'] == true ||
+                streamId == '__remote_screen_share__'),
+      );
       setState(() => _remoteScreenStreamId = streamId);
     };
 
@@ -827,11 +877,25 @@ class _CallScreenState extends State<CallScreen>
       screenRenderer,
       objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
     );
-    final cameraView = RTCVideoView(
-      cameraRenderer,
-      mirror: _isScreenSharingLocal && _frontCamera,
-      objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
-    );
+    final remoteShareReplacedCamera = !_isScreenSharingLocal &&
+        _remoteScreenStreamId?.isNotEmpty == true &&
+        identical(
+          _webrtc.remoteScreenRenderer.srcObject,
+          _webrtc.remoteRenderer.srcObject,
+        );
+    final cameraView = remoteShareReplacedCamera
+        ? Center(
+            child: UserAvatar(
+              name: widget.peer.name,
+              photoUrl: widget.peer.photoUrl,
+              radius: 38,
+            ),
+          )
+        : RTCVideoView(
+            cameraRenderer,
+            mirror: _isScreenSharingLocal && _frontCamera,
+            objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+          );
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -936,9 +1000,38 @@ class _CallScreenState extends State<CallScreen>
         _rejectCall();
         return;
       }
+      final acceptance = await context
+          .read<SocketService>()
+          .acceptCall(widget.callerId ?? _peerId, _callId);
+      if (!mounted) return;
+      if (acceptance['ok'] != true) {
+        // If the server connected the pair but its acknowledgement was lost,
+        // explicitly tear that state down instead of leaving a ghost call.
+        context.read<SocketService>().endCall(
+          widget.callerId ?? _peerId,
+          callId: _callId,
+          reason: 'Call acceptance could not be confirmed.',
+        );
+        _stopRingtone();
+        _handleCallEnded(
+          logStatus: 'missed',
+          reason: acceptance['message']?.toString() ?? 'This call is no longer available.',
+        );
+        return;
+      }
+      if (widget.callExpiresAt != null &&
+          !widget.callExpiresAt!.isAfter(DateTime.now())) {
+        context.read<SocketService>().endCall(
+          widget.callerId ?? _peerId,
+          callId: _callId,
+          reason: 'Call expired before acceptance was confirmed.',
+        );
+        _handleCallEnded(logStatus: 'missed', logCall: false);
+        return;
+      }
       _stopRingtone();
-      await _applyVideoSpeakerDefault();
-      context.read<SocketService>().acceptCall(widget.callerId ?? _peerId, _callId);
+      await _applyConnectedAudioDefault();
+      if (!mounted) return;
       setState(() => _state = CallState.connected);
       _publishActiveCallNotification();
       _refreshMiniOverlay();
@@ -983,6 +1076,7 @@ class _CallScreenState extends State<CallScreen>
     socket.onCallMediaUpgradeRequestCallback = null;
     socket.onCallMediaUpgradeResponseCallback = null;
     socket.onCallScreenShareChangedCallback = null;
+    socket.onWebRTCSignalCallback = null;
     _webrtc.onRemoteScreenShareChanged = null;
     _webrtc.onNetworkRecovered = null;
     // Clear call event callbacks so stale handlers don't fire next call
@@ -1876,6 +1970,12 @@ class _CallScreenState extends State<CallScreen>
             Text('Decline', style: TextStyle(color: mutedInk,
               fontSize: 12.5, fontWeight: FontWeight.w600)),
           ]),
+          _CallLightAction(
+            icon: _speakerOn ? Icons.volume_up_rounded : Icons.volume_up_outlined,
+            label: 'Speaker',
+            active: _speakerOn,
+            onTap: _toggleSpeaker,
+          ),
           Column(mainAxisSize: MainAxisSize.min, children: [
             _CallButton(icon: Icons.call_rounded, label: 'Accept',
               color: const Color(0xFF19B65A), onTap: _acceptCall),

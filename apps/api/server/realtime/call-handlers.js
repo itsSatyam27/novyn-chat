@@ -172,37 +172,43 @@ function registerCallHandlers(socket, deps) {
     }
   });
 
-  socket.on("call_accept", (payload) => {
+  socket.on("call_accept", (payload, acknowledge) => {
+    const respond = (result) => {
+      if (typeof acknowledge === "function") acknowledge(result);
+    };
     const userKey = socket.data.userKey;
-    if (!userKey) return;
+    if (!userKey) return respond({ ok: false, message: "You are not authenticated." });
     const to = toDisplayName(payload?.to);
     const callId = toDisplayName(payload?.callId).slice(0, 128);
-    if (!to || !callId) return;
+    if (!to || !callId) {
+      return respond({ ok: false, message: "Missing caller or call ID." });
+    }
 
     const friendKey = normalizeName(to);
     const active = activeCalls.get(userKey);
-    if (!active || active.peerKey !== friendKey || active.callId !== callId) {
-      socket.emit("call_ended", { callId, reason: "This call has already ended." });
-      return;
+    // Only the invited recipient may accept, and only while the pair is
+    // genuinely ringing. This prevents a late/replayed accept from reviving
+    // an ended call or making the caller display a connected call UI.
+    if (!active || active.peerKey !== friendKey || active.callId !== callId ||
+        active.status !== "ringing" || active.callerKey !== friendKey) {
+      return respond({ ok: false, message: "This call is no longer ringing." });
     }
     const me = users.get(userKey);
     const caller = users.get(friendKey);
     if (me?.callsEnabled === false || caller?.callsEnabled === false) {
       cancelCallForUser(userKey, deps, "Calls are disabled in this status mode.");
-      return;
+      return respond({ ok: false, message: "Calls are disabled in this status mode." });
     }
     const friendSocketId = onlineUsers.get(friendKey);
-    if (!friendSocketId && active.status === "ringing") {
+    if (!friendSocketId) {
       expireRingingCall(friendKey, userKey, callId, active.type === "video");
-      socket.emit("call_ended", { callId, reason: "Caller is unavailable" });
-      return;
+      return respond({ ok: false, message: "The caller is no longer available." });
     }
     clearRingingTimer(callId);
     setCallPair(userKey, friendKey, "connected", callId);
     console.log(`[Call] Call accepted by ${userKey} for ${friendKey} (socket: ${friendSocketId})`);
-    if (friendSocketId) {
-      io.to(friendSocketId).emit("call_accepted", { from: userKey, callId });
-    }
+    io.to(friendSocketId).emit("call_accepted", { from: userKey, callId });
+    respond({ ok: true, callId, status: "connected" });
   });
 
   socket.on("call_check", (payload, acknowledge) => {
@@ -321,7 +327,10 @@ function registerCallHandlers(socket, deps) {
     const peerSocketId = onlineUsers.get(peerKey);
     if (peerSocketId) {
       io.to(peerSocketId).emit("call_screen_share_changed", {
-        from: users.get(userKey)?.username || userKey, callId, streamId,
+        from: users.get(userKey)?.username || userKey,
+        callId,
+        streamId,
+        replacesVideoTrack: streamId != null && payload?.replacesVideoTrack === true,
       });
     }
   });

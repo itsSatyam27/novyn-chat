@@ -19,7 +19,9 @@ class WebRTCService extends ChangeNotifier {
   final RTCVideoRenderer localScreenRenderer = RTCVideoRenderer();
   MediaStream? _screenStream;
   RTCRtpSender? _screenSender;
+  bool _screenReplacedVideoTrack = false;
   String? _remoteScreenStreamId;
+  bool _remoteScreenShareReplacesVideoTrack = false;
   bool get isScreenSharing => _screenStream != null;
   void Function(String? streamId)? onRemoteScreenShareChanged;
 
@@ -193,8 +195,14 @@ class WebRTCService extends ChangeNotifier {
       if (event.streams.isNotEmpty) {
         final stream = event.streams[0];
         _remoteStreamsById[stream.id] = stream;
-        if (stream.id == _remoteScreenStreamId) {
+        final isScreenStream = stream.id == _remoteScreenStreamId ||
+            _remoteScreenStreamId == '__remote_screen_share__';
+        if (isScreenStream) {
           remoteScreenRenderer.srcObject = stream;
+          if (_remoteScreenShareReplacesVideoTrack) {
+            _remoteStream = stream;
+            remoteRenderer.srcObject = stream;
+          }
         } else {
           _remoteStream = stream;
           remoteRenderer.srcObject = stream;
@@ -360,6 +368,12 @@ class WebRTCService extends ChangeNotifier {
     final sender = _videoSender;
     final track = _videoTrack;
     if (sender == null || track == null) return;
+    if (_screenReplacedVideoTrack && _screenStream != null) {
+      _autoAudioOnly = enabled;
+      onAutomaticVideoFallback?.call(enabled);
+      notifyListeners();
+      return;
+    }
     try {
       await sender.replaceTrack(enabled ? null : track);
       _autoAudioOnly = enabled;
@@ -589,15 +603,35 @@ class WebRTCService extends ChangeNotifier {
         throw StateError('Screen capture did not return a video track.');
       }
 
-      sender = await connection.addTrack(track, screen);
+      final canReplaceCamera = _videoSender != null && _videoTrack != null;
+      if (canReplaceCamera) {
+        sender = _videoSender!;
+        _screenReplacedVideoTrack = true;
+        await sender.replaceTrack(track);
+      } else {
+        sender = await connection.addTrack(track, screen);
+        _screenReplacedVideoTrack = false;
+      }
       _screenStream = screen;
       _screenSender = sender;
       localScreenRenderer.srcObject = screen;
-      _remoteScreenStreamId = screen.id;
+      final announcedStreamId = _screenReplacedVideoTrack
+          ? (_localStream?.id ?? screen.id)
+          : screen.id;
+      _remoteScreenStreamId = announcedStreamId;
       if (_isGroupCall) {
-        socket.updateGroupCallScreenShare(callId, screen.id);
+        socket.updateGroupCallScreenShare(
+          callId,
+          announcedStreamId,
+          replacesVideoTrack: _screenReplacedVideoTrack,
+        );
       } else {
-        socket.updateCallScreenShare(peerId, callId, screen.id);
+        socket.updateCallScreenShare(
+          peerId,
+          callId,
+          announcedStreamId,
+          replacesVideoTrack: _screenReplacedVideoTrack,
+        );
       }
       track.onEnded = () {
         unawaited(stopScreenShare(
@@ -607,22 +641,31 @@ class WebRTCService extends ChangeNotifier {
         }));
       };
 
-      final offer = await connection.createOffer({
-        'offerToReceiveAudio': true,
-        'offerToReceiveVideo': true,
-      });
-      await connection.setLocalDescription(offer);
-      _sendCallSignal(socket, peerId, callId, {
+      if (!_screenReplacedVideoTrack) {
+        final offer = await connection.createOffer({
+          'offerToReceiveAudio': true,
+          'offerToReceiveVideo': true,
+        });
+        await connection.setLocalDescription(offer);
+        _sendCallSignal(socket, peerId, callId, {
           'type': 'offer',
           'sdp': offer.sdp,
         });
+      }
       notifyListeners();
     } catch (error) {
       if (sender != null) {
-        try { await connection.removeTrack(sender); } catch (_) {}
+        if (_screenReplacedVideoTrack) {
+          try {
+            await sender.replaceTrack(_autoAudioOnly ? null : _videoTrack);
+          } catch (_) {}
+        } else {
+          try { await connection.removeTrack(sender); } catch (_) {}
+        }
       }
       _screenStream = null;
       _screenSender = null;
+      _screenReplacedVideoTrack = false;
       _remoteScreenStreamId = null;
       localScreenRenderer.srcObject = null;
       if (_isGroupCall) {
@@ -646,9 +689,11 @@ class WebRTCService extends ChangeNotifier {
   ) async {
     final screen = _screenStream;
     final sender = _screenSender;
+    final replacedCameraTrack = _screenReplacedVideoTrack;
     _screenStream = null;
     localScreenRenderer.srcObject = null;
     _screenSender = null;
+    _screenReplacedVideoTrack = false;
     _remoteScreenStreamId = null;
     if (_isGroupCall) {
       socket.updateGroupCallScreenShare(callId, null);
@@ -658,7 +703,11 @@ class WebRTCService extends ChangeNotifier {
 
     try {
       if (sender != null && _peerConnection != null) {
-        try { await _peerConnection!.removeTrack(sender); } catch (_) {}
+        if (replacedCameraTrack) {
+          await sender.replaceTrack(_autoAudioOnly ? null : _videoTrack);
+        } else {
+          try { await _peerConnection!.removeTrack(sender); } catch (_) {}
+        }
       }
       for (final track in screen?.getTracks() ?? <MediaStreamTrack>[]) {
         track.onEnded = null;
@@ -666,7 +715,7 @@ class WebRTCService extends ChangeNotifier {
       }
       try { await screen?.dispose(); } catch (_) {}
 
-      if (renegotiate && _peerConnection != null) {
+      if (renegotiate && !replacedCameraTrack && _peerConnection != null) {
         final offer = await _peerConnection!.createOffer({
           'offerToReceiveAudio': true,
           'offerToReceiveVideo': true,
@@ -698,14 +747,24 @@ class WebRTCService extends ChangeNotifier {
     if (track == null) throw StateError('Screen capture did not return a video track.');
     _screenStream = screen;
     _ownsScreenStream = false;
-    _screenSender = await connection.addTrack(track, screen);
+    final canReplaceCamera = _videoSender != null && _videoTrack != null;
+    if (canReplaceCamera) {
+      _screenSender = _videoSender;
+      _screenReplacedVideoTrack = true;
+      await _screenSender!.replaceTrack(track);
+    } else {
+      _screenSender = await connection.addTrack(track, screen);
+      _screenReplacedVideoTrack = false;
+    }
     localScreenRenderer.srcObject = screen;
-    final offer = await connection.createOffer({
-      'offerToReceiveAudio': true,
-      'offerToReceiveVideo': true,
-    });
-    await connection.setLocalDescription(offer);
-    _sendCallSignal(socket, peerId, callId, {'type': 'offer', 'sdp': offer.sdp});
+    if (!_screenReplacedVideoTrack) {
+      final offer = await connection.createOffer({
+        'offerToReceiveAudio': true,
+        'offerToReceiveVideo': true,
+      });
+      await connection.setLocalDescription(offer);
+      _sendCallSignal(socket, peerId, callId, {'type': 'offer', 'sdp': offer.sdp});
+    }
     notifyListeners();
   }
 
@@ -717,13 +776,20 @@ class WebRTCService extends ChangeNotifier {
     final peerId = _activePeerId;
     final callId = _activeCallId;
     final sender = _screenSender;
+    final replacedCameraTrack = _screenReplacedVideoTrack;
     _screenSender = null;
     _screenStream = null;
+    _screenReplacedVideoTrack = false;
     localScreenRenderer.srcObject = null;
     if (sender != null && connection != null) {
-      try { await connection.removeTrack(sender); } catch (_) {}
+      if (replacedCameraTrack) {
+        await sender.replaceTrack(_autoAudioOnly ? null : _videoTrack);
+      } else {
+        try { await connection.removeTrack(sender); } catch (_) {}
+      }
     }
-    if (connection != null && socket != null && peerId != null && callId != null) {
+    if (!replacedCameraTrack &&
+        connection != null && socket != null && peerId != null && callId != null) {
       final offer = await connection.createOffer({
         'offerToReceiveAudio': true,
         'offerToReceiveVideo': true,
@@ -734,36 +800,61 @@ class WebRTCService extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setRemoteScreenShare(String? streamId) {
+  void setRemoteScreenShare(
+    String? streamId, {
+    bool? replacesVideoTrack,
+  }) {
     final previousScreenId = _remoteScreenStreamId;
+    final wasReplacingCamera =
+        replacesVideoTrack ?? _remoteScreenShareReplacesVideoTrack;
     _remoteScreenStreamId = streamId;
+    _remoteScreenShareReplacesVideoTrack = streamId != null &&
+        (replacesVideoTrack ?? streamId == '__remote_screen_share__');
     onRemoteScreenShareChanged?.call(streamId);
     if (streamId == null) {
       remoteScreenRenderer.srcObject = null;
-      final cameraEntry = _remoteStreamsById.entries
-          .where((entry) => entry.key != previousScreenId)
-          .toList(growable: false);
-      if (cameraEntry.isNotEmpty) {
-        _remoteStream = cameraEntry.first.value;
-        remoteRenderer.srcObject = _remoteStream;
+      if (wasReplacingCamera && previousScreenId != null) {
+        final restoredCamera = _remoteStreamsById[previousScreenId] ??
+            (_remoteStreamsById.isNotEmpty
+                ? _remoteStreamsById.values.first
+                : null);
+        _remoteStream = restoredCamera;
+        remoteRenderer.srcObject = restoredCamera;
       } else {
-        _remoteStream = null;
-        remoteRenderer.srcObject = null;
+        final cameraEntry = _remoteStreamsById.entries
+            .where((entry) => entry.key != previousScreenId)
+            .toList(growable: false);
+        if (cameraEntry.isNotEmpty) {
+          _remoteStream = cameraEntry.first.value;
+          remoteRenderer.srcObject = _remoteStream;
+        } else {
+          _remoteStream = null;
+          remoteRenderer.srcObject = null;
+        }
+        if (previousScreenId != null) {
+          _remoteStreamsById.remove(previousScreenId);
+        }
       }
-      if (previousScreenId != null) {
-        _remoteStreamsById.remove(previousScreenId);
-      }
+      _remoteScreenShareReplacesVideoTrack = false;
       return;
     }
 
     final screen = _remoteStreamsById[streamId];
-    if (screen != null) remoteScreenRenderer.srcObject = screen;
+    if (screen != null) {
+      remoteScreenRenderer.srcObject = screen;
+    } else if (_remoteScreenStreamId == '__remote_screen_share__' &&
+        _remoteStream != null) {
+      remoteScreenRenderer.srcObject = _remoteStream;
+    }
     final cameraEntry = _remoteStreamsById.entries
         .where((entry) => entry.key != streamId)
         .toList(growable: false);
     if (cameraEntry.isNotEmpty) {
       _remoteStream = cameraEntry.first.value;
       remoteRenderer.srcObject = _remoteStream;
+    } else if (_remoteScreenShareReplacesVideoTrack && screen != null) {
+      _remoteStream = screen;
+      remoteRenderer.srcObject = screen;
     } else if (_remoteStream?.id == streamId) {
       _remoteStream = null;
       remoteRenderer.srcObject = null;
@@ -918,6 +1009,7 @@ class WebRTCService extends ChangeNotifier {
     final screen = _screenStream;
     _screenStream = null;
     _screenSender = null;
+    _screenReplacedVideoTrack = false;
     localScreenRenderer.srcObject = null;
     if (_ownsScreenStream) {
       for (final track in screen?.getTracks() ?? <MediaStreamTrack>[]) {

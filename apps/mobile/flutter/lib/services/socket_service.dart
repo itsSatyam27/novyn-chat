@@ -3738,8 +3738,32 @@ class SocketService extends ChangeNotifier {
     return callId;
   }
 
-  void acceptCall(String fromUsername, String callId) {
-    _socket?.emit('call_accept', {'to': fromUsername, 'callId': callId});
+  Future<Map<String, dynamic>> acceptCall(
+    String fromUsername,
+    String callId,
+  ) async {
+    final socket = _socket;
+    if (socket == null || !_isConnected || !_isAuthenticated) {
+      return {'ok': false, 'message': 'You are offline. Reconnect to answer this call.'};
+    }
+    final completer = Completer<Map<String, dynamic>>();
+    socket.emitWithAck(
+      'call_accept',
+      {'to': fromUsername, 'callId': callId},
+      ack: (dynamic data) {
+        if (completer.isCompleted) return;
+        completer.complete(data is Map
+            ? Map<String, dynamic>.from(data)
+            : {'ok': false, 'message': 'The server did not confirm the call.'});
+      },
+    );
+    return completer.future.timeout(
+      const Duration(seconds: 6),
+      onTimeout: () => {
+        'ok': false,
+        'message': 'The call could not be confirmed. Check your connection and try again.',
+      },
+    );
   }
 
   Future<String?> checkCallStatus(String peerUsername, String callId) async {
@@ -3786,11 +3810,28 @@ class SocketService extends ChangeNotifier {
   }
 
   void updateCallScreenShare(
-      String toUsername, String callId, String? streamId) {
+    String toUsername,
+    String callId,
+    String? streamId, {
+    bool replacesVideoTrack = false,
+  }) {
     _socket?.emit('call_screen_share_state', {
       'to': toUsername,
       'callId': callId,
       'streamId': streamId,
+      'replacesVideoTrack': replacesVideoTrack,
+    });
+    // The web client shares through the ordinary WebRTC signal channel and
+    // listens for this boolean state packet rather than call_screen_share_state.
+    _socket?.emit('webrtc_signal', {
+      'to': toUsername,
+      'callId': callId,
+      'signal': {
+        'type': 'screen_share_state',
+        'isSharing': streamId != null && streamId.isNotEmpty,
+        'streamId': streamId,
+        'replacesVideoTrack': replacesVideoTrack,
+      },
     });
   }
 
@@ -3926,10 +3967,15 @@ class SocketService extends ChangeNotifier {
     });
   }
 
-  void updateGroupCallScreenShare(String groupCallId, String? streamId) {
+  void updateGroupCallScreenShare(
+    String groupCallId,
+    String? streamId, {
+    bool replacesVideoTrack = false,
+  }) {
     _socket?.emit('group_call_screen_share_state', {
       'groupCallId': groupCallId,
       'streamId': streamId,
+      'replacesVideoTrack': replacesVideoTrack,
     });
   }
 
