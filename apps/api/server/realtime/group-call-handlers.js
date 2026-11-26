@@ -291,10 +291,30 @@ function registerGroupCallHandlers(socket, deps) {
   socket.on('group_call_signal', (payload) => {
     const session = getSession(payload);
     if (!session) return;
+    if (allowSocketAction && !allowSocketAction(socket, 'group_call_signal', 180, 60_000)) return;
     const targetKey = normalizeName(safeName(payload?.to));
     if (!targetKey || targetKey === userKey || !session.participants.has(targetKey)) return;
-    const signal = payload?.signal;
-    if (!signal || typeof signal !== 'object' || Array.isArray(signal)) return;
+    const rawSignal = payload?.signal;
+    if (!rawSignal || typeof rawSignal !== 'object' || Array.isArray(rawSignal)) return;
+
+    const type = rawSignal.type;
+    let signal;
+    if (type === 'offer' || type === 'answer') {
+      const sdp = typeof rawSignal.sdp === 'string' ? rawSignal.sdp : '';
+      if (!sdp || sdp.length > 180_000) return;
+      signal = { type, sdp };
+    } else if (type === 'candidate') {
+      const candidate = typeof rawSignal.candidate === 'string' ? rawSignal.candidate : '';
+      const sdpMid = rawSignal.sdpMid == null ? null : safeName(rawSignal.sdpMid);
+      const sdpMLineIndex = Number(rawSignal.sdpMLineIndex);
+      if (!candidate || candidate.length > 4096 ||
+          (sdpMid != null && sdpMid.length > 128) ||
+          !Number.isInteger(sdpMLineIndex) || sdpMLineIndex < 0 || sdpMLineIndex > 32) return;
+      signal = { type, candidate, sdpMid, sdpMLineIndex };
+    } else {
+      return;
+    }
+
     emitUser(targetKey, 'group_call_signal', {
       groupCallId: session.groupCallId,
       callId: session.callId,
