@@ -60,8 +60,6 @@ class BackupAutomationService {
     };
   }
 
-  static Future<void>? _activeRun;
-
   static Future<bool> isEnabled({String? username}) async {
     final prefs = await SharedPreferences.getInstance();
     if (prefs.getBool(_enabledKey) != true) return false;
