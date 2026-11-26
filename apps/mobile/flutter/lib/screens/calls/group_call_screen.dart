@@ -10,6 +10,7 @@ import '../../services/auth_service.dart';
 import '../../services/call_overlay_service.dart';
 import '../../services/call_platform_service.dart';
 import '../../services/friend_service.dart';
+import '../../services/notification_service.dart';
 import '../../services/socket_service.dart';
 import '../../services/webrtc_service.dart';
 import '../../widgets/user_avatar.dart';
@@ -86,6 +87,7 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
       'displayName': context.read<AuthService>().user?.name ?? _me,
     });
     _bindSocket();
+    NotificationService.setActiveCallActionHandler(_handleNotificationCallAction);
     unawaited(CallPlatformService.setCallActive(true));
     unawaited(_initializeCall());
   }
@@ -226,12 +228,14 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
       if (_localStream == null) {
         throw StateError('Could not start the microphone or camera.');
       }
-      await Helper.setSpeakerphoneOn(widget.isVideo);
+      await _mediaOwner!.toggleSpeaker(widget.isVideo);
+      await AudioManagerService.setAudioRoute(widget.isVideo ? 'speaker' : 'earpiece');
       _speakerOn = widget.isVideo;
       if (mounted) setState(() => _initializing = false);
       _startTimer();
       await _ensurePeerConnections();
       _publishMediaState();
+      _publishActiveCallNotification();
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -366,6 +370,7 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
     _mediaOwner?.toggleMute(_muted);
     _publishMediaState();
     if (mounted) setState(() {});
+    _publishActiveCallNotification();
     _refreshMiniOverlay();
   }
 
@@ -392,9 +397,37 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
 
   Future<void> _toggleSpeaker() async {
     _speakerOn = !_speakerOn;
-    await Helper.setSpeakerphoneOn(_speakerOn);
+    await _mediaOwner?.toggleSpeaker(_speakerOn);
+    await AudioManagerService.setAudioRoute(_speakerOn ? 'speaker' : 'earpiece');
     if (mounted) setState(() {});
+    _publishActiveCallNotification();
     _refreshMiniOverlay();
+  }
+
+  void _handleNotificationCallAction(String actionId) {
+    if (!mounted || _ended) return;
+    switch (actionId) {
+      case 'call_toggle_mute':
+        _toggleMute();
+        break;
+      case 'call_toggle_speaker':
+        unawaited(_toggleSpeaker());
+        break;
+      case 'call_end':
+        unawaited(_leaveCall());
+        break;
+    }
+  }
+
+  void _publishActiveCallNotification() {
+    if (_initializing || _ended || !mounted) return;
+    unawaited(NotificationService.showActiveCallNotification(
+      callId: widget.groupCallId,
+      caller: 'Group (' + _participants.length.toString() + ')',
+      isVideo: widget.isVideo,
+      muted: _muted,
+      speakerOn: _speakerOn,
+    ));
   }
 
   Future<void> _toggleScreenShare() async {
@@ -578,7 +611,14 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
     _ended = true;
     _timer?.cancel();
     CallOverlayService.hide();
-    if (mounted) Navigator.of(context).pop();
+    if (mounted) {
+      final navigator = Navigator.of(context);
+      final route = _callRoute;
+      if (_isMinimized && route != null) {
+        navigator.popUntil((candidate) => identical(candidate, route));
+      }
+      if (navigator.canPop()) navigator.pop();
+    }
   }
 
   Future<void> _finishFromServer(String reason) async {
@@ -603,6 +643,8 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
     if (_cleaned) return;
     _cleaned = true;
     _timer?.cancel();
+    NotificationService.setActiveCallActionHandler(null);
+    unawaited(NotificationService.clearActiveCallNotification());
     final screen = _groupScreenStream;
     _groupScreenStream = null;
     if (screen != null) {
