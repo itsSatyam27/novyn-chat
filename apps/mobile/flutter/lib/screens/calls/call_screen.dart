@@ -1905,7 +1905,7 @@ class _CallScreenState extends State<CallScreen>
             icon: _muted ? Icons.mic_off_rounded : Icons.mic_off_outlined,
             label: 'Mute', active: _muted, onTap: _toggleMute),
         ]),
-        if (connected) ...[
+        if (_state == CallState.connected) ...[
           const SizedBox(height: 17),
           OutlinedButton.icon(
             onPressed: _groupTransitioning ? null : _promoteToGroupCall,
