@@ -698,188 +698,6 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
     await AudioManagerService.resetMode();
   }
 
-  void _minimizeCall() {
-    if (_isMinimized || _ended || !mounted) return;
-    setState(() => _isMinimized = true);
-    CallOverlayService.show(_buildMiniOverlay());
-    Navigator.of(context).push(
-      PageRouteBuilder<void>(
-        transitionDuration: const Duration(milliseconds: 220),
-        reverseTransitionDuration: const Duration(milliseconds: 170),
-        pageBuilder: (_, __, ___) => MainScreen(
-          managePresence: false,
-          onCallHostExit: _onMinimizedHostDisposed,
-        ),
-        transitionsBuilder: (_, animation, __, child) {
-          final curved = CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeOutCubic,
-          );
-          return FadeTransition(
-            opacity: curved,
-            child: SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0, .025),
-                end: Offset.zero,
-              ).animate(curved),
-              child: child,
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  void _onMinimizedHostDisposed() {
-    if (!mounted || !_isMinimized) return;
-    CallOverlayService.hide();
-    setState(() => _isMinimized = false);
-  }
-
-  void _expandCall() {
-    if (!mounted) return;
-    CallOverlayService.hide();
-    setState(() => _isMinimized = false);
-    final route = _callRoute;
-    if (route != null) {
-      Navigator.of(context).popUntil((candidate) => identical(candidate, route));
-    }
-  }
-
-  Widget _buildMiniOverlay() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        const width = 166.0;
-        const height = 224.0;
-        final maxX = (constraints.maxWidth - width - 8).clamp(0.0, double.infinity).toDouble();
-        final maxY = (constraints.maxHeight - height - 32).clamp(0.0, double.infinity).toDouble();
-        _miniPosition ??= Offset(maxX, maxY * .45);
-        final position = Offset(
-          _miniPosition!.dx.clamp(4.0, maxX).toDouble(),
-          _miniPosition!.dy.clamp(24.0, maxY).toDouble(),
-        );
-        return Stack(
-          children: [
-            Positioned(
-              left: position.dx,
-              top: position.dy,
-              width: width,
-              height: height,
-              child: GestureDetector(
-                onPanUpdate: (details) {
-                  setState(() {
-                    _miniPosition = Offset(
-                      (position.dx + details.delta.dx).clamp(4.0, maxX).toDouble(),
-                      (position.dy + details.delta.dy).clamp(24.0, maxY).toDouble(),
-                    );
-                    CallOverlayService.show(_buildMiniOverlay());
-                  });
-                },
-                child: Material(
-                  color: const Color(0xFF171927),
-                  elevation: 18,
-                  borderRadius: BorderRadius.circular(22),
-                  clipBehavior: Clip.antiAlias,
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: InkWell(
-                          onTap: _expandCall,
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              _miniVideo(),
-                              Positioned(
-                                left: 9,
-                                top: 9,
-                                child: DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withValues(alpha: .55),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                                    child: Text(
-                                      _participants.length.toString() + '/' + _maxParticipants.toString(),
-                                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              Positioned(
-                                right: 9,
-                                top: 8,
-                                child: Icon(Icons.open_in_full_rounded, color: Colors.white.withValues(alpha: .85), size: 17),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      SizedBox(
-                        height: 48,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            _MiniAction(
-                              icon: _muted ? Icons.mic_off_rounded : Icons.mic_rounded,
-                              onTap: _toggleMute,
-                            ),
-                            _MiniAction(
-                              icon: Icons.open_in_full_rounded,
-                              onTap: _expandCall,
-                            ),
-                            _MiniAction(
-                              icon: Icons.call_end_rounded,
-                              color: const Color(0xFFE84B58),
-                              onTap: _leaveCall,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _miniVideo() {
-    if (_screenSharer?.toLowerCase() == _meKey &&
-        _mediaOwner?.localScreenRenderer.srcObject != null) {
-      return RTCVideoView(
-        _mediaOwner!.localScreenRenderer,
-        objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
-      );
-    }
-    final screenSharerKey = _screenSharer?.toLowerCase();
-    if (screenSharerKey != null && screenSharerKey != _meKey) {
-      final screen = _peers[screenSharerKey]?.remoteScreenRenderer;
-      if (screen?.srcObject != null) {
-        return RTCVideoView(
-          screen!,
-          objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
-        );
-      }
-    }
-    final remote = _firstRemoteVideoService();
-    if (remote != null && remote.hasRemoteVideo) {
-      return RTCVideoView(
-        remote.remoteRenderer,
-        objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
-      );
-    }
-    return Container(
-      color: const Color(0xFF25283A),
-      child: Center(
-        child: UserAvatar(name: _me, photoUrl: '', radius: 36),
-      ),
-    );
-  }
-
   WebRTCService? _firstRemoteVideoService() {
     for (final peer in _peers.values) {
       if (peer.remoteStream != null) return peer;
@@ -1293,8 +1111,18 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
         objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
       );
     }
+    final screenSharerKey = _screenSharer?.toLowerCase();
+    if (screenSharerKey != null && screenSharerKey != _meKey) {
+      final screen = _peers[screenSharerKey]?.remoteScreenRenderer;
+      if (screen?.srcObject != null) {
+        return RTCVideoView(
+          screen!,
+          objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+        );
+      }
+    }
     final remote = _firstRemoteVideoService();
-    if (remote != null && remote.remoteStream != null) {
+    if (remote != null && remote.hasRemoteVideo) {
       return RTCVideoView(
         remote.remoteRenderer,
         objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
