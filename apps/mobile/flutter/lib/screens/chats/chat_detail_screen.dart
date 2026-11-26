@@ -939,26 +939,34 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
             decoration: _wallpaperDecoration(snapshot.chatWallpaper),
           ),
         ),
-        if (snapshot.chatWallpaper.trim().isEmpty)
+        if (snapshot.chatWallpaper.trim().isEmpty ||
+            snapshot.chatWallpaper == 'theme:columbina')
           Positioned.fill(
             child: Builder(
               builder: (wallpaperContext) {
                 final settings = wallpaperContext.watch<SettingsService>();
                 final theme = Theme.of(wallpaperContext);
+                final isColumbina = snapshot.chatWallpaper == 'theme:columbina';
                 final accent = settings.accentColorEnabled
                     ? Color(settings.accentColorValue)
                     : theme.colorScheme.primary;
                 return Opacity(
-                  opacity: theme.brightness == Brightness.dark ? 0.14 : 0.98,
+                  opacity: isColumbina
+                      ? 1
+                      : (theme.brightness == Brightness.dark ? 0.14 : 0.98),
                   child: SvgPicture.asset(
-                    'assets/images/novyn_chat_wallpaper.svg',
+                    isColumbina
+                        ? 'assets/images/columbina_chat_theme.svg'
+                        : 'assets/images/novyn_chat_wallpaper.svg',
                     fit: BoxFit.cover,
-                    colorFilter: ColorFilter.mode(
-                      accent.withValues(
-                        alpha: theme.brightness == Brightness.dark ? 0.24 : 0.14,
-                      ),
-                      BlendMode.srcATop,
-                    ),
+                    colorFilter: isColumbina
+                        ? null
+                        : ColorFilter.mode(
+                            accent.withValues(
+                              alpha: theme.brightness == Brightness.dark ? 0.24 : 0.14,
+                            ),
+                            BlendMode.srcATop,
+                          ),
                   ),
                 );
               },
@@ -4399,12 +4407,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
   BoxDecoration _wallpaperDecoration(String wallpaper) {
     final value = wallpaper.trim();
     if (value == 'theme:columbina') {
-      return const BoxDecoration(
-        image: DecorationImage(
-          image: AssetImage('assets/images/columbina_chat_theme.svg'),
-          fit: BoxFit.cover,
-        ),
-      );
+      return const BoxDecoration(color: Color(0xFF25234B));
     }
     final defaultBg = Theme.of(context).brightness == Brightness.dark
         ? const Color(0xFF0B0B17)
@@ -4459,7 +4462,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                     height: 230,
                     width: double.infinity,
                     child: Stack(fit: StackFit.expand, children: [
-                      Image.asset('assets/images/columbina_chat_theme.svg', fit: BoxFit.cover),
+                      SvgPicture.asset('assets/images/columbina_chat_theme.svg', fit: BoxFit.cover),
                       Align(alignment: Alignment.topLeft, child: Container(
                         margin: const EdgeInsets.all(14), padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(color: const Color(0xE52B2855), borderRadius: BorderRadius.circular(18)),
