@@ -271,7 +271,8 @@ function registerGroupCallHandlers(socket, deps) {
   socket.on('group_call_decline', (payload, ack) => {
     const groupCallId = safeName(payload?.groupCallId);
     const session = registry.sessions.get(groupCallId);
-    if (!session?.pending.has(userKey)) {
+    const invitation = session?.pending.get(userKey);
+    if (!session || !invitation) {
       return respond(ack, { ok: false, message: 'Invitation not found.' });
     }
     session.pending.delete(userKey);
