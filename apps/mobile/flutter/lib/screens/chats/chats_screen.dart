@@ -1238,8 +1238,11 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
       height: 1,
       color: ink,
     );
-    final outlineStyle = fillStyle.copyWith(
-      color: null,
+    final outlineStyle = TextStyle(
+      fontFamily: fillStyle.fontFamily,
+      fontSize: 28,
+      fontWeight: FontWeight.w400,
+      height: 1,
       foreground: Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.7
