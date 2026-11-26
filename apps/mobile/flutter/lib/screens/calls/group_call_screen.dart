@@ -187,11 +187,14 @@ class _GroupCallScreenState extends State<GroupCallScreen> {
     _socket.onGroupCallInvitationDeclinedCallback = (data) {
       if (!_matchesCall(data)) return;
       final username = data['username']?.toString() ?? 'Someone';
+      final reason = data['reason']?.toString().trim() ?? '';
       _pendingInvites.remove(username.toLowerCase());
       if (mounted) {
         setState(() {});
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(username + ' declined the invitation.')),
+          SnackBar(content: Text(reason.isEmpty
+              ? username + ' declined the invitation.'
+              : username + ' couldn’t join: ' + reason)),
         );
       }
     };
