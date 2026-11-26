@@ -146,7 +146,8 @@ function registerCallHandlers(socket, deps) {
     } else {
       // Keep the ringing session alive while the recipient app is backgrounded,
       // terminated, or temporarily disconnected. FCM will wake the device.
-      if (activeCalls.has(userKey) || activeCalls.has(friendKey)) {
+      if (activeCalls.has(userKey) || activeCalls.has(friendKey) ||
+          isUserInGroupCall?.(userKey) || isUserInGroupCall?.(friendKey)) {
         socket.emit("call_ended", { callId, reason: "User is busy" });
         return;
       }
