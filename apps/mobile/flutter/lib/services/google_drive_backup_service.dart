@@ -119,6 +119,14 @@ class GoogleDriveBackupService {
         throw StateError('Google Drive could not save the encrypted backup (${streamed.statusCode}).');
       }
       checkCancelled?.call();
+    } catch (_) {
+      // Abort the in-flight upload and consume its response future so a
+      // cancelled request cannot leak an asynchronous ClientException.
+      client.close();
+      try {
+        await responseFuture;
+      } catch (_) {}
+      rethrow;
     } finally {
       client.close();
     }
