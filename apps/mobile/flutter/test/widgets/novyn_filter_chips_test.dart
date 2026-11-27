@@ -37,7 +37,12 @@ void registerNovynFilterChipTests() {
     expect(find.text('All'), findsOneWidget);
     expect(find.text('Unread'), findsOneWidget);
     expect(find.text('3'), findsOneWidget);
-    expect(tester.getSize(find.byType(AnimatedContainer).first).height, 50);
+    expect(tester.getSize(find.byType(AnimatedContainer).first).height, 42);
+    expect(tester.getSize(find.byType(ListView)).height, 60);
+    expect(
+      tester.getSize(find.byType(AnimatedContainer).first).height,
+      tester.getSize(find.byType(AnimatedContainer).last).height,
+    );
 
     await tester.tap(find.text('Unread'));
     await tester.pumpAndSettle();
