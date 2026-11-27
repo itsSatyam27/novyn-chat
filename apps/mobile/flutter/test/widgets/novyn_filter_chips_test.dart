@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novyn/widgets/novyn_filter_chips.dart';
 
-void main() {
+void main() => registerNovynFilterChipTests();
+
+void registerNovynFilterChipTests() {
   testWidgets('renders the shared pill style and unread count badge',
       (tester) async {
     var selected = 'all';
