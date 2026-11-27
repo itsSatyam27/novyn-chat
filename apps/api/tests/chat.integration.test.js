@@ -129,7 +129,7 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   const accountResetBody = await accountResetResponse.json();
   assert.equal(accountResetBody.ok, true);
   assert.ok(accountResetBody.message.includes('@example.test'));
-  assert.ok(logs.includes('[Password reset code] alice@example.test:'));
+  assert.ok(logs.includes('[Password reset code] a***e@example.test:'), 'development recovery logs must mask the recipient email');
 
 
   // A refresh response must not expose the rotated cookie until its new
