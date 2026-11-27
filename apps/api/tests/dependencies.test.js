@@ -19,11 +19,26 @@ test('patched tar works with Capacitor template extraction', async () => {
   }
 });
 
-test('updated mailer builds password-recovery mail without a network connection', async () => {
-  const mailer = require('nodemailer').createTransport({ jsonTransport: true, disableFileAccess: true, disableUrlAccess: true });
-  const result = await mailer.sendMail({ from: 'test@example.test', to: 'user@example.test', subject: 'Reset code', text: 'Test code: 123456' });
-  assert.equal(JSON.parse(result.message).subject, 'Reset code');
-  mailer.close();
+test('password recovery uses the Resend HTTPS mailer without SMTP dependencies', async () => {
+  const { createResendMailer } = require('../services/resend_mailer');
+  let requestBody;
+  const mailer = createResendMailer({
+    apiKey: 're_test_key',
+    from: 'Novyn <no-reply@example.test>',
+    fetchImpl: async (_url, options) => {
+      requestBody = JSON.parse(options.body);
+      return { ok: true, status: 200, json: async () => ({ id: 'email_test_123' }) };
+    },
+  });
+  const result = await mailer.send({
+    to: 'user@example.test',
+    subject: 'Reset code',
+    text: 'Test code: 123456',
+    idempotencyKey: 'password-reset/test-123',
+  });
+  assert.equal(result.provider, 'resend');
+  assert.equal(requestBody.subject, 'Reset code');
+  assert.deepEqual(requestBody.to, ['user@example.test']);
 });
 
 test('Google client UUID consumers retain their CommonJS v4 API', () => {
