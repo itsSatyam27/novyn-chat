@@ -13,8 +13,8 @@ class EmailDeliveryError extends Error {
 
 function createResendMailer({
   apiKey = process.env.RESEND_API_KEY,
-  from = process.env.RESEND_FROM || process.env.SMTP_FROM,
-  replyTo = process.env.RESEND_REPLY_TO || process.env.SMTP_REPLY_TO,
+  from = process.env.RESEND_FROM,
+  replyTo = process.env.RESEND_REPLY_TO,
   timeoutMs = Number(process.env.EMAIL_API_TIMEOUT_MS) || 12000,
   fetchImpl = globalThis.fetch,
 } = {}) {
@@ -67,7 +67,6 @@ function createResendMailer({
           code: "EMAIL_API_TIMEOUT",
         }));
       }, Math.max(1000, Number(timeoutMs) || 12000));
-      if (typeof timeout.unref === "function") timeout.unref();
     });
 
     try {
