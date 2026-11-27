@@ -5,7 +5,7 @@ import 'package:novyn/widgets/novyn_filter_chips.dart';
 void main() => registerNovynFilterChipTests();
 
 void registerNovynFilterChipTests() {
-  testWidgets('renders the shared pill style and unread count badge',
+  testWidgets('renders compact shared pills and a compact count badge',
       (tester) async {
     var selected = 'all';
 
@@ -37,6 +37,7 @@ void registerNovynFilterChipTests() {
     expect(find.text('All'), findsOneWidget);
     expect(find.text('Unread'), findsOneWidget);
     expect(find.text('3'), findsOneWidget);
+    expect(tester.getSize(find.byType(AnimatedContainer).first).height, 50);
 
     await tester.tap(find.text('Unread'));
     await tester.pumpAndSettle();
