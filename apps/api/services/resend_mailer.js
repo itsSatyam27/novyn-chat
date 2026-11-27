@@ -11,6 +11,27 @@ class EmailDeliveryError extends Error {
   }
 }
 
+function resolveResendConfig(env = process.env) {
+  const legacyResendSmtp =
+    String(env.SMTP_HOST || "").trim().toLowerCase() === "smtp.resend.com" &&
+    String(env.SMTP_USER || "").trim().toLowerCase() === "resend";
+  const explicitApiKey = String(env.RESEND_API_KEY || "").trim();
+  const explicitFrom = String(env.RESEND_FROM || "").trim();
+  const explicitReplyTo = String(env.RESEND_REPLY_TO || "").trim();
+
+  const apiKey = explicitApiKey || (legacyResendSmtp ? String(env.SMTP_PASS || "").trim() : "");
+  const from = explicitFrom || (legacyResendSmtp ? String(env.SMTP_FROM || "").trim() : "");
+  const replyTo = explicitReplyTo || (legacyResendSmtp ? String(env.SMTP_REPLY_TO || "").trim() : "");
+
+  return {
+    apiKey,
+    from,
+    replyTo,
+    usedLegacyResendConfig: legacyResendSmtp &&
+      (!explicitApiKey || !explicitFrom || (!explicitReplyTo && Boolean(replyTo))),
+  };
+}
+
 function createResendMailer({
   apiKey = process.env.RESEND_API_KEY,
   from = process.env.RESEND_FROM,
@@ -133,5 +154,6 @@ function createResendMailer({
 module.exports = {
   RESEND_EMAILS_URL,
   EmailDeliveryError,
+  resolveResendConfig,
   createResendMailer,
 };
