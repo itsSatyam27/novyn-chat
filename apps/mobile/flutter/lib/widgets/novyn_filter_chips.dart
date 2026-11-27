@@ -95,7 +95,7 @@ class NovynFilterChips extends StatelessWidget {
                           fontSize: 18,
                           height: 1,
                           fontWeight:
-                              selected ? FontWeight.w700 : FontWeight.w650,
+                              selected ? FontWeight.w700 : FontWeight.w600,
                           color: foreground,
                         ),
                       ),
