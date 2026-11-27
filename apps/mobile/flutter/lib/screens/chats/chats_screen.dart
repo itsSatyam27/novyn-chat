@@ -2023,16 +2023,15 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     }
 
     return NovynEmptyState(
-          illustration: NovynEmptyIllustrations.speechBubblesDots(isDark: isDark),
-          title: 'No chats yet',
-          description: 'Say hi to a buddy and your first conversation will show up here',
-          buttonLabel: 'Start a chat',
-          buttonIcon: Icons.edit_outlined,
-          onButtonTap: () {
-            widget.onNavigateToPeople?.call();
-          },
-        );
-    }
+      illustration: NovynEmptyIllustrations.speechBubblesDots(isDark: isDark),
+      title: 'No chats yet',
+      description: 'Say hi to a buddy and your first conversation will show up here',
+      buttonLabel: 'Start a chat',
+      buttonIcon: Icons.edit_outlined,
+      onButtonTap: () {
+        widget.onNavigateToPeople?.call();
+      },
+    );
   }
 
 
