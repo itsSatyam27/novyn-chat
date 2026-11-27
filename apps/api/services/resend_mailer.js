@@ -50,7 +50,7 @@ function createResendMailer({
     if (selectedReplyTo) payload.reply_to = selectedReplyTo;
 
     const headers = {
-      Authorization: \`Bearer ${normalizedApiKey}\`,
+      Authorization: "Bearer " + normalizedApiKey,
       "Content-Type": "application/json",
       Accept: "application/json",
     };
@@ -91,7 +91,7 @@ function createResendMailer({
             result?.message || result?.error || "Email provider rejected the request.",
           ).replace(/[\r\n]+/g, " ").slice(0, 220);
           throw new EmailDeliveryError(providerMessage, {
-            code: String(result?.name || result?.code || \`RESEND_HTTP_${response.status}\`).slice(0, 80),
+            code: String(result?.name || result?.code || ("RESEND_HTTP_" + response.status)).slice(0, 80),
             statusCode: Number(response.status) || 0,
           });
         }
