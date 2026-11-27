@@ -13,6 +13,7 @@ import '../../models/user_model.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/local_db_service.dart';
+import '../../services/haptic_service.dart';
 import '../../services/socket_service.dart';
 import '../../theme/novyn_theme.dart';
 import '../../utils/call_history_utils.dart';
