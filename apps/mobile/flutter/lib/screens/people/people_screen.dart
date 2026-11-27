@@ -312,7 +312,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
 
                   return Column(
                     children: [
-                      _buildFilters(all),
+                      _buildFilters(),
                       Expanded(
                         child: _buildContactsList(
                           filtered,
@@ -409,13 +409,9 @@ class _PeopleScreenState extends State<PeopleScreen> {
     );
   }
 
-  Widget _buildFilters(List<UserModel> all) {
-    final filters = [
-      NovynFilterChipItem(
-        value: 'All',
-        label: 'All',
-        badgeCount: all.length,
-      ),
+  Widget _buildFilters() {
+    const filters = [
+      NovynFilterChipItem(value: 'All', label: 'All'),
       const NovynFilterChipItem(value: 'Online', label: 'Online'),
       const NovynFilterChipItem(value: 'Favourites', label: 'Favourites'),
     ];
