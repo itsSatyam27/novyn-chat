@@ -42,10 +42,11 @@ class ChatOverflowMenu extends StatelessWidget {
             ? Colors.white.withValues(alpha: .08)
             : const Color(0xFFECE7F7);
 
+        final accent = Theme.of(dialogContext).colorScheme.primary;
+
         Widget item({
           required IconData icon,
           required String title,
-          required Color tint,
           required VoidCallback action,
           Widget? trailing,
         }) {
@@ -65,10 +66,10 @@ class ChatOverflowMenu extends StatelessWidget {
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: tint.withValues(alpha: isDark ? .17 : .12),
+                        color: accent.withValues(alpha: isDark ? .17 : .12),
                         borderRadius: BorderRadius.circular(13),
                       ),
-                      child: Icon(icon, color: tint, size: 21),
+                      child: Icon(icon, color: accent, size: 21),
                     ),
                     const SizedBox(width: 11),
                     Expanded(
@@ -79,6 +80,7 @@ class ChatOverflowMenu extends StatelessWidget {
                         style: TextStyle(
                           color: isDark ? Colors.white : const Color(0xFF20213E),
                           fontSize: 14.5,
+                          fontFamily: 'PlusJakartaSans',
                           fontWeight: FontWeight.w700,
                           letterSpacing: -.15,
                         ),
@@ -144,55 +146,47 @@ class ChatOverflowMenu extends StatelessWidget {
                             item(
                               icon: Icons.group_add_rounded,
                               title: 'Create group',
-                              tint: const Color(0xFF6853F2),
                               action: onCreateGroup,
                             ),
                             item(
                               icon: Icons.ios_share_rounded,
                               title: 'Invite friends',
-                              tint: const Color(0xFF318A9A),
                               action: onInviteFriends,
                             ),
                             divider(),
                             item(
                               icon: Icons.archive_outlined,
                               title: 'Archived chats',
-                              tint: const Color(0xFFB96D2A),
                               action: onArchivedChats,
                               trailing: archivedCount > 0
-                                  ? countBadge(archivedCount, const Color(0xFF7053E8))
+                                  ? countBadge(archivedCount, accent)
                                   : null,
                             ),
                             item(
                               icon: Icons.lock_outline_rounded,
                               title: 'Locked chats',
-                              tint: const Color(0xFFC04B77),
                               action: onLockedChats,
                             ),
                             item(
                               icon: Icons.star_outline_rounded,
                               title: 'Starred messages',
-                              tint: const Color(0xFFB77921),
                               action: onStarredMessages,
                             ),
                             divider(),
                             item(
                               icon: Icons.check_box_outlined,
                               title: 'Select chats',
-                              tint: const Color(0xFF64748B),
                               action: onSelectChats,
                             ),
                             item(
                               icon: Icons.done_all_rounded,
                               title: 'Mark all as read',
-                              tint: const Color(0xFF43896F),
                               action: onMarkAllRead,
                             ),
                             divider(),
                             item(
                               icon: Icons.tune_rounded,
                               title: 'Chat settings',
-                              tint: const Color(0xFF6853F2),
                               action: onChatSettings,
                             ),
                           ],
@@ -224,17 +218,15 @@ class ChatOverflowMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final color = Theme.of(context).colorScheme.onSurface;
+    final color = Theme.of(context).colorScheme.primary;
     return Material(
-      color: isDark ? const Color(0xFF191B2B) : Colors.white,
-      borderRadius: BorderRadius.circular(18),
+      color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(999),
         onTap: () => _show(context),
         child: SizedBox(
           width: 48,
-          height: 48,
+          height: 46,
           child: Icon(Icons.more_horiz_rounded, color: color, size: 25),
         ),
       ),
