@@ -36,7 +36,8 @@ class NovynFilterChips extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
 
     return SizedBox(
-      height: 50,
+      // 42dp pill + the screen-specific vertical list padding.
+      height: 60,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: padding,
@@ -63,8 +64,9 @@ class NovynFilterChips extends StatelessWidget {
               child: InkWell(
                 borderRadius: BorderRadius.circular(22),
                 onTap: () => onSelected(item.value),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 190),
+                child: Center(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 190),
                   curve: Curves.easeOutCubic,
                   height: 42,
                   padding: const EdgeInsets.symmetric(horizontal: 17),
@@ -127,6 +129,7 @@ class NovynFilterChips extends StatelessWidget {
                       ],
                     ],
                   ),
+                ),
                 ),
               ),
             ),
