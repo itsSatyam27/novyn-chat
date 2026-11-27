@@ -10,6 +10,7 @@ import '../../widgets/novyn_shimmer.dart';
 import '../../widgets/novyn_empty_state.dart';
 import '../../widgets/user_avatar.dart';
 import '../../widgets/novyn_header_actions.dart';
+import '../../widgets/novyn_filter_chips.dart';
 import '../../utils/presence_utils.dart';
 import '../../theme/novyn_theme.dart';
 import '../chats/chat_detail_screen.dart';
@@ -409,76 +410,26 @@ class _PeopleScreenState extends State<PeopleScreen> {
   }
 
   Widget _buildFilters(List<UserModel> all) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final primary = theme.colorScheme.primary;
-    final labels = <(String, String)>[
-      ('All', 'All · ${all.length}'),
-      ('Online', 'Online'),
-      ('Favourites', 'Favourites'),
+    final filters = [
+      NovynFilterChipItem(
+        value: 'All',
+        label: 'All',
+        badgeCount: all.length,
+      ),
+      const NovynFilterChipItem(value: 'Online', label: 'Online'),
+      const NovynFilterChipItem(value: 'Favourites', label: 'Favourites'),
     ];
 
-    return SizedBox(
-      width: double.infinity,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
-        child: Row(
-          children: [
-            for (final item in labels)
-              Padding(
-                padding: const EdgeInsets.only(right: 10),
-                child: GestureDetector(
-                  onTap: () {
-                    setState(() => _filter = item.$1);
-                    if (_scrollController.hasClients) {
-                      _scrollController.jumpTo(0);
-                    }
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    curve: Curves.easeOutCubic,
-                    height: 42,
-                    padding: const EdgeInsets.symmetric(horizontal: 22),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: _filter == item.$1
-                          ? primary
-                          : (isDark ? const Color(0xFF201B36) : Colors.white),
-                      borderRadius: BorderRadius.circular(26),
-                      border: Border.all(
-                        color: _filter == item.$1
-                            ? primary
-                            : (isDark ? Colors.white10 : const Color(0xFFEAE6F7)),
-                        width: 1,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: _filter == item.$1
-                              ? primary.withValues(alpha: 0.28)
-                              : (isDark ? Colors.black26 : primary.withValues(alpha: 0.04)),
-                          blurRadius: 10,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: Text(
-                      item.$2,
-                      style: TextStyle(
-                        fontFamily: 'PlusJakartaSans',
-                        fontSize: 14.5,
-                        fontWeight: _filter == item.$1 ? FontWeight.w700 : FontWeight.w600,
-                        color: _filter == item.$1
-                            ? Colors.white
-                            : (isDark ? Colors.white70 : const Color(0xFF2D2942)),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
+    return NovynFilterChips(
+      items: filters,
+      selectedValue: _filter,
+      onSelected: (value) {
+        setState(() => _filter = value);
+        if (_scrollController.hasClients) {
+          _scrollController.jumpTo(0);
+        }
+      },
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
     );
   }
 
