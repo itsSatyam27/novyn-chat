@@ -67,69 +67,69 @@ class NovynFilterChips extends StatelessWidget {
                 child: Center(
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 190),
-                  curve: Curves.easeOutCubic,
-                  height: 42,
-                  padding: const EdgeInsets.symmetric(horizontal: 17),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? accent
-                        : (isDark
-                            ? colors.surface.withValues(alpha: 0.18)
-                            : Colors.transparent),
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(
+                    curve: Curves.easeOutCubic,
+                    height: 42,
+                    padding: const EdgeInsets.symmetric(horizontal: 17),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
                       color: selected
                           ? accent
-                          : accent.withValues(alpha: isDark ? 0.30 : 0.22),
-                      width: selected ? 1.4 : 1.5,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        item.label,
-                        maxLines: 1,
-                        softWrap: false,
-                        style: TextStyle(
-                          fontFamily: 'PlusJakartaSans',
-                          fontSize: 14.5,
-                          height: 1,
-                          fontWeight:
-                              selected ? FontWeight.w700 : FontWeight.w600,
-                          color: foreground,
-                        ),
+                          : (isDark
+                              ? colors.surface.withValues(alpha: 0.18)
+                              : Colors.transparent),
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(
+                        color: selected
+                            ? accent
+                            : accent.withValues(alpha: isDark ? 0.30 : 0.22),
+                        width: selected ? 1.4 : 1.5,
                       ),
-                      if (showBadge) ...[
-                        const SizedBox(width: 7),
-                        Container(
-                          constraints: const BoxConstraints(
-                            minWidth: 22,
-                            minHeight: 22,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          item.label,
+                          maxLines: 1,
+                          softWrap: false,
+                          style: TextStyle(
+                            fontFamily: 'PlusJakartaSans',
+                            fontSize: 14.5,
+                            height: 1,
+                            fontWeight:
+                                selected ? FontWeight.w700 : FontWeight.w600,
+                            color: foreground,
                           ),
-                          padding: const EdgeInsets.symmetric(horizontal: 5),
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: badgeBackground,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: Text(
-                            count > 99 ? '99+' : '$count',
-                            maxLines: 1,
-                            style: TextStyle(
-                              fontFamily: 'PlusJakartaSans',
-                              fontSize: 11.5,
-                              height: 1,
-                              fontWeight: FontWeight.w800,
-                              color: badgeForeground,
+                        ),
+                        if (showBadge) ...[
+                          const SizedBox(width: 7),
+                          Container(
+                            constraints: const BoxConstraints(
+                              minWidth: 22,
+                              minHeight: 22,
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 5),
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: badgeBackground,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Text(
+                              count > 99 ? '99+' : '$count',
+                              maxLines: 1,
+                              style: TextStyle(
+                                fontFamily: 'PlusJakartaSans',
+                                fontSize: 11.5,
+                                height: 1,
+                                fontWeight: FontWeight.w800,
+                                color: badgeForeground,
+                              ),
                             ),
                           ),
-                        ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
-                ),
                 ),
               ),
             ),
