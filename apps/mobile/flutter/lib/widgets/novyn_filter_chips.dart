@@ -36,12 +36,12 @@ class NovynFilterChips extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
 
     return SizedBox(
-      height: 66,
+      height: 60,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: padding,
         itemCount: items.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
           final item = items[index];
           final selected = item.value == selectedValue;
@@ -61,13 +61,13 @@ class NovynFilterChips extends StatelessWidget {
             child: Material(
               color: Colors.transparent,
               child: InkWell(
-                borderRadius: BorderRadius.circular(30),
+                borderRadius: BorderRadius.circular(22),
                 onTap: () => onSelected(item.value),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 190),
                   curve: Curves.easeOutCubic,
-                  height: 54,
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  height: 42,
+                  padding: const EdgeInsets.symmetric(horizontal: 17),
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: selected
@@ -75,12 +75,12 @@ class NovynFilterChips extends StatelessWidget {
                         : (isDark
                             ? colors.surface.withValues(alpha: 0.18)
                             : Colors.transparent),
-                    borderRadius: BorderRadius.circular(30),
+                    borderRadius: BorderRadius.circular(22),
                     border: Border.all(
                       color: selected
                           ? accent
                           : accent.withValues(alpha: isDark ? 0.30 : 0.22),
-                      width: selected ? 1.5 : 1.8,
+                      width: selected ? 1.4 : 1.5,
                     ),
                   ),
                   child: Row(
@@ -92,7 +92,7 @@ class NovynFilterChips extends StatelessWidget {
                         softWrap: false,
                         style: TextStyle(
                           fontFamily: 'PlusJakartaSans',
-                          fontSize: 18,
+                          fontSize: 14.5,
                           height: 1,
                           fontWeight:
                               selected ? FontWeight.w700 : FontWeight.w600,
@@ -100,24 +100,24 @@ class NovynFilterChips extends StatelessWidget {
                         ),
                       ),
                       if (showBadge) ...[
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 7),
                         Container(
                           constraints: const BoxConstraints(
-                            minWidth: 32,
-                            minHeight: 32,
+                            minWidth: 22,
+                            minHeight: 22,
                           ),
-                          padding: const EdgeInsets.symmetric(horizontal: 7),
+                          padding: const EdgeInsets.symmetric(horizontal: 5),
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
                             color: badgeBackground,
-                            borderRadius: BorderRadius.circular(18),
+                            borderRadius: BorderRadius.circular(14),
                           ),
                           child: Text(
                             count > 99 ? '99+' : '$count',
                             maxLines: 1,
                             style: TextStyle(
                               fontFamily: 'PlusJakartaSans',
-                              fontSize: 16,
+                              fontSize: 11.5,
                               height: 1,
                               fontWeight: FontWeight.w800,
                               color: badgeForeground,
