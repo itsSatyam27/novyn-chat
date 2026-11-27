@@ -6778,7 +6778,20 @@ app.post("/api/auth/password-reset/request",
     passwordResetByUser.set(userKey, tokenId);
     markPasswordResetIssued(userKey, rate.state);
     const dispatched = await dispatchPasswordResetCode(user, token);
-    if (!dispatched) dropPasswordResetTokenById(tokenId);
+    if (!dispatched) {
+      dropPasswordResetTokenById(tokenId);
+      // Delivery failure must not be reported as a successful request.
+      if (rate.state) {
+        rate.state.sentCount = Math.max(0, Number(rate.state.sentCount || 0) - 1);
+        rate.state.lastSentAt = 0;
+        passwordResetRate.set(userKey, rate.state);
+      }
+      res.status(503).json({
+        ok: false,
+        message: "We couldn't send the reset code right now. Please try again later.",
+      });
+      return;
+    }
     res.json({ ok: true, message: genericMessage });
   }
 );
@@ -8100,7 +8113,14 @@ io.on("connection", (socket) => {
     const dispatched = await dispatchPasswordResetCode(user, token);
     if (!dispatched) {
       dropPasswordResetTokenById(tokenId);
-      socket.emit("password_reset_sent", { message: genericSentMessage });
+      if (rate.state) {
+        rate.state.sentCount = Math.max(0, Number(rate.state.sentCount || 0) - 1);
+        rate.state.lastSentAt = 0;
+        passwordResetRate.set(userKey, rate.state);
+      }
+      socket.emit("password_reset_failed", {
+        message: "We couldn't send the reset code right now. Please try again later.",
+      });
       return;
     }
 
