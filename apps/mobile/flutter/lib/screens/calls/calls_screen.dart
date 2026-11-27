@@ -23,6 +23,7 @@ import '../../widgets/novyn_page_route.dart';
 import '../../widgets/novyn_shimmer.dart';
 import '../../widgets/novyn_ui.dart';
 import '../../widgets/novyn_header_actions.dart';
+import '../../widgets/novyn_filter_chips.dart';
 import '../../widgets/user_avatar.dart';
 import '../calls/call_screen.dart';
 
@@ -903,101 +904,35 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
   // ── Filters ────────────────────────────────────────────────────────────────
 
   Widget _buildFilterChips() {
-    final theme = Theme.of(context);
-    final accent = theme.colorScheme.primary;
-    final isDark = theme.brightness == Brightness.dark;
     final missedCount = countUnreadMissedCallLogs(
       _calls.expand((entry) => entry.history),
       _readMissedCallIds,
     );
-    const icons = {
-      'All': null,
-      'Missed': Icons.call_missed_rounded,
-      'Incoming': Icons.call_received_rounded,
-      'Outgoing': Icons.call_made_rounded,
-    };
 
-    return SizedBox(
-      height: 56,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(20, 6, 20, 6),
-        itemCount: _filters.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final option = _filters[index];
-          final selected = _filter == option;
-          final count = option == 'Missed' ? missedCount : 0;
-          final fg = selected ? Colors.white : theme.colorScheme.onSurfaceVariant;
-          return Semantics(
-            button: true,
-            selected: selected,
-            label: option == 'Missed' && count > 0 ? 'Missed calls, $count' : '$option calls',
-            child: GestureDetector(
-              onTap: () {
-                if (_filter == option) return;
-                HapticService.vibrate(NovynHapticType.light, category: HapticCategory.calls);
-                setState(() => _filter = option);
-                if (option == 'Missed') unawaited(_markMissedCallsRead());
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeOutCubic,
-                height: 44,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  color: selected
-                      ? accent
-                      : (isDark ? const Color(0xFF171426) : theme.colorScheme.surface),
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(
-                    color: selected ? accent : accent.withValues(alpha: isDark ? .18 : .14),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (icons[option] != null) ...[
-                      Icon(icons[option], size: 17, color: fg),
-                      const SizedBox(width: 6),
-                    ],
-                    Text(
-                      option,
-                      style: TextStyle(
-                        fontFamily: 'PlusJakartaSans',
-                        fontSize: 14,
-                        fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                        color: fg,
-                      ),
-                    ),
-                    if (count > 0) ...[
-                      const SizedBox(width: 7),
-                      Container(
-                        constraints: const BoxConstraints(minWidth: 20),
-                        height: 20,
-                        padding: const EdgeInsets.symmetric(horizontal: 6),
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: selected ? Colors.white : const Color(0xFFD92D2D),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          count > 99 ? '99+' : '$count',
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w800,
-                            color: selected ? accent : Colors.white,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
+    final filters = [
+      const NovynFilterChipItem(value: 'All', label: 'All'),
+      NovynFilterChipItem(
+        value: 'Missed',
+        label: 'Missed',
+        badgeCount: missedCount,
       ),
+      const NovynFilterChipItem(value: 'Incoming', label: 'Incoming'),
+      const NovynFilterChipItem(value: 'Outgoing', label: 'Outgoing'),
+    ];
+
+    return NovynFilterChips(
+      items: filters,
+      selectedValue: _filter,
+      onSelected: (option) {
+        if (_filter == option) return;
+        HapticService.vibrate(
+          NovynHapticType.light,
+          category: HapticCategory.calls,
+        );
+        setState(() => _filter = option);
+        if (option == 'Missed') unawaited(_markMissedCallsRead());
+      },
+      padding: const EdgeInsets.fromLTRB(20, 6, 20, 6),
     );
   }
 
