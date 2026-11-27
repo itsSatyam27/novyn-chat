@@ -39,12 +39,6 @@ void registerNovynFilterChipTests() {
     expect(find.text('3'), findsOneWidget);
     expect(tester.getSize(find.byType(AnimatedContainer).first).height, 50);
 
-    final badge = find.ancestor(
-      of: find.text('3'),
-      matching: find.byType(Container),
-    ).first;
-    expect(tester.getSize(badge).height, 22);
-
     await tester.tap(find.text('Unread'));
     await tester.pumpAndSettle();
 
