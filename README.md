@@ -54,7 +54,7 @@ graph TD
         G[🛡️ Authenticated Messaging & Session Controller]
         H[📡 WebSocket Event Dispatcher]
         I[📦 Cloudinary / Local Disk Media Engine]
-        J[📬 WebPush & SMTP Reset Service]
+        J[📬 WebPush & Resend Email API]
     end
 
     subgraph Database ["🗄️ Database & Storage Layer"]
@@ -198,13 +198,14 @@ NODE_ENV=development
 MONGODB_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/
 MONGODB_DB=novyn
 
-# Email Reset Codes (Optional - via SMTP or Resend)
-SMTP_HOST=smtp.resend.com
-SMTP_PORT=465
-SMTP_SECURE=true
-SMTP_USER=resend
-SMTP_PASS=your_resend_api_key
-SMTP_FROM=Novyn <onboarding@resend.dev>
+# Transactional Email (Resend HTTPS API; works on Render Free over port 443)
+RESEND_API_KEY=re_your_resend_api_key
+RESEND_FROM=Novyn <no-reply@your-verified-domain.com>
+RESEND_REPLY_TO=support@your-domain.com
+EMAIL_API_TIMEOUT_MS=12000
+
+# Verify the sending domain in Resend and publish its required DNS records before production use.
+# RESEND_FROM must use an address on that verified domain.
 
 # Cloudinary Media Storage (Optional - defaults to uploads/)
 CLOUDINARY_CLOUD_NAME=your_cloud_name
