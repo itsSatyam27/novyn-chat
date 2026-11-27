@@ -129,7 +129,7 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   const accountResetBody = await accountResetResponse.json();
   assert.equal(accountResetBody.ok, true);
   assert.ok(accountResetBody.message.includes('@example.test'));
-  assert.ok(logs.includes('[Password reset code] alice@example.test:'));
+  assert.ok(logs.includes('[Password reset code] a***e@example.test:'), 'development recovery logs must mask the recipient email');
 
 
   // A refresh response must not expose the rotated cookie until its new
@@ -600,7 +600,7 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   const resetSent = event(bob.socket, 'password_reset_sent');
   bob.socket.emit('request_password_reset', { identifier: 'legacy' });
   await resetSent;
-  const code = logs.match(/\[Password reset code\] legacy@example\.test: (\S+)/)?.[1];
+  const code = logs.match(/\[Password reset code\] l\*{4}y@example\.test: (\S+)/)?.[1];
   assert.ok(code, 'test-only reset code should be logged in development');
   const resetDone = event(bob.socket, 'password_reset_success');
   bob.socket.emit('reset_password', { identifier: 'legacy', token: code, newPassword: 'Recovered-password-123!' });

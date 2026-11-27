@@ -90,8 +90,10 @@ backend permits only one active socket per account.
 The old password helper returned fields that signup did not store. Affected
 accounts have no usable password hash. Login no longer accepts arbitrary
 passwords for those accounts. Use the new **Forgot password?** flow or the
-account's Google sign-in. Production password recovery requires SMTP. Local
-development prints recovery codes in the backend terminal; production does not.
+account's Google sign-in. Production password recovery uses Resend's HTTPS
+Email API. Configure `RESEND_API_KEY` and `RESEND_FROM` in the backend service;
+`RESEND_FROM` must belong to a domain verified in Resend. Local development
+prints recovery codes in the backend terminal when the provider is not configured.
 No existing account records are rewritten by this update.
 
 Access tokens are now linked to revocable sessions. Older access tokens fall
@@ -146,14 +148,14 @@ token/cookie access controls supported by your plan. See the
 Run `npm test` and `npm run build` before deployment. CI runs both. Integration
 tests launch an isolated backend with test accounts and temporary storage; they
 do not connect to the configured production database, mailer, or Cloudinary.
-Live SMTP delivery, Google login, Cloudinary delivery, and native Android behavior
+Live Resend email delivery, Google login, Cloudinary delivery, and native Android behavior
 still need verification with deployment credentials/devices.
 
 Security updates retain Capacitor 6 and override its archive dependency with
 patched `tar` 7 through `vendor/capacitor-tar-compat`. This small wrapper supplies
 the default export expected by Capacitor 6's compiled CommonJS code; the patched
 upstream package performs all archive operations. `uuid` uses the CommonJS-compatible 11.x line,
-and `qs` is overridden to its patched 6.x line. Nodemailer moves to patched 10.x.
+and `qs` is overridden to its patched 6.x line. Transactional mail uses the Resend HTTPS API instead of SMTP.
 Compatibility tests cover Capacitor template extraction and mail construction.
 Recheck overrides when upgrading their parent packages.
 
