@@ -39,7 +39,7 @@ const runtimeState = require("./server/core/state");
 const { buildUserSearchResults } = require("./server/users/search");
 const { isQuietHoursActive, shouldDeliverNotification } = require("./server/notification-policy");
 const { createFcmMessage } = require("./server/notification-utils");
-const { createResendMailer } = require("./services/resend_mailer");
+const { createResendMailer, resolveResendConfig } = require("./services/resend_mailer");
 const {
   normalizeName,
   toDisplayName,
@@ -1389,9 +1389,10 @@ const EMAIL_CHANGE_WINDOW_MS = 15 * 60 * 1000;
 const EMAIL_CHANGE_MAX_PER_WINDOW = 3;
 const EMAIL_CHANGE_RESEND_COOLDOWN_MS = 30 * 1000;
 const PASSWORD_RESET_LOG_CODES = process.env.NODE_ENV !== "production";
-const RESEND_API_KEY = toDisplayName(process.env.RESEND_API_KEY);
-const RESEND_FROM = toDisplayName(process.env.RESEND_FROM);
-const RESEND_REPLY_TO = toDisplayName(process.env.RESEND_REPLY_TO);
+const resendConfig = resolveResendConfig(process.env);
+const RESEND_API_KEY = toDisplayName(resendConfig.apiKey);
+const RESEND_FROM = toDisplayName(resendConfig.from);
+const RESEND_REPLY_TO = toDisplayName(resendConfig.replyTo);
 const EMAIL_API_TIMEOUT_MS = Number.isFinite(Number(process.env.EMAIL_API_TIMEOUT_MS))
   ? Math.max(1000, Math.floor(Number(process.env.EMAIL_API_TIMEOUT_MS)))
   : 12000;
@@ -1497,6 +1498,10 @@ const emailMailer = createResendMailer({
   replyTo: RESEND_REPLY_TO,
   timeoutMs: EMAIL_API_TIMEOUT_MS,
 });
+
+if (resendConfig.usedLegacyResendConfig) {
+  console.warn("[NovynEmail] Reusing legacy Resend SMTP credentials for HTTPS API delivery. Set RESEND_API_KEY and RESEND_FROM to finish migration.");
+}
 
 if (!emailMailer.configured && !PASSWORD_RESET_LOG_CODES) {
   console.warn(
