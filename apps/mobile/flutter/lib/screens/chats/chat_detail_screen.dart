@@ -659,6 +659,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         _jumpToLatestImmediately();
       }
 
+      socket.clearChatUnreadCount(widget.peer.username);
       final settings = context.read<SettingsService>();
       if (settings.readReceipts && !widget.isGroup) {
         unawaited(ApiService.markRead(_chatId!, _myUid!));

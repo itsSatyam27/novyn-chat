@@ -3688,12 +3688,28 @@ class SocketService extends ChangeNotifier {
     );
   }
 
+  void clearChatUnreadCount(String peerUsername) {
+    final idx = _conversations.indexWhere(
+      (c) => c.peerUid.toLowerCase() == peerUsername.toLowerCase(),
+    );
+    if (idx != -1 && _conversations[idx].unreadCount > 0) {
+      final list = List<ChatPreview>.from(_conversations);
+      list[idx] = list[idx].copyWith(unreadCount: 0);
+      _conversations = list;
+      notifyListeners();
+    }
+  }
+
   Future<Map<String, dynamic>> markAllConversationsAsRead() async {
     await _requireAuthenticatedConnection();
     final completer = Completer<Map<String, dynamic>>();
     _socket!.emitWithAck('mark_all_read', <String, dynamic>{},
         ack: (dynamic result) {
       if (completer.isCompleted) return;
+      if (result is Map && result['ok'] == true) {
+        _conversations = _conversations.map((c) => c.copyWith(unreadCount: 0)).toList();
+        notifyListeners();
+      }
       completer.complete(result is Map
           ? Map<String, dynamic>.from(result)
           : <String, dynamic>{

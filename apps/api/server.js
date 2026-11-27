@@ -1119,6 +1119,17 @@ app.get("/api/games/leaderboard", requireUser, async (req, res) => {
   }
 });
 
+// Mark a chat as read via REST API (used by mobile and web clients)
+app.post("/api/chats/:chatId/read", requireUser, (req, res) => {
+  const viewerKey = req.userKey;
+  const targetId = req.params.chatId;
+  const resolved = resolveChatTargetForUser(viewerKey, targetId, "friend", { inferGroup: true });
+  if (resolved.ok) {
+    markConversationAsSeen(viewerKey, resolved.targetKey, resolved.type);
+  }
+  res.json({ ok: true });
+});
+
 // Call history is scoped to the authenticated account. callId makes retries idempotent.
 app.get("/api/calls", requireUser, (req, res) => {
   const user = users.get(req.userKey);
