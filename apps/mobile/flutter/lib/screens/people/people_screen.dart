@@ -10,7 +10,6 @@ import '../../widgets/novyn_shimmer.dart';
 import '../../widgets/novyn_empty_state.dart';
 import '../../widgets/user_avatar.dart';
 import '../../widgets/novyn_header_actions.dart';
-import '../../widgets/novyn_filter_chips.dart';
 import '../../utils/presence_utils.dart';
 import '../../theme/novyn_theme.dart';
 import '../chats/chat_detail_screen.dart';
@@ -39,7 +38,6 @@ class _PeopleScreenState extends State<PeopleScreen> {
   bool _isSearchVisible = false;
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
-  String _filter = 'All';
   Set<String> _favouriteUsernames = <String>{};
   String? _favouriteOwner;
   bool _favouritesLoaded = false;
@@ -294,11 +292,6 @@ class _PeopleScreenState extends State<PeopleScreen> {
                   final filtered = all.where((user) {
                     final name = user.name.toLowerCase();
                     final username = user.username.toLowerCase();
-                    if (_filter == 'Online' && !user.isOnline) return false;
-                    if (_filter == 'Favourites' &&
-                        !_favouriteUsernames.contains(username)) {
-                      return false;
-                    }
                     if (_search.isNotEmpty &&
                         !name.contains(_search) &&
                         !username.contains(_search)) {
@@ -310,18 +303,10 @@ class _PeopleScreenState extends State<PeopleScreen> {
                   final onlineBuddies =
                       all.where((user) => user.isOnline).toList();
 
-                  return Column(
-                    children: [
-                      _buildFilters(),
-                      Expanded(
-                        child: _buildContactsList(
-                          filtered,
-                          myUid,
-                          onlineBuddies: onlineBuddies,
-                          totalBuddiesCount: all.length,
-                        ),
-                      ),
-                    ],
+                  return _buildContactsList(
+                    filtered,
+                    myUid,
+                    onlineBuddies: onlineBuddies,
                   );
                 },
               ),
@@ -409,31 +394,10 @@ class _PeopleScreenState extends State<PeopleScreen> {
     );
   }
 
-  Widget _buildFilters() {
-    const filters = [
-      NovynFilterChipItem(value: 'All', label: 'All'),
-      NovynFilterChipItem(value: 'Online', label: 'Online'),
-      NovynFilterChipItem(value: 'Favourites', label: 'Favourites'),
-    ];
-
-    return NovynFilterChips(
-      items: filters,
-      selectedValue: _filter,
-      onSelected: (value) {
-        setState(() => _filter = value);
-        if (_scrollController.hasClients) {
-          _scrollController.jumpTo(0);
-        }
-      },
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
-    );
-  }
-
   Widget _buildContactsList(
     List<UserModel> contacts,
     String myUid, {
     required List<UserModel> onlineBuddies,
-    required int totalBuddiesCount,
   }) {
     if (contacts.isEmpty) {
       final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -452,35 +416,14 @@ class _PeopleScreenState extends State<PeopleScreen> {
         );
       }
 
-      Widget emptyState;
-      if (_filter == 'Favourites') {
-        emptyState = NovynEmptyState(
-          illustration: NovynEmptyIllustrations.peopleGroupHeart(isDark: isDark),
-          title: 'No favourites yet',
-          description: 'Tap the star on a buddy to keep your closest people here',
-          buttonLabel: 'See all $totalBuddiesCount buddies',
-          isSecondaryButton: true,
-          onButtonTap: () => setState(() => _filter = 'All'),
-        );
-      } else if (_filter == 'Online') {
-        emptyState = NovynEmptyState(
-          illustration: NovynEmptyIllustrations.personOffline(isDark: isDark),
-          title: 'No one’s online',
-          description: 'Your buddies are offline right now. Check back in a bit',
-          buttonLabel: 'See all $totalBuddiesCount buddies',
-          isSecondaryButton: true,
-          onButtonTap: () => setState(() => _filter = 'All'),
-        );
-      } else {
-        emptyState = NovynEmptyState(
-          illustration: NovynEmptyIllustrations.peopleGroupPlus(isDark: isDark),
-          title: 'No buddies yet',
-          description: 'Connect with people to chat and play games together',
-          buttonLabel: 'Discover people',
-          buttonIcon: Icons.explore_outlined,
-          onButtonTap: _openDiscover,
-        );
-      }
+      final emptyState = NovynEmptyState(
+        illustration: NovynEmptyIllustrations.peopleGroupPlus(isDark: isDark),
+        title: 'No buddies yet',
+        description: 'Connect with people to chat and play games together',
+        buttonLabel: 'Discover people',
+        buttonIcon: Icons.explore_outlined,
+        onButtonTap: _openDiscover,
+      );
 
       return ListView(
         controller: _scrollController,
@@ -501,7 +444,7 @@ class _PeopleScreenState extends State<PeopleScreen> {
     }
     final letters = grouped.keys.toList()..sort();
     final children = <Widget>[
-      if (_filter == 'All' && _search.isEmpty && onlineBuddies.isNotEmpty)
+      if (_search.isEmpty && onlineBuddies.isNotEmpty)
         _buildOnlineBuddiesStrip(onlineBuddies),
       Padding(
         padding: const EdgeInsets.fromLTRB(8, 6, 22, 10),

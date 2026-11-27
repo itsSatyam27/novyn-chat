@@ -23,7 +23,6 @@ import '../profile/settings/chat_settings_screen.dart';
 import 'starred_messages_screen.dart';
 import '../../widgets/chat_overflow_menu.dart';
 import '../../widgets/novyn_header_actions.dart';
-import '../../widgets/novyn_filter_chips.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:novyn/services/haptic_service.dart';
 import '../../utils/presence_utils.dart';
@@ -70,7 +69,6 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
   String _search = '';
   final FocusNode _searchFocusNode = FocusNode();
   final TextEditingController _searchController = TextEditingController();
-  String _selectedTab = 'all';
   AuthService? _authService;
   String? _observedUsername;
   int _loadGeneration = 0;
@@ -999,7 +997,6 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
       _showingLockedChats = false;
       _selectionMode = false;
       _selectedChatIds.clear();
-      _selectedTab = 'all';
       _isSearchVisible = false;
     });
     _applyFilters();
@@ -1019,7 +1016,6 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
       _showingArchivedChats = false;
       _selectionMode = false;
       _selectedChatIds.clear();
-      _selectedTab = 'all';
       _isSearchVisible = false;
     });
     _applyFilters();
@@ -1031,7 +1027,6 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
       _showingLockedChats = false;
       _selectionMode = false;
       _selectedChatIds.clear();
-      _selectedTab = 'all';
     });
     _applyFilters();
   }
@@ -1219,11 +1214,6 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     setState(() => _filtered = next);
   }
 
-  void _selectTab(String value) {
-    HapticService.vibrate(NovynHapticType.selection, category: HapticCategory.chat);
-    setState(() => _selectedTab = value);
-  }
-
   void _onSearch(String query) {
     _search = query;
     _applyFilters();
@@ -1233,16 +1223,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final isDecoy = context.watch<SettingsService>().decoyMode;
     final allChats = isDecoy ? <ChatPreview>[] : _filtered;
-    final settings = context.watch<SettingsService>();
-    final favorites = settings.favoriteChatIds.toSet();
-    final activeChats = allChats.where((chat) {
-      switch (_selectedTab) {
-        case 'unread': return chat.unreadCount > 0;
-        case 'favorites': return favorites.contains(chat.chatId);
-        case 'groups': return chat.isGroup;
-        default: return true;
-      }
-    }).toList();
+    final activeChats = allChats;
     final pinnedChats = activeChats.where((chat) => chat.isPinned).toList();
     final recentChats = activeChats.where((chat) => !chat.isPinned).toList();
 
@@ -1394,8 +1375,6 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
                     )
                   : const SizedBox(width: double.infinity, height: 0),
             ),
-            if (!_selectionMode && !_showingArchivedChats && !_showingLockedChats)
-              _buildFilterCards(),
             if (_selectionMode) _buildSelectionToolbar(),
             Expanded(
               child: _loading
@@ -1505,32 +1484,6 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildFilterCards() {
-    final unreadChatCount =
-        _filtered.where((chat) => chat.unreadCount > 0).length;
-    const filters = [
-      NovynFilterChipItem(value: 'all', label: 'All'),
-      NovynFilterChipItem(value: 'unread', label: 'Unread'),
-      NovynFilterChipItem(value: 'groups', label: 'Groups'),
-      NovynFilterChipItem(value: 'favorites', label: 'Favourites'),
-    ];
-
-    return NovynFilterChips(
-      items: [
-        ...filters.take(1),
-        NovynFilterChipItem(
-          value: 'unread',
-          label: 'Unread',
-          badgeCount: unreadChatCount,
-        ),
-        ...filters.skip(2),
-      ],
-      selectedValue: _selectedTab,
-      onSelected: _selectTab,
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
     );
   }
 
@@ -2069,44 +2022,16 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
       );
     }
 
-    switch (_selectedTab) {
-      case 'unread':
-        return NovynEmptyState(
-          illustration: NovynEmptyIllustrations.speechBubblesCheck(isDark: isDark),
-          title: 'You’re all caught up',
-          description: 'No unread messages right now. New ones will appear here',
-        );
-      case 'groups':
-        return NovynEmptyState(
-          illustration: NovynEmptyIllustrations.peopleGroupPlus(isDark: isDark),
-          title: 'No groups yet',
-          description: 'Create a group to chat with several buddies at once',
-          buttonLabel: 'Create group',
-          buttonIcon: Icons.add_rounded,
-          onButtonTap: _openCreateGroup,
-        );
-      case 'favorites':
-        return NovynEmptyState(
-          illustration: NovynEmptyIllustrations.speechBubblesStar(isDark: isDark),
-          title: 'No favourite chats',
-          description: 'Long-press a chat and tap the star to keep it here',
-          buttonLabel: 'See all chats',
-          isSecondaryButton: true,
-          onButtonTap: () => _selectTab('all'),
-        );
-      case 'all':
-      default:
-        return NovynEmptyState(
-          illustration: NovynEmptyIllustrations.speechBubblesDots(isDark: isDark),
-          title: 'No chats yet',
-          description: 'Say hi to a buddy and your first conversation will show up here',
-          buttonLabel: 'Start a chat',
-          buttonIcon: Icons.edit_outlined,
-          onButtonTap: () {
-            widget.onNavigateToPeople?.call();
-          },
-        );
-    }
+    return NovynEmptyState(
+      illustration: NovynEmptyIllustrations.speechBubblesDots(isDark: isDark),
+      title: 'No chats yet',
+      description: 'Say hi to a buddy and your first conversation will show up here',
+      buttonLabel: 'Start a chat',
+      buttonIcon: Icons.edit_outlined,
+      onButtonTap: () {
+        widget.onNavigateToPeople?.call();
+      },
+    );
   }
 
 

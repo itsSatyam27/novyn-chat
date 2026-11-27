@@ -5,7 +5,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
-import 'package:novyn/services/haptic_service.dart';
 import 'package:novyn/widgets/novyn_alert.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -16,14 +15,12 @@ import '../../services/auth_service.dart';
 import '../../services/local_db_service.dart';
 import '../../services/socket_service.dart';
 import '../../theme/novyn_theme.dart';
-import '../../utils/presence_utils.dart';
 import '../../utils/call_history_utils.dart';
 import '../../widgets/novyn_empty_state.dart';
 import '../../widgets/novyn_page_route.dart';
 import '../../widgets/novyn_shimmer.dart';
 import '../../widgets/novyn_ui.dart';
 import '../../widgets/novyn_header_actions.dart';
-import '../../widgets/novyn_filter_chips.dart';
 import '../../widgets/user_avatar.dart';
 import '../calls/call_screen.dart';
 
@@ -38,11 +35,9 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
 
   List<_CallEntry> _calls = [];
   bool _loading = true;
-  String _filter = 'All';
   String _search = '';
   String _callPrivacy = 'friends';
   Set<String> _favoriteUsernames = <String>{};
-  Set<String> _readMissedCallIds = <String>{};
   // peer username (lowercase) -> millis of the newest call that was removed.
   Map<String, int> _dismissedAt = <String, int>{};
   String? _myUsername;
@@ -91,8 +86,6 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
 
   String _favKey(String username) => 'novyn_call_favorites_${username.toLowerCase()}';
   String _dismissKey(String username) => 'novyn_call_dismissed_${username.toLowerCase()}';
-  String _readMissedKey(String username) =>
-      'novyn_missed_read_${username.toLowerCase()}';
 
   Future<void> _loadLocalPrefs() async {
     final username = context.read<AuthService>().user?.username;
@@ -114,7 +107,6 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
     setState(() {
       _myUsername = username;
       _favoriteUsernames = (prefs.getStringList(_favKey(username)) ?? <String>[]).take(5).toSet();
-      _readMissedCallIds = (prefs.getStringList(_readMissedKey(username)) ?? <String>[]).toSet();
       _dismissedAt = dismissed;
     });
   }
@@ -154,27 +146,6 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_dismissKey(username), jsonEncode(_dismissedAt));
   }
-
-  Future<void> _markMissedCallsRead() async {
-    final username = _myUsername ?? context.read<AuthService>().user?.username;
-    if (username == null) return;
-    final missedIds = _calls
-        .expand((entry) => entry.history)
-        .where((log) => log['status']?.toString().toLowerCase() == 'missed')
-        .map(callLogStableId)
-        .where((id) => id.isNotEmpty)
-        .toSet();
-    if (missedIds.isEmpty) return;
-    final next = {..._readMissedCallIds, ...missedIds};
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(
-      _readMissedKey(username),
-      next.toList()..sort(),
-    );
-    if (!mounted) return;
-    setState(() => _readMissedCallIds = next);
-  }
-
 
   int _logMillis(Map<String, dynamic> log) =>
       DateTime.tryParse(log['createdAt']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0;
@@ -618,8 +589,7 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
                     )
                   : const SizedBox(width: double.infinity),
             ),
-            if (!_searchOpen && _search.isEmpty && _filter == 'All') _buildQuickCall(),
-            _buildFilterChips(),
+            if (!_searchOpen && _search.isEmpty) _buildQuickCall(),
             const SizedBox(height: 4),
             Expanded(
               child: _loading
@@ -900,65 +870,8 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
     );
   }
 
-  // ── Filters ────────────────────────────────────────────────────────────────
-
-  Widget _buildFilterChips() {
-    final missedCount = countUnreadMissedCallLogs(
-      _calls.expand((entry) => entry.history),
-      _readMissedCallIds,
-    );
-
-    final filters = [
-      const NovynFilterChipItem(value: 'All', label: 'All'),
-      NovynFilterChipItem(
-        value: 'Missed',
-        label: 'Missed',
-        badgeCount: missedCount,
-      ),
-      const NovynFilterChipItem(value: 'Incoming', label: 'Incoming'),
-      const NovynFilterChipItem(value: 'Outgoing', label: 'Outgoing'),
-    ];
-
-    return NovynFilterChips(
-      items: filters,
-      selectedValue: _filter,
-      onSelected: (option) {
-        if (_filter == option) return;
-        HapticService.vibrate(
-          NovynHapticType.light,
-          category: HapticCategory.calls,
-        );
-        setState(() => _filter = option);
-        if (option == 'Missed') unawaited(_markMissedCallsRead());
-      },
-      padding: const EdgeInsets.fromLTRB(20, 6, 20, 6),
-    );
-  }
-
   List<_CallEntry> _filteredCalls() {
     var result = _calls;
-    if (_filter != 'All') {
-      final wanted = _filter.toLowerCase();
-      result = result
-          .map((call) {
-            final matching = call.history.where((log) => log['status'] == wanted).toList();
-            if (matching.isEmpty) return null;
-            matching.sort((a, b) => _logMillis(b).compareTo(_logMillis(a)));
-            final latest = matching.first;
-            final parsedDate = DateTime.tryParse(latest['createdAt']?.toString() ?? '');
-            return call.copyWith(
-              type: normalizeCallType(latest['type'] ?? call.type),
-              status: latest['status']?.toString() ?? call.status,
-              duration: (latest['duration'] as num?)?.toInt() ?? 0,
-              createdAt: parsedDate == null
-                  ? call.createdAt
-                  : (parsedDate.isUtc ? parsedDate.toLocal() : parsedDate),
-              history: matching,
-            );
-          })
-          .whereType<_CallEntry>()
-          .toList();
-    }
     if (_search.isNotEmpty) {
       result = result
           .where((call) =>
@@ -1154,26 +1067,6 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
         title: 'No results',
         description: 'Nothing matches\n“$_search”',
       );
-    }
-    switch (_filter) {
-      case 'Missed':
-        return const NovynEmptyState(
-          icon: Icons.call_missed_rounded,
-          title: 'No missed calls',
-          description: 'You are all caught up',
-        );
-      case 'Incoming':
-        return const NovynEmptyState(
-          icon: Icons.call_received_rounded,
-          title: 'No incoming calls',
-          description: 'Calls you receive\nwill appear here',
-        );
-      case 'Outgoing':
-        return const NovynEmptyState(
-          icon: Icons.call_made_rounded,
-          title: 'No outgoing calls',
-          description: 'Calls you make\nwill appear here',
-        );
     }
     return const NovynEmptyState(
       icon: Icons.call_rounded,
