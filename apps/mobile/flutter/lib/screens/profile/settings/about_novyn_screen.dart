@@ -912,10 +912,11 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                         children: [
                           TextSpan(
                             text: 'Made with ',
-                            style: GoogleFonts.dancingScript(
+                            style: const TextStyle(
+                              fontFamily: 'PlaywriteFRTrad',
                               fontSize: 27,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFF7048F8),
+                              fontWeight: FontWeight.w400,
+                              color: Color(0xFF7048F8),
                             ),
                           ),
                           const WidgetSpan(
@@ -927,10 +928,11 @@ class _AboutNovynScreenState extends State<AboutNovynScreen> {
                           ),
                           TextSpan(
                             text: ' by Team Novyn',
-                            style: GoogleFonts.dancingScript(
+                            style: const TextStyle(
+                              fontFamily: 'PlaywriteFRTrad',
                               fontSize: 27,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFF7048F8),
+                              fontWeight: FontWeight.w400,
+                              color: Color(0xFF7048F8),
                             ),
                           ),
                         ],
