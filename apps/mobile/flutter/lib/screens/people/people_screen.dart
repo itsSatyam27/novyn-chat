@@ -412,8 +412,8 @@ class _PeopleScreenState extends State<PeopleScreen> {
   Widget _buildFilters() {
     const filters = [
       NovynFilterChipItem(value: 'All', label: 'All'),
-      const NovynFilterChipItem(value: 'Online', label: 'Online'),
-      const NovynFilterChipItem(value: 'Favourites', label: 'Favourites'),
+      NovynFilterChipItem(value: 'Online', label: 'Online'),
+      NovynFilterChipItem(value: 'Favourites', label: 'Favourites'),
     ];
 
     return NovynFilterChips(
