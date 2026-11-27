@@ -600,7 +600,7 @@ test('localhost discovery, requests, reconnect state, and private media', { time
   const resetSent = event(bob.socket, 'password_reset_sent');
   bob.socket.emit('request_password_reset', { identifier: 'legacy' });
   await resetSent;
-  const code = logs.match(/\[Password reset code\] legacy@example\.test: (\S+)/)?.[1];
+  const code = logs.split('l***y@example.test: ')[1]?.split(/\s/)[0];
   assert.ok(code, 'test-only reset code should be logged in development');
   const resetDone = event(bob.socket, 'password_reset_success');
   bob.socket.emit('reset_password', { identifier: 'legacy', token: code, newPassword: 'Recovered-password-123!' });
