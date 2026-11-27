@@ -1274,7 +1274,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(18, 12, 18, 8),
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, 22),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
@@ -1323,7 +1323,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
                                 style: TextStyle(
                                   fontFamily: 'PlaywriteFRTrad',
                                   fontSize: 39,
-                                  height: 1.0,
+                                  height: 1.25,
                                   fontWeight: FontWeight.w400,
                                   letterSpacing: -1.15,
                                   color: Theme.of(context).colorScheme.onSurface,
