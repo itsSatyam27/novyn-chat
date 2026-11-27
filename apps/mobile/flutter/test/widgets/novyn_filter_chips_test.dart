@@ -7,6 +7,8 @@ void main() => registerNovynFilterChipTests();
 void registerNovynFilterChipTests() {
   testWidgets('renders the shared pill style and unread count badge',
       (tester) async {
+    final semantics = tester.ensureSemantics();
+    addTearDown(semantics.dispose);
     var selected = 'all';
 
     await tester.pumpWidget(
