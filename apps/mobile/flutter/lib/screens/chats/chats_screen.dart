@@ -1316,12 +1316,17 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
                             child: Semantics(
                               label: 'Novyn',
                               image: true,
-                              child: Image.asset(
-                                'assets/images/novyn-wordmark.png',
-                                width: 98,
-                                height: 46,
-                                fit: BoxFit.contain,
-                                filterQuality: FilterQuality.high,
+                              child: Text(
+                                'novyn',
+                                maxLines: 1,
+                                style: TextStyle(
+                                  fontFamily: 'PlaywriteIN',
+                                  fontSize: 39,
+                                  height: 1.0,
+                                  fontWeight: FontWeight.w400,
+                                  letterSpacing: -1.15,
+                                  color: Theme.of(context).colorScheme.onSurface,
+                                ),
                               ),
                             ),
                           ),

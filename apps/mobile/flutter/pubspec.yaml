@@ -96,5 +96,12 @@ flutter:
     - assets/audio/
     - assets/images/
     - assets/icons/
+    - assets/fonts/
     - shorebird.yaml
+
+  fonts:
+    - family: PlaywriteIN
+      fonts:
+        - asset: assets/fonts/PlaywriteIN.ttf
+          weight: 400
 

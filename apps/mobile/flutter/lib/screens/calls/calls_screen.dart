@@ -22,6 +22,7 @@ import '../../widgets/novyn_empty_state.dart';
 import '../../widgets/novyn_page_route.dart';
 import '../../widgets/novyn_shimmer.dart';
 import '../../widgets/novyn_ui.dart';
+import '../../widgets/novyn_header_actions.dart';
 import '../../widgets/user_avatar.dart';
 import '../calls/call_screen.dart';
 
@@ -566,24 +567,31 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-            NovynHeader(
-              title: 'Calls',
-              titleSize: 36,
-              titleWeight: FontWeight.w600,
-              actions: [
-                Semantics(
-                  button: true,
-                  label: _searchOpen ? 'Close search' : 'Search calls',
-                  child: NovynIconButton(
-                    icon: _searchOpen ? Icons.close_rounded : Icons.search_rounded,
-                    size: 48,
-                    radius: 16,
-                    iconSize: 22,
-                    onTap: _toggleSearch,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Calls',
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        fontSize: 36,
+                        height: 1.12,
+                        letterSpacing: -1.25,
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ),
                   ),
-                ),
-                _buildMenu(theme),
-              ],
+                  NovynHeaderActions(
+                    searchVisible: _searchOpen,
+                    onSearchTap: _toggleSearch,
+                    trailingAction: _buildMenu(theme),
+                  ),
+                ],
+              ),
             ),
             AnimatedSize(
               duration: const Duration(milliseconds: 280),
@@ -692,14 +700,17 @@ class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
           ),
         ],
       ],
-      child: Container(
+      color: theme.colorScheme.surface,
+      surfaceTintColor: Colors.transparent,
+      shadowColor: Colors.black.withValues(alpha: .16),
+      child: SizedBox(
         width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(16),
+        height: 46,
+        child: Icon(
+          Icons.more_horiz_rounded,
+          size: 25,
+          color: theme.colorScheme.primary,
         ),
-        child: Icon(Icons.more_horiz_rounded, size: 24, color: theme.colorScheme.onSurface),
       ),
     );
   }
