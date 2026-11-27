@@ -35,7 +35,6 @@ class CallsScreen extends StatefulWidget {
 }
 
 class _CallsScreenState extends State<CallsScreen> with WidgetsBindingObserver {
-  static const _filters = ['All', 'Missed', 'Incoming', 'Outgoing'];
 
   List<_CallEntry> _calls = [];
   bool _loading = true;
