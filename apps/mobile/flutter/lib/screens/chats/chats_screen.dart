@@ -1320,7 +1320,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
                                 'novyn',
                                 maxLines: 1,
                                 style: TextStyle(
-                                  fontFamily: 'PlaywriteIN',
+                                  fontFamily: 'PlaywriteFRTrad',
                                   fontSize: 39,
                                   height: 1.0,
                                   fontWeight: FontWeight.w400,

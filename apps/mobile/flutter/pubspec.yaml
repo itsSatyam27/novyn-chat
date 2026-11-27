@@ -100,8 +100,8 @@ flutter:
     - shorebird.yaml
 
   fonts:
-    - family: PlaywriteIN
+    - family: PlaywriteFRTrad
       fonts:
-        - asset: assets/fonts/PlaywriteIN.ttf
+        - asset: assets/fonts/PlaywriteFRTrad.ttf
           weight: 400
 
