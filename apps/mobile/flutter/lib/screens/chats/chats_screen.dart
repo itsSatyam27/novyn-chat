@@ -23,6 +23,7 @@ import '../profile/settings/chat_settings_screen.dart';
 import 'starred_messages_screen.dart';
 import '../../widgets/chat_overflow_menu.dart';
 import '../../widgets/novyn_header_actions.dart';
+import '../../widgets/novyn_filter_chips.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:novyn/services/haptic_service.dart';
 import '../../utils/presence_utils.dart';
@@ -1508,69 +1509,28 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildFilterCards() {
+    final unreadChatCount =
+        _filtered.where((chat) => chat.unreadCount > 0).length;
     const filters = [
-      ('all', 'All'),
-      ('unread', 'Unread'),
-      ('groups', 'Groups'),
-      ('favorites', 'Favourites'),
+      NovynFilterChipItem(value: 'all', label: 'All'),
+      NovynFilterChipItem(value: 'unread', label: 'Unread'),
+      NovynFilterChipItem(value: 'groups', label: 'Groups'),
+      NovynFilterChipItem(value: 'favorites', label: 'Favourites'),
     ];
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final primary = theme.colorScheme.primary;
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
+    return NovynFilterChips(
+      items: [
+        ...filters.take(1),
+        NovynFilterChipItem(
+          value: 'unread',
+          label: 'Unread',
+          badgeCount: unreadChatCount,
+        ),
+        ...filters.skip(2),
+      ],
+      selectedValue: _selectedTab,
+      onSelected: _selectTab,
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
-      child: Row(
-        children: [
-          for (final item in filters)
-            Padding(
-              padding: const EdgeInsets.only(right: 10),
-              child: GestureDetector(
-                onTap: () => _selectTab(item.$1),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOutCubic,
-                  height: 42,
-                  padding: const EdgeInsets.symmetric(horizontal: 22),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: _selectedTab == item.$1
-                        ? primary
-                        : (isDark ? const Color(0xFF201B36) : Colors.white),
-                    borderRadius: BorderRadius.circular(26),
-                    border: Border.all(
-                      color: _selectedTab == item.$1
-                          ? primary
-                          : (isDark ? Colors.white10 : const Color(0xFFEAE6F7)),
-                      width: 1,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: _selectedTab == item.$1
-                            ? primary.withValues(alpha: 0.28)
-                            : (isDark ? Colors.black26 : primary.withValues(alpha: 0.04)),
-                        blurRadius: 10,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                  child: Text(
-                    item.$2,
-                    style: TextStyle(
-                      fontFamily: 'PlusJakartaSans',
-                      fontSize: 14.5,
-                      fontWeight: _selectedTab == item.$1 ? FontWeight.w700 : FontWeight.w600,
-                      color: _selectedTab == item.$1
-                          ? Colors.white
-                          : (isDark ? Colors.white70 : const Color(0xFF2D2942)),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
     );
   }
 
