@@ -39,6 +39,7 @@ const runtimeState = require("./server/core/state");
 const { buildUserSearchResults } = require("./server/users/search");
 const { isQuietHoursActive, shouldDeliverNotification } = require("./server/notification-policy");
 const { createFcmMessage } = require("./server/notification-utils");
+const { createEmailMailer } = require("./services/email_mailer");
 const { createResendMailer, resolveResendConfig } = require("./services/resend_mailer");
 const {
   normalizeName,
@@ -1492,20 +1493,17 @@ if (process.env.RENDER && !MONGODB_URI) {
   );
 }
 
-const emailMailer = createResendMailer({
-  apiKey: RESEND_API_KEY,
-  from: RESEND_FROM,
-  replyTo: RESEND_REPLY_TO,
-  timeoutMs: EMAIL_API_TIMEOUT_MS,
-});
+const emailMailer = createEmailMailer(process.env);
 
-if (resendConfig.usedLegacyResendConfig) {
+if (emailMailer.provider === "smtp") {
+  console.info(`[NovynEmail] SMTP email delivery configured via ${process.env.SMTP_HOST || "host"}.`);
+} else if (resendConfig.usedLegacyResendConfig) {
   console.warn("[NovynEmail] Reusing legacy Resend SMTP credentials for HTTPS API delivery. Set RESEND_API_KEY and RESEND_FROM to finish migration.");
 }
 
 if (!emailMailer.configured && !PASSWORD_RESET_LOG_CODES) {
   console.warn(
-    "[NovynEmail] Email API is not configured. Set RESEND_API_KEY and RESEND_FROM to enable transactional email delivery."
+    "[NovynEmail] Email delivery is not configured. Set SMTP credentials (e.g. Gmail) or RESEND_API_KEY and RESEND_FROM to enable transactional email delivery."
   );
 }
 
@@ -2752,8 +2750,8 @@ async function sendNovynEmail({
     const diagnostic = toDisplayName(err?.message || "Email provider request failed")
       .replaceAll(normalizeEmail(to), maskEmailAddress(to))
       .slice(0, 220);
-    console.warn("[NovynEmail] HTTPS email delivery failed:", {
-      provider: "resend",
+    console.warn("[NovynEmail] Email delivery failed:", {
+      provider: emailMailer.provider || "email",
       purpose,
       code: toDisplayName(err?.code) || "unknown",
       responseCode: Number(err?.statusCode) || 0,
@@ -6718,6 +6716,13 @@ app.post("/api/auth/password-reset/request",
       res.json({ ok: true, message: genericMessage });
       return;
     }
+    if (!user.email) {
+      res.status(400).json({
+        ok: false,
+        message: "No email is linked to this account. Please contact Novyn support.",
+      });
+      return;
+    }
     const userKey = normalizeName(user.username);
     const rate = canIssuePasswordReset(userKey);
     if (!rate.allowed) {
@@ -8043,6 +8048,12 @@ io.on("connection", (socket) => {
     const user = isEmail ? findUserByEmail(identifier) : users.get(normalizeName(identifier));
     if (!user || !user.isRegistered) {
       socket.emit("password_reset_sent", { message: genericSentMessage });
+      return;
+    }
+    if (!user.email) {
+      socket.emit("password_reset_failed", {
+        message: "No email is linked to this account. Please contact Novyn support.",
+      });
       return;
     }
 
