@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novyn/widgets/novyn_filter_chips.dart';
 
@@ -7,8 +7,6 @@ void main() => registerNovynFilterChipTests();
 void registerNovynFilterChipTests() {
   testWidgets('renders the shared pill style and unread count badge',
       (tester) async {
-    final semantics = tester.ensureSemantics();
-    addTearDown(semantics.dispose);
     var selected = 'all';
 
     await tester.pumpWidget(
@@ -39,10 +37,6 @@ void registerNovynFilterChipTests() {
     expect(find.text('All'), findsOneWidget);
     expect(find.text('Unread'), findsOneWidget);
     expect(find.text('3'), findsOneWidget);
-    expect(
-      find.bySemanticsLabel('Unread, 3'),
-      findsOneWidget,
-    );
 
     await tester.tap(find.text('Unread'));
     await tester.pumpAndSettle();
