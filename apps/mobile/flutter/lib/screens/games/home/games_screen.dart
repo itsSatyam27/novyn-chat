@@ -9,6 +9,7 @@ import '../../../services/game_history_service.dart';
 import '../../../services/socket_service.dart';
 import '../../../theme/novyn_theme.dart';
 import '../../../widgets/novyn_ui.dart';
+import '../../../widgets/novyn_filter_chips.dart';
 import '../../../widgets/user_avatar.dart';
 import '../shared/history/game_history_screen.dart';
 import '../shared/lobby/game_lobby_screen.dart';
@@ -500,31 +501,16 @@ class _GamesScreenState extends State<GamesScreen> {
                   const SizedBox(height: 20),
                 ],
                 const SizedBox(height: 20),
-                SizedBox(
-                  height: 42,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    children: [
-                      _GamesCategoryPill(
-                        label: 'All',
-                        selected: _activeCategory == 'All',
-                        onTap: () => setState(() => _activeCategory = 'All'),
-                      ),
-                      const SizedBox(width: 9),
-                      _GamesCategoryPill(
-                        label: '2 Player',
-                        selected: _activeCategory == '2 Player',
-                        onTap: () => setState(() => _activeCategory = '2 Player'),
-                      ),
-                      const SizedBox(width: 9),
-                      _GamesCategoryPill(
-                        label: '3 P / 4 P',
-                        selected: _activeCategory == '3 P / 4 P',
-                        onTap: () => setState(() => _activeCategory = '3 P / 4 P'),
-                      ),
-                    ],
-                  ),
+                NovynFilterChips(
+                  items: const [
+                    NovynFilterChipItem(value: 'All', label: 'All'),
+                    NovynFilterChipItem(value: '2 Player', label: '2 Player'),
+                    NovynFilterChipItem(value: '3 P / 4 P', label: '3 P / 4 P'),
+                  ],
+                  selectedValue: _activeCategory,
+                  onSelected: (value) =>
+                      setState(() => _activeCategory = value),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
                 ),
                 const SizedBox(height: 14),
                 if (filtered.isEmpty && _searchQuery.isNotEmpty)
@@ -1130,54 +1116,6 @@ class _HeroStatBox extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _GamesCategoryPill extends StatelessWidget {
-  const _GamesCategoryPill({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    final accent = colors.primary;
-    final isDark = theme.brightness == Brightness.dark;
-    return Material(
-      color: selected
-          ? accent
-          : (isDark ? const Color(0xFF201B36) : colors.surface),
-      borderRadius: BorderRadius.circular(24),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(24),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: selected ? accent : colors.outlineVariant,
-            ),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-              color: selected ? colors.onPrimary : colors.onSurfaceVariant,
-            ),
-          ),
-        ),
       ),
     );
   }
