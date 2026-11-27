@@ -36,7 +36,7 @@ class NovynFilterChips extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
 
     return SizedBox(
-      height: 60,
+      height: 50,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: padding,
