@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novyn/widgets/novyn_dock.dart';
+import 'widgets/novyn_filter_chips_test.dart' as filter_chip_tests;
 
 void _ignoreDockSelection(int _) {}
 
 void main() {
+  filter_chip_tests.registerNovynFilterChipTests();
   const styles = [
     'slide_pill',
     'expand_capsule',
