@@ -1,6 +1,12 @@
 "use strict";
 
-const nodemailer = require("nodemailer");
+let nodemailer = null;
+try {
+  nodemailer = require("nodemailer");
+} catch (_) {
+  nodemailer = null;
+}
+
 const { createResendMailer, resolveResendConfig } = require("./resend_mailer");
 
 function createEmailMailer(env = process.env) {
@@ -18,7 +24,7 @@ function createEmailMailer(env = process.env) {
     const replyTo = String(env.SMTP_REPLY_TO || user || "").trim();
     const timeoutMs = Number(env.EMAIL_API_TIMEOUT_MS) || 12000;
 
-    const configured = Boolean(host && user && pass && from);
+    const configured = Boolean(host && user && pass && from && nodemailer);
 
     let transporter = null;
     if (configured) {
@@ -37,6 +43,11 @@ function createEmailMailer(env = process.env) {
       configured,
       provider: "smtp",
       send: async ({ to, subject, text, html, replyTo: msgReplyTo } = {}) => {
+        if (!nodemailer) {
+          const err = new Error("nodemailer module is not installed.");
+          err.code = "MODULE_NOT_FOUND";
+          throw err;
+        }
         if (!configured || !transporter) {
           const err = new Error("SMTP is not configured. Set SMTP_HOST, SMTP_USER, SMTP_PASS, and SMTP_FROM.");
           err.code = "EMAIL_NOT_CONFIGURED";
