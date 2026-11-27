@@ -7,6 +7,46 @@ const {
   createResendMailer,
 } = require("../services/resend_mailer");
 
+test("legacy Resend SMTP credentials are reused only for the official Resend host", () => {
+  const { resolveResendConfig } = require("../services/resend_mailer");
+  const legacy = resolveResendConfig({
+    SMTP_HOST: "smtp.resend.com",
+    SMTP_USER: "resend",
+    SMTP_PASS: "re_existing_resend_api_key",
+    SMTP_FROM: "Novyn <onboarding@resend.dev>",
+    SMTP_REPLY_TO: "support@example.com",
+  });
+  assert.equal(legacy.apiKey, "re_existing_resend_api_key");
+  assert.equal(legacy.from, "Novyn <onboarding@resend.dev>");
+  assert.equal(legacy.replyTo, "support@example.com");
+  assert.equal(legacy.usedLegacyResendConfig, true);
+
+  const unrelatedSmtp = resolveResendConfig({
+    SMTP_HOST: "smtp.example.com",
+    SMTP_USER: "user",
+    SMTP_PASS: "must-not-be-used",
+    SMTP_FROM: "Legacy <sender@example.com>",
+  });
+  assert.equal(unrelatedSmtp.apiKey, "");
+  assert.equal(unrelatedSmtp.from, "");
+  assert.equal(unrelatedSmtp.usedLegacyResendConfig, false);
+});
+
+test("explicit Resend API configuration takes precedence over legacy SMTP values", () => {
+  const { resolveResendConfig } = require("../services/resend_mailer");
+  const config = resolveResendConfig({
+    RESEND_API_KEY: "re_new_api_key",
+    RESEND_FROM: "Novyn <no-reply@example.com>",
+    SMTP_HOST: "smtp.resend.com",
+    SMTP_USER: "resend",
+    SMTP_PASS: "re_old_api_key",
+    SMTP_FROM: "Old <onboarding@resend.dev>",
+  });
+  assert.equal(config.apiKey, "re_new_api_key");
+  assert.equal(config.from, "Novyn <no-reply@example.com>");
+  assert.equal(config.usedLegacyResendConfig, false);
+});
+
 test("Resend mailer sends through HTTPS with provider auth and configured sender", async () => {
   let request;
   const mailer = createResendMailer({
