@@ -1390,8 +1390,8 @@ const EMAIL_CHANGE_MAX_PER_WINDOW = 3;
 const EMAIL_CHANGE_RESEND_COOLDOWN_MS = 30 * 1000;
 const PASSWORD_RESET_LOG_CODES = process.env.NODE_ENV !== "production";
 const RESEND_API_KEY = toDisplayName(process.env.RESEND_API_KEY);
-const RESEND_FROM = toDisplayName(process.env.RESEND_FROM || process.env.SMTP_FROM);
-const RESEND_REPLY_TO = toDisplayName(process.env.RESEND_REPLY_TO || process.env.SMTP_REPLY_TO);
+const RESEND_FROM = toDisplayName(process.env.RESEND_FROM);
+const RESEND_REPLY_TO = toDisplayName(process.env.RESEND_REPLY_TO);
 const EMAIL_API_TIMEOUT_MS = Number.isFinite(Number(process.env.EMAIL_API_TIMEOUT_MS))
   ? Math.max(1000, Math.floor(Number(process.env.EMAIL_API_TIMEOUT_MS)))
   : 12000;
@@ -7278,8 +7278,7 @@ app.post(
         }
       }
 
-      // SMTP delivery is best-effort after the saved response has been sent.
-      // Delivery failures are logged above and do not turn a saved submission into a timeout.
+      // Email API delivery is best-effort after the feedback has been saved and response sent.
     }
   );
 }
