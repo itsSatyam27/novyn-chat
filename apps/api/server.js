@@ -39,6 +39,7 @@ const runtimeState = require("./server/core/state");
 const { buildUserSearchResults } = require("./server/users/search");
 const { isQuietHoursActive, shouldDeliverNotification } = require("./server/notification-policy");
 const { createFcmMessage } = require("./server/notification-utils");
+const { createResendMailer } = require("./services/resend_mailer");
 const {
   normalizeName,
   toDisplayName,
@@ -52,13 +53,6 @@ const {
 } = require("./server/core/normalization");
 require("dotenv").config({ path: process.env.NOVYN_ENV_FILE || path.resolve(__dirname, '../../.env') });
 const { admin, firebaseAdmin, firebaseLegacyAdmin, verifyFirebaseIdToken } = require("./server/config/firebase-admin");
-let nodemailer = null;
-try {
-  nodemailer = require("nodemailer");
-} catch (_) {
-  nodemailer = null;
-}
-
 const app = express();
 const server = http.createServer(app);
 app.disable("x-powered-by");
@@ -1395,27 +1389,12 @@ const EMAIL_CHANGE_WINDOW_MS = 15 * 60 * 1000;
 const EMAIL_CHANGE_MAX_PER_WINDOW = 3;
 const EMAIL_CHANGE_RESEND_COOLDOWN_MS = 30 * 1000;
 const PASSWORD_RESET_LOG_CODES = process.env.NODE_ENV !== "production";
-const SMTP_HOST = toDisplayName(process.env.SMTP_HOST);
-const SMTP_PORT = Number.isFinite(Number(process.env.SMTP_PORT))
-  ? Math.max(1, Math.floor(Number(process.env.SMTP_PORT)))
-  : 587;
-const SMTP_SECURE = parseEnvBoolean(process.env.SMTP_SECURE, SMTP_PORT === 465);
-const SMTP_USER = toDisplayName(process.env.SMTP_USER);
-const SMTP_PASS = toDisplayName(process.env.SMTP_PASS);
-const SMTP_FROM = toDisplayName(process.env.SMTP_FROM) || SMTP_USER;
-const SMTP_REPLY_TO = toDisplayName(process.env.SMTP_REPLY_TO);
-const SMTP_CONNECTION_TIMEOUT_MS = Number.isFinite(Number(process.env.SMTP_CONNECTION_TIMEOUT_MS))
-  ? Math.max(1000, Math.floor(Number(process.env.SMTP_CONNECTION_TIMEOUT_MS)))
+const RESEND_API_KEY = toDisplayName(process.env.RESEND_API_KEY);
+const RESEND_FROM = toDisplayName(process.env.RESEND_FROM || process.env.SMTP_FROM);
+const RESEND_REPLY_TO = toDisplayName(process.env.RESEND_REPLY_TO || process.env.SMTP_REPLY_TO);
+const EMAIL_API_TIMEOUT_MS = Number.isFinite(Number(process.env.EMAIL_API_TIMEOUT_MS))
+  ? Math.max(1000, Math.floor(Number(process.env.EMAIL_API_TIMEOUT_MS)))
   : 12000;
-const SMTP_GREETING_TIMEOUT_MS = Number.isFinite(Number(process.env.SMTP_GREETING_TIMEOUT_MS))
-  ? Math.max(1000, Math.floor(Number(process.env.SMTP_GREETING_TIMEOUT_MS)))
-  : 12000;
-const SMTP_SOCKET_TIMEOUT_MS = Number.isFinite(Number(process.env.SMTP_SOCKET_TIMEOUT_MS))
-  ? Math.max(1000, Math.floor(Number(process.env.SMTP_SOCKET_TIMEOUT_MS)))
-  : 15000;
-const SMTP_SEND_TIMEOUT_MS = Number.isFinite(Number(process.env.SMTP_SEND_TIMEOUT_MS))
-  ? Math.max(2000, Math.floor(Number(process.env.SMTP_SEND_TIMEOUT_MS)))
-  : 18000;
 const PASSWORD_RESET_EMAIL_SUBJECT =
   toDisplayName(process.env.PASSWORD_RESET_EMAIL_SUBJECT) || "Your Novyn password reset code";
 const EMAIL_CHANGE_EMAIL_SUBJECT =
@@ -1512,35 +1491,16 @@ if (process.env.RENDER && !MONGODB_URI) {
   );
 }
 
-const passwordResetEmailConfigured = Boolean(
-  nodemailer && SMTP_HOST && SMTP_USER && SMTP_PASS && SMTP_FROM
-);
-const passwordResetMailer = passwordResetEmailConfigured
-  ? nodemailer.createTransport({
-      host: SMTP_HOST,
-      port: SMTP_PORT,
-      secure: SMTP_SECURE,
-      connectionTimeout: SMTP_CONNECTION_TIMEOUT_MS,
-      greetingTimeout: SMTP_GREETING_TIMEOUT_MS,
-      socketTimeout: SMTP_SOCKET_TIMEOUT_MS,
-      disableFileAccess: true,
-      disableUrlAccess: true,
-      auth: {
-        user: SMTP_USER,
-        pass: SMTP_PASS,
-      },
-    })
-  : null;
+const emailMailer = createResendMailer({
+  apiKey: RESEND_API_KEY,
+  from: RESEND_FROM,
+  replyTo: RESEND_REPLY_TO,
+  timeoutMs: EMAIL_API_TIMEOUT_MS,
+});
 
-if (!nodemailer && process.env.NODE_ENV === "production") {
+if (!emailMailer.configured && !PASSWORD_RESET_LOG_CODES) {
   console.warn(
-    "nodemailer is not installed. Run `npm install nodemailer` to enable password reset emails."
-  );
-}
-
-if (!passwordResetEmailConfigured && !PASSWORD_RESET_LOG_CODES) {
-  console.warn(
-    "SMTP config missing. Set SMTP_HOST, SMTP_USER, SMTP_PASS, and SMTP_FROM for password reset emails."
+    "[NovynEmail] Email API is not configured. Set RESEND_API_KEY and RESEND_FROM to enable transactional email delivery."
   );
 }
 
@@ -2756,17 +2716,56 @@ function markEmailChangeCodeIssued(userKey, state) {
 }
 
 function isPasswordResetDeliveryAvailable() {
-  return Boolean(passwordResetMailer) || PASSWORD_RESET_LOG_CODES;
+  return Boolean(emailMailer.configured) || PASSWORD_RESET_LOG_CODES;
 }
 
-async function dispatchPasswordResetCode(user, code) {
+async function sendNovynEmail({
+  to,
+  subject,
+  text,
+  html,
+  replyTo,
+  idempotencyKey,
+  purpose = "transactional",
+}) {
+  try {
+    const delivery = await emailMailer.send({
+      to,
+      subject,
+      text,
+      html,
+      replyTo,
+      idempotencyKey,
+    });
+    console.info("[NovynEmail] Provider accepted email:", {
+      provider: delivery.provider,
+      purpose,
+      emailId: delivery.id,
+    });
+    return { ok: true, id: delivery.id };
+  } catch (err) {
+    const diagnostic = toDisplayName(err?.message || "Email provider request failed")
+      .replaceAll(normalizeEmail(to), maskEmailAddress(to))
+      .slice(0, 220);
+    console.warn("[NovynEmail] HTTPS email delivery failed:", {
+      provider: "resend",
+      purpose,
+      code: toDisplayName(err?.code) || "unknown",
+      responseCode: Number(err?.statusCode) || 0,
+      diagnostic,
+    });
+    return { ok: false, error: err };
+  }
+}
+
+async function dispatchPasswordResetCode(user, code, tokenId = "") {
   const email = normalizeEmail(user?.email);
   const resetCode = toDisplayName(code);
   if (!email || !resetCode) return false;
 
-  if (!passwordResetMailer) {
+  if (!emailMailer.configured) {
     if (PASSWORD_RESET_LOG_CODES) {
-      console.log(`[Password reset code] ${email}: ${resetCode}`);
+      console.log(`[Password reset code] ${maskEmailAddress(email)}: ${resetCode}`);
       return true;
     }
     return false;
@@ -2786,53 +2785,19 @@ async function dispatchPasswordResetCode(user, code) {
     "Novyn Team",
   ].join("\n");
 
-  let timeoutId;
-  try {
-    const mailPayload = {
-      from: SMTP_FROM,
-      to: email,
-      subject: PASSWORD_RESET_EMAIL_SUBJECT,
-      text,
-      ...(SMTP_REPLY_TO ? { replyTo: SMTP_REPLY_TO } : {}),
-    };
-    const delivery = await Promise.race([
-      passwordResetMailer.sendMail(mailPayload),
-      new Promise((_, reject) => {
-        timeoutId = setTimeout(
-          () => reject(new Error("SMTP send timeout")),
-          SMTP_SEND_TIMEOUT_MS,
-        );
-      }),
-    ]);
-    const accepted = Array.isArray(delivery?.accepted)
-      ? delivery.accepted.map(normalizeEmail)
-      : null;
-    const rejected = Array.isArray(delivery?.rejected)
-      ? delivery.rejected.map(normalizeEmail)
-      : [];
-    if (rejected.includes(email) || (accepted && !accepted.includes(email))) {
-      console.warn("[NovynEmail] SMTP did not accept the password-reset recipient.");
-      return false;
-    }
+  const delivery = await sendNovynEmail({
+    to: email,
+    subject: PASSWORD_RESET_EMAIL_SUBJECT,
+    text,
+    idempotencyKey: tokenId ? `password-reset/${tokenId}` : undefined,
+    purpose: "password-reset",
+  });
+  if (delivery.ok) return true;
+  if (PASSWORD_RESET_LOG_CODES) {
+    console.log(`[Password reset code fallback] ${maskEmailAddress(email)}: ${resetCode}`);
     return true;
-  } catch (err) {
-    const diagnostic = toDisplayName(err?.response || err?.message || "SMTP error")
-      .replaceAll(email, maskEmailAddress(email))
-      .slice(0, 240);
-    console.warn("[NovynEmail] Password-reset SMTP delivery failed:", {
-      code: toDisplayName(err?.code) || "unknown",
-      responseCode: Number(err?.responseCode) || 0,
-      command: toDisplayName(err?.command) || "",
-      diagnostic,
-    });
-    if (PASSWORD_RESET_LOG_CODES) {
-      console.log(`[Password reset code fallback] ${email}: ${resetCode}`);
-      return true;
-    }
-    return false;
-  } finally {
-    if (timeoutId) clearTimeout(timeoutId);
   }
+  return false;
 }
 
 function maskEmailAddress(email) {
@@ -2846,14 +2811,14 @@ function maskEmailAddress(email) {
   return `${local[0]}${"*".repeat(local.length - 2)}${local[local.length - 1]}@${domain}`;
 }
 
-async function dispatchEmailChangeCode(user, nextEmail, code) {
+async function dispatchEmailChangeCode(user, nextEmail, code, tokenId = "") {
   const email = normalizeEmail(nextEmail);
   const verifyCode = toDisplayName(code);
   if (!email || !verifyCode) return false;
 
-  if (!passwordResetMailer) {
+  if (!emailMailer.configured) {
     if (PASSWORD_RESET_LOG_CODES) {
-      console.log(`[Email change code] ${email} (${user?.username || "user"}): ${verifyCode}`);
+      console.log(`[Email change code] ${maskEmailAddress(email)} (${user?.username || "user"}): ${verifyCode}`);
       return true;
     }
     return false;
@@ -2873,29 +2838,19 @@ async function dispatchEmailChangeCode(user, nextEmail, code) {
     "Novyn Team",
   ].join("\n");
 
-  try {
-    const mailPayload = {
-      from: SMTP_FROM,
-      to: email,
-      subject: EMAIL_CHANGE_EMAIL_SUBJECT,
-      text,
-      ...(SMTP_REPLY_TO ? { replyTo: SMTP_REPLY_TO } : {}),
-    };
-    await Promise.race([
-      passwordResetMailer.sendMail(mailPayload),
-      new Promise((_, reject) => {
-        setTimeout(() => reject(new Error("SMTP send timeout")), SMTP_SEND_TIMEOUT_MS);
-      }),
-    ]);
+  const delivery = await sendNovynEmail({
+    to: email,
+    subject: EMAIL_CHANGE_EMAIL_SUBJECT,
+    text,
+    idempotencyKey: tokenId ? `email-change/${tokenId}` : undefined,
+    purpose: "email-change-verification",
+  });
+  if (delivery.ok) return true;
+  if (PASSWORD_RESET_LOG_CODES) {
+    console.log(`[Email change code fallback] ${maskEmailAddress(email)}: ${verifyCode}`);
     return true;
-  } catch (err) {
-    console.warn(`Failed to send email-change code to ${email}:`, err?.message || err);
-    if (PASSWORD_RESET_LOG_CODES) {
-      console.log(`[Email change code fallback] ${email}: ${verifyCode}`);
-      return true;
-    }
-    return false;
   }
+  return false;
 }
 
 function normalizePushSubscription(raw) {
@@ -6704,7 +6659,7 @@ app.post("/api/account/password-reset/request",
     const salt = crypto.randomBytes(8).toString("hex");
     const tokenHash = createResetTokenHash(token, salt);
     const tokenId = createResetTokenId();
-    const dispatched = await dispatchPasswordResetCode(user, token);
+    const dispatched = await dispatchPasswordResetCode(user, token, tokenId);
     if (!dispatched) {
       if (passwordResetRate.get(userKey) === rate.state) {
         if (previousRateSnapshot) passwordResetRate.set(userKey, previousRateSnapshot);
@@ -7198,7 +7153,7 @@ app.post(
         });
       }
 
-      const mailConfigured = Boolean(passwordResetMailer);
+      const mailConfigured = Boolean(emailMailer.configured);
       const adminRecipientConfigured = Boolean(FEEDBACK_TO_EMAIL);
       const typeLabels = {
         general: "General",
@@ -7220,7 +7175,7 @@ app.post(
       let receiptEmailSent = false;
 
       // A feedback submission is successful once it is durably stored.
-      // Do not make the mobile request wait for slow SMTP round trips.
+      // Feedback is saved first; provider delivery happens after the response.
       res.json({
         ok: true,
         id: entry.id,
@@ -7231,17 +7186,18 @@ app.post(
           adminSent: false,
           receiptSent: false,
           receiptAddress: replyEmail || null,
-          deliveryPending: Boolean(passwordResetMailer && (FEEDBACK_TO_EMAIL || replyEmail)),
+          deliveryPending: Boolean(emailMailer.configured && (FEEDBACK_TO_EMAIL || replyEmail)),
         },
       });
 
-      if (passwordResetMailer && FEEDBACK_TO_EMAIL) {
+      if (emailMailer.configured && FEEDBACK_TO_EMAIL) {
         try {
-          await passwordResetMailer.sendMail({
-            from: process.env.SMTP_FROM,
+          const delivery = await sendNovynEmail({
             to: FEEDBACK_TO_EMAIL,
-            ...(replyEmail ? { replyTo: replyEmail } : {}),
+            replyTo: replyEmail || undefined,
             subject: `[Novyn Feedback] ${typeLabel} from ${fromUser}`,
+            idempotencyKey: `${entry.id}/admin`,
+            purpose: "feedback-admin",
             text: [
               "New feedback for Novyn",
               `Type: ${typeLabel}`,
@@ -7271,19 +7227,19 @@ app.post(
               </div>
             `,
           });
-          adminEmailSent = true;
+          adminEmailSent = delivery.ok;
         } catch (err) {
           console.warn("[NovynFeedback] Admin email delivery failed:", err?.message || err);
         }
       }
 
-      if (passwordResetMailer && replyEmail) {
+      if (emailMailer.configured && replyEmail) {
         try {
-          await passwordResetMailer.sendMail({
-            from: process.env.SMTP_FROM,
+          const delivery = await sendNovynEmail({
             to: replyEmail,
-            ...(SMTP_REPLY_TO ? { replyTo: SMTP_REPLY_TO } : {}),
             subject: "We received your feedback - Novyn",
+            idempotencyKey: `${entry.id}/receipt`,
+            purpose: "feedback-receipt",
             text: [
               `Hi ${fromUser === "anonymous" ? "there" : fromUser},`,
               "",
@@ -7316,7 +7272,7 @@ app.post(
               </div>
             `,
           });
-          receiptEmailSent = true;
+          receiptEmailSent = delivery.ok;
         } catch (err) {
           console.warn("[NovynFeedback] Submitter receipt email failed:", err?.message || err);
         }
@@ -8287,7 +8243,7 @@ io.on("connection", (socket) => {
     emailChangeByUser.set(userKey, tokenId);
     markEmailChangeCodeIssued(userKey, rate.state);
 
-    const dispatched = await dispatchEmailChangeCode(user, nextEmail, token);
+    const dispatched = await dispatchEmailChangeCode(user, nextEmail, token, tokenId);
     if (!dispatched) {
       dropEmailChangeTokenById(tokenId);
       fail("Email verification service is unavailable. Try again later.");
