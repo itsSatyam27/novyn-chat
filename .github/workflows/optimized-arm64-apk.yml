@@ -1,3 +1,16 @@
+name: Novyn Optimized ARM64 APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Serialize manual releases so an older parallel build cannot publish last.
+concurrency:
+  group: novyn-arm64-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-arm64:
     name: Build optimized ARM64 Shorebird release APK
