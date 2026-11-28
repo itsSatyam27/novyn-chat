@@ -134,7 +134,12 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      if (_offlineBot) return;
+      if (_offlineBot) {
+        if (_game['turn']?.toString().toLowerCase() == _botUser) {
+          unawaited(_playOfflineBotMove());
+        }
+        return;
+      }
       _socket = context.read<SocketService>();
       if (_voiceAllowed) {
         _socket!.onChessVoiceInviteCallback = _handleChessVoiceInvite;
@@ -405,7 +410,16 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
 
   void _resetOfflineBotMatch() {
     if (!_offlineBot) return;
+    final userIsWhite = math.Random.secure().nextBool();
+    final white = userIsWhite ? _user : _botUser;
+    final black = userIsWhite ? _botUser : _user;
     final nextData = Map<String, dynamic>.from(_data)
+      ..['white'] = white
+      ..['black'] = black
+      ..['whiteName'] = userIsWhite ? _playerNameFromUser() : 'Chess Bot'
+      ..['blackName'] = userIsWhite ? 'Chess Bot' : _playerNameFromUser()
+      ..['player1'] = white
+      ..['player2'] = black
       ..['fen'] = ChessEngine.startFen
       ..['legalMoves'] = ChessEngine.legalMoves(ChessEngine.startFen)
       ..['moves'] = <String>[]
@@ -420,7 +434,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
         ..._game,
         'state': 'in_progress',
         'winner': null,
-        'turn': _user,
+        'turn': white,
         'data': nextData,
       };
       _selected = null;
@@ -428,6 +442,16 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
       _timeoutClaimSent = false;
       _message = '';
     });
+    if (white == _botUser) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_playOfflineBotMove());
+      });
+    }
+  }
+
+  String _playerNameFromUser() {
+    final value = _user;
+    return value.isEmpty ? 'You' : value;
   }
 
   void _finishOfflineBotGame({
@@ -773,25 +797,39 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
     return (whiteTurn ? 'White' : 'Black') + ' to move' + (_data['check'] == true ? ' · Check' : '');
   }
 
-  Widget _playerCard(bool white, Color foreground, Color muted, Color panel, Color accent) {
+  Widget _playerCard(bool white) {
     final whiteToMove = _fen.split(' ').length > 1 && _fen.split(' ')[1] != 'b';
     final active = !_finished && whiteToMove == white;
-    final mine = (white ? _data['white'] : _data['black'])?.toString().toLowerCase() == _user;
+    final mine = (white ? _data['white'] : _data['black'])
+            ?.toString()
+            .trim()
+            .toLowerCase() ==
+        _user;
     final name = _playerName(white);
-    final timerColor = white ? accent : const Color(0xFF10131B);
+    final cardBackground = white
+        ? const Color(0xFF4038A8)
+        : const Color(0xFF111318);
+    final cardForeground = Colors.white;
+    final cardMuted = Colors.white.withValues(alpha: .74);
+    final sideAccent = white
+        ? const Color(0xFFC7D2FE)
+        : const Color(0xFFE5E7EB);
+    final timerColor = white
+        ? const Color(0xFF302878)
+        : const Color(0xFF292D37);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: panel,
+        color: cardBackground,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(
-          color: active ? accent : muted.withValues(alpha: .18),
+          color: active ? sideAccent : sideAccent.withValues(alpha: .20),
           width: active ? 2 : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: Theme.of(context).brightness == Brightness.dark ? .12 : .035),
+            color: Colors.black.withValues(alpha: .16),
             blurRadius: 18,
             offset: const Offset(0, 6),
           ),
@@ -807,17 +845,19 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: active ? accent : muted.withValues(alpha: .3),
+                    color: active ? sideAccent : cardMuted.withValues(alpha: .3),
                     width: 3,
                   ),
                 ),
                 child: CircleAvatar(
                   radius: 23,
-                  backgroundColor: white ? const Color(0xFFE8D6BC) : const Color(0xFF171923),
+                  backgroundColor: white
+                      ? const Color(0xFFE8E7FF)
+                      : const Color(0xFF30343E),
                   child: Text(
                     name.isEmpty ? '?' : name[0].toUpperCase(),
                     style: TextStyle(
-                      color: white ? const Color(0xFF332515) : Colors.white,
+                      color: white ? const Color(0xFF332B86) : Colors.white,
                       fontSize: 19,
                       fontWeight: FontWeight.w900,
                     ),
@@ -834,7 +874,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: foreground,
+                        color: cardForeground,
                         fontSize: 14,
                         fontWeight: FontWeight.w900,
                       ),
@@ -845,7 +885,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: muted,
+                        color: cardMuted,
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                       ),
@@ -857,13 +897,13 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                   decoration: BoxDecoration(
-                    color: accent.withValues(alpha: .12),
+                    color: sideAccent.withValues(alpha: .14),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
                     'TURN',
                     style: TextStyle(
-                      color: accent,
+                      color: sideAccent,
                       fontSize: 9,
                       fontWeight: FontWeight.w900,
                       letterSpacing: .5,
@@ -1376,7 +1416,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                _playerCard(false, foreground, muted, panel, accent),
+                                _playerCard(false),
                                 const SizedBox(height: 24),
                                 if (_offlineBot)
                                   Container(
@@ -1494,7 +1534,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                _playerCard(true, foreground, muted, panel, accent),
+                                _playerCard(true),
                                 const SizedBox(height: 24),
                                 Wrap(
                                   alignment: WrapAlignment.center,
