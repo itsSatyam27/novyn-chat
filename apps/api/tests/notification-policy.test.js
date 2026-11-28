@@ -106,6 +106,30 @@ test("game invitation, turn and result events respect their own preferences", ()
   }
 });
 
+test("game-turn delivery mode sends FCM only for Push + In-App", () => {
+  assert.equal(shouldDeliverNotification(
+    preferences({ gameTurnDelivery: "push" }),
+    { type: "game_turn" },
+  ), true);
+  assert.equal(shouldDeliverNotification(
+    preferences({ gameTurnDelivery: "in_app" }),
+    { type: "game_turn" },
+  ), false);
+  assert.equal(shouldDeliverNotification(
+    preferences({ gameTurnDelivery: "off" }),
+    { type: "game_turn" },
+  ), false);
+  // Older clients retain their former boolean behaviour until they save a mode.
+  assert.equal(shouldDeliverNotification(
+    preferences({ gameTurnEnabled: false }),
+    { type: "game_turn" },
+  ), false);
+  assert.equal(shouldDeliverNotification(
+    preferences({ gameTurnEnabled: true }),
+    { type: "game_turn" },
+  ), true);
+});
+
 test("quiet hours handle same-day and overnight schedules while calls remain deliverable", () => {
   const overnight = preferences({
     quietHoursEnabled: true,
