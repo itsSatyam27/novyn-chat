@@ -1346,12 +1346,12 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
                 );
               }
 
-              final sideWidth = (constraints.maxWidth * .265)
-                  .clamp(168.0, 360.0)
+              final sideWidth = (constraints.maxWidth * .235)
+                  .clamp(150.0, 320.0)
                   .toDouble();
 
               return Padding(
-                padding: const EdgeInsets.fromLTRB(16, 5, 16, 10),
+                padding: const EdgeInsets.fromLTRB(8, 2, 8, 4),
                 child: Column(
                   children: [
                     SizedBox(
@@ -1494,7 +1494,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
                               ],
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 8),
                           Expanded(
                             child: Column(
                               children: [
@@ -1532,7 +1532,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
                               ],
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 8),
                           SizedBox(
                             width: sideWidth,
                             child: Column(
