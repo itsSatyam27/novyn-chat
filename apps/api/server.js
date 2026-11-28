@@ -16,6 +16,7 @@ const { createGroupCallRegistry, registerGroupCallHandlers } = require("./server
 const groupCallRegistry = createGroupCallRegistry();
 const { applyGameMove, createGameChallenge } = require("./server/realtime/game-rules");
 const { PublicGameMatchmaking } = require("./server/realtime/game-matchmaking");
+const { listActiveRandomGamesForPlayer } = require("./server/realtime/random-game-session-restore");
 const { buildGameLeaderboard, normalizeLeaderboardGame } = require("./game-leaderboard");
 const { RajaMantriMatchmaking } = require("./server/realtime/raja-mantri-matchmaking");
 const {
@@ -5530,6 +5531,22 @@ function finalizeSocketAuthentication(socket, user) {
 
   markUndeliveredAsDelivered(userKey);
   socket.emit("register_success", buildRegisterSuccessPayload(userKey, user));
+
+  // Public matches remain active across a temporary socket disconnect. Send
+  // the latest authoritative snapshot to the newly authenticated socket so
+  // the open game room can refresh its local cache without starting a new match.
+  for (const match of listActiveRandomGamesForPlayer(randomGameSessions, userKey)) {
+    const opponent = users.get(match.opponentUsername);
+    socket.emit("random_game_restored", {
+      sessionId: match.sessionId,
+      game: match.game,
+      opponent: {
+        username: match.opponentUsername,
+        displayName: toDisplayName(opponent?.displayName || opponent?.username || match.opponentUsername),
+      },
+    });
+  }
+
   emitStatusToFriends(userKey);
   emitFriendList(userKey);
   emitGroupListUpdatesForUser(userKey);
