@@ -1620,8 +1620,17 @@ function enqueueGameSessionPersistence(queueKey, operation) {
 
 async function persistActiveGameSession(kind, sessionId, payload, expiresAt) {
   const collection = mongoGameSessionsCollection;
-  if (!collection) return;
+  if (!collection) return false;
   const id = String(kind) + ":" + String(sessionId);
+  let snapshot;
+  try {
+    // Raja Mantri mutates its nested player state in place. Freeze the payload
+    // before enqueueing so a later turn cannot leak into an earlier DB write.
+    snapshot = JSON.parse(JSON.stringify(payload));
+  } catch (error) {
+    console.warn("[NovynGames] Active session snapshot rejected:", error?.message || error);
+    return false;
+  }
   return enqueueGameSessionPersistence(id, async () => {
     try {
       await collection.updateOne(
@@ -1629,14 +1638,16 @@ async function persistActiveGameSession(kind, sessionId, payload, expiresAt) {
         { $set: {
           kind,
           sessionId: String(sessionId),
-          payload,
+          payload: snapshot,
           expiresAt: Number(expiresAt),
           updatedAt: new Date(),
         } },
         { upsert: true },
       );
+      return true;
     } catch (error) {
       console.warn("[NovynGames] Active session persistence failed:", error?.message || error);
+      return false;
     }
   });
 }
@@ -10088,9 +10099,19 @@ io.on("connection", (socket) => {
       return respond({ ok: false, message });
     }
 
+    const previousGame = item.game;
     item.game = result.game;
     const updatedGame = item.game;
-    schedulePersist();
+    try {
+      await flushStatePersistNow();
+    } catch (error) {
+      item.game = previousGame;
+      schedulePersist();
+      return respond({
+        ok: false,
+        message: "Could not save this move. Please retry when the connection is stable.",
+      });
+    }
     if (updatedGame.state === "finished") {
       await persistAuthoritativeGameHistoryRecords(
         buildTwoPlayerGameHistoryRecords(updatedGame, users),
@@ -11663,6 +11684,9 @@ async function shutdown() {
   try {
     await persistInFlight.catch(() => {});
     await authPersistInFlight.catch(() => {});
+    await Promise.all(
+      Array.from(gameSessionPersistenceQueues.values(), (write) => write.catch(() => {})),
+    );
     await persistNow();
     await persistAuthStateNow();
   } catch (err) {
