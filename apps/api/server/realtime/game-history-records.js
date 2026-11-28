@@ -17,10 +17,12 @@ function getRegisteredHumanAccounts(playerValues, users) {
 }
 
 function buildTwoPlayerGameHistoryRecords(game, users) {
-  if (!game || game.state !== "finished" || !["tictactoe", "rps"].includes(game.gameType)) return [];
+  if (!game || game.state !== "finished" || !["tictactoe", "rps", "chess"].includes(game.gameType)) return [];
   const data = game.data && typeof game.data === "object" && !Array.isArray(game.data) ? game.data : {};
   const playerValues = game.gameType === "tictactoe"
     ? [data.playerX || game.createdBy, data.playerO || game.opponent]
+    : game.gameType === "chess"
+    ? [data.white || data.player1, data.black || data.player2]
     : [data.player1 || game.createdBy, data.player2 || game.opponent];
   const playerKeys = Array.from(new Set(playerValues.map(normalizeKey).filter(Boolean)));
   const accounts = getRegisteredHumanAccounts(playerKeys, users);
