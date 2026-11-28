@@ -294,6 +294,9 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
   }
 
   String _playerName(bool white) {
+    final isMe = white ? _isWhite : _isBlack;
+    final opponentName = widget.opponentDisplayName?.trim() ?? '';
+    if (!isMe && opponentName.isNotEmpty) return opponentName;
     final value = (white ? _data['whiteName'] : _data['blackName'])?.toString().trim() ?? '';
     if (value.isNotEmpty) return value;
     return (white ? _data['white'] : _data['black'])?.toString() ?? (white ? 'White' : 'Black');
