@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -57,22 +58,25 @@ class GameRoomScreen extends StatefulWidget {
     }
 
     final isChess = gameType == 'chess';
+    final chessUserIsWhite = !isChess || math.Random.secure().nextBool();
+    final chessWhite = chessUserIsWhite ? account : 'novyn_chess_bot';
+    final chessBlack = chessUserIsWhite ? 'novyn_chess_bot' : account;
     final initialGame = <String, dynamic>{
       'gameType': gameType,
       'title': title,
       'state': 'in_progress',
       'createdBy': account,
-      'turn': account,
+      'turn': isChess ? chessWhite : account,
       'isOfflineBot': true,
       'botDifficulty': botDifficulty,
       'data': isChess
           ? <String, dynamic>{
-              'white': account,
-              'black': 'novyn_chess_bot',
-              'whiteName': account,
-              'blackName': 'Chess Bot',
-              'player1': account,
-              'player2': 'novyn_chess_bot',
+              'white': chessWhite,
+              'black': chessBlack,
+              'whiteName': chessUserIsWhite ? account : 'Chess Bot',
+              'blackName': chessUserIsWhite ? 'Chess Bot' : account,
+              'player1': chessWhite,
+              'player2': chessBlack,
               'fen': ChessEngine.startFen,
               'legalMoves': ChessEngine.legalMoves(ChessEngine.startFen),
               'moves': <String>[],
