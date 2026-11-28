@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../../../../services/chess_engine.dart';
 import '../../../../services/chess_voice_service.dart';
 import '../../../../services/socket_service.dart';
+import '../../../../theme/novyn_theme.dart';
 
 class ChessGameScreen extends StatefulWidget {
   const ChessGameScreen({
@@ -1322,7 +1323,10 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
         if (!didPop) _confirmLeave();
       },
       child: Scaffold(
-        backgroundColor: theme.scaffoldBackgroundColor,
+        // The app-wide scaffold color is intentionally transparent; paint the
+        // selected Novyn page background here so the Chess route never exposes
+        // the navigator's black underlay in light mode.
+        backgroundColor: NovynTheme.pageBg(context),
         body: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
