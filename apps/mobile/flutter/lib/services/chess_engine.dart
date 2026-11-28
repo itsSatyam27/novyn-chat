@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 /// Legal-move engine and local minimax opponent for offline Chess practice.
 class ChessEngine {
   ChessEngine._();
