@@ -267,7 +267,8 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
     final base = ((white ? _data['whiteTimeMs'] : _data['blackTimeMs']) as num?)?.toInt() ?? 300000;
     final whiteTurn = (_fen.split(' ').length > 1 && _fen.split(' ')[1] != 'b');
     if (white != whiteTurn || _finished) return math.max(0, base).toInt();
-    final started = (_data['lastMoveAt'] as num?)?.toInt() ?? _now;
+    final started = (_data['lastMoveAt'] as num?)?.toInt() ?? 0;
+    if (started <= 0) return base;
     return math.max(0, base - math.max(0, _now - started)).toInt();
   }
 
