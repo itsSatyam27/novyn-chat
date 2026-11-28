@@ -111,7 +111,7 @@ class GameAchievementsScreen extends StatelessWidget {
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-                  child: _AllUnlockedCard(),
+                  child: const _AllUnlockedCard(),
                 ),
               )
             else
@@ -389,6 +389,8 @@ class _AchievementTile extends StatelessWidget {
 }
 
 class _AllUnlockedCard extends StatelessWidget {
+  const _AllUnlockedCard({super.key});
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
