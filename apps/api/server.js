@@ -15,6 +15,10 @@ const { registerCallHandlers, cancelCallForUser } = require("./server/realtime/c
 const { createGroupCallRegistry, registerGroupCallHandlers } = require("./server/realtime/group-call-handlers");
 const groupCallRegistry = createGroupCallRegistry();
 const { applyGameMove, createGameChallenge } = require("./server/realtime/game-rules");
+const {
+  buildTwoPlayerGameHistoryRecords,
+  buildRajaMantriHistoryRecords,
+} = require("./server/realtime/game-history-records");
 const { PublicGameMatchmaking } = require("./server/realtime/game-matchmaking");
 const { listActiveRandomGamesForPlayer } = require("./server/realtime/random-game-session-restore");
 const { buildGameLeaderboard, normalizeLeaderboardGame } = require("./game-leaderboard");
@@ -966,7 +970,7 @@ app.get("/api/games/history", requireUser, async (req, res) => {
   }
   try {
     const matches = await mongoGameHistoryCollection
-      .find({ userKey: req.userKey }, { projection: { _id: 0, userKey: 0 } })
+      .find({ userKey: req.userKey, source: "server" }, { projection: { _id: 0, userKey: 0 } })
       .sort({ playedAt: -1 })
       .limit(2000)
       .toArray();
@@ -985,60 +989,32 @@ app.post("/api/games/history", requireUser, requireCsrf, async (req, res) => {
   if (!incoming.length || incoming.length > 100) {
     return res.status(400).json({ error: "Submit between 1 and 100 completed matches." });
   }
-  const allowedGames = new Set(["tictactoe", "rps", "rockpaperscissors", "rajamantri", "ludo", "uno", "connect4", "doodle", "numberclash", "updown"]);
-  const docs = [];
+
+  // Clients may retry history sync, but they are never allowed to create or
+  // change leaderboard results. Only records produced by server game state
+  // transitions are accepted as verified history.
+  let verified = 0;
   for (const item of incoming) {
-    // Ignore bot records entirely: they neither award XP nor reset a human streak.
     if (item?.isBotMatch === true || item?.opponentType === "bot") continue;
-    const matchId = toDisplayName(item?.id || item?.matchId).slice(0, 160);
+    const matchId = String(item?.id || item?.matchId || "").trim().slice(0, 160);
     const gameType = toDisplayName(item?.gameType).toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 40);
-    const opponent = toDisplayName(item?.opponent).slice(0, 192);
-    const opponentNames = opponent.split(",").map((name) => name.trim()).filter(Boolean);
-    const opponentKeys = opponentNames.map(normalizeName);
-    const allOpponentsRegistered = opponentKeys.length > 0 &&
-      new Set(opponentKeys).size === opponentKeys.length &&
-      opponentKeys.every((opponentKey) =>
-        opponentKey !== req.userKey && users.get(opponentKey)?.isRegistered
-      );
     const result = ["win", "loss", "draw"].includes(item?.result) ? item.result : "";
-    const playedAt = new Date(item?.playedAt);
-    // A client flag is not proof that a match was human-vs-human. Require every
-    // recorded opponent (including multiplayer opponents) to be a registered account.
-    if (!matchId || !allowedGames.has(gameType) || !opponent ||
-        !allOpponentsRegistered || !result ||
-        opponentNames.some((name) => /^(ai|bot)(\b|[_ -])/i.test(name)) ||
-        !Number.isFinite(playedAt.getTime()) ||
-        playedAt.getTime() > Date.now() + 5 * 60 * 1000 ||
-        playedAt.getTime() < Date.now() - 5 * 365 * 24 * 60 * 60 * 1000) {
-      return res.status(400).json({ error: "A completed human match must include registered, different Novyn opponent accounts and valid match details." });
+    if (!matchId || !gameType || !result) continue;
+    try {
+      const stored = await mongoGameHistoryCollection.findOne({
+        _id: req.userKey + ":" + matchId,
+        userKey: req.userKey,
+        source: "server",
+      });
+      if (stored && stored.gameType === gameType && stored.result === result) {
+        verified += 1;
+      }
+    } catch (error) {
+      console.warn("[NovynGames] History verification failed:", error?.message || error);
+      return res.status(503).json({ error: "Cloud game history could not be verified." });
     }
-    docs.push({
-      _id: req.userKey + ":" + matchId,
-      userKey: req.userKey,
-      id: matchId,
-      gameType,
-      opponent,
-      result,
-      playedAt: playedAt.toISOString(),
-      isBotMatch: false,
-    });
   }
-  try {
-    if (docs.length) {
-      await mongoGameHistoryCollection.bulkWrite(
-        docs.map((doc) => ({ updateOne: {
-          filter: { _id: doc._id, userKey: req.userKey },
-          update: { $setOnInsert: doc },
-          upsert: true,
-        }})),
-        { ordered: false }
-      );
-    }
-    return res.json({ ok: true, saved: docs.length });
-  } catch (error) {
-    console.warn("[NovynGames] History write failed:", error?.message || error);
-    return res.status(503).json({ error: "Cloud game history could not be saved." });
-  }
+  return res.json({ ok: true, saved: verified, skipped: incoming.length - verified });
 });
 
 // Leaderboards aggregate persisted non-bot match records for registered accounts.
@@ -1082,7 +1058,7 @@ app.get("/api/games/leaderboard", requireUser, async (req, res) => {
       }
     }
 
-    const historyQuery = { isBotMatch: { $ne: true } };
+    const historyQuery = { isBotMatch: { $ne: true }, source: "server" };
     if (scope === "friends") {
       historyQuery.userKey = { $in: Array.from(eligibleUsers.keys()) };
     }
@@ -1618,14 +1594,186 @@ function emitRajaMantriGameUpdate(session) {
   }
 }
 
-function expireRajaMantriSession(sessionId) { const entry=rajaMantriSessions.get(sessionId); if(!entry)return;clearTimeout(entry.expiryTimer);clearTimeout(entry.responseTimer);rajaMantriSessions.delete(sessionId);void deletePersistedGameSession("rajamantri",sessionId); }
-async function persistActiveGameSession(kind,sessionId,payload,expiresAt){if(!mongoGameSessionsCollection)return;try{await mongoGameSessionsCollection.updateOne({_id:String(kind)+":"+String(sessionId)},{$set:{kind,sessionId:String(sessionId),payload,expiresAt:Number(expiresAt),updatedAt:new Date()}},{upsert:true});}catch(e){console.warn("[NovynGames] Active session persistence failed:",e?.message||e);}}
-async function deletePersistedGameSession(kind,sessionId){if(!mongoGameSessionsCollection)return;try{await mongoGameSessionsCollection.deleteOne({_id:String(kind)+":"+String(sessionId)});}catch(e){console.warn("[NovynGames] Session cleanup failed:",e?.message||e);}}
-function persistRandomGameSession(sessionId,entry){if(entry)void persistActiveGameSession("random",sessionId,{game:entry.game,players:entry.players},entry.expiresAt);}
-function persistRajaMantriSession(sessionId,entry){if(!entry?.game)return;const game={...entry.game};delete game.random;void persistActiveGameSession("rajamantri",sessionId,game,entry.expiresAt);}
-function scheduleRandomSessionExpiry(sessionId,entry){clearTimeout(entry.expiryTimer);entry.expiryTimer=setTimeout(()=>{if(randomGameSessions.get(sessionId)!==entry)return;randomGameSessions.delete(sessionId);void deletePersistedGameSession("random",sessionId);},Math.max(0,entry.expiresAt-Date.now()));if(entry.expiryTimer.unref)entry.expiryTimer.unref();}
-function scheduleRajaMantriSessionExpiry(sessionId,entry){clearTimeout(entry.expiryTimer);entry.expiryTimer=setTimeout(()=>{if(rajaMantriSessions.get(sessionId)!==entry)return;expireRajaMantriSession(sessionId);},Math.max(0,entry.expiresAt-Date.now()));if(entry.expiryTimer.unref)entry.expiryTimer.unref();}
-async function restoreActiveGameSessions(){if(!mongoGameSessionsCollection)return;const docs=await mongoGameSessionsCollection.find({expiresAt:{$gt:Date.now()}}).toArray();for(const doc of docs){const expiresAt=Number(doc.expiresAt),sessionId=String(doc.sessionId||"");if(!sessionId||!Number.isFinite(expiresAt)||expiresAt<=Date.now()){await mongoGameSessionsCollection.deleteOne({_id:doc._id});continue;}if(doc.kind==="random"&&doc.payload?.game&&Array.isArray(doc.payload.players)){const entry={game:doc.payload.game,players:doc.payload.players.map(normalizeName),expiresAt,expiryTimer:null};randomGameSessions.set(sessionId,entry);scheduleRandomSessionExpiry(sessionId,entry);continue;}if(doc.kind==="rajamantri"&&Array.isArray(doc.payload?.players)){const game={...doc.payload,random:Math.random};for(const p of game.players)if(!p.isBot){p.isConnected=false;p.autoControlled=true;}const entry={game,expiresAt,expiryTimer:null,responseTimer:null,responseTimerDeadline:0};rajaMantriSessions.set(sessionId,entry);scheduleRajaMantriSessionExpiry(sessionId,entry);scheduleRajaMantriPhaseTimer(entry);continue;}await mongoGameSessionsCollection.deleteOne({_id:doc._id});}console.log("[NovynGames] Recovered "+randomGameSessions.size+" random and "+rajaMantriSessions.size+" Raja Mantri sessions.");}
+function expireRajaMantriSession(sessionId) {
+  const entry = rajaMantriSessions.get(sessionId);
+  if (!entry) return;
+  clearTimeout(entry.expiryTimer);
+  clearTimeout(entry.responseTimer);
+  rajaMantriSessions.delete(sessionId);
+  void deletePersistedGameSession("rajamantri", sessionId);
+}
+
+function enqueueGameSessionPersistence(queueKey, operation) {
+  const previous = gameSessionPersistenceQueues.get(queueKey) || Promise.resolve();
+  const next = previous.catch(() => {}).then(operation);
+  gameSessionPersistenceQueues.set(queueKey, next);
+  const cleanup = () => {
+    if (gameSessionPersistenceQueues.get(queueKey) === next) {
+      gameSessionPersistenceQueues.delete(queueKey);
+    }
+  };
+  void next.then(cleanup, cleanup);
+  return next;
+}
+
+async function persistActiveGameSession(kind, sessionId, payload, expiresAt) {
+  const collection = mongoGameSessionsCollection;
+  if (!collection) return;
+  const id = String(kind) + ":" + String(sessionId);
+  return enqueueGameSessionPersistence(id, async () => {
+    try {
+      await collection.updateOne(
+        { _id: id },
+        { $set: {
+          kind,
+          sessionId: String(sessionId),
+          payload,
+          expiresAt: Number(expiresAt),
+          updatedAt: new Date(),
+        } },
+        { upsert: true },
+      );
+    } catch (error) {
+      console.warn("[NovynGames] Active session persistence failed:", error?.message || error);
+    }
+  });
+}
+
+async function deletePersistedGameSession(kind, sessionId) {
+  const collection = mongoGameSessionsCollection;
+  if (!collection) return;
+  const id = String(kind) + ":" + String(sessionId);
+  return enqueueGameSessionPersistence(id, async () => {
+    try {
+      await collection.deleteOne({ _id: id });
+    } catch (error) {
+      console.warn("[NovynGames] Session cleanup failed:", error?.message || error);
+    }
+  });
+}
+
+async function persistAuthoritativeGameHistoryRecords(records) {
+  if (!mongoGameHistoryCollection || !Array.isArray(records) || !records.length) return;
+  try {
+    await mongoGameHistoryCollection.bulkWrite(
+      records.map((record) => ({
+        updateOne: {
+          filter: { _id: record._id, userKey: record.userKey },
+          update: { $set: { ...record, source: "server" } },
+          upsert: true,
+        },
+      })),
+      { ordered: false },
+    );
+  } catch (error) {
+    console.warn("[NovynGames] Authoritative history write failed:", error?.message || error);
+  }
+}
+
+function persistRandomGameSession(sessionId, entry) {
+  if (!entry) return Promise.resolve();
+  return persistActiveGameSession("random", sessionId, {
+    game: entry.game,
+    players: entry.players,
+  }, entry.expiresAt);
+}
+
+function persistRajaMantriSession(sessionId, entry) {
+  if (!entry?.game) return Promise.resolve();
+  const game = { ...entry.game };
+  delete game.random;
+  return persistActiveGameSession("rajamantri", sessionId, game, entry.expiresAt);
+}
+
+function scheduleRandomSessionExpiry(sessionId, entry) {
+  clearTimeout(entry.expiryTimer);
+  entry.expiryTimer = setTimeout(() => {
+    if (randomGameSessions.get(sessionId) !== entry) return;
+    randomGameSessions.delete(sessionId);
+    void deletePersistedGameSession("random", sessionId);
+  }, Math.max(0, entry.expiresAt - Date.now()));
+  if (entry.expiryTimer.unref) entry.expiryTimer.unref();
+}
+
+function scheduleRajaMantriSessionExpiry(sessionId, entry) {
+  clearTimeout(entry.expiryTimer);
+  entry.expiryTimer = setTimeout(() => {
+    if (rajaMantriSessions.get(sessionId) !== entry) return;
+    expireRajaMantriSession(sessionId);
+  }, Math.max(0, entry.expiresAt - Date.now()));
+  if (entry.expiryTimer.unref) entry.expiryTimer.unref();
+}
+
+async function restoreActiveGameSessions() {
+  if (!mongoGameSessionsCollection) return;
+  const now = Date.now();
+  await mongoGameSessionsCollection.deleteMany({
+    $or: [
+      { expiresAt: { $lte: now } },
+      { expiresAt: { $exists: false } },
+    ],
+  });
+  const docs = await mongoGameSessionsCollection.find({ expiresAt: { $gt: now } }).toArray();
+  for (const doc of docs) {
+    const expiresAt = Number(doc.expiresAt);
+    const sessionId = String(doc.sessionId || "");
+    if (!sessionId || !Number.isFinite(expiresAt) || expiresAt <= now) {
+      await mongoGameSessionsCollection.deleteOne({ _id: doc._id });
+      continue;
+    }
+    if (doc.kind === "random" && doc.payload?.game &&
+        Array.isArray(doc.payload.players)) {
+      const players = Array.from(new Set(doc.payload.players.map(normalizeName).filter(Boolean)));
+      if (players.length !== 2 || !doc.payload.game || typeof doc.payload.game !== "object" ||
+          Array.isArray(doc.payload.game)) {
+        await mongoGameSessionsCollection.deleteOne({ _id: doc._id });
+        continue;
+      }
+      const entry = {
+        game: doc.payload.game,
+        players,
+        expiresAt,
+        expiryTimer: null,
+      };
+      randomGameSessions.set(sessionId, entry);
+      scheduleRandomSessionExpiry(sessionId, entry);
+      if (entry.game.state === "finished") {
+        await persistAuthoritativeGameHistoryRecords(
+          buildTwoPlayerGameHistoryRecords(entry.game, users),
+        );
+      }
+      continue;
+    }
+    if (doc.kind === "rajamantri" && Array.isArray(doc.payload?.players)) {
+      const game = { ...doc.payload, random: Math.random };
+      for (const player of game.players) {
+        if (!player.isBot) {
+          player.isConnected = false;
+          player.autoControlled = true;
+        }
+      }
+      const entry = {
+        game,
+        expiresAt,
+        expiryTimer: null,
+        responseTimer: null,
+        responseTimerDeadline: 0,
+      };
+      rajaMantriSessions.set(sessionId, entry);
+      scheduleRajaMantriSessionExpiry(sessionId, entry);
+      scheduleRajaMantriPhaseTimer(entry);
+      if (game.phase === "finished") {
+        await persistAuthoritativeGameHistoryRecords(
+          buildRajaMantriHistoryRecords(game, users),
+        );
+      }
+      continue;
+    }
+    await mongoGameSessionsCollection.deleteOne({ _id: doc._id });
+  }
+  console.log("[NovynGames] Recovered " + randomGameSessions.size +
+    " random and " + rajaMantriSessions.size + " Raja Mantri sessions.");
+}
 
 // Random matches are short-lived, server-authoritative sessions. They do not
 // depend on a friendship or a chat thread, and are discarded after 30 minutes.
@@ -1642,6 +1790,7 @@ let mongoAuthSessionsCollection = null;
 let mongoMediaCollection = null;
 let mongoGameHistoryCollection = null;
 let mongoGameSessionsCollection = null;
+const gameSessionPersistenceQueues = new Map();
 const mediaMetadataCache = new Map();
 
 let persistTimer = null;
@@ -7494,8 +7643,17 @@ io.on("connection", (socket) => {
       RAJA_MANTRI_SESSION_TTL_MS,
     );
     if (typeof expiryTimer.unref === "function") expiryTimer.unref();
-    const sessionEntry = { game: gameSession, expiresAt: Date.now() + RAJA_MANTRI_SESSION_TTL_MS, expiryTimer, responseTimer: null, responseTimerDeadline: 0 };
-    rajaMantriSessions.set(result.matchId, sessionEntry); scheduleRajaMantriSessionExpiry(result.matchId, sessionEntry); scheduleRajaMantriPhaseTimer(sessionEntry); persistRajaMantriSession(result.matchId, sessionEntry);
+    const sessionEntry = {
+      game: gameSession,
+      expiresAt: Date.now() + RAJA_MANTRI_SESSION_TTL_MS,
+      expiryTimer: null,
+      responseTimer: null,
+      responseTimerDeadline: 0,
+    };
+    rajaMantriSessions.set(result.matchId, sessionEntry);
+    scheduleRajaMantriSessionExpiry(result.matchId, sessionEntry);
+    scheduleRajaMantriPhaseTimer(sessionEntry);
+    persistRajaMantriSession(result.matchId, sessionEntry);
     const packet = {
       matchId: result.matchId,
       sessionId: result.matchId,
@@ -7579,7 +7737,13 @@ io.on("connection", (socket) => {
     }
     const result = pickRajaMantriChit(entry.game, userKey);
     if (!result.ok) return respond({ ok: false, message: result.reason });
-    scheduleRajaMantriPhaseTimer(entry); persistRajaMantriSession(sessionId, entry);
+    scheduleRajaMantriPhaseTimer(entry);
+    persistRajaMantriSession(sessionId, entry);
+    if (entry.game.phase === "finished") {
+      await persistAuthoritativeGameHistoryRecords(
+        buildRajaMantriHistoryRecords(entry.game, users),
+      );
+    }
     emitRajaMantriGameUpdate(entry.game);
     return respond({ ok: true, game: getRajaMantriGameView(entry.game, userKey) });
   });
@@ -7603,7 +7767,7 @@ io.on("connection", (socket) => {
     return respond({ ok: true, game: getRajaMantriGameView(entry.game, userKey) });
   });
 
-  socket.on("advance_rajamantri_round", (payload, callback) => {
+  socket.on("advance_rajamantri_round", async (payload, callback) => {
     const respond = typeof callback === "function" ? callback : () => {};
     const userKey = normalizeName(socket.data.userKey || "");
     const sessionId = String(payload?.sessionId || "").trim().slice(0, 128);
@@ -7811,11 +7975,17 @@ io.on("connection", (socket) => {
     } catch (_) {
       return respond({ ok: false, message: "Could not create the Raja Mantri room." });
     }
-    const expiryTimer = setTimeout(() => expireRajaMantriSession(matchId), RAJA_MANTRI_SESSION_TTL_MS);
-    if (typeof expiryTimer.unref === "function") expiryTimer.unref();
-    const sessionEntry = { game, expiryTimer, responseTimer: null, responseTimerDeadline: 0 };
+    const sessionEntry = {
+      game,
+      expiresAt: Date.now() + RAJA_MANTRI_SESSION_TTL_MS,
+      expiryTimer: null,
+      responseTimer: null,
+      responseTimerDeadline: 0,
+    };
     rajaMantriSessions.set(matchId, sessionEntry);
+    scheduleRajaMantriSessionExpiry(matchId, sessionEntry);
     scheduleRajaMantriPhaseTimer(sessionEntry);
+    persistRajaMantriSession(matchId, sessionEntry);
     for (const { messageId, invite } of invites) {
       clearTimeout(invite.timer);
       pendingGameInvites.delete(messageId);
@@ -7847,7 +8017,7 @@ io.on("connection", (socket) => {
     });
   });
 
-  socket.on("random_game_move", (payload, callback) => {
+  socket.on("random_game_move", async (payload, callback) => {
     const respond = typeof callback === "function" ? callback : () => {};
     const userKey = normalizeName(socket.data.userKey || "");
     const sessionId = String(payload?.sessionId || "").trim();
@@ -7858,6 +8028,7 @@ io.on("connection", (socket) => {
     if (session.expiresAt <= Date.now()) {
       clearTimeout(session.expiryTimer);
       randomGameSessions.delete(sessionId);
+      await deletePersistedGameSession("random", sessionId);
       return respond({ ok: false, message: "This random game has expired. Start a new match." });
     }
     if (!session.players.includes(userKey)) {
@@ -7869,7 +8040,13 @@ io.on("connection", (socket) => {
       return respond({ ok: false, message: result.reason || "Invalid game move." });
     }
 
-    session.game = result.game; persistRandomGameSession(sessionId, session);
+    session.game = result.game;
+    await persistRandomGameSession(sessionId, session);
+    if (session.game.state === "finished") {
+      await persistAuthoritativeGameHistoryRecords(
+        buildTwoPlayerGameHistoryRecords(session.game, users),
+      );
+    }
     const packet = {
       sessionId,
       game: session.game,
@@ -9764,7 +9941,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("game_move", (payload, callback) => {
+  socket.on("game_move", async (payload, callback) => {
     const respond = typeof callback === "function" ? callback : () => {};
     const userKey = socket.data.userKey;
     if (!userKey) return respond({ ok: false, message: "Please sign in again." });
@@ -9804,6 +9981,11 @@ io.on("connection", (socket) => {
     item.game = result.game;
     const updatedGame = item.game;
     schedulePersist();
+    if (updatedGame.state === "finished") {
+      await persistAuthoritativeGameHistoryRecords(
+        buildTwoPlayerGameHistoryRecords(updatedGame, users),
+      );
+    }
     respond({ ok: true, game: updatedGame });
 
     const packet = {
