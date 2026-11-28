@@ -8360,54 +8360,39 @@ io.on("connection", (socket) => {
       return respond({ ok: false, message: "Please wait before joining Chess voice again." });
     }
 
-    const scope = payload?.scope === "random" ? "random" : payload?.scope === "friend" ? "friend" : "";
-    let peerKey = "";
-    let matchKey = "";
-    let inviteContext = {};
-    if (scope === "random") {
-      const sessionId = String(payload?.sessionId || "").trim().slice(0, 128);
-      const session = randomGameSessions.get(sessionId);
-      if (!session || session.expiresAt <= Date.now() ||
-          session.game?.gameType !== "chess" || session.game?.state !== "in_progress" ||
-          !session.players.includes(userKey)) {
-        return respond({ ok: false, message: "This Chess match is no longer available for voice." });
-      }
-      peerKey = session.players.find((playerKey) => playerKey !== userKey) || "";
-      matchKey = "random:" + sessionId;
-      inviteContext = { scope, sessionId };
-    } else if (scope === "friend") {
-      const messageId = toDisplayName(payload?.messageId).slice(0, 128);
-      const requestedPeer = toDisplayName(payload?.peerUsername);
-      if (!messageId || !requestedPeer) {
-        return respond({ ok: false, message: "A Chess match and opponent are required for voice." });
-      }
-      const resolved = resolveChatTargetForUser(userKey, requestedPeer, "friend", { inferGroup: false });
-      if (!resolved.ok || resolved.type !== "friend") {
-        return respond({ ok: false, message: "You are not authorized for this Chess match." });
-      }
-      peerKey = normalizeName(resolved.targetKey || requestedPeer);
-      if (!peerKey || peerKey === userKey || usersAreBlocked(userKey, peerKey)) {
-        return respond({ ok: false, message: "Chess voice is unavailable for this contact." });
-      }
-      const messages = conversations.get(resolved.conversationKey) || [];
-      const message = messages.find((entry) =>
-        String(entry.id) === messageId && entry.game && entry.game.gameType === "chess"
-      );
-      const game = message?.game;
-      const gameData = game?.data && typeof game.data === "object" ? game.data : {};
-      const players = new Set([
-        game?.createdBy, game?.opponent, gameData.white, gameData.black,
-        gameData.player1, gameData.player2,
-      ].map(normalizeName).filter(Boolean));
-      if (!game || game.state !== "in_progress" ||
-          !players.has(userKey) || !players.has(peerKey)) {
-        return respond({ ok: false, message: "This Chess match is not active for both players." });
-      }
-      matchKey = "friend:" + String(resolved.conversationKey) + ":" + messageId;
-      inviteContext = { scope, messageId };
-    } else {
-      return respond({ ok: false, message: "Invalid Chess voice match." });
+    if (payload?.scope !== "friend") {
+      return respond({ ok: false, message: "Chess voice is available only in friend matches." });
     }
+
+    const messageId = toDisplayName(payload?.messageId).slice(0, 128);
+    const requestedPeer = toDisplayName(payload?.peerUsername);
+    if (!messageId || !requestedPeer) {
+      return respond({ ok: false, message: "A Chess match and opponent are required for voice." });
+    }
+    const resolved = resolveChatTargetForUser(userKey, requestedPeer, "friend", { inferGroup: false });
+    if (!resolved.ok || resolved.type !== "friend") {
+      return respond({ ok: false, message: "You are not authorized for this Chess match." });
+    }
+    const peerKey = normalizeName(resolved.targetKey || requestedPeer);
+    if (!peerKey || peerKey === userKey || usersAreBlocked(userKey, peerKey)) {
+      return respond({ ok: false, message: "Chess voice is unavailable for this contact." });
+    }
+    const messages = conversations.get(resolved.conversationKey) || [];
+    const message = messages.find((entry) =>
+      String(entry.id) === messageId && entry.game && entry.game.gameType === "chess"
+    );
+    const game = message?.game;
+    const gameData = game?.data && typeof game.data === "object" ? game.data : {};
+    const players = new Set([
+      game?.createdBy, game?.opponent, gameData.white, gameData.black,
+      gameData.player1, gameData.player2,
+    ].map(normalizeName).filter(Boolean));
+    if (!game || game.state !== "in_progress" ||
+        !players.has(userKey) || !players.has(peerKey)) {
+      return respond({ ok: false, message: "This Chess match is not active for both players." });
+    }
+    const matchKey = "friend:" + String(resolved.conversationKey) + ":" + messageId;
+    const inviteContext = { scope: "friend", messageId };
 
     const peerSocketId = onlineUsers.get(peerKey);
     if (!peerSocketId) {
