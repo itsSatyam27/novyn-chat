@@ -719,6 +719,13 @@ class NotificationService {
   static Future<void> showGameNotification(Map<String, dynamic> data) async {
     final type = data['type']?.toString() ?? '';
     if (!const {'game_invitation', 'game_turn', 'game_result'}.contains(type)) return;
+    if (type == 'game_invitation') {
+      final expiresAt = int.tryParse(data['expiresAt']?.toString() ?? '');
+      if (expiresAt != null &&
+          expiresAt <= DateTime.now().millisecondsSinceEpoch) {
+        return;
+      }
+    }
     final prefs = await SharedPreferences.getInstance();
     await prefs.reload();
     final account = (prefs.getString('novyn_notification_account') ?? '')
@@ -2022,7 +2029,21 @@ class NotificationService {
       }
       return;
     }
-    if (type == 'game_invitation' || type == 'game_result') {
+    if (type == 'game_invitation') {
+      final appIsResumed =
+          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+      final socketCanShowInvitation =
+          _socket?.isConnected == true && _socket?.isAuthenticated == true;
+
+      // The app-wide invitation overlay is the foreground surface when the
+      // authenticated socket is live. Avoid stacking a second local alert on
+      // top of that popup; retain the notification as a fallback when offline.
+      if (!appIsResumed || !socketCanShowInvitation) {
+        unawaited(showGameNotification(message.data));
+      }
+      return;
+    }
+    if (type == 'game_result') {
       unawaited(showGameNotification(message.data));
       return;
     }
