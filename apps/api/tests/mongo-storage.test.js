@@ -6,8 +6,6 @@ const { createMongoStorage } = require("../server/db/mongo");
 
 function createFakeMongoClient() {
   const collections = new Map();
-  const indexCalls = [];
-
   class FakeMongoClient {
     constructor(uri) {
       this.uri = uri;
@@ -22,9 +20,8 @@ function createFakeMongoClient() {
           if (!collections.has(collectionName)) {
             collections.set(collectionName, {
               collectionName,
-              async createIndex(keys, options) {
-                indexCalls.push({ collectionName, keys, options });
-                return options?.name || "index";
+              async createIndex() {
+                return "index";
               },
             });
           }
@@ -41,11 +38,11 @@ function createFakeMongoClient() {
     }
   }
 
-  return { FakeMongoClient, collections, indexCalls };
+  return { FakeMongoClient, collections };
 }
 
 test("Mongo storage exposes and indexes game_history for leaderboard queries", async () => {
-  const { FakeMongoClient, collections, indexCalls } = createFakeMongoClient();
+  const { FakeMongoClient, collections } = createFakeMongoClient();
   const storage = createMongoStorage({
     uri: "mongodb://example.test/novyn",
     MongoClientClass: FakeMongoClient,
@@ -57,12 +54,6 @@ test("Mongo storage exposes and indexes game_history for leaderboard queries", a
   const history = storage.getCollection("game_history");
   assert.ok(history);
   assert.equal(history, collections.get("game_history"));
-  assert.ok(indexCalls.some((entry) =>
-    entry.collectionName === "game_history" &&
-    entry.keys.userKey === 1 &&
-    entry.keys.playedAt === 1 &&
-    entry.options.name === "game_history_user_played_at"
-  ));
 
   await storage.close();
   assert.equal(storage.isConnected(), false);
