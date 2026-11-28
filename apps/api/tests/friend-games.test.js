@@ -112,7 +112,7 @@ test("rematch controls reject chat members who are not assigned players", () => 
     winner: "alice",
   };
 
-  for (const action of ["rematch_request", "rematch_accept", "rematch_decline", "rematch", "leave_room"]) {
+  for (const action of ["rematch_request", "rematch_accept", "rematch_decline", "rematch_cancel", "rematch", "leave_room"]) {
     const result = applyGameMove(finished, "mallory", { action });
     assert.equal(result.ok, false, action + " must reject a non-player");
     assert.match(result.reason, /not a player/i);
@@ -148,6 +148,22 @@ test("rematch requests require a finished game and accept only the other player'
 
   const duplicateAccept = applyGameMove(accepted.game, "bob", { action: "rematch_accept" });
   assert.equal(duplicateAccept.ok, false);
+});
+
+test("only the requester can cancel a pending rematch and cancellation prevents acceptance", () => {
+  const finished = { ...friendGame(), state: "finished", winner: "alice" };
+  const request = applyGameMove(finished, "alice", { action: "rematch_request" });
+  assert.equal(request.ok, true);
+
+  const opponentCancel = applyGameMove(request.game, "bob", { action: "rematch_cancel" });
+  assert.equal(opponentCancel.ok, false);
+  assert.match(opponentCancel.reason, /only the player who requested/i);
+
+  const cancelled = applyGameMove(request.game, "alice", { action: "rematch_cancel" });
+  assert.equal(cancelled.ok, true);
+  assert.equal(cancelled.game.data.rematch.status, "cancelled");
+  assert.equal(cancelled.game.data.rematch.cancelledBy, "alice");
+  assert.equal(applyGameMove(cancelled.game, "bob", { action: "rematch_accept" }).ok, false);
 });
 
 test("expired rematch requests cannot be accepted or declined", () => {

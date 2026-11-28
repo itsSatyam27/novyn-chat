@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'novyn_alert.dart';
@@ -481,6 +482,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
         opponentName: widget.opponentDisplayName ?? widget.peerUsername,
         sendingMove: _sendingMove,
         startingRematch: _startingRematch,
+        isOfflineBot: _isOfflineBot,
         onSendMove: (move) => _move({
           'move': move,
           'round': (int.tryParse(_data['round']?.toString() ?? '') ?? 1) +
@@ -576,14 +578,20 @@ class _GameMessageCardState extends State<GameMessageCard> {
     if (_startingRematch) return;
     setState(() => _startingRematch = true);
     try {
-      final socket = context.read<SocketService>();
-      await socket.makeGameMove(
-        widget.messageId,
-        widget.peerUsername,
-        {'action': 'rematch_accept'},
-        isGroup: widget.isGroup,
-      );
-    } catch (_) {
+      await _sendRematchAction('rematch_request');
+    } catch (error) {
+      if (mounted) {
+        NovynAlert.show(
+          context,
+          error is StateError
+              ? error.message.toString()
+              : 'Could not request a rematch. Check your connection and try again.',
+          isError: true,
+          title: 'Rematch unavailable',
+          icon: Icons.sync_problem_rounded,
+          tone: NovynAlertTone.warning,
+        );
+      }
     } finally {
       if (mounted) setState(() => _startingRematch = false);
     }
@@ -596,16 +604,39 @@ class _GameMessageCardState extends State<GameMessageCard> {
       }
       return;
     }
+    final socket = context.read<SocketService>();
     try {
-      final socket = context.read<SocketService>();
-      await socket.makeGameMove(
-        widget.messageId,
-        widget.peerUsername,
-        {'action': action},
-        isGroup: widget.isGroup,
-      );
-    } catch (_) {}
+      final randomSessionId = widget.randomSessionId;
+      if (randomSessionId != null && randomSessionId.isNotEmpty) {
+        await socket.moveRandomGame(randomSessionId, {'action': action});
+      } else {
+        await socket.makeGameMove(
+          widget.messageId,
+          widget.peerUsername,
+          {'action': action},
+          isGroup: widget.isGroup,
+        );
+      }
+    } catch (_) {
+      if (action != 'leave_room') rethrow;
+    }
   }
+}
+
+Map<String, dynamic> _copyGameSnapshot(Map<String, dynamic> game) => {
+      ...game,
+      'data': game['data'] is Map
+          ? Map<String, dynamic>.from(game['data'] as Map)
+          : <String, dynamic>{},
+    };
+
+bool _hasLiveRematchRequest(Map<String, dynamic> game) {
+  final data = game['data'];
+  final rematch = data is Map ? data['rematch'] : null;
+  if (rematch is! Map || rematch['status'] != 'pending') return false;
+  final expiresAt = int.tryParse(rematch['expiresAt']?.toString() ?? '');
+  return expiresAt != null &&
+      expiresAt > DateTime.now().millisecondsSinceEpoch;
 }
 
 void _showGameOverModal(
@@ -616,32 +647,68 @@ void _showGameOverModal(
   required String score,
   required Future<void> Function() onPlayAgain,
   required VoidCallback onClose,
+  required String currentUsername,
+  required ValueListenable<Map<String, dynamic>> gameState,
+  required VoidCallback onDismiss,
   Future<void> Function(String action)? onRematchAction,
-  bool isOpponentRequest = false,
-  String? playerLeft,
   String? opponentName,
   bool isOfflineBot = false,
 }) {
-  showModalBottomSheet<void>(
-    context: context,
-    isDismissible: true,
-    enableDrag: true,
-    backgroundColor: Colors.transparent,
-    builder: (sheetContext) {
-      return _GameOverModalContent(
-        emoji: emoji,
-        title: title,
-        subtitle: subtitle,
-        score: score,
-        onPlayAgain: onPlayAgain,
-        onClose: onClose,
-        onRematchAction: onRematchAction,
-        isOpponentRequest: isOpponentRequest,
-        playerLeft: playerLeft,
-        opponentName: opponentName,
-        isOfflineBot: isOfflineBot,
-      );
-    },
+  unawaited(
+    showModalBottomSheet<void>(
+      context: context,
+      isDismissible: true,
+      enableDrag: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return ValueListenableBuilder<Map<String, dynamic>>(
+          valueListenable: gameState,
+          builder: (context, game, _) {
+            final rawData = game['data'];
+            final data = rawData is Map
+                ? Map<String, dynamic>.from(rawData)
+                : <String, dynamic>{};
+            final rematch = data['rematch'];
+            final status =
+                rematch is Map ? rematch['status']?.toString() : null;
+            final requestedBy = rematch is Map
+                ? rematch['requestedBy']?.toString().toLowerCase()
+                : null;
+            final expiresAt = rematch is Map
+                ? int.tryParse(rematch['expiresAt']?.toString() ?? '')
+                : null;
+            final isLivePending = status == 'pending' &&
+                expiresAt != null &&
+                expiresAt > DateTime.now().millisecondsSinceEpoch;
+            final effectiveStatus =
+                status == 'pending' && !isLivePending ? 'expired' : status;
+            final normalizedUser = currentUsername.trim().toLowerCase();
+            return _GameOverModalContent(
+              emoji: emoji,
+              title: title,
+              subtitle: subtitle,
+              score: score,
+              onPlayAgain: onPlayAgain,
+              onClose: onClose,
+              onRematchAction: onRematchAction,
+              isOpponentRequest:
+                  isLivePending && requestedBy != normalizedUser,
+              isOwnRequest:
+                  isLivePending && requestedBy == normalizedUser,
+              rematchStatus: effectiveStatus,
+              rematchExpiresAt: expiresAt,
+              isMatchFinished: game['state']?.toString() == 'finished',
+              playerLeft: data['playerLeft']?.toString() ??
+                  (rematch is Map && status == 'opponent_left'
+                      ? rematch['leftBy']?.toString()
+                      : null),
+              opponentName: opponentName,
+              isOfflineBot: isOfflineBot,
+            );
+          },
+        );
+      },
+    ).whenComplete(onDismiss),
   );
 }
 
@@ -655,6 +722,10 @@ class _GameOverModalContent extends StatefulWidget {
     required this.onClose,
     this.onRematchAction,
     this.isOpponentRequest = false,
+    this.isOwnRequest = false,
+    this.rematchStatus,
+    this.rematchExpiresAt,
+    this.isMatchFinished = true,
     this.playerLeft,
     this.opponentName,
     this.isOfflineBot = false,
@@ -668,6 +739,10 @@ class _GameOverModalContent extends StatefulWidget {
   final VoidCallback onClose;
   final Future<void> Function(String action)? onRematchAction;
   final bool isOpponentRequest;
+  final bool isOwnRequest;
+  final String? rematchStatus;
+  final int? rematchExpiresAt;
+  final bool isMatchFinished;
   final String? playerLeft;
   final String? opponentName;
   final bool isOfflineBot;
@@ -691,20 +766,64 @@ class _GameOverModalContentState extends State<_GameOverModalContent> {
       _statusNote = '${widget.opponentName ?? "Player 2"} left the room';
     } else if (widget.isOpponentRequest) {
       _opponentWantsRematch = true;
-      _startTimer();
+      _startTimer(expiresAt: widget.rematchExpiresAt);
+    } else if (widget.isOwnRequest) {
+      _rematchRequested = true;
+      _startTimer(expiresAt: widget.rematchExpiresAt);
+    } else if (widget.rematchStatus == 'declined') {
+      _statusNote = 'Rematch declined';
+    } else if (widget.rematchStatus == 'cancelled') {
+      _statusNote = 'Rematch request cancelled';
+    } else if (widget.rematchStatus == 'expired') {
+      _statusNote = 'Rematch request timed out';
     }
   }
 
   @override
   void didUpdateWidget(covariant _GameOverModalContent oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!widget.isMatchFinished && oldWidget.isMatchFinished) {
+      _timer?.cancel();
+      if (!_loading) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) Navigator.of(context).maybePop();
+        });
+      }
+      return;
+    }
     if (widget.playerLeft != null && widget.playerLeft != oldWidget.playerLeft) {
       _timer?.cancel();
-      setState(() {
-        _rematchRequested = false;
-        _opponentWantsRematch = false;
-        _statusNote = '${widget.opponentName ?? "Player 2"} left the room';
-      });
+      _rematchRequested = false;
+      _opponentWantsRematch = false;
+      _statusNote = '${widget.opponentName ?? "Player 2"} left the room';
+      return;
+    }
+    final rematchChanged =
+        widget.rematchStatus != oldWidget.rematchStatus ||
+        widget.isOpponentRequest != oldWidget.isOpponentRequest ||
+        widget.isOwnRequest != oldWidget.isOwnRequest ||
+        widget.rematchExpiresAt != oldWidget.rematchExpiresAt;
+    if (!rematchChanged) return;
+    _timer?.cancel();
+    if (widget.isOpponentRequest) {
+      _rematchRequested = false;
+      _opponentWantsRematch = true;
+      _statusNote = null;
+      _startTimer(expiresAt: widget.rematchExpiresAt);
+    } else if (widget.isOwnRequest) {
+      _rematchRequested = true;
+      _opponentWantsRematch = false;
+      _statusNote = null;
+      _startTimer(expiresAt: widget.rematchExpiresAt);
+    } else {
+      _rematchRequested = false;
+      _opponentWantsRematch = false;
+      _statusNote = switch (widget.rematchStatus) {
+        'declined' => 'Rematch declined',
+        'cancelled' => 'Rematch request cancelled',
+        'expired' => 'Rematch request timed out',
+        _ => null,
+      };
     }
   }
 
@@ -714,9 +833,18 @@ class _GameOverModalContentState extends State<_GameOverModalContent> {
     super.dispose();
   }
 
-  void _startTimer() {
+  void _startTimer({int? expiresAt}) {
     _timer?.cancel();
-    _secondsRemaining = 15;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    _secondsRemaining = expiresAt == null
+        ? 15
+        : ((expiresAt - now) / 1000).ceil().clamp(0, 15).toInt();
+    if (_secondsRemaining <= 0) {
+      _rematchRequested = false;
+      _opponentWantsRematch = false;
+      _statusNote = 'Rematch request timed out';
+      return;
+    }
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) {
         timer.cancel();
@@ -804,30 +932,48 @@ class _GameOverModalContentState extends State<_GameOverModalContent> {
   }
 
   Future<void> _handleDecline() async {
-    _timer?.cancel();
-    if (widget.onRematchAction != null) {
-      try {
+    if (_loading) return;
+    setState(() => _loading = true);
+    try {
+      if (widget.onRematchAction != null) {
         await widget.onRematchAction!('rematch_decline');
-      } catch (_) {}
+      }
+      if (!mounted) return;
+      _timer?.cancel();
+      setState(() {
+        _opponentWantsRematch = false;
+        _rematchRequested = false;
+        _statusNote = 'Rematch declined';
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() => _statusNote = 'Could not decline rematch. Try again.');
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
-    setState(() {
-      _opponentWantsRematch = false;
-      _rematchRequested = false;
-      _statusNote = 'Rematch declined';
-    });
   }
 
-  void _handleCancelRequest() {
-    _timer?.cancel();
-    if (widget.onRematchAction != null) {
-      try {
-        widget.onRematchAction!('rematch_decline');
-      } catch (_) {}
+  Future<void> _handleCancelRequest() async {
+    if (_loading) return;
+    setState(() => _loading = true);
+    try {
+      if (widget.onRematchAction != null) {
+        await widget.onRematchAction!('rematch_cancel');
+      }
+      if (!mounted) return;
+      _timer?.cancel();
+      setState(() {
+        _rematchRequested = false;
+        _statusNote = 'Rematch request cancelled';
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() => _statusNote = 'Could not cancel rematch. Try again.');
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
-    setState(() {
-      _rematchRequested = false;
-      _statusNote = 'Rematch request cancelled';
-    });
   }
 
   @override
@@ -986,7 +1132,7 @@ class _GameOverModalContentState extends State<_GameOverModalContent> {
             ),
           ] else if (_rematchRequested) ...[
             FilledButton(
-              onPressed: _handleCancelRequest,
+              onPressed: _loading ? null : _handleCancelRequest,
               style: FilledButton.styleFrom(
                 backgroundColor: isDark ? const Color(0xFF2C2649) : const Color(0xFFF3F0FA),
                 foregroundColor: isDark ? Colors.white70 : const Color(0xFF5A5579),
@@ -1445,6 +1591,8 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
   List<dynamic>? _optimisticBoard;
   String? _error;
   bool _gameOverModalShown = false;
+  bool _gameOverModalOpen = false;
+  late final ValueNotifier<Map<String, dynamic>> _liveGame;
 
   Map<String, dynamic> get _data => widget.game['data'] is Map
       ? Map<String, dynamic>.from(widget.game['data'] as Map)
@@ -1455,6 +1603,7 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
   @override
   void initState() {
     super.initState();
+    _liveGame = ValueNotifier<Map<String, dynamic>>(_copyGameSnapshot(widget.game));
     if (_finished) {
       _gameOverModalShown = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1466,6 +1615,10 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
   @override
   void didUpdateWidget(covariant _TicTacToeMatchPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
+    final gameSnapshot = _copyGameSnapshot(widget.game);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _liveGame.value = gameSnapshot;
+    });
     if (oldWidget.game['data'] != widget.game['data']) {
       _optimisticBoard = null;
       _error = null;
@@ -1475,12 +1628,26 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _showGameOver();
       });
+    } else if (_finished &&
+        _hasLiveRematchRequest(widget.game) &&
+        !_gameOverModalOpen) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showGameOver();
+      });
     } else if (!_finished) {
       _gameOverModalShown = false;
     }
   }
 
+  @override
+  void dispose() {
+    _liveGame.dispose();
+    super.dispose();
+  }
+
   void _showGameOver() {
+    if (_gameOverModalOpen) return;
+    _gameOverModalOpen = true;
     final winner = widget.game['winner']?.toString() ?? '';
     final meWon = winner.toLowerCase() == widget.currentUsername.toLowerCase();
     final tie = winner == 'draw';
@@ -1494,17 +1661,6 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
     final myScore = isPlayerX ? winsX : winsO;
     final opponentScore = isPlayerX ? winsO : winsX;
 
-    final rematch = data['rematch'];
-    final isOpponentRequest = rematch is Map &&
-        rematch['status'] == 'pending' &&
-        rematch['requestedBy']?.toString().toLowerCase() !=
-            widget.currentUsername.toLowerCase();
-
-    final playerLeft = data['playerLeft']?.toString() ??
-        (rematch is Map && rematch['status'] == 'opponent_left'
-            ? rematch['leftBy']?.toString()
-            : null);
-
     _showGameOverModal(
       context,
       emoji: tie ? '🤝' : (meWon ? '🏆' : '⚡'),
@@ -1516,8 +1672,11 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
       onPlayAgain: widget.onPlayAgain,
       onClose: () => Navigator.of(context).maybePop(),
       onRematchAction: widget.onRematchAction,
-      isOpponentRequest: isOpponentRequest,
-      playerLeft: playerLeft,
+      currentUsername: widget.currentUsername,
+      gameState: _liveGame,
+      onDismiss: () {
+        if (mounted) _gameOverModalOpen = false;
+      },
       opponentName: opponentName,
       isOfflineBot: widget.isOfflineBot,
     );
@@ -1900,6 +2059,7 @@ class _RockPaperScissorsPanel extends StatefulWidget {
     required this.opponentName,
     required this.sendingMove,
     required this.startingRematch,
+    required this.isOfflineBot,
     required this.onSendMove,
     required this.onPlayAgain,
     this.onRematchAction,
@@ -1911,6 +2071,7 @@ class _RockPaperScissorsPanel extends StatefulWidget {
   final String opponentName;
   final bool sendingMove;
   final bool startingRematch;
+  final bool isOfflineBot;
   final Future<bool> Function(String move) onSendMove;
   final Future<void> Function() onPlayAgain;
   final Future<void> Function(String action)? onRematchAction;
@@ -1934,6 +2095,8 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
   bool _revealed = false;
   bool _roundTransitioning = false;
   bool _gameOverModalShown = false;
+  bool _gameOverModalOpen = false;
+  late final ValueNotifier<Map<String, dynamic>> _liveGame;
   String _leftShuffle = 'rock';
   String _rightShuffle = 'paper';
   String _status = 'Pick your move';
@@ -1961,6 +2124,7 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
   @override
   void initState() {
     super.initState();
+    _liveGame = ValueNotifier<Map<String, dynamic>>(_copyGameSnapshot(widget.game));
     _shakeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 420),
@@ -1983,6 +2147,10 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
   @override
   void didUpdateWidget(covariant _RockPaperScissorsPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
+    final gameSnapshot = _copyGameSnapshot(widget.game);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _liveGame.value = gameSnapshot;
+    });
     final currentData = widget.game['data'];
     final currentState = widget.game['state']?.toString();
     if (!identical(_lastObservedData, currentData) ||
@@ -1990,6 +2158,13 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
       _lastObservedData = currentData;
       _lastObservedState = currentState;
       _syncGame();
+    }
+    if (_finished &&
+        _hasLiveRematchRequest(widget.game) &&
+        !_gameOverModalOpen) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showGameOver();
+      });
     }
   }
 
@@ -2000,6 +2175,7 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
     _revealTimer?.cancel();
     _nextRoundTimer?.cancel();
     _shakeController.dispose();
+    _liveGame.dispose();
     super.dispose();
   }
 
@@ -2133,22 +2309,13 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
   }
 
   void _showGameOver() {
+    if (_gameOverModalOpen) return;
+    _gameOverModalOpen = true;
     final winner = widget.game['winner']?.toString() ?? '';
     final iWon = winner.toLowerCase() == widget.currentUsername.toLowerCase();
     final tie = winner == 'draw';
     final myScore = _isPlayer1 ? _displayedP1Score : _displayedP2Score;
     final otherScore = _isPlayer1 ? _displayedP2Score : _displayedP1Score;
-
-    final rematch = widget.game['data']?['rematch'];
-    final isOpponentRequest = rematch is Map &&
-        rematch['status'] == 'pending' &&
-        rematch['requestedBy']?.toString().toLowerCase() !=
-            widget.currentUsername.toLowerCase();
-
-    final playerLeft = widget.game['data']?['playerLeft']?.toString() ??
-        (rematch is Map && rematch['status'] == 'opponent_left'
-            ? rematch['leftBy']?.toString()
-            : null);
 
     _showGameOverModal(
       context,
@@ -2161,9 +2328,13 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
       onPlayAgain: widget.onPlayAgain,
       onClose: () => Navigator.of(context).maybePop(),
       onRematchAction: widget.onRematchAction,
-      isOpponentRequest: isOpponentRequest,
-      playerLeft: playerLeft,
+      currentUsername: widget.currentUsername,
+      gameState: _liveGame,
+      onDismiss: () {
+        if (mounted) _gameOverModalOpen = false;
+      },
       opponentName: _opponentFullName,
+      isOfflineBot: widget.isOfflineBot,
     );
   }
 

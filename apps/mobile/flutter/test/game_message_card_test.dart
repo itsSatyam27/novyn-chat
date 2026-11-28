@@ -13,6 +13,17 @@ class _FakeSocketService extends SocketService {
   String? sentPeer;
   Map<String, dynamic>? sentMoveData;
   bool? sentToGroup;
+  String? sentRandomSessionId;
+
+  @override
+  Future<Map<String, dynamic>> moveRandomGame(
+    String sessionId,
+    Map<String, dynamic> moveData,
+  ) async {
+    sentRandomSessionId = sessionId;
+    sentMoveData = Map<String, dynamic>.from(moveData);
+    return <String, dynamic>{'ok': true};
+  }
 
   @override
   Future<Map<String, dynamic>> makeGameMove(
@@ -98,6 +109,7 @@ Widget gameCardHost(
   bool isGroup = false,
   bool compact = false,
   String gameType = 'tictactoe',
+  String? randomSessionId,
 }) {
   return ChangeNotifierProvider<SocketService>.value(
     value: socket,
@@ -111,6 +123,7 @@ Widget gameCardHost(
             peerUsername: isGroup ? 'group-123' : 'bob',
             isGroup: isGroup,
             compact: compact,
+            randomSessionId: randomSessionId,
           ),
         ),
       ),
@@ -417,6 +430,90 @@ void main() {
     expect(find.text('Pick your move'), findsNothing);
     expect(socket.openChatCalls, 0);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('incoming rematch request updates an open result sheet', (tester) async {
+    final socket = _FakeSocketService();
+    final game = finishedGame();
+    late StateSetter updateGame;
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<SocketService>.value(
+        value: socket,
+        child: MaterialApp(
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) {
+                updateGame = setState;
+                return SingleChildScrollView(
+                  child: GameMessageCard(
+                    messageId: 'game-message-1',
+                    game: game,
+                    currentUsername: 'alice',
+                    peerUsername: 'bob',
+                    compact: false,
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Great match! Want a rematch?'), findsOneWidget);
+    updateGame(() {
+      (game['data'] as Map<String, dynamic>)['rematch'] = {
+        'status': 'pending',
+        'requestedBy': 'bob',
+        'requestedAt': DateTime.now().millisecondsSinceEpoch,
+        'expiresAt': DateTime.now().millisecondsSinceEpoch + 15000,
+      };
+    });
+    await tester.pumpAndSettle();
+
+    expect(find.text('Rematch Challenge!'), findsOneWidget);
+    expect(find.textContaining('Accept ('), findsOneWidget);
+    expect(find.text('Decline'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('requester cancels a rematch with the dedicated cancel action', (tester) async {
+    final socket = _FakeSocketService();
+    await tester.pumpWidget(gameCardHost(socket));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Play again'));
+    await tester.pumpAndSettle();
+    expect(find.text('Cancel request'), findsOneWidget);
+
+    await tester.tap(find.text('Cancel request'));
+    await tester.pumpAndSettle();
+
+    expect(socket.sentMessageId, 'game-message-1');
+    expect(socket.sentMoveData, {'action': 'rematch_cancel'});
+    expect(find.text('Rematch request cancelled'), findsOneWidget);
+  });
+
+  testWidgets('random-match rematch uses the random session socket route', (tester) async {
+    final socket = _FakeSocketService();
+    await tester.pumpWidget(
+      gameCardHost(
+        socket,
+        gameType: 'rps',
+        randomSessionId: 'random-session-1',
+      ),
+    );
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Play again'));
+    await tester.pumpAndSettle();
+
+    expect(socket.sentRandomSessionId, 'random-session-1');
+    expect(socket.sentMessageId, isNull);
+    expect(socket.sentMoveData, {'action': 'rematch_request'});
   });
 
   testWidgets('Rock Paper Scissors rematch uses the existing match', (tester) async {
