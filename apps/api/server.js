@@ -8340,6 +8340,46 @@ io.on("connection", (socket) => {
     });
   });
 
+  socket.on("random_game_chat", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : () => {};
+    const userKey = normalizeName(socket.data.userKey || "");
+    const sessionId = String(payload?.sessionId || "").trim();
+    const session = randomGameSessions.get(sessionId);
+    if (!userKey || onlineUsers.get(userKey) !== socket.id || !session) {
+      return respond({ ok: false, message: "This random game session is no longer available." });
+    }
+    if (session.expiresAt <= Date.now() || session.game?.state !== "in_progress") {
+      return respond({ ok: false, message: "Match chat is no longer available." });
+    }
+    if (!session.players.includes(userKey)) {
+      return respond({ ok: false, message: "You are not a player in this game." });
+    }
+    if (!allowSocketAction(socket, "random_game_chat", 30, 60_000)) {
+      return respond({ ok: false, message: "Match chat rate limit reached. Please slow down." });
+    }
+    const messageText = String(payload?.text || "").replace(/[\u0000-\u001f\u007f]/g, " ").trim();
+    if (!messageText || messageText.length > 600) {
+      return respond({ ok: false, message: "Write a message with up to 600 characters." });
+    }
+    const account = users.get(userKey);
+    const packet = {
+      id: crypto.randomUUID(),
+      sessionId,
+      from: account?.username || userKey,
+      displayName: toDisplayName(account?.displayName || account?.username || userKey),
+      text: messageText,
+      createdAt: Date.now(),
+    };
+    if (!Array.isArray(session.chatMessages)) session.chatMessages = [];
+    session.chatMessages.push(packet);
+    if (session.chatMessages.length > 50) session.chatMessages.splice(0, session.chatMessages.length - 50);
+    for (const playerKey of session.players) {
+      const playerSocketId = onlineUsers.get(normalizeName(playerKey));
+      if (playerSocketId) io.to(playerSocketId).emit("random_game_chat_message", packet);
+    }
+    return respond({ ok: true, message: packet });
+  });
+
   socket.on("random_game_move", async (payload, callback) => {
     const respond = typeof callback === "function" ? callback : () => {};
     const userKey = normalizeName(socket.data.userKey || "");
