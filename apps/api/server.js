@@ -8100,7 +8100,7 @@ io.on("connection", (socket) => {
     return respond({ ok: true });
   });
 
-  socket.on("start_rajamantri_friend_room", (payload, callback) => {
+  socket.on("start_rajamantri_friend_room", async (payload, callback) => {
     const respond = typeof callback === "function" ? callback : () => {};
     const userKey = normalizeName(socket.data.userKey || "");
     if (!userKey || onlineUsers.get(userKey) !== socket.id) {
@@ -8169,7 +8169,16 @@ io.on("connection", (socket) => {
     rajaMantriSessions.set(matchId, sessionEntry);
     scheduleRajaMantriSessionExpiry(matchId, sessionEntry);
     scheduleRajaMantriPhaseTimer(sessionEntry);
-    persistRajaMantriSession(matchId, sessionEntry);
+    const persisted = await persistRajaMantriSession(matchId, sessionEntry);
+    if (!persisted) {
+      clearTimeout(sessionEntry.expiryTimer);
+      clearTimeout(sessionEntry.responseTimer);
+      rajaMantriSessions.delete(matchId);
+      return respond({
+        ok: false,
+        message: "Could not save this room. Your accepted invitations are still available; please retry.",
+      });
+    }
     for (const { messageId, invite } of invites) {
       clearTimeout(invite.timer);
       pendingGameInvites.delete(messageId);
