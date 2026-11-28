@@ -725,7 +725,7 @@ function createGameChallenge(input = {}, { randomInt = crypto.randomInt } = {}) 
       id: typeof requested.id === "string" && requested.id.length <= 128 ? requested.id : `game_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       gameType,
       title: titles[gameType],
-      createdBy: userName,
+      createdBy: gameType === "chess" ? userKey : userName,
       opponent: toType === "friend" ? to : undefined,
       state: "in_progress",
       turn: gameType === "tictactoe" ? playerX : gameType === "chess" ? userKey : userName,
