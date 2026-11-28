@@ -74,7 +74,7 @@ void main() {
       final mixedHatTrick = mixed.achievements.firstWhere(
         (item) => item.id == 'hat_trick',
       );
-      expect(mixedHatTrick.progress, 1);
+      expect(mixedHatTrick.progress, 3);
       expect(mixedHatTrick.isUnlocked, isFalse);
 
       final sameGame = GameAchievementsService.evaluate([
