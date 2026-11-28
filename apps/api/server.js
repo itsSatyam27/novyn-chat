@@ -8426,6 +8426,7 @@ io.on("connection", (socket) => {
       });
     } else {
       io.to(peerSocketId).emit("chess_voice_invite", {
+        roomId: joined.roomId,
         ...inviteContext,
         peerUsername: userKey,
         displayName,
@@ -8469,7 +8470,7 @@ io.on("connection", (socket) => {
     if (!userKey) return;
     const roomId = String(payload?.roomId || "").trim().slice(0, 128);
     const left = chessVoiceRegistry.leave(roomId, userKey);
-    if (!left || !left.peerStillJoined) return;
+    if (!left) return;
     const peerSocketId = onlineUsers.get(left.peerUsername);
     if (peerSocketId) {
       io.to(peerSocketId).emit("chess_voice_peer_left", {
@@ -8483,7 +8484,6 @@ io.on("connection", (socket) => {
     const userKey = normalizeName(socket.data.userKey || "");
     if (!userKey) return;
     for (const left of chessVoiceRegistry.disconnect(userKey)) {
-      if (!left.peerStillJoined) continue;
       const peerSocketId = onlineUsers.get(left.peerUsername);
       if (peerSocketId) {
         io.to(peerSocketId).emit("chess_voice_peer_left", {
