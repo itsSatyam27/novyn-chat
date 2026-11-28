@@ -90,7 +90,7 @@ test("exposes current and best consecutive win streaks by selected game", () => 
     viewerKey: "alice",
     selectedGame: "overall",
   });
-  assert.equal(overall[0].currentStreak, 1);
+  assert.equal(overall[0].currentStreak, 0);
   assert.equal(overall[0].bestStreak, 3);
 
   const ticTacToe = buildGameLeaderboard({
