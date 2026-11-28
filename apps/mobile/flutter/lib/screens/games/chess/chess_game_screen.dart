@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../services/chess_voice_service.dart';
 import '../../../../services/socket_service.dart';
 
 class ChessGameScreen extends StatefulWidget {
@@ -46,8 +47,15 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
   bool _busy = false;
   bool _sendingChat = false;
   bool _movesTab = false;
-  bool _voiceNoticeShown = false;
   bool _timeoutClaimSent = false;
+  bool _voiceJoining = false;
+  bool _voiceMediaStarting = false;
+  bool _voiceIncoming = false;
+  bool _voiceSpeakerEnabled = true;
+  String _voiceStatus = 'off';
+  String _voicePeerUsername = '';
+  String? _voiceRoomId;
+  ChessVoiceService? _voice;
   String _message = '';
 
   String get _user => widget.currentUsername.trim().toLowerCase();
@@ -91,6 +99,10 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _socket = context.read<SocketService>();
+      _socket!.onChessVoiceInviteCallback = _handleChessVoiceInvite;
+      _socket!.onChessVoicePeerJoinedCallback = _handleChessVoicePeerJoined;
+      _socket!.onChessVoiceSignalCallback = _handleChessVoiceSignal;
+      _socket!.onChessVoicePeerLeftCallback = _handleChessVoicePeerLeft;
       _socket!.addListener(_syncFromSocket);
       _syncFromSocket();
     });
@@ -100,6 +112,11 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
   void dispose() {
     _clockTimer?.cancel();
     _socket?.removeListener(_syncFromSocket);
+    _socket?.onChessVoiceInviteCallback = null;
+    _socket?.onChessVoicePeerJoinedCallback = null;
+    _socket?.onChessVoiceSignalCallback = null;
+    _socket?.onChessVoicePeerLeftCallback = null;
+    _stopChessVoice(updateUi: false);
     _chatController.dispose();
     unawaited(SystemChrome.setPreferredOrientations(const [DeviceOrientation.portraitUp]));
     super.dispose();
@@ -125,6 +142,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
         _game = latest!;
         _selected = null;
       });
+      if (_finished && _voiceRoomId != null) _stopChessVoice();
     }
   }
 
@@ -280,6 +298,204 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
     }
   }
 
+  bool _matchesChessVoiceMatch(Map<String, dynamic> packet) {
+    if (widget.randomSessionId != null) {
+      return packet['scope'] == 'random' &&
+          packet['sessionId']?.toString() == widget.randomSessionId;
+    }
+    return packet['scope'] == 'friend' &&
+        packet['messageId']?.toString() == widget.messageId;
+  }
+
+  void _handleChessVoiceInvite(Map<String, dynamic> packet) {
+    if (!mounted || !_matchesChessVoiceMatch(packet) || _voiceRoomId != null ||
+        _voice != null || _finished) return;
+    setState(() {
+      _voiceIncoming = true;
+      _voicePeerUsername = packet['peerUsername']?.toString() ?? widget.peerUsername;
+      _voiceStatus = 'incoming';
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Your opponent invited you to Chess voice. Tap Join voice to connect.')),
+    );
+  }
+
+  void _handleChessVoicePeerJoined(Map<String, dynamic> packet) {
+    if (!mounted || packet['roomId']?.toString() != _voiceRoomId) return;
+    _voicePeerUsername = packet['peerUsername']?.toString() ?? _voicePeerUsername;
+    unawaited(_startChessVoiceMedia(
+      _voicePeerUsername,
+      packet['initiator'] == true,
+    ));
+  }
+
+  Future<void> _handleChessVoiceSignal(Map<String, dynamic> packet) async {
+    if (!mounted || packet['roomId']?.toString() != _voiceRoomId) return;
+    final signal = packet['signal'];
+    if (signal is! Map || _voice == null) return;
+    try {
+      await _voice!.handleSignal(Map<String, dynamic>.from(signal));
+    } catch (error) {
+      debugPrint('[NovynChessVoice] Signal handling failed: $error');
+    }
+  }
+
+  void _handleChessVoicePeerLeft(Map<String, dynamic> packet) {
+    if (!mounted || packet['roomId']?.toString() != _voiceRoomId) return;
+    _stopChessVoice(notifyServer: false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Your opponent left Chess voice. The match is still active.')),
+    );
+  }
+
+  Future<void> _toggleChessVoice() async {
+    if (_voiceJoining || _voiceMediaStarting || _finished) return;
+    final activeVoice = _voice;
+    if (activeVoice != null) {
+      activeVoice.setMuted(!activeVoice.isMuted);
+      return;
+    }
+    if (_voiceRoomId != null && _voiceStatus == 'waiting') {
+      _stopChessVoice();
+      return;
+    }
+
+    final socket = _socket ?? context.read<SocketService>();
+    setState(() {
+      _voiceJoining = true;
+      _voiceIncoming = false;
+      _voiceStatus = 'connecting';
+    });
+    try {
+      final result = await socket.joinChessVoice(
+        scope: widget.randomSessionId != null ? 'random' : 'friend',
+        sessionId: widget.randomSessionId,
+        messageId: widget.messageId,
+        peerUsername: widget.peerUsername,
+      );
+      if (!mounted) {
+        socket.leaveChessVoice(result['roomId']?.toString() ?? '');
+        return;
+      }
+      _voiceRoomId = result['roomId']?.toString();
+      _voicePeerUsername = result['peerUsername']?.toString() ?? widget.peerUsername;
+      if (result['peerReady'] == true) {
+        await _startChessVoiceMedia(
+          _voicePeerUsername,
+          result['initiator'] == true,
+        );
+      } else {
+        setState(() => _voiceStatus = 'waiting');
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _voiceStatus = 'off';
+          _voiceIncoming = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error is StateError
+              ? error.message.toString()
+              : 'Could not join Chess voice. Please retry.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _voiceJoining = false);
+    }
+  }
+
+  Future<void> _startChessVoiceMedia(String peerUsername, bool isOfferer) async {
+    final roomId = _voiceRoomId;
+    if (roomId == null || roomId.isEmpty || _voice != null ||
+        _voiceMediaStarting || _finished) return;
+    _voiceMediaStarting = true;
+    final service = ChessVoiceService();
+    _voice = service;
+    service.addListener(_onChessVoiceChanged);
+    if (mounted) setState(() => _voiceStatus = 'connecting');
+    try {
+      await service.start(
+        socket: _socket ?? context.read<SocketService>(),
+        roomId: roomId,
+        isOfferer: isOfferer,
+      );
+      await service.setSpeakerEnabled(_voiceSpeakerEnabled);
+      _voicePeerUsername = peerUsername;
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error is StateError
+              ? error.message.toString()
+              : 'Could not start the microphone. Check your connection and permission.')),
+        );
+      }
+      _stopChessVoice();
+    } finally {
+      _voiceMediaStarting = false;
+    }
+  }
+
+  void _onChessVoiceChanged() {
+    if (!mounted || _voice == null) return;
+    setState(() => _voiceStatus = _voice!.status);
+  }
+
+  Future<void> _toggleChessVoiceSpeaker() async {
+    final next = !_voiceSpeakerEnabled;
+    setState(() => _voiceSpeakerEnabled = next);
+    try {
+      if (_voice != null) {
+        await _voice!.setSpeakerEnabled(next);
+      } else {
+        await Helper.setSpeakerphoneOn(next);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _voiceSpeakerEnabled = !next);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not change the audio output.')),
+        );
+      }
+    }
+  }
+
+  void _stopChessVoice({bool notifyServer = true, bool updateUi = true}) {
+    final roomId = _voiceRoomId;
+    _voiceRoomId = null;
+    if (notifyServer && roomId != null) {
+      _socket?.leaveChessVoice(roomId);
+    }
+    final service = _voice;
+    _voice = null;
+    service?.removeListener(_onChessVoiceChanged);
+    service?.dispose();
+    _voiceIncoming = false;
+    _voiceMediaStarting = false;
+    if (updateUi && mounted) {
+      setState(() => _voiceStatus = 'off');
+    } else {
+      _voiceStatus = 'off';
+    }
+  }
+
+  String get _voiceMicLabel {
+    if (_voiceJoining || _voiceMediaStarting || _voiceStatus == 'connecting') return 'Connecting';
+    if (_voiceStatus == 'incoming') return 'Join voice';
+    if (_voiceStatus == 'waiting') return 'Waiting';
+    if (_voice?.isMuted == true) return 'Unmute';
+    if (_voice?.isConnected == true) return 'Mute';
+    return 'Mic';
+  }
+
+  String get _voiceMicHint {
+    if (_voiceStatus == 'incoming') return 'Opponent invite';
+    if (_voiceStatus == 'waiting') return 'Tap to cancel';
+    if (_voiceStatus == 'connecting') return 'Connecting audio';
+    if (_voiceStatus == 'reconnecting') return 'Reconnecting';
+    if (_voice?.isConnected == true) return _voice!.isMuted ? 'Mic muted' : 'Voice live';
+    return 'In-game voice';
+  }
+
   int _time(bool white) {
     final base = ((white ? _data['whiteTimeMs'] : _data['blackTimeMs']) as num?)?.toInt() ?? 300000;
     final whiteTurn = (_fen.split(' ').length > 1 && _fen.split(' ')[1] != 'b');
@@ -312,14 +528,6 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
     }
     final whiteTurn = (_fen.split(' ').length > 1 && _fen.split(' ')[1] != 'b');
     return (whiteTurn ? 'White' : 'Black') + ' to move' + (_data['check'] == true ? ' · Check' : '');
-  }
-
-  void _voiceInfo(String label) {
-    if (_voiceNoticeShown) return;
-    _voiceNoticeShown = true;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(label + ' voice transport is not connected to Chess yet.')),
-    );
   }
 
   Widget _playerCard(bool white, Color foreground, Color muted, Color panel, Color accent) {
@@ -613,9 +821,20 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 5),
                     decoration: BoxDecoration(color: panel, borderRadius: BorderRadius.circular(15)),
                     child: Row(children: [
-                      Expanded(child: _voiceControl(Icons.mic_none_rounded, 'Mic', foreground, muted, () => _voiceInfo('Mic'))),
+                      Expanded(child: _voiceControl(
+                        _voice?.isMuted == true ? Icons.mic_off_rounded : Icons.mic_none_rounded,
+                        _voiceMicLabel, foreground, muted, _toggleChessVoice,
+                        hint: _voiceMicHint,
+                        active: _voice?.isConnected == true && _voice?.isMuted != true,
+                      )),
                       Container(width: 1, height: 31, color: muted.withValues(alpha: .25)),
-                      Expanded(child: _voiceControl(Icons.volume_up_rounded, 'Sound', foreground, muted, () => _voiceInfo('Sound'))),
+                      Expanded(child: _voiceControl(
+                        _voiceSpeakerEnabled ? Icons.volume_up_rounded : Icons.hearing_rounded,
+                        _voiceSpeakerEnabled ? 'Speaker' : 'Earpiece', foreground, muted,
+                        _toggleChessVoiceSpeaker,
+                        hint: 'Audio output',
+                        active: _voiceSpeakerEnabled,
+                      )),
                     ]),
                   ),
                 ])),
@@ -662,13 +881,23 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
     );
   }
 
-  Widget _voiceControl(IconData icon, String label, Color foreground, Color muted, VoidCallback onTap) =>
+  Widget _voiceControl(
+    IconData icon,
+    String label,
+    Color foreground,
+    Color muted,
+    VoidCallback onTap, {
+    String hint = '',
+    bool active = false,
+  }) =>
     InkWell(onTap: onTap, borderRadius: BorderRadius.circular(12),
       child: Padding(padding: const EdgeInsets.symmetric(vertical: 2),
         child: Column(children: [
-          Icon(icon, color: muted, size: 19),
-          Text(label, style: TextStyle(color: foreground, fontSize: 10, fontWeight: FontWeight.w800)),
-          Text('Soon', style: TextStyle(color: muted, fontSize: 8)),
+          Icon(icon, color: active ? Theme.of(context).colorScheme.primary : muted, size: 19),
+          Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: foreground, fontSize: 10, fontWeight: FontWeight.w800)),
+          Text(hint, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: muted, fontSize: 8)),
         ]),
       ));
 }
