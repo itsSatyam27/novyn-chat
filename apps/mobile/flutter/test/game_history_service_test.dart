@@ -5,7 +5,10 @@ import 'package:novyn/services/game_history_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  setUp(() => SharedPreferences.setMockInitialValues({}));
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+    GameHistoryService.cloudHistoryLoaderForTesting = null;
+  });
 
   test('bot matches award no XP and do not affect human streaks', () async {
     final base = DateTime(2026, 11, 1, 9);
