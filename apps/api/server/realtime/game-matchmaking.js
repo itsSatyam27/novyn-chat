@@ -2,7 +2,7 @@
 const crypto = require("crypto");
 
 const INITIAL_MAX_LEVEL_GAP = 2;
-const LEVEL_GAP_WIDEN_INTERVAL_MS = 5_000;
+const LEVEL_GAP_WIDEN_INTERVAL_MS = 4_000;
 const MAX_LEVEL_GAP = 14;
 
 class PublicGameMatchmaking {
