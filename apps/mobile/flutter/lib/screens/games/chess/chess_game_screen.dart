@@ -93,8 +93,6 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
       _socket = context.read<SocketService>();
       _socket!.addListener(_syncFromSocket);
       _syncFromSocket();
-      final clockStartedAt = (_data['lastMoveAt'] as num?)?.toInt() ?? 0;
-      if (clockStartedAt <= 0) unawaited(_sendAction('start_clock'));
     });
   }
 
