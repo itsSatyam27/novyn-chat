@@ -39,10 +39,6 @@ function createMongoStorage(options = {}) {
       ),
       collections.messages.createIndex({ messageId: 1 }, { name: "message_id_idx" }),
       collections.media.createIndex({ ownerKey: 1 }, { name: "media_owner_idx" }),
-      collections.game_history.createIndex(
-        { userKey: 1, playedAt: 1 },
-        { name: "game_history_user_played_at" }
-      ),
     ]);
   }
 
