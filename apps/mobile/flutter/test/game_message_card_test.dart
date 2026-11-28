@@ -445,12 +445,14 @@ void main() {
             body: StatefulBuilder(
               builder: (context, setState) {
                 updateGame = setState;
-                return GameMessageCard(
-                  messageId: 'game-message-1',
-                  game: game,
-                  currentUsername: 'alice',
-                  peerUsername: 'bob',
-                  compact: false,
+                return SingleChildScrollView(
+                  child: GameMessageCard(
+                    messageId: 'game-message-1',
+                    game: game,
+                    currentUsername: 'alice',
+                    peerUsername: 'bob',
+                    compact: false,
+                  ),
                 );
               },
             ),
