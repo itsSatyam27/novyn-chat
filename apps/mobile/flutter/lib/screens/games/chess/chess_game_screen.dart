@@ -50,11 +50,13 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
   bool _timeoutClaimSent = false;
   bool _voiceJoining = false;
   bool _voiceMediaStarting = false;
+  bool _voiceMediaReady = false;
   bool _voiceIncoming = false;
   bool _voiceSpeakerEnabled = true;
   String _voiceStatus = 'off';
   String _voicePeerUsername = '';
   String? _voiceRoomId;
+  final List<Map<String, dynamic>> _pendingVoiceSignals = <Map<String, dynamic>>[];
   ChessVoiceService? _voice;
   String _message = '';
 
@@ -332,9 +334,14 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
   Future<void> _handleChessVoiceSignal(Map<String, dynamic> packet) async {
     if (!mounted || packet['roomId']?.toString() != _voiceRoomId) return;
     final signal = packet['signal'];
-    if (signal is! Map || _voice == null) return;
+    if (signal is! Map) return;
+    final normalized = Map<String, dynamic>.from(signal);
+    if (_voice == null || !_voiceMediaReady) {
+      if (_pendingVoiceSignals.length < 32) _pendingVoiceSignals.add(normalized);
+      return;
+    }
     try {
-      await _voice!.handleSignal(Map<String, dynamic>.from(signal));
+      await _voice!.handleSignal(normalized);
     } catch (error) {
       debugPrint('[NovynChessVoice] Signal handling failed: $error');
     }
@@ -421,6 +428,12 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
       );
       await service.setSpeakerEnabled(_voiceSpeakerEnabled);
       _voicePeerUsername = peerUsername;
+      _voiceMediaReady = true;
+      final pending = List<Map<String, dynamic>>.from(_pendingVoiceSignals);
+      _pendingVoiceSignals.clear();
+      for (final signal in pending) {
+        await service.handleSignal(signal);
+      }
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -446,8 +459,6 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
     try {
       if (_voice != null) {
         await _voice!.setSpeakerEnabled(next);
-      } else {
-        await Helper.setSpeakerphoneOn(next);
       }
     } catch (_) {
       if (mounted) {
@@ -467,6 +478,8 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
     }
     final service = _voice;
     _voice = null;
+    _voiceMediaReady = false;
+    _pendingVoiceSignals.clear();
     service?.removeListener(_onChessVoiceChanged);
     service?.dispose();
     _voiceIncoming = false;
