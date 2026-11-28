@@ -135,11 +135,11 @@ class _ChatAudioMessageBubbleState extends State<ChatAudioMessageBubble> {
     final maxMs = duration.inMilliseconds > 0
         ? duration.inMilliseconds.toDouble()
         : 1.0;
-    final progress = (_position.inMilliseconds / maxMs).clamp(0.0, 1.0);
+    final progress = (_position.inMilliseconds / maxMs).clamp(0.0, 1.0).toDouble();
     final durationLabel = _formatDuration(duration);
     final sizeLabel = _formatSize(widget.sizeBytes);
     final canStream = outgoing && !widget.requiresLocalSource;
-    final ready = _hasLocalCopy || canStream || widget.requiresLocalSource;
+    final ready = widget.isOutgoing ? (canStream || widget.requiresLocalSource) : _hasLocalCopy;
 
     final shellColor = outgoing ? accent : scheme.surface;
     final panelColor = outgoing
@@ -152,7 +152,7 @@ class _ChatAudioMessageBubbleState extends State<ChatAudioMessageBubble> {
 
     return ConstrainedBox(
       constraints: BoxConstraints(
-        maxWidth: math.min(276, MediaQuery.sizeOf(context).width * .78),
+        maxWidth: math.min(276.0, MediaQuery.sizeOf(context).width * .78).toDouble(),
         minWidth: 220,
       ),
       child: Container(
@@ -268,7 +268,7 @@ class _ChatAudioWaveformPainter extends CustomPainter {
     final paint = Paint()..style = PaintingStyle.fill;
 
     for (var index = 0; index < _bars.length; index++) {
-      final barHeight = _bars[index].clamp(5.0, size.height - 2);
+      final barHeight = _bars[index].clamp(5.0, size.height - 2).toDouble();
       final x = startX + index * (barWidth + gap);
       final top = (size.height - barHeight) / 2;
       final midpoint = (x + barWidth / 2) / size.width;
