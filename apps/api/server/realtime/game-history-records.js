@@ -24,7 +24,8 @@ function buildTwoPlayerGameHistoryRecords(game, users) {
     : [data.player1 || game.createdBy, data.player2 || game.opponent];
   const playerKeys = Array.from(new Set(playerValues.map(normalizeKey).filter(Boolean)));
   const accounts = getRegisteredHumanAccounts(playerKeys, users);
-  if (!accounts || playerKeys.length !== 2) return [];
+  if (!accounts || playerKeys.length !== 2 ||
+      playerKeys.some((key) => /^(ai|bot)(\\b|[_ -])/i.test(key))) return [];
 
   const winnerKey = normalizeKey(game.winner);
   if (winnerKey !== "draw" && !playerKeys.includes(winnerKey)) return [];
@@ -47,7 +48,9 @@ function buildTwoPlayerGameHistoryRecords(game, users) {
       id: matchId,
       gameType: game.gameType,
       opponent: opponents.join(", "),
-      result: winnerKey === "draw" ? "draw" : winnerKey === userKey ? "win" : "loss",
+      result: winnerKeys.size > 1
+      ? winnerKeys.has(userKey) ? "draw" : "loss"
+      : winnerKeys.has(userKey) ? "win" : "loss",
       playedAt: playedAt.toISOString(),
       isBotMatch: false,
     };
@@ -66,7 +69,7 @@ function buildRajaMantriHistoryRecords(session, users) {
   const scores = players.map((player) => Math.max(0, Number(player.score) || 0));
   const topScore = Math.max(...scores);
   const winnerIndexes = scores.map((score, index) => score === topScore ? index : -1).filter((index) => index >= 0);
-  const winnerKey = winnerIndexes.length === 1 ? playerKeys[winnerIndexes[0]] : "draw";
+  const winnerKeys = new Set(winnerIndexes.map((index) => playerKeys[index]));
   const playedAtMs = Number(session.finishedAt) > 0 ? Number(session.finishedAt) : Date.now();
   const playedAt = new Date(playedAtMs);
   const matchId = String(session.sessionId || "").trim();
