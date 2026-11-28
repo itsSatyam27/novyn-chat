@@ -7726,14 +7726,17 @@ io.on("connection", (socket) => {
             source: 1,
             isBotMatch: 1,
           },
-        }).sort({ playedAt: 1 }).limit(2_000).toArray();
+        }).sort({ playedAt: -1 }).limit(2_000).toArray();
         matchmakingLevel = calculateMatchmakingSkill({
           matches: verifiedMatches,
           gameType,
         }).level;
       } catch (error) {
         const pending = pendingRandomMatchmakingLookups.get(userKey);
-        if (pending?.requestId === requestId) pendingRandomMatchmakingLookups.delete(userKey);
+        if (pending?.requestId !== requestId || pending?.socketId !== socket.id) {
+          return respond({ ok: true, cancelled: true });
+        }
+        pendingRandomMatchmakingLookups.delete(userKey);
         console.warn("[NovynGames] Verified matchmaking skill lookup failed:", error?.message || error);
         return respond({
           ok: false,
