@@ -235,7 +235,7 @@ function applyRps(game, userKey, moveData) {
   };
 }
 
-function handleRematchAction(game, userKey, moveData) {
+function handleRematchAction(game, userKey, moveData, { randomInt = crypto.randomInt } = {}) {
   const current = cloneData(game.data);
   const player1 = current.player1 || current.playerX || game.createdBy;
   const player2 = current.player2 || current.playerO || game.opponent;
@@ -409,8 +409,15 @@ function handleRematchAction(game, userKey, moveData) {
     }
 
     if (game.gameType === "chess") {
-      const white = current.white || current.player1 || player1;
-      const black = current.black || current.player2 || player2;
+      const previousWhite = current.white || current.player1 || player1;
+      const previousBlack = current.black || current.player2 || player2;
+      const previousWhiteName = current.whiteName || previousWhite;
+      const previousBlackName = current.blackName || previousBlack;
+      const whiteGetsPreviousWhite = randomInt(2) === 0;
+      const white = whiteGetsPreviousWhite ? previousWhite : previousBlack;
+      const black = whiteGetsPreviousWhite ? previousBlack : previousWhite;
+      const whiteName = whiteGetsPreviousWhite ? previousWhiteName : previousBlackName;
+      const blackName = whiteGetsPreviousWhite ? previousBlackName : previousWhiteName;
       const now = Date.now();
       return {
         ok: true,
@@ -425,6 +432,8 @@ function handleRematchAction(game, userKey, moveData) {
             black,
             player1: white,
             player2: black,
+            whiteName,
+            blackName,
             fen: chessRules.START_FEN,
             moves: [],
             legalMoves: chessRules.legalMoves(chessRules.parseFen(chessRules.START_FEN)).map(chessRules.toUci),
@@ -432,7 +441,7 @@ function handleRematchAction(game, userKey, moveData) {
             positionHistory: [chessRules.positionKey(chessRules.parseFen(chessRules.START_FEN))],
             whiteTimeMs: current.clockMs || 300000,
             blackTimeMs: current.clockMs || 300000,
-            lastMoveAt: now,
+            lastMoveAt: 0,
             drawOfferBy: null,
             endReason: null,
             rematch: null,
@@ -635,7 +644,7 @@ function applyChess(game, userKey, moveData) {
   };
 }
 
-function applyGameMove(game, userKey, moveData) {
+function applyGameMove(game, userKey, moveData, { randomInt = crypto.randomInt } = {}) {
   if (!game || !GAME_TYPES.has(game.gameType)) return { ok: false, reason: "Unsupported game." };
   if (!moveData || typeof moveData !== "object" || Array.isArray(moveData)) {
     return { ok: false, reason: "Invalid move payload." };
@@ -649,7 +658,7 @@ function applyGameMove(game, userKey, moveData) {
     moveData.action === "rematch_cancel" ||
     moveData.action === "leave_room"
   ) {
-    return handleRematchAction(game, userKey, moveData);
+    return handleRematchAction(game, userKey, moveData, { randomInt });
   }
 
   if (game.gameType === "chess") return applyChess(game, userKey, moveData);
