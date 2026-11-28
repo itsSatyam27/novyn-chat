@@ -830,85 +830,96 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
                 ),
               ),
               Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
-                  children: [
-                    if (!connectionReady) ...[
-                      _buildConnectionNotice(theme),
-                      const SizedBox(height: 18),
-                    ] else if (_searchEndedByDisconnect) ...[
-                      _buildSearchEndedNotice(theme),
-                      const SizedBox(height: 18),
-                    ],
-                    Text('Quick play',
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (!connectionReady) ...[
+                        _buildConnectionNotice(theme),
+                        const SizedBox(height: 12),
+                      ] else if (_searchEndedByDisconnect) ...[
+                        _buildSearchEndedNotice(theme),
+                        const SizedBox(height: 12),
+                      ],
+                      Text(
+                        'Quick play',
                         style: TextStyle(
                           fontFamily: 'PlusJakartaSans',
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
                           color: muted,
-                        )),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _QuickPlayTile(
-                            title: 'Play vs Bot',
-                            subtitle: 'Works offline',
-                            icon: Icons.smart_toy_outlined,
-                            iconBackground: const Color(0xFFDDF3E9),
-                            iconColor: const Color(0xFF176B45),
-                            background: surface,
-                            foreground: foreground,
-                            subtitleColor: muted,
-                            onTap: _pendingFriendInviteId == null
-                                ? _playWithAiBot
-                                : null,
-                          ),
                         ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: _QuickPlayTile(
-                            title: 'Random player',
-                            subtitle: 'Find a match online',
-                            icon: Icons.public_rounded,
-                            iconBackground: accent,
-                            iconColor: Colors.white,
-                            background: accent,
-                            foreground: Colors.white,
-                            subtitleColor: Colors.white.withValues(alpha: .88),
-                            onTap: connectionReady &&
-                                    !_searchingRandom &&
-                                    _pendingFriendInviteId == null
-                                ? _startRandomSearch
-                                : null,
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _QuickPlayTile(
+                              title: 'Play vs Bot',
+                              subtitle: 'Works offline',
+                              icon: Icons.smart_toy_outlined,
+                              iconBackground: const Color(0xFFDDF3E9),
+                              iconColor: const Color(0xFF176B45),
+                              background: surface,
+                              foreground: foreground,
+                              subtitleColor: muted,
+                              onTap: _pendingFriendInviteId == null
+                                  ? _playWithAiBot
+                                  : null,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 28),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text('Invite a friend',
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: _QuickPlayTile(
+                              title: 'Random player',
+                              subtitle: 'Find a match online',
+                              icon: Icons.public_rounded,
+                              iconBackground: accent,
+                              iconColor: Colors.white,
+                              background: accent,
+                              foreground: Colors.white,
+                              subtitleColor: Colors.white.withValues(alpha: .88),
+                              onTap: connectionReady &&
+                                      !_searchingRandom &&
+                                      _pendingFriendInviteId == null
+                                  ? _startRandomSearch
+                                  : null,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 22),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Invite a friend',
                               style: TextStyle(
                                 fontFamily: 'PlusJakartaSans',
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
                                 color: muted,
-                              )),
-                        ),
-                        Text('${_friends.length} friends',
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${_friends.length} friends',
                             style: TextStyle(
                               fontFamily: 'PlusJakartaSans',
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                               color: muted,
-                            )),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    _buildFriendPicker(theme, connectionReady),
-                  ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Expanded(
+                        child: _buildFriendPicker(theme, connectionReady),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -943,15 +954,16 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(28),
-                borderSide: BorderSide.none),
+              borderRadius: BorderRadius.circular(28),
+              borderSide: BorderSide.none,
+            ),
             enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(28),
-                borderSide: BorderSide.none),
+              borderRadius: BorderRadius.circular(28),
+              borderSide: BorderSide.none,
+            ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(28),
-              borderSide:
-                  BorderSide(color: accent, width: 1.5),
+              borderSide: BorderSide(color: accent, width: 1.5),
             ),
             suffixIcon: _searchQuery.isEmpty
                 ? null
@@ -965,126 +977,159 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
           ),
         ),
         const SizedBox(height: 10),
-        if (_loadingFriends)
-          const Padding(
-            padding: EdgeInsets.all(24),
-            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-          )
-        else if (_friendsLoadFailed)
-          TextButton.icon(
-            onPressed: () => _subscribeToFriends(force: true),
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('Could not load friends · Retry'),
-          )
-        else if (filtered.isEmpty)
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Text(
-              _friends.isEmpty
-                  ? 'Add friends in Contacts to play private matches.'
-                  : 'No friends found.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: muted),
-            ),
-          )
-        else
-          ...filtered.map((friend) {
-            final invitePending = _pendingFriendInviteId != null;
-            final isInvitedFriend =
-                _pendingInviteFriend?.username.toLowerCase() ==
-                    friend.username.toLowerCase();
-            final isSendingToFriend =
-                _sendingInviteUsername == friend.username.toLowerCase();
-            final canInvite = connectionReady &&
-                !_sendingInvite &&
-                !_searchingRandom &&
-                !invitePending;
-            final name = friend.name.isEmpty ? friend.username : friend.name;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                child: Row(
-                  children: [
-                    UserAvatar(
-                      name: name,
-                      photoUrl: friend.photoUrl,
-                      radius: 23,
-                      isOnline: friend.isOnline,
-                      presence: friend.status,
-                      showOnlineIndicator: true,
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontFamily: 'PlusJakartaSans',
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                color: foreground,
-                              )),
-                          const SizedBox(height: 2),
-                          Text('@${friend.username} · ${_presence(friend)}',
-                              style: TextStyle(fontSize: 12.5, color: muted)),
-                        ],
+        Expanded(
+          child: _loadingFriends
+              ? const Center(
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : _friendsLoadFailed
+                  ? Center(
+                      child: TextButton.icon(
+                        onPressed: () => _subscribeToFriends(force: true),
+                        icon: const Icon(Icons.refresh_rounded),
+                        label: const Text('Could not load friends · Retry'),
                       ),
-                    ),
-                    if (isInvitedFriend)
-                      ValueListenableBuilder<bool>(
-                        valueListenable: _friendInviteAccepted,
-                        builder: (context, accepted, _) =>
-                            _InviteStatusPill(accepted: accepted),
-                      )
-                    else
-                      FilledButton(
-                        onPressed:
-                            canInvite ? () => _playWithFriend(friend) : null,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: accent.withValues(alpha: .12),
-                          foregroundColor: accent,
-                          disabledBackgroundColor: isDark
-                              ? const Color(0xFF332A57)
-                              : const Color(0xFFF1EFF7),
-                          disabledForegroundColor: muted,
-                          minimumSize: Size(isSendingToFriend ? 96 : 82, 40),
-                          padding: const EdgeInsets.symmetric(horizontal: 14),
-                          shape: const StadiumBorder(),
-                          textStyle: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
+                    )
+                  : filtered.isEmpty
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Text(
+                              _friends.isEmpty
+                                  ? 'Add friends in Contacts to play private matches.'
+                                  : 'No friends found.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: muted),
+                            ),
                           ),
-                        ),
-                        child: isSendingToFriend
-                            ? const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  SizedBox(
-                                    width: 13,
-                                    height: 13,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          itemCount: filtered.length,
+                          itemBuilder: (context, index) {
+                            final friend = filtered[index];
+                            final invitePending = _pendingFriendInviteId != null;
+                            final isInvitedFriend =
+                                _pendingInviteFriend?.username.toLowerCase() ==
+                                    friend.username.toLowerCase();
+                            final isSendingToFriend =
+                                _sendingInviteUsername ==
+                                    friend.username.toLowerCase();
+                            final canInvite = connectionReady &&
+                                !_sendingInvite &&
+                                !_searchingRandom &&
+                                !invitePending;
+                            final name = friend.name.isEmpty
+                                ? friend.username
+                                : friend.name;
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 12,
+                                ),
+                                child: Row(
+                                  children: [
+                                    UserAvatar(
+                                      name: name,
+                                      photoUrl: friend.photoUrl,
+                                      radius: 23,
+                                      isOnline: friend.isOnline,
+                                      presence: friend.status,
+                                      showOnlineIndicator: true,
                                     ),
-                                  ),
-                                  SizedBox(width: 6),
-                                  Text('Sending'),
-                                ],
-                              )
-                            : const Text('Invite'),
-                      ),
-                  ],
-                ),
-              ),
-            );
-          }),
+                                    const SizedBox(width: 14),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            name,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontFamily: 'PlusJakartaSans',
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w700,
+                                              color: foreground,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            '@${friend.username} · ${_presence(friend)}',
+                                            style: TextStyle(
+                                              fontSize: 12.5,
+                                              color: muted,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    if (isInvitedFriend)
+                                      ValueListenableBuilder<bool>(
+                                        valueListenable: _friendInviteAccepted,
+                                        builder: (context, accepted, _) =>
+                                            _InviteStatusPill(
+                                          accepted: accepted,
+                                        ),
+                                      )
+                                    else
+                                      FilledButton(
+                                        onPressed: canInvite
+                                            ? () => _playWithFriend(friend)
+                                            : null,
+                                        style: FilledButton.styleFrom(
+                                          backgroundColor:
+                                              accent.withValues(alpha: .12),
+                                          foregroundColor: accent,
+                                          disabledBackgroundColor: isDark
+                                              ? const Color(0xFF332A57)
+                                              : const Color(0xFFF1EFF7),
+                                          disabledForegroundColor: muted,
+                                          minimumSize: Size(
+                                            isSendingToFriend ? 96 : 82,
+                                            40,
+                                          ),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 14,
+                                          ),
+                                          shape: const StadiumBorder(),
+                                          textStyle: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                        child: isSendingToFriend
+                                            ? const Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  SizedBox(
+                                                    width: 13,
+                                                    height: 13,
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                    ),
+                                                  ),
+                                                  SizedBox(width: 6),
+                                                  Text('Sending'),
+                                                ],
+                                              )
+                                            : const Text('Invite'),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+        ),
       ],
     );
   }
+
 
   Widget _buildHeaderGameMark() {
     if (widget.gameType != 'tictactoe') {
