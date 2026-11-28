@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novyn/screens/games/home/games_screen.dart';
 import 'package:novyn/screens/games/shared/room/game_room_screen.dart';
+import 'package:novyn/services/game_invitation_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -37,6 +38,56 @@ void main() {
         isConnected: true,
       ),
       'Live',
+    );
+  });
+
+  test('invitation snapshots retain live arrivals and skip resolved invites', () {
+    final merged = mergePendingGameInvitations(
+      serverSnapshot: [
+        {'messageId': 'invite-a', 'expiresAt': 2000, 'from': 'alice'},
+        {'messageId': 'invite-b', 'expiresAt': 2000, 'from': 'bob'},
+        {'messageId': 'invite-expired', 'expiresAt': 999, 'from': 'carol'},
+      ],
+      liveInvitations: [
+        {'messageId': 'invite-live', 'expiresAt': 3000, 'from': 'dave'},
+        {'messageId': 'invite-a', 'expiresAt': 2000, 'from': 'alice-live-copy'},
+      ],
+      preservedLiveIds: {'invite-live'},
+      resolvedIds: {'invite-b'},
+      nowMs: 1000,
+    );
+
+    expect(
+      merged.map((invite) => invite['messageId']).toList(),
+      ['invite-live', 'invite-a'],
+    );
+    expect(merged.map((invite) => invite['messageId']).toSet().length, 2);
+  });
+
+  test('foreground game invites do not get a second system alert on a live app', () {
+    expect(
+      shouldShowForegroundGameInvitationSystemNotification(
+        appResumed: true,
+        socketConnected: true,
+        socketAuthenticated: true,
+      ),
+      isFalse,
+    );
+    expect(
+      shouldShowForegroundGameInvitationSystemNotification(
+        appResumed: true,
+        socketConnected: false,
+        socketAuthenticated: true,
+      ),
+      isTrue,
+    );
+    expect(
+      shouldShowForegroundGameInvitationSystemNotification(
+        appResumed: false,
+        socketConnected: true,
+        socketAuthenticated: true,
+      ),
+      isTrue,
     );
   });
 
