@@ -529,8 +529,8 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
                 style: TextStyle(color: foreground, fontWeight: FontWeight.w800, fontSize: 17)),
             ]));
           }
-          final leftWidth = (constraints.maxWidth * .21).clamp(128.0, 225.0);
-          final rightWidth = (constraints.maxWidth * .245).clamp(150.0, 270.0);
+          final leftWidth = (constraints.maxWidth * .21).clamp(128.0, 225.0).toDouble();
+          final rightWidth = (constraints.maxWidth * .245).clamp(150.0, 270.0).toDouble();
           return Padding(
             padding: const EdgeInsets.fromLTRB(8, 3, 8, 7),
             child: Column(children: [
