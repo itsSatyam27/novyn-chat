@@ -19,7 +19,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import '../../widgets/game_message_card.dart';
 import '../../widgets/riddle_message_card.dart';
-import '../../widgets/voice_message_player.dart';
+import '../../widgets/chat_audio_message_bubble.dart';
 import '../../models/user_model.dart';
 import '../../models/chat_models.dart';
 import '../../services/auth_service.dart';
@@ -6047,6 +6047,8 @@ class _MessageBubble extends StatelessWidget {
     final mime = attachment['mime']?.toString().toLowerCase() ?? '';
     final mediaPath = (Uri.tryParse(url)?.path ?? url).toLowerCase();
     final fileHint = name.toLowerCase();
+    final sizeBytes = (attachment['size'] as num?)?.toInt();
+    final durationSeconds = (attachment['duration'] as num?)?.toInt();
     final isImage = rawKind == 'image' ||
         mime.startsWith('image/') ||
         const ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.heic'].any(
@@ -6056,40 +6058,46 @@ class _MessageBubble extends StatelessWidget {
         mime.startsWith('video/') ||
         const ['.mp4', '.mov', '.webm', '.m4v'].any((extension) =>
             mediaPath.endsWith(extension) || fileHint.endsWith(extension));
-    final kind = isImage
-        ? 'image'
-        : isVideo
-            ? 'video'
-            : rawKind.isNotEmpty
-                ? rawKind
-                : 'file';
+    final isAudio = rawKind == 'audio' || mime.startsWith('audio/') ||
+        const ['.mp3', '.m4a', '.aac', '.wav', '.ogg', '.flac'].any(
+          (extension) =>
+              mediaPath.endsWith(extension) || fileHint.endsWith(extension),
+        );
+    final isOutgoing = message?.isFromMe == true;
 
-    if (kind == 'audio' && url.isNotEmpty) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          VoiceMessagePlayer(
-            url: url,
-            label: name,
-            durationSeconds: (attachment['duration'] as num?)?.toInt(),
-            resolveLocalSource: encrypted
-                ? () => _ChatAttachmentLoader.prepareFile(context, attachment, message!)
-                : null,
-          ),
-          TextButton.icon(
-            onPressed: () => _downloadAttachment(context, url, name, message: message, attachment: attachment),
-            icon: const Icon(Icons.download_rounded, size: 17),
-            label: const Text('Download'),
-          ),
-        ],
+    String formatSize(int? bytes) {
+      if (bytes == null || bytes <= 0) return '';
+      if (bytes < 1024) return '$bytes B';
+      if (bytes < 1024 * 1024) return '${(bytes / 1024).round()} KB';
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
+
+    if (isAudio && url.isNotEmpty) {
+      return ChatAudioMessageBubble(
+        url: url,
+        isOutgoing: isOutgoing,
+        durationSeconds: durationSeconds,
+        sizeBytes: sizeBytes,
+        requiresLocalSource: encrypted,
+        prepareLocalSource: () =>
+            _ChatAttachmentLoader.prepareFile(context, attachment, message!),
       );
     }
 
-    if (kind == 'image' && url.isNotEmpty) {
+    if ((isImage || isVideo) && url.isNotEmpty) {
       final scheme = Theme.of(context).colorScheme;
-      final imageFuture = encrypted ? _ChatAttachmentLoader.loadBytes(context, attachment, message!) : null;
-      Widget imageContent({required double? width, required double? height, required BoxFit fit}) {
+      final imageFuture = encrypted
+          ? _ChatAttachmentLoader.loadBytes(context, attachment, message!)
+          : null;
+      final thumbnailUrl = attachment['thumbnailUrl']?.toString() ??
+          attachment['thumbnail']?.toString() ??
+          '';
+
+      Widget imageContent({
+        required double? width,
+        required double? height,
+        required BoxFit fit,
+      }) {
         if (!encrypted) {
           return Image.network(
             url,
@@ -6097,7 +6105,11 @@ class _MessageBubble extends StatelessWidget {
             width: width,
             height: height,
             fit: fit,
-            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined),
+            errorBuilder: (_, __, ___) => SizedBox(
+              width: width,
+              height: height,
+              child: const Center(child: Icon(Icons.broken_image_outlined)),
+            ),
           );
         }
         return FutureBuilder<Uint8List>(
@@ -6105,166 +6117,360 @@ class _MessageBubble extends StatelessWidget {
           builder: (context, snapshot) {
             if (snapshot.hasData) {
               return Image.memory(
-                snapshot.data!, width: width, height: height, fit: fit,
+                snapshot.data!,
+                width: width,
+                height: height,
+                fit: fit,
                 errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined),
               );
             }
-            if (snapshot.hasError) {
-              return SizedBox(
-                width: width, height: height,
-                child: const Center(child: Icon(Icons.lock_outline_rounded)),
-              );
-            }
             return SizedBox(
-              width: width, height: height,
-              child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              width: width,
+              height: height,
+              child: Center(
+                child: snapshot.hasError
+                    ? const Icon(Icons.lock_outline_rounded)
+                    : const CircularProgressIndicator(strokeWidth: 2),
+              ),
             );
           },
         );
       }
-      return Container(
-        width: 244,
-        decoration: BoxDecoration(
-          color: scheme.surfaceContainerHighest.withValues(alpha: 0.42),
-          borderRadius: BorderRadius.circular(17),
-          border:
-              Border.all(color: scheme.outlineVariant.withValues(alpha: 0.55)),
-        ),
-        padding: const EdgeInsets.all(4),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(13),
+
+      Future<void> openMedia() async {
+        if (isVideo) {
+          if (encrypted) {
+            await _downloadAttachment(
+              context, url, name, message: message, attachment: attachment,
+            );
+            return;
+          }
+          final uri = Uri.tryParse(url);
+          if (uri != null) {
+            final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+            if (!opened && context.mounted) {
+              NovynToast.show(context, 'No app could open this video.', isError: true);
+            }
+          }
+          return;
+        }
+        showDialog<void>(
+          context: context,
+          barrierColor: Colors.black,
+          builder: (viewerContext) => Dialog.fullscreen(
+            backgroundColor: Colors.black,
+            child: Scaffold(
+              backgroundColor: Colors.black,
+              appBar: AppBar(
+                backgroundColor: Colors.black,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                leading: IconButton(
+                  tooltip: 'Close image',
+                  icon: const Icon(Icons.close_rounded),
+                  onPressed: () => Navigator.of(viewerContext).pop(),
+                ),
+                actions: [
+                  IconButton(
+                    tooltip: 'Download image',
+                    icon: const Icon(Icons.download_rounded),
+                    onPressed: () => _downloadAttachment(
+                      context, url, name, message: message, attachment: attachment,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+              ),
+              body: Center(
+                child: InteractiveViewer(
+                  minScale: .7,
+                  maxScale: 4,
+                  child: imageContent(width: null, height: null, fit: BoxFit.contain),
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+
+      Widget mediaFrame;
+      if (isImage) {
+        mediaFrame = imageContent(width: 236, height: 188, fit: BoxFit.cover);
+      } else {
+        mediaFrame = SizedBox(
+          width: 236,
+          height: 188,
           child: Stack(
+            fit: StackFit.expand,
             children: [
-              Material(
-                color: scheme.surfaceContainerHighest,
-                child: InkWell(
-                  onTap: () {
-                    showDialog<void>(
-                      context: context,
-                      barrierColor: Colors.black,
-                      builder: (viewerContext) => Dialog.fullscreen(
-                        backgroundColor: Colors.black,
-                        child: Scaffold(
-                          backgroundColor: Colors.black,
-                          appBar: AppBar(
-                            backgroundColor: Colors.black,
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            leading: IconButton(
-                              tooltip: 'Close image',
-                              icon: const Icon(Icons.close_rounded),
-                              onPressed: () =>
-                                  Navigator.of(viewerContext).pop(),
-                            ),
-                            actions: [
-                              IconButton(
-                                tooltip: 'Download image',
-                                icon: const Icon(Icons.download_rounded),
-                                onPressed: () =>
-                                    _downloadAttachment(context, url, name, message: message, attachment: attachment),
-                              ),
-                              const SizedBox(width: 8),
-                            ],
-                          ),
-                          body: Center(
-                            child: InteractiveViewer(
-                              minScale: 0.7,
-                              maxScale: 4,
-                              child: imageContent(
-                                width: null,
-                                height: null,
-                                fit: BoxFit.contain,
-                              ),
-                            ),
-                          ),
+              if (thumbnailUrl.isNotEmpty)
+                Image.network(
+                  thumbnailUrl,
+                  headers: ApiService.imageHeaders,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const ColoredBox(color: Color(0xFF302B59)),
+                )
+              else
+                const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF454078), Color(0xFF211D43)],
+                    ),
+                  ),
+                  child: Center(
+                    child: Icon(Icons.videocam_rounded, color: Colors.white70, size: 48),
+                  ),
+                ),
+              ColoredBox(color: Colors.black.withValues(alpha: .20)),
+              Center(
+                child: Container(
+                  width: 54,
+                  height: 54,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.play_arrow_rounded, color: scheme.primary, size: 34),
+                ),
+              ),
+              Positioned(
+                left: 12,
+                bottom: 10,
+                child: Row(
+                  children: [
+                    const Icon(Icons.videocam_rounded, color: Colors.white, size: 15),
+                    const SizedBox(width: 5),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 175),
+                      child: Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
                         ),
                       ),
-                    );
-                  },
-                  child: imageContent(
-                    width: 236,
-                    height: 188,
-                    fit: BoxFit.cover,
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ],
+          ),
+        );
+      }
+
+      return Container(
+        width: 244,
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: isOutgoing ? scheme.primary : scheme.surface,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: isOutgoing
+                ? scheme.primary
+                : scheme.outlineVariant.withValues(alpha: .4),
+            width: isOutgoing ? 2 : 1,
+          ),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(17),
+          child: Material(
+            color: isOutgoing
+                ? scheme.primary.withValues(alpha: .16)
+                : scheme.surfaceContainerLow,
+            child: InkWell(
+              onTap: openMedia,
+              child: Stack(
+                children: [
+                  mediaFrame,
+                  if (isImage && isOutgoing)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: .15),
+                              width: 1,
+                            ),
+                            borderRadius: BorderRadius.circular(17),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
       );
     }
 
-    final icon = kind == 'video'
-        ? Icons.play_circle_outline_rounded
-        : kind == 'audio'
-            ? Icons.audio_file_outlined
-            : Icons.insert_drive_file_outlined;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Flexible(
-          child: InkWell(
-            borderRadius: BorderRadius.circular(10),
-            onTap: url.isEmpty
-                ? null
-                : () async {
-                    if (encrypted) {
-                      await _downloadAttachment(context, url, name, message: message, attachment: attachment);
-                      return;
-                    }
-                    final uri = Uri.tryParse(url);
-                    if (uri == null) return;
-                    try {
-                      final opened = await launchUrl(uri,
-                          mode: LaunchMode.externalApplication);
-                      if (!opened && context.mounted) {
-                        NovynToast.show(
-                            context, 'No app could open this attachment.',
-                            isError: true);
-                      }
-                    } catch (_) {
-                      if (context.mounted) {
-                        NovynToast.show(
-                            context, 'Could not open this attachment.',
-                            isError: true);
-                      }
-                    }
-                  },
-            child: _attachmentFileTile(name, icon),
-          ),
-        ),
-        if (url.isNotEmpty)
-          IconButton(
-            tooltip: 'Download attachment',
-            icon: const Icon(Icons.download_rounded),
-            onPressed: () => _downloadAttachment(context, url, name, message: message, attachment: attachment),
-          ),
-      ],
-    );
-  }
+    final extension = name.contains('.')
+        ? name.split('.').last.toUpperCase()
+        : (mime.split('/').last.toUpperCase() == 'OCTET-STREAM'
+            ? 'FILE'
+            : mime.split('/').last.toUpperCase());
+    final fileType = extension == 'PDF' ? 'PDF' : extension;
+    final subtitle = [
+      fileType,
+      if (formatSize(sizeBytes).isNotEmpty) formatSize(sizeBytes),
+    ].join(' · ');
+    final scheme = Theme.of(context).colorScheme;
+    final fileIcon = switch (extension) {
+      'PDF' => Icons.picture_as_pdf_rounded,
+      'DOC' || 'DOCX' || 'TXT' => Icons.description_rounded,
+      'XLS' || 'XLSX' || 'CSV' => Icons.table_chart_rounded,
+      'ZIP' || 'RAR' || '7Z' => Icons.folder_zip_rounded,
+      _ => Icons.insert_drive_file_rounded,
+    };
 
-  Widget _attachmentFileTile(String name, IconData icon) {
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 220),
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 22),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              name,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12),
+    Future<void> openDocument() async {
+      if (url.isEmpty) return;
+      if (encrypted) {
+        await _downloadAttachment(
+          context, url, name, message: message, attachment: attachment,
+        );
+        return;
+      }
+      final uri = Uri.tryParse(url);
+      if (uri == null) return;
+      try {
+        final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+        if (!opened && context.mounted) {
+          NovynToast.show(context, 'No app could open this attachment.', isError: true);
+        }
+      } catch (_) {
+        if (context.mounted) {
+          NovynToast.show(context, 'Could not open this attachment.', isError: true);
+        }
+      }
+    }
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 260),
+      child: Container(
+        padding: const EdgeInsets.all(7),
+        decoration: BoxDecoration(
+          color: isOutgoing ? scheme.primary : scheme.surface,
+          borderRadius: BorderRadius.circular(22).copyWith(
+            bottomRight: isOutgoing ? const Radius.circular(8) : const Radius.circular(22),
+            bottomLeft: isOutgoing ? const Radius.circular(22) : const Radius.circular(8),
+          ),
+          border: isOutgoing
+              ? Border.all(color: scheme.primary.withValues(alpha: .35), width: 1)
+              : null,
+        ),
+        child: Material(
+          color: isOutgoing
+              ? Colors.white.withValues(alpha: .16)
+              : scheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(17),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 9),
+            child: Row(
+              children: [
+                InkWell(
+                  onTap: openDocument,
+                  borderRadius: BorderRadius.circular(15),
+                  child: Container(
+                    width: 46,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: isOutgoing ? Colors.white : scheme.primary,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          fileIcon,
+                          size: 23,
+                          color: isOutgoing ? scheme.primary : Colors.white,
+                        ),
+                        Text(
+                          fileType.length > 5 ? 'FILE' : fileType,
+                          maxLines: 1,
+                          style: TextStyle(
+                            fontFamily: 'PlusJakartaSans',
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.w800,
+                            color: isOutgoing ? scheme.primary : Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: InkWell(
+                    onTap: openDocument,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'PlusJakartaSans',
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w800,
+                            color: isOutgoing ? Colors.white : scheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'PlusJakartaSans',
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: isOutgoing
+                                ? Colors.white.withValues(alpha: .78)
+                                : scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 7),
+                Material(
+                  color: isOutgoing ? Colors.white : scheme.primary,
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: isOutgoing
+                        ? openDocument
+                        : () => _downloadAttachment(
+                              context, url, name,
+                              message: message, attachment: attachment,
+                            ),
+                    child: SizedBox(
+                      width: 40,
+                      height: 40,
+                      child: Icon(
+                        isOutgoing ? Icons.check_rounded : Icons.download_rounded,
+                        color: isOutgoing ? scheme.primary : Colors.white,
+                        size: 21,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
