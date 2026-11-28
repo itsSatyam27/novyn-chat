@@ -1673,6 +1673,31 @@ async function persistAuthoritativeGameHistoryRecords(records) {
   }
 }
 
+async function restoreFinishedChatGameHistory() {
+  if (!mongoGameHistoryCollection) return;
+  let pending = [];
+  let restored = 0;
+  for (const messages of conversations.values()) {
+    if (!Array.isArray(messages)) continue;
+    for (const message of messages) {
+      const game = message?.game;
+      if (game?.state !== "finished") continue;
+      const records = buildTwoPlayerGameHistoryRecords(game, users);
+      if (!records.length) continue;
+      pending.push(...records);
+      restored += records.length;
+      if (pending.length >= 250) {
+        await persistAuthoritativeGameHistoryRecords(pending);
+        pending = [];
+      }
+    }
+  }
+  if (pending.length) await persistAuthoritativeGameHistoryRecords(pending);
+  if (restored) {
+    console.log("[NovynGames] Verified " + restored + " historical chat-game records.");
+  }
+}
+
 function persistRandomGameSession(sessionId, entry) {
   if (!entry) return Promise.resolve();
   return persistActiveGameSession("random", sessionId, {
@@ -11689,6 +11714,7 @@ function listenWithPortFallback(preferredPort, options = {}) {
 
 async function bootstrap() {
   await loadState();
+  await restoreFinishedChatGameHistory();
   await restoreActiveGameSessions();
   queueAllScheduledMessages();
   startRetentionMaintenanceLoop();
