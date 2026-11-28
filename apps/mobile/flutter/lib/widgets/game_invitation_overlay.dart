@@ -1,0 +1,380 @@
+import 'dart:async';
+import 'dart:collection';
+
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../services/socket_service.dart';
+import '../screens/games/raja_mantri/raja_mantri_online_game_screen.dart';
+import '../screens/games/shared/room/game_room_screen.dart';
+
+/// App-wide, non-modal game invitation surface.
+///
+/// It is mounted beside the app Navigator, so invitations can be accepted or
+/// declined from any route (including an active chat) without replacing that
+/// route or blocking the message composer.
+class GameInvitationOverlay extends StatefulWidget {
+  const GameInvitationOverlay({
+    super.key,
+    required this.navigatorKey,
+  });
+
+  final GlobalKey<NavigatorState> navigatorKey;
+
+  @override
+  State<GameInvitationOverlay> createState() => _GameInvitationOverlayState();
+}
+
+class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
+  SocketService? _socket;
+  StreamSubscription<Map<String, dynamic>>? _invitationSubscription;
+  StreamSubscription<Map<String, dynamic>>? _timeoutSubscription;
+  final Queue<Map<String, dynamic>> _queue =
+      Queue<Map<String, dynamic>>();
+  final Set<String> _seenIds = <String>{};
+  Map<String, dynamic>? _activeInvitation;
+  bool _working = false;
+  bool _wasConnected = false;
+  String? _actionError;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final socket = context.read<SocketService>();
+    if (identical(socket, _socket)) return;
+
+    _detachSocket();
+    _socket = socket;
+    socket.addListener(_handleSocketChanged);
+    _invitationSubscription = socket.gameInvitationStream.listen(
+      _enqueueInvitation,
+    );
+    _timeoutSubscription = socket.gameInvitationTimeoutStream.listen(
+      _expireInvitation,
+    );
+    _handleSocketChanged();
+  }
+
+  void _detachSocket() {
+    _socket?.removeListener(_handleSocketChanged);
+    final invitationSubscription = _invitationSubscription;
+    if (invitationSubscription != null) {
+      unawaited(invitationSubscription.cancel());
+    }
+    final timeoutSubscription = _timeoutSubscription;
+    if (timeoutSubscription != null) {
+      unawaited(timeoutSubscription.cancel());
+    }
+    _invitationSubscription = null;
+    _timeoutSubscription = null;
+  }
+
+  void _handleSocketChanged() {
+    final socket = _socket;
+    if (socket == null) return;
+    final connected = socket.isConnected && socket.isAuthenticated;
+    if (!connected) {
+      _wasConnected = false;
+      if (socket.myUsername == null &&
+          (_activeInvitation != null || _queue.isNotEmpty)) {
+        setState(() {
+          _activeInvitation = null;
+          _queue.clear();
+          _actionError = null;
+          _working = false;
+        });
+      }
+      return;
+    }
+    if (!_wasConnected) {
+      _wasConnected = true;
+      unawaited(_loadLatestPendingInvitation(socket));
+    }
+  }
+
+  Future<void> _loadLatestPendingInvitation(SocketService socket) async {
+    try {
+      final invitations = await socket.getPendingGameInvitations();
+      if (!mounted || !identical(socket, _socket) || invitations.isEmpty) {
+        return;
+      }
+      // Show the newest outstanding invite after a reconnect/app resume.
+      _enqueueInvitation(invitations.last);
+    } catch (_) {
+      // A temporary reconnect must not disturb whichever screen is open.
+    }
+  }
+
+  void _enqueueInvitation(Map<String, dynamic> invitation) {
+    final id = invitation['messageId']?.toString() ?? '';
+    if (id.isEmpty || !_seenIds.add(id)) return;
+    if (mounted) {
+      setState(() {
+        _queue.addLast(Map<String, dynamic>.from(invitation));
+        _activateNext();
+      });
+    }
+  }
+
+  void _activateNext() {
+    if (_activeInvitation != null || _queue.isEmpty) return;
+    _activeInvitation = _queue.removeFirst();
+    _actionError = null;
+    _working = false;
+  }
+
+  void _expireInvitation(Map<String, dynamic> packet) {
+    final id = packet['messageId']?.toString() ?? '';
+    if (id.isEmpty || !mounted) return;
+    setState(() {
+      _queue.removeWhere((invite) => invite['messageId']?.toString() == id);
+      if (_activeInvitation?['messageId']?.toString() == id) {
+        _activeInvitation = null;
+        _actionError = null;
+        _working = false;
+        _activateNext();
+      }
+    });
+  }
+
+  void _dismissActive() {
+    if (!mounted) return;
+    setState(() {
+      _activeInvitation = null;
+      _actionError = null;
+      _working = false;
+      _activateNext();
+    });
+  }
+
+  Future<void> _declineInvitation() async {
+    final invitation = _activeInvitation;
+    final socket = _socket;
+    final id = invitation?['messageId']?.toString() ?? '';
+    if (socket == null || id.isEmpty || _working) return;
+
+    setState(() {
+      _working = true;
+      _actionError = null;
+    });
+    try {
+      await socket.rejectGameInvite(id);
+      if (mounted && _activeInvitation?['messageId']?.toString() == id) {
+        _dismissActive();
+      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _working = false;
+        _actionError = _friendlyError(error);
+      });
+    }
+  }
+
+  Future<void> _acceptInvitation() async {
+    final invitation = _activeInvitation;
+    final socket = _socket;
+    final id = invitation?['messageId']?.toString() ?? '';
+    final navigator = widget.navigatorKey.currentState;
+    if (socket == null || id.isEmpty || _working) return;
+    if (navigator == null) {
+      setState(() => _actionError = 'Unable to open the game right now.');
+      return;
+    }
+
+    setState(() {
+      _working = true;
+      _actionError = null;
+    });
+    try {
+      await socket.acceptGameInvite(id);
+      if (!mounted) return;
+      _dismissActive();
+      FocusManager.instance.primaryFocus?.unfocus();
+
+      final gameType = invitation?['gameType']?.toString().toLowerCase() ?? '';
+      final peer = invitation?['from']?.toString() ?? '';
+      if (gameType == 'rajamantri') {
+        await navigator.push<void>(
+          MaterialPageRoute<void>(
+            builder: (_) => RajaMantriInviteWaitingScreen(
+              messageId: id,
+              hostName: invitation?['displayName']?.toString() ?? peer,
+            ),
+          ),
+        );
+      } else if (invitation?['game'] is Map) {
+        await navigator.push<void>(
+          MaterialPageRoute<void>(
+            builder: (_) => GameRoomScreen(
+              currentUsername: socket.myUsername ?? '',
+              initialGame: Map<String, dynamic>.from(
+                invitation!['game'] as Map,
+              ),
+              messageId: id,
+              peerUsername: peer,
+              opponentDisplayName: invitation['displayName']?.toString(),
+            ),
+          ),
+        );
+      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _working = false;
+        _actionError = _friendlyError(error);
+      });
+    }
+  }
+
+  String _friendlyError(Object error) =>
+      error.toString().replaceFirst('Bad state: ', '');
+
+  String _gameName(String type) => switch (type.toLowerCase()) {
+        'tictactoe' => 'Tic-Tac-Toe',
+        'rps' => 'Rock Paper Scissors',
+        'rajamantri' => 'Raja Mantri',
+        _ => 'a game',
+      };
+
+  @override
+  void dispose() {
+    _detachSocket();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final invitation = _activeInvitation;
+    if (invitation == null) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final sender = invitation['displayName']?.toString().trim().isNotEmpty == true
+        ? invitation['displayName'].toString().trim()
+        : invitation['from']?.toString().trim().isNotEmpty == true
+            ? invitation['from'].toString().trim()
+            : 'Your friend';
+    final game = _gameName(invitation['gameType']?.toString() ?? '');
+
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 72,
+      left: 12,
+      right: 12,
+      child: SafeArea(
+        top: false,
+        bottom: false,
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Material(
+              color: colors.surface,
+              elevation: 12,
+              shadowColor: Colors.black.withValues(alpha: .18),
+              borderRadius: BorderRadius.circular(22),
+              clipBehavior: Clip.antiAlias,
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: colors.outlineVariant.withValues(alpha: .65),
+                  ),
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                padding: const EdgeInsets.fromLTRB(14, 13, 14, 12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 22,
+                          backgroundColor: colors.primaryContainer,
+                          child: Icon(
+                            Icons.sports_esports_rounded,
+                            color: colors.onPrimaryContainer,
+                            size: 22,
+                          ),
+                        ),
+                        const SizedBox(width: 11),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Game invitation',
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '$sender invited you to play $game',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: colors.onSurfaceVariant,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (_working)
+                          const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                      ],
+                    ),
+                    if (_actionError != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        _actionError!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colors.error,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        const Spacer(),
+                        OutlinedButton(
+                          onPressed: _working ? null : _declineInvitation,
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(94, 38),
+                            padding: const EdgeInsets.symmetric(horizontal: 15),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(13),
+                            ),
+                          ),
+                          child: const Text('Decline'),
+                        ),
+                        const SizedBox(width: 8),
+                        FilledButton.icon(
+                          onPressed: _working ? null : _acceptInvitation,
+                          icon: const Icon(Icons.check_rounded, size: 17),
+                          label: const Text('Accept'),
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size(106, 38),
+                            padding: const EdgeInsets.symmetric(horizontal: 15),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(13),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
