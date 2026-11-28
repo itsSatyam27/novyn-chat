@@ -117,7 +117,7 @@ test("Chess clocks remain paused through invitation and begin on the first move"
   const created = createGameChallenge({
     userKey: "alice", userDisplayName: "alice", to: "bob", toType: "friend",
     game: { gameType: "chess" },
-  }).game;
+  }, { randomInt: () => 0 }).game;
   assert.equal(created.data.lastMoveAt, 0);
   const firstMove = applyGameMove(created, "alice", { move: "e2e4" });
   assert.equal(firstMove.ok, true);
@@ -130,7 +130,7 @@ test("Chess game accepts legal alternating moves and rejects out-of-turn or ille
   const created = createGameChallenge({
     userKey: "alice", userDisplayName: "alice", to: "bob", toType: "friend",
     game: { gameType: "chess" },
-  }).game;
+  }, { randomInt: () => 0 }).game;
 
   const wrongTurn = applyGameMove(created, "bob", { move: "e7e5" });
   assert.equal(wrongTurn.ok, false);
@@ -156,7 +156,7 @@ test("Chess draw offer, resignation and rematch transitions are participant-only
   const created = createGameChallenge({
     userKey: "alice", userDisplayName: "alice", to: "bob", toType: "friend",
     game: { gameType: "chess" },
-  }).game;
+  }, { randomInt: () => 0 }).game;
   assert.equal(applyGameMove(created, "mallory", { action: "resign" }).ok, false);
   const offer = applyGameMove(created, "alice", { action: "draw_offer" });
   assert.equal(offer.ok, true);
