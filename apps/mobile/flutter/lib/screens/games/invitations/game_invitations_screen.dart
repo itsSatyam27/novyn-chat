@@ -6,6 +6,41 @@ import '../../../services/socket_service.dart';
 import '../../../widgets/user_avatar.dart';
 import '../raja_mantri/raja_mantri_online_game_screen.dart';
 import '../shared/room/game_room_screen.dart';
+import 'game_invitation_utils.dart';
+
+int? _gameInvitationExpiryMillis(Map<String, dynamic> invite) =>
+    gameInvitationExpiryTimestamp(invite);
+
+List<Map<String, dynamic>> mergeGameInvitationLists({
+  required Iterable<Map<String, dynamic>> snapshot,
+  required Iterable<Map<String, dynamic>> live,
+  required Set<String> resolvedIds,
+  int? nowMillis,
+}) {
+  final now = nowMillis ?? DateTime.now().millisecondsSinceEpoch;
+  final byId = <String, Map<String, dynamic>>{};
+
+  void addAll(Iterable<Map<String, dynamic>> items) {
+    for (final invite in items) {
+      final id = invite['messageId']?.toString().trim() ?? '';
+      if (id.isEmpty || resolvedIds.contains(id)) continue;
+      final expiry = _gameInvitationExpiryMillis(invite);
+      if (expiry != null && expiry <= now) continue;
+      byId[id] = Map<String, dynamic>.from(invite);
+    }
+  }
+
+  addAll(snapshot);
+  addAll(live);
+  final merged = byId.values.toList();
+  merged.sort((a, b) {
+    final aExpiry = _gameInvitationExpiryMillis(a);
+    final bExpiry = _gameInvitationExpiryMillis(b);
+    if (aExpiry == null || bExpiry == null) return 0;
+    return bExpiry.compareTo(aExpiry);
+  });
+  return merged;
+}
 
 class GameInvitationsScreen extends StatefulWidget {
   const GameInvitationsScreen({
@@ -24,33 +59,64 @@ class _GameInvitationsScreenState extends State<GameInvitationsScreen> {
   bool _loading = true;
   String? _error;
   final Set<String> _busyIds = <String>{};
+  final Set<String> _resolvedIds = <String>{};
+  StreamSubscription<String>? _resolvedSubscription;
+  StreamSubscription<Map<String, dynamic>>? _timeoutSubscription;
 
   @override
   void initState() {
     super.initState();
     widget.socket.onGameInvitationReceived = _onInvitationReceived;
+    _resolvedSubscription = widget.socket.gameInvitationResolvedStream.listen(
+      _onInvitationResolved,
+    );
+    _timeoutSubscription = widget.socket.gameInvitationTimeoutStream.listen(
+      _onInvitationTimedOut,
+    );
     unawaited(_load());
   }
 
   @override
   void dispose() {
     widget.socket.onGameInvitationReceived = null;
+    unawaited(_resolvedSubscription?.cancel());
+    unawaited(_timeoutSubscription?.cancel());
     super.dispose();
   }
 
   void _onInvitationReceived(Map packet) {
     final invite = Map<String, dynamic>.from(packet);
     final id = invite['messageId']?.toString() ?? '';
-    if (id.isEmpty || _invitations.any((item) => item['messageId'] == id)) return;
-    if (mounted) setState(() => _invitations = <Map<String, dynamic>>[invite, ..._invitations]);
+    if (id.isEmpty || _resolvedIds.contains(id)) return;
+    if (mounted) {
+      setState(() {
+        _invitations = mergeGameInvitationLists(
+          snapshot: <Map<String, dynamic>>[invite],
+          live: _invitations,
+          resolvedIds: _resolvedIds,
+        );
+      });
+    }
   }
 
   Future<void> _load() async {
+    final idsAtRequestStart = _invitations
+        .map((invite) => invite['messageId']?.toString() ?? '')
+        .where((id) => id.isNotEmpty)
+        .toSet();
     try {
       final invitations = await widget.socket.getPendingGameInvitations();
       if (!mounted) return;
+      final arrivalsDuringRefresh = _invitations.where((invite) {
+        final id = invite['messageId']?.toString() ?? '';
+        return id.isNotEmpty && !idsAtRequestStart.contains(id);
+      });
       setState(() {
-        _invitations = invitations.reversed.toList();
+        _invitations = mergeGameInvitationLists(
+          snapshot: invitations.reversed,
+          live: arrivalsDuringRefresh,
+          resolvedIds: _resolvedIds,
+        );
         _loading = false;
         _error = null;
       });
@@ -63,12 +129,29 @@ class _GameInvitationsScreenState extends State<GameInvitationsScreen> {
     }
   }
 
+  void _onInvitationResolved(String id) {
+    final key = id.trim();
+    if (key.isEmpty) return;
+    _resolvedIds.add(key);
+    if (!mounted) return;
+    setState(() {
+      _invitations.removeWhere((invite) => invite['messageId']?.toString() == key);
+    });
+  }
+
+  void _onInvitationTimedOut(Map<String, dynamic> packet) {
+    final id = packet['messageId']?.toString() ?? '';
+    _busyIds.remove(id);
+    _onInvitationResolved(id);
+  }
+
   Future<void> _accept(Map<String, dynamic> invite) async {
     final id = invite['messageId']?.toString() ?? '';
     if (id.isEmpty || !_busyIds.add(id)) return;
     setState(() {});
     try {
       await widget.socket.acceptGameInvite(id);
+      widget.socket.notifyGameInvitationResolved(id);
       if (!mounted) return;
       setState(() => _invitations.removeWhere((item) => item['messageId'] == id));
       final game = invite['game'];
@@ -115,6 +198,7 @@ class _GameInvitationsScreenState extends State<GameInvitationsScreen> {
     setState(() {});
     try {
       await widget.socket.rejectGameInvite(id);
+      widget.socket.notifyGameInvitationResolved(id);
       if (mounted) setState(() => _invitations.removeWhere((item) => item['messageId'] == id));
     } catch (error) {
       if (mounted) {
