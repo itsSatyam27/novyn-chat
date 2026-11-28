@@ -1718,6 +1718,15 @@ class SocketService extends ChangeNotifier {
       }
     });
 
+    _socket!.on('random_game_restored', (data) {
+      if (data is! Map) return;
+      final packet = Map<String, dynamic>.from(data);
+      final sessionId = packet['sessionId']?.toString() ?? '';
+      final game = packet['game'];
+      if (sessionId.isEmpty || game is! Map) return;
+      _randomGames[sessionId] = Map<String, dynamic>.from(game);
+      notifyListeners();
+    });
     _socket!.on('random_match_found', (data) {
       if (data is! Map) return;
       final packet = Map<String, dynamic>.from(data);
