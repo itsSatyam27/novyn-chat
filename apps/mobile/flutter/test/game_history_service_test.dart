@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novyn/services/game_history_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -65,4 +67,148 @@ void main() {
     expect(stats.currentWinStreak('tictactoe'), 1);
     expect(stats.currentWinStreak('rps'), 1);
   });
+  test('loads cloud history when a fresh install has no local cache', () async {
+    var cloudReads = 0;
+    GameHistoryService.cloudHistoryLoaderForTesting = () async {
+      cloudReads++;
+      return [
+        GameHistoryEntry(
+          id: 'cloud-match-1',
+          gameType: 'tictactoe',
+          opponent: 'bob',
+          result: 'win',
+          playedAt: DateTime(2026, 11, 20, 12),
+        ).toJson(),
+      ];
+    };
+
+    final snapshot = await GameHistoryService.load('alice');
+
+    expect(cloudReads, 1);
+    expect(snapshot.total, 1);
+    expect(snapshot.matches.single.id, 'cloud-match-1');
+    final prefs = await SharedPreferences.getInstance();
+    expect(
+      prefs.getString('novyn_game_history_v1_alice'),
+      contains('cloud-match-1'),
+    );
+  });
+
+  test('cloud records override stale cache rows and merge new records', () async {
+    SharedPreferences.setMockInitialValues({
+      'novyn_game_history_v1_alice': jsonEncode([
+        GameHistoryEntry(
+          id: 'shared-match',
+          gameType: 'rps',
+          opponent: 'old-name',
+          result: 'loss',
+          playedAt: DateTime(2026, 11, 19, 10),
+        ).toJson(),
+        GameHistoryEntry(
+          id: 'local-only-match',
+          gameType: 'tictactoe',
+          opponent: 'carol',
+          result: 'draw',
+          playedAt: DateTime(2026, 11, 18, 10),
+        ).toJson(),
+      ]),
+    });
+    GameHistoryService.cloudHistoryLoaderForTesting = () async => [
+      GameHistoryEntry(
+        id: 'shared-match',
+        gameType: 'rps',
+        opponent: 'bob',
+        result: 'win',
+        playedAt: DateTime(2026, 11, 19, 10),
+      ).toJson(),
+      GameHistoryEntry(
+        id: 'cloud-only-match',
+        gameType: 'rajamantri',
+        opponent: 'dave, erin, frank',
+        result: 'loss',
+        playedAt: DateTime(2026, 11, 17, 10),
+      ).toJson(),
+    ];
+
+    final snapshot = await GameHistoryService.load('alice');
+
+    expect(snapshot.total, 3);
+    expect(
+      snapshot.matches.firstWhere((match) => match.id == 'shared-match').result,
+      'win',
+    );
+    expect(
+      snapshot.matches.firstWhere((match) => match.id == 'shared-match').opponent,
+      'bob',
+    );
+    expect(snapshot.matches.map((match) => match.id),
+        containsAll(['shared-match', 'local-only-match', 'cloud-only-match']));
+  });
+
+  test('offline cloud failure keeps the local history cache available', () async {
+    SharedPreferences.setMockInitialValues({
+      'novyn_game_history_v1_alice': jsonEncode([
+        GameHistoryEntry(
+          id: 'offline-match',
+          gameType: 'tictactoe',
+          opponent: 'bob',
+          result: 'draw',
+          playedAt: DateTime(2026, 11, 15, 10),
+        ).toJson(),
+      ]),
+    });
+    GameHistoryService.cloudHistoryLoaderForTesting = () async {
+      throw StateError('network unavailable');
+    };
+
+    final snapshot = await GameHistoryService.load('alice');
+
+    expect(snapshot.total, 1);
+    expect(snapshot.matches.single.id, 'offline-match');
+  });
+
+  test('corrupt local cache does not block cloud history recovery', () async {
+    SharedPreferences.setMockInitialValues({
+      'novyn_game_history_v1_alice': '{not-json',
+    });
+    GameHistoryService.cloudHistoryLoaderForTesting = () async => [
+      GameHistoryEntry(
+        id: 'recovered-cloud-match',
+        gameType: 'rps',
+        opponent: 'bob',
+        result: 'draw',
+        playedAt: DateTime(2026, 11, 12, 10),
+      ).toJson(),
+    ];
+
+    final snapshot = await GameHistoryService.load('alice');
+
+    expect(snapshot.total, 1);
+    expect(snapshot.matches.single.id, 'recovered-cloud-match');
+  });
+
+  test('recording a finished match writes locally without a network round-trip', () async {
+    var cloudReads = 0;
+    GameHistoryService.cloudHistoryLoaderForTesting = () async {
+      cloudReads++;
+      return null;
+    };
+
+    await GameHistoryService.recordFinishedMatch(
+      username: 'alice',
+      matchId: 'local-finish',
+      gameType: 'tictactoe',
+      opponent: 'bob',
+      result: 'win',
+      playedAt: DateTime(2026, 11, 21, 12),
+    );
+
+    expect(cloudReads, 0);
+    final prefs = await SharedPreferences.getInstance();
+    expect(
+      prefs.getString('novyn_game_history_v1_alice'),
+      contains('local-finish'),
+    );
+  });
+
 }
