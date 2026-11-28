@@ -4,7 +4,7 @@
   "description": "Simple web chat app with friends and real-time messaging",
   "main": "apps/api/server.js",
   "scripts": {
-    "test": "node --test apps/api/tests/*.test.js",
+    "test": "node --test --test-concurrency=1 apps/api/tests/*.test.js",
     "dev": "concurrently -n \"backend,frontend\" -c \"blue,green\" \"node apps/api/server.js\" \"vite --config apps/web/vite.config.ts\"",
     "dev:front": "vite --config apps/web/vite.config.ts",
     "dev:back": "node apps/api/server.js",
