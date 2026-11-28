@@ -658,7 +658,6 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
                 fontSize: 24,
                 fontWeight: FontWeight.w900,
                 letterSpacing: .5,
-                fontFeatures: [FontFeature.tabularFigures()],
               ),
             ),
           ),
@@ -744,8 +743,8 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
 
   Future<void> _openMatchPanel() async {
     final screenSize = MediaQuery.sizeOf(context);
-    final dialogWidth = math.min(screenSize.width * .76, 820.0);
-    final dialogHeight = math.min(screenSize.height * .84, 620.0);
+    final dialogWidth = math.min(screenSize.width * .76, 820.0).toDouble();
+    final dialogHeight = math.min(screenSize.height * .84, 620.0).toDouble();
     var showMoves = false;
 
     await showDialog<void>(
