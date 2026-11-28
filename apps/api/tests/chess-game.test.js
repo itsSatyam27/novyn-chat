@@ -65,7 +65,7 @@ test("Chess challenge is a one-to-one match with server-generated legal moves", 
     to: "bob",
     toType: "friend",
     game: { gameType: "chess" },
-  });
+  }, { randomInt: () => 0 });
   assert.equal(created.ok, true);
   assert.equal(created.game.gameType, "chess");
   assert.equal(created.game.turn, "alice");
@@ -79,8 +79,38 @@ test("Chess challenge is a one-to-one match with server-generated legal moves", 
     to: "club",
     toType: "group",
     game: { gameType: "chess" },
-  });
+  }, { randomInt: () => 0 });
   assert.equal(group.ok, false);
+});
+
+test("Chess randomly assigns White and Black and always gives White the first turn", () => {
+  const creatorIsWhite = createGameChallenge({
+    userKey: "alice",
+    userDisplayName: "Alice",
+    to: "bob",
+    toType: "friend",
+    game: { gameType: "chess", opponentDisplayName: "Bob" },
+  }, { randomInt: () => 0 }).game;
+  assert.equal(creatorIsWhite.data.white, "alice");
+  assert.equal(creatorIsWhite.data.black, "bob");
+  assert.equal(creatorIsWhite.data.whiteName, "Alice");
+  assert.equal(creatorIsWhite.data.blackName, "Bob");
+  assert.equal(creatorIsWhite.turn, "alice");
+
+  const creatorIsBlack = createGameChallenge({
+    userKey: "alice",
+    userDisplayName: "Alice",
+    to: "bob",
+    toType: "friend",
+    game: { gameType: "chess", opponentDisplayName: "Bob" },
+  }, { randomInt: () => 1 }).game;
+  assert.equal(creatorIsBlack.data.white, "bob");
+  assert.equal(creatorIsBlack.data.black, "alice");
+  assert.equal(creatorIsBlack.data.whiteName, "Bob");
+  assert.equal(creatorIsBlack.data.blackName, "Alice");
+  assert.equal(creatorIsBlack.turn, "bob");
+  assert.equal(creatorIsBlack.data.player1, "bob");
+  assert.equal(creatorIsBlack.data.player2, "alice");
 });
 
 test("Chess clocks remain paused through invitation and begin on the first move", () => {
