@@ -96,10 +96,10 @@ test("matchmaking carries validated game levels to both matched players", () => 
     displayName: "Bob",
     socketId: "bob_socket",
     gameType: "tictactoe",
-    level: 7,
+    level: 6,
   });
   assert.equal(match.matched, true);
-  assert.deepEqual(match.players.map((player) => player.level), [4, 7]);
+  assert.deepEqual(match.players.map((player) => player.level), [4, 6]);
 });
 
 test("invalid matchmaking level metadata is omitted instead of trusted", () => {
