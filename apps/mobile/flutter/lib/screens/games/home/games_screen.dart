@@ -62,7 +62,7 @@ class _GamesScreenState extends State<GamesScreen> {
       type: 'chess',
       title: 'Chess',
       subtitle: 'Classic strategy · 1v1',
-      icon: Icons.grid_4x4_rounded,
+      icon: Icons.grid_3x3_rounded,
       gradient: [Color(0xFF7955E8), Color(0xFF5136B8)],
     ),
   ];
