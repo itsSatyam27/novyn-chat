@@ -17,6 +17,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   bool _loading = true;
   String? _error;
   List<Map<String, dynamic>> _rankings = const [];
+  int _totalPlayers = 0;
   Map<String, dynamic>? _myEntry;
   int _loadGeneration = 0;
 
@@ -63,9 +64,17 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
           : const <Map<String, dynamic>>[];
       final rawMe = payload['myEntry'];
       final myEntry = rawMe is Map ? Map<String, dynamic>.from(rawMe) : null;
+      final rawTotalPlayers = payload['totalPlayers'];
+      final parsedTotalPlayers = rawTotalPlayers is num
+          ? rawTotalPlayers.toInt()
+          : int.tryParse('$rawTotalPlayers') ?? rankings.length;
+      final totalPlayers = parsedTotalPlayers < rankings.length
+          ? rankings.length
+          : parsedTotalPlayers;
       if (!mounted || generation != _loadGeneration) return;
       setState(() {
         _rankings = rankings;
+        _totalPlayers = totalPlayers;
         _myEntry = myEntry;
         _loading = false;
       });
@@ -265,7 +274,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                     ),
                     const Spacer(),
                     Text(
-                      '${_rankings.length} players',
+                      _totalPlayers > _rankings.length
+                          ? 'Top ${_rankings.length} of $_totalPlayers players'
+                          : '$_totalPlayers players',
                       style: TextStyle(
                         color: muted,
                         fontSize: 11,
