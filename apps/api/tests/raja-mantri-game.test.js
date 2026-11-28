@@ -105,6 +105,7 @@ test("only host advances result rounds and five rounds finish the match", () => 
   }
   assert.equal(advanceRajaMantriRound(session, session.hostUsername).ok, true);
   assert.equal(session.phase, "finished");
+  assert.ok(Number.isFinite(session.finishedAt) && session.finishedAt > 0);
 });
 
 test("a bot Sipahi automatically resolves the round after all human picks", () => {
