@@ -44,11 +44,18 @@ void main() {
     expect(find.byIcon(Icons.local_fire_department_rounded), findsNWidgets(3));
     expect(find.text('Game History'), findsOneWidget);
     expect(find.text('Leaderboard'), findsOneWidget);
+    expect(find.text('Achievements'), findsOneWidget);
+    await tester.tap(find.text('Achievements'));
+    await tester.pumpAndSettle();
+    expect(find.text('Your game milestones'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
     expect(find.byIcon(Icons.more_horiz_rounded), findsOneWidget);
     await tester.tap(find.byIcon(Icons.more_horiz_rounded));
     await tester.pumpAndSettle();
     expect(find.text('Game invitations'), findsOneWidget);
     expect(find.text('Match history'), findsOneWidget);
+    expect(find.text('Achievements'), findsOneWidget);
     expect(find.text('Leaderboard'), findsNWidgets(2));
     expect(find.text('Play with Random'), findsNothing);
     expect(tester.takeException(), isNull);
