@@ -276,11 +276,21 @@ class SocketService extends ChangeNotifier {
       StreamController<Map<String, dynamic>>.broadcast();
   final StreamController<Map<String, dynamic>> _gameInvitationTimeoutStreamController =
       StreamController<Map<String, dynamic>>.broadcast();
+  final StreamController<String> _gameInvitationResolvedStreamController =
+      StreamController<String>.broadcast();
 
   Stream<Map<String, dynamic>> get gameInvitationStream =>
       _gameInvitationStreamController.stream;
   Stream<Map<String, dynamic>> get gameInvitationTimeoutStream =>
       _gameInvitationTimeoutStreamController.stream;
+  Stream<String> get gameInvitationResolvedStream =>
+      _gameInvitationResolvedStreamController.stream;
+
+  void notifyGameInvitationResolved(String messageId) {
+    final id = messageId.trim();
+    if (id.isEmpty || _gameInvitationResolvedStreamController.isClosed) return;
+    _gameInvitationResolvedStreamController.add(id);
+  }
   Function(Map)? onGameMoveUpdated;
   Function(Map)? onRajaMantriMatchFound;
   Function(Map)? onRajaMantriMatchProgress;
@@ -4701,6 +4711,7 @@ class SocketService extends ChangeNotifier {
     contacts.dispose();
     unawaited(_gameInvitationStreamController.close());
     unawaited(_gameInvitationTimeoutStreamController.close());
+    unawaited(_gameInvitationResolvedStreamController.close());
     super.dispose();
   }
 }
