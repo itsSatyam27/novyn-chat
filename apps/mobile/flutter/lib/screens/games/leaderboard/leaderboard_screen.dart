@@ -26,12 +26,14 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     'Tic-Tac-Toe',
     'Rock Paper Scissors',
     'Raja Mantri',
+    'Chess',
   ];
 
   String get _gameKey => switch (_game) {
         'Tic-Tac-Toe' => 'tictactoe',
         'Rock Paper Scissors' => 'rps',
         'Raja Mantri' => 'rajamantri',
+        'Chess' => 'chess',
         _ => 'overall',
       };
 
