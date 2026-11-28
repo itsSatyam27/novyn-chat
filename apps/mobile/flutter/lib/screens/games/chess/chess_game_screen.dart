@@ -314,6 +314,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
         _voice != null || _finished) return;
     setState(() {
       _voiceIncoming = true;
+      _voiceRoomId = packet['roomId']?.toString();
       _voicePeerUsername = packet['peerUsername']?.toString() ?? widget.peerUsername;
       _voiceStatus = 'incoming';
     });
