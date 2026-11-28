@@ -21,9 +21,9 @@ test("disconnect removes only the owning socket queue entry", () => {
   const q = new PublicGameMatchmaking(); q.join({userKey:"alice",socketId:"old",gameType:"tictactoe"});
   assert.equal(q.disconnect("alice","new"),false); assert.equal(q.disconnect("alice","old"),true);
 });
-test("the two supported games allow random matchmaking and one account cannot self-match", () => {
+test("supported games allow random matchmaking and one account cannot self-match", () => {
   const q = new PublicGameMatchmaking();
-  for (const [index, gameType] of ["tictactoe", "rps"].entries()) {
+  for (const [index, gameType] of ["tictactoe", "rps", "chess"].entries()) {
     const first = "player_" + index + "_a";
     const second = "player_" + index + "_b";
     assert.equal(q.join({ userKey: first, socketId: first + "_socket", gameType }).queued, true);
