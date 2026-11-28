@@ -1559,6 +1559,7 @@ function scheduleRajaMantriPhaseTimer(entry) {
     if (!rajaMantriSessions.has(game.sessionId) || rajaMantriSessions.get(game.sessionId) !== entry) return;
 
     const previousGame = cloneRajaMantriGame(game);
+    const previousExpiresAt = entry.expiresAt;
     if (game.phase === "picking") {
       for (const player of game.players) {
         if (!player.isBot && !player.picked) {
@@ -1580,6 +1581,8 @@ function scheduleRajaMantriPhaseTimer(entry) {
     const persisted = await persistRajaMantriSession(game.sessionId, entry);
     if (!persisted) {
       entry.game = previousGame;
+      entry.expiresAt = previousExpiresAt;
+      scheduleRajaMantriSessionExpiry(game.sessionId, entry);
       if (["picking", "guessing"].includes(entry.game.phase)) {
         entry.game.responseDeadlineAt = Date.now() + RAJA_MANTRI_RESPONSE_TIMEOUT_MS;
         scheduleRajaMantriPhaseTimer(entry);
@@ -1734,6 +1737,10 @@ function persistRandomGameSession(sessionId, entry) {
 
 function persistRajaMantriSession(sessionId, entry) {
   if (!entry?.game) return Promise.resolve(false);
+  if (entry.game.phase !== "finished") {
+    entry.expiresAt = Date.now() + RAJA_MANTRI_SESSION_TTL_MS;
+    scheduleRajaMantriSessionExpiry(sessionId, entry);
+  }
   const game = { ...entry.game };
   delete game.random;
   return persistActiveGameSession("rajamantri", sessionId, game, entry.expiresAt);
@@ -7856,11 +7863,14 @@ io.on("connection", (socket) => {
       return respond({ ok: false, message: "You are not a player in this match." });
     }
     const previousGame = cloneRajaMantriGame(entry.game);
+    const previousExpiresAt = entry.expiresAt;
     const connection = setRajaMantriPlayerConnected(entry.game, userKey, false);
     if (!connection.ok) return respond({ ok: false, message: connection.reason });
     const persisted = await persistRajaMantriSession(sessionId, entry);
     if (!persisted) {
       entry.game = previousGame;
+      entry.expiresAt = previousExpiresAt;
+      scheduleRajaMantriSessionExpiry(sessionId, entry);
       scheduleRajaMantriPhaseTimer(entry);
       return respond({ ok: false, message: "Could not save your reconnect state. Please retry." });
     }
@@ -7907,11 +7917,14 @@ io.on("connection", (socket) => {
       return respond({ ok: false, message: "Please wait before picking again." });
     }
     const previousGame = cloneRajaMantriGame(entry.game);
+    const previousExpiresAt = entry.expiresAt;
     const result = pickRajaMantriChit(entry.game, userKey);
     if (!result.ok) return respond({ ok: false, message: result.reason });
     const persisted = await persistRajaMantriSession(sessionId, entry);
     if (!persisted) {
       entry.game = previousGame;
+      entry.expiresAt = previousExpiresAt;
+      scheduleRajaMantriSessionExpiry(sessionId, entry);
       scheduleRajaMantriPhaseTimer(entry);
       return respond({ ok: false, message: "Could not save your pick. Please retry." });
     }
@@ -7933,11 +7946,14 @@ io.on("connection", (socket) => {
       return respond({ ok: false, message: "Please wait before guessing again." });
     }
     const previousGame = cloneRajaMantriGame(entry.game);
+    const previousExpiresAt = entry.expiresAt;
     const result = guessRajaMantriChor(entry.game, userKey, suspectUsername);
     if (!result.ok) return respond({ ok: false, message: result.reason });
     const persisted = await persistRajaMantriSession(sessionId, entry);
     if (!persisted) {
       entry.game = previousGame;
+      entry.expiresAt = previousExpiresAt;
+      scheduleRajaMantriSessionExpiry(sessionId, entry);
       scheduleRajaMantriPhaseTimer(entry);
       return respond({ ok: false, message: "Could not save your guess. Please retry." });
     }
@@ -7958,11 +7974,14 @@ io.on("connection", (socket) => {
       return respond({ ok: false, message: "Please wait before continuing the round." });
     }
     const previousGame = cloneRajaMantriGame(entry.game);
+    const previousExpiresAt = entry.expiresAt;
     const result = advanceRajaMantriRound(entry.game, userKey);
     if (!result.ok) return respond({ ok: false, message: result.reason });
     const persisted = await persistRajaMantriSession(sessionId, entry);
     if (!persisted) {
       entry.game = previousGame;
+      entry.expiresAt = previousExpiresAt;
+      scheduleRajaMantriSessionExpiry(sessionId, entry);
       scheduleRajaMantriPhaseTimer(entry);
       return respond({ ok: false, message: "Could not save the next round. Please retry." });
     }
