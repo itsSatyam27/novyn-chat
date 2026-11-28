@@ -6242,16 +6242,19 @@ class _MessageBubble extends StatelessWidget {
                   children: [
                     const Icon(Icons.videocam_rounded, color: Colors.white, size: 15),
                     const SizedBox(width: 5),
-                    Text(
-                      name,
-                      maxWidth: 175,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontFamily: 'PlusJakartaSans',
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 175),
+                      child: Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
+                        ),
                       ),
                     ),
                   ],
