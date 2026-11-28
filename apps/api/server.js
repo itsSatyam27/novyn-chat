@@ -11626,6 +11626,10 @@ io.on("connection", (socket) => {
 
     const existingSocketId = onlineUsers.get(userKey);
     if (existingSocketId === socket.id) {
+      // Remove this socket from presence before awaiting persistence. A new
+      // login can now register without this stale disconnect deleting it later.
+      onlineUsers.delete(userKey);
+
       // Keep Raja Mantri rooms alive while disconnected players are auto-controlled.
       for (const [sessionId, entry] of rajaMantriSessions) {
         const connection = setRajaMantriPlayerConnected(entry.game, userKey, false);
@@ -11709,7 +11713,6 @@ io.on("connection", (socket) => {
         }
       }
 
-      onlineUsers.delete(userKey);
       // Start the reconnect grace timer only after presence is removed, so the
       // timer cannot mistake the disconnecting socket for a live participant.
       for (const [sessionId, entry] of randomGameSessions) {
