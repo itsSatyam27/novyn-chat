@@ -1623,7 +1623,10 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
   @override
   void didUpdateWidget(covariant _TicTacToeMatchPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _liveGame.value = _copyGameSnapshot(widget.game);
+    final gameSnapshot = _copyGameSnapshot(widget.game);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _liveGame.value = gameSnapshot;
+    });
     if (oldWidget.game['data'] != widget.game['data']) {
       _optimisticBoard = null;
       _error = null;
@@ -2152,7 +2155,10 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
   @override
   void didUpdateWidget(covariant _RockPaperScissorsPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _liveGame.value = _copyGameSnapshot(widget.game);
+    final gameSnapshot = _copyGameSnapshot(widget.game);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _liveGame.value = gameSnapshot;
+    });
     final currentData = widget.game['data'];
     final currentState = widget.game['state']?.toString();
     if (!identical(_lastObservedData, currentData) ||
