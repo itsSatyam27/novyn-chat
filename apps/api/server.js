@@ -1600,8 +1600,7 @@ function scheduleRajaMantriPhaseTimer(entry) {
       }
     }
 
-    emitRajaMantriGameUpdate(game);
-    scheduleRajaMantriPhaseTimer(entry);
+    emitRajaMantriGameUpdate(game); scheduleRajaMantriPhaseTimer(entry); persistRajaMantriSession(game.sessionId, entry);
   }, Math.max(0, deadline - Date.now()));
   if (typeof entry.responseTimer.unref === "function") entry.responseTimer.unref();
 }
@@ -1619,13 +1618,14 @@ function emitRajaMantriGameUpdate(session) {
   }
 }
 
-function expireRajaMantriSession(sessionId) {
-  const entry = rajaMantriSessions.get(sessionId);
-  if (!entry) return;
-  clearTimeout(entry.expiryTimer);
-  clearTimeout(entry.responseTimer);
-  rajaMantriSessions.delete(sessionId);
-}
+function expireRajaMantriSession(sessionId) { const entry=rajaMantriSessions.get(sessionId); if(!entry)return;clearTimeout(entry.expiryTimer);clearTimeout(entry.responseTimer);rajaMantriSessions.delete(sessionId);void deletePersistedGameSession("rajamantri",sessionId); }
+async function persistActiveGameSession(kind,sessionId,payload,expiresAt){if(!mongoGameSessionsCollection)return;try{await mongoGameSessionsCollection.updateOne({_id:String(kind)+":"+String(sessionId)},{$set:{kind,sessionId:String(sessionId),payload,expiresAt:Number(expiresAt),updatedAt:new Date()}},{upsert:true});}catch(e){console.warn("[NovynGames] Active session persistence failed:",e?.message||e);}}
+async function deletePersistedGameSession(kind,sessionId){if(!mongoGameSessionsCollection)return;try{await mongoGameSessionsCollection.deleteOne({_id:String(kind)+":"+String(sessionId)});}catch(e){console.warn("[NovynGames] Session cleanup failed:",e?.message||e);}}
+function persistRandomGameSession(sessionId,entry){if(entry)void persistActiveGameSession("random",sessionId,{game:entry.game,players:entry.players},entry.expiresAt);}
+function persistRajaMantriSession(sessionId,entry){if(!entry?.game)return;const game={...entry.game};delete game.random;void persistActiveGameSession("rajamantri",sessionId,game,entry.expiresAt);}
+function scheduleRandomSessionExpiry(sessionId,entry){clearTimeout(entry.expiryTimer);entry.expiryTimer=setTimeout(()=>{if(randomGameSessions.get(sessionId)!==entry)return;randomGameSessions.delete(sessionId);void deletePersistedGameSession("random",sessionId);},Math.max(0,entry.expiresAt-Date.now()));if(entry.expiryTimer.unref)entry.expiryTimer.unref();}
+function scheduleRajaMantriSessionExpiry(sessionId,entry){clearTimeout(entry.expiryTimer);entry.expiryTimer=setTimeout(()=>{if(rajaMantriSessions.get(sessionId)!==entry)return;expireRajaMantriSession(sessionId);},Math.max(0,entry.expiresAt-Date.now()));if(entry.expiryTimer.unref)entry.expiryTimer.unref();}
+async function restoreActiveGameSessions(){if(!mongoGameSessionsCollection)return;const docs=await mongoGameSessionsCollection.find({expiresAt:{$gt:Date.now()}}).toArray();for(const doc of docs){const expiresAt=Number(doc.expiresAt),sessionId=String(doc.sessionId||"");if(!sessionId||!Number.isFinite(expiresAt)||expiresAt<=Date.now()){await mongoGameSessionsCollection.deleteOne({_id:doc._id});continue;}if(doc.kind==="random"&&doc.payload?.game&&Array.isArray(doc.payload.players)){const entry={game:doc.payload.game,players:doc.payload.players.map(normalizeName),expiresAt,expiryTimer:null};randomGameSessions.set(sessionId,entry);scheduleRandomSessionExpiry(sessionId,entry);continue;}if(doc.kind==="rajamantri"&&Array.isArray(doc.payload?.players)){const game={...doc.payload,random:Math.random};for(const p of game.players)if(!p.isBot){p.isConnected=false;p.autoControlled=true;}const entry={game,expiresAt,expiryTimer:null,responseTimer:null,responseTimerDeadline:0};rajaMantriSessions.set(sessionId,entry);scheduleRajaMantriSessionExpiry(sessionId,entry);scheduleRajaMantriPhaseTimer(entry);continue;}await mongoGameSessionsCollection.deleteOne({_id:doc._id});}console.log("[NovynGames] Recovered "+randomGameSessions.size+" random and "+rajaMantriSessions.size+" Raja Mantri sessions.");}
 
 // Random matches are short-lived, server-authoritative sessions. They do not
 // depend on a friendship or a chat thread, and are discarded after 30 minutes.
@@ -1641,6 +1641,7 @@ let mongoMessagesCollection = null;
 let mongoAuthSessionsCollection = null;
 let mongoMediaCollection = null;
 let mongoGameHistoryCollection = null;
+let mongoGameSessionsCollection = null;
 const mediaMetadataCache = new Map();
 
 let persistTimer = null;
@@ -3610,6 +3611,8 @@ async function initializeMongo() {
     mongoAuthSessionsCollection = mongoStorage.getCollection("auth_sessions");
     mongoMediaCollection = mongoStorage.getCollection("media");
     mongoGameHistoryCollection = mongoStorage.getCollection("game_history");
+    mongoGameSessionsCollection = mongoStorage.getCollection("active_game_sessions");
+    try { await mongoGameSessionsCollection.createIndex({ expiresAt: 1 }, { name: "active_game_session_expiry" }); } catch (e) { console.warn("[NovynGames] Active-session index deferred:", e?.message || e); }
     if (mongoGameHistoryCollection?.createIndex) {
       try {
         await mongoGameHistoryCollection.createIndex(
@@ -7410,14 +7413,8 @@ io.on("connection", (socket) => {
     }
 
     const game = challenge.game;
-    const expiryTimer = setTimeout(() => randomGameSessions.delete(result.sessionId), RANDOM_GAME_SESSION_TTL_MS);
-    if (typeof expiryTimer.unref === "function") expiryTimer.unref();
-    randomGameSessions.set(result.sessionId, {
-      game,
-      players: [first.userKey, second.userKey],
-      expiresAt: Date.now() + RANDOM_GAME_SESSION_TTL_MS,
-      expiryTimer,
-    });
+    const randomEntry = { game, players: [first.userKey, second.userKey], expiresAt: Date.now() + RANDOM_GAME_SESSION_TTL_MS, expiryTimer: null };
+    randomGameSessions.set(result.sessionId, randomEntry); scheduleRandomSessionExpiry(result.sessionId, randomEntry); persistRandomGameSession(result.sessionId, randomEntry);
 
     const packet = (opponent) => ({
       sessionId: result.sessionId,
@@ -7496,9 +7493,8 @@ io.on("connection", (socket) => {
       RAJA_MANTRI_SESSION_TTL_MS,
     );
     if (typeof expiryTimer.unref === "function") expiryTimer.unref();
-    const sessionEntry = { game: gameSession, expiryTimer, responseTimer: null, responseTimerDeadline: 0 };
-    rajaMantriSessions.set(result.matchId, sessionEntry);
-    scheduleRajaMantriPhaseTimer(sessionEntry);
+    const sessionEntry = { game: gameSession, expiresAt: Date.now() + RAJA_MANTRI_SESSION_TTL_MS, expiryTimer, responseTimer: null, responseTimerDeadline: 0 };
+    rajaMantriSessions.set(result.matchId, sessionEntry); scheduleRajaMantriSessionExpiry(result.matchId, sessionEntry); scheduleRajaMantriPhaseTimer(sessionEntry); persistRajaMantriSession(result.matchId, sessionEntry);
     const packet = {
       matchId: result.matchId,
       sessionId: result.matchId,
@@ -7582,7 +7578,7 @@ io.on("connection", (socket) => {
     }
     const result = pickRajaMantriChit(entry.game, userKey);
     if (!result.ok) return respond({ ok: false, message: result.reason });
-    scheduleRajaMantriPhaseTimer(entry);
+    scheduleRajaMantriPhaseTimer(entry); persistRajaMantriSession(sessionId, entry);
     emitRajaMantriGameUpdate(entry.game);
     return respond({ ok: true, game: getRajaMantriGameView(entry.game, userKey) });
   });
@@ -7601,7 +7597,7 @@ io.on("connection", (socket) => {
     }
     const result = guessRajaMantriChor(entry.game, userKey, suspectUsername);
     if (!result.ok) return respond({ ok: false, message: result.reason });
-    scheduleRajaMantriPhaseTimer(entry);
+    scheduleRajaMantriPhaseTimer(entry); persistRajaMantriSession(sessionId, entry);
     emitRajaMantriGameUpdate(entry.game);
     return respond({ ok: true, game: getRajaMantriGameView(entry.game, userKey) });
   });
@@ -7619,7 +7615,7 @@ io.on("connection", (socket) => {
     }
     const result = advanceRajaMantriRound(entry.game, userKey);
     if (!result.ok) return respond({ ok: false, message: result.reason });
-    scheduleRajaMantriPhaseTimer(entry);
+    scheduleRajaMantriPhaseTimer(entry); persistRajaMantriSession(sessionId, entry);
     emitRajaMantriGameUpdate(entry.game);
     return respond({ ok: true, game: getRajaMantriGameView(entry.game, userKey) });
   });
@@ -7872,7 +7868,7 @@ io.on("connection", (socket) => {
       return respond({ ok: false, message: result.reason || "Invalid game move." });
     }
 
-    session.game = result.game;
+    session.game = result.game; persistRandomGameSession(sessionId, session);
     const packet = {
       sessionId,
       game: session.game,
@@ -11419,6 +11415,7 @@ function listenWithPortFallback(preferredPort, options = {}) {
 
 async function bootstrap() {
   await loadState();
+  await restoreActiveGameSessions();
   queueAllScheduledMessages();
   startRetentionMaintenanceLoop();
 
