@@ -55,7 +55,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Game invitations'), findsOneWidget);
     expect(find.text('Match history'), findsOneWidget);
-    expect(find.text('Achievements'), findsOneWidget);
+    expect(find.text('Achievements'), findsNWidgets(2));
     expect(find.text('Leaderboard'), findsNWidgets(2));
     expect(find.text('Play with Random'), findsNothing);
     expect(tester.takeException(), isNull);
