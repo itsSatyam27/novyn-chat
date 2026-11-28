@@ -48,7 +48,7 @@ void main() {
     await tester.tap(find.text('Achievements'));
     await tester.pumpAndSettle();
     expect(find.text('Your game milestones'), findsOneWidget);
-    await tester.pageBack();
+    await tester.tap(find.byIcon(Icons.arrow_back_rounded));
     await tester.pumpAndSettle();
     expect(find.byIcon(Icons.more_horiz_rounded), findsOneWidget);
     await tester.tap(find.byIcon(Icons.more_horiz_rounded));
