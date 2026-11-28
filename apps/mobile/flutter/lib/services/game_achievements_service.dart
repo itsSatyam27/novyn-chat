@@ -31,7 +31,7 @@ class GameAchievementsSnapshot {
   int get total => achievements.length;
   int get unlocked => achievements.where((item) => item.isUnlocked).length;
   int get remaining => total - unlocked;
-  double get completion => total == 0 ? 0 : unlocked / total;
+  double get completion => total == 0 ? 0.0 : unlocked / total;
 }
 
 class GameAchievementsService {
