@@ -5514,10 +5514,11 @@ function finalizeSocketAuthentication(socket, user) {
   onlineUsers.set(userKey, socket.id);
 
   // Rejoining users resume their human turns in any active Raja Mantri room.
-  for (const entry of rajaMantriSessions.values()) {
+  for (const [sessionId, entry] of rajaMantriSessions) {
     const connection = setRajaMantriPlayerConnected(entry.game, userKey, true);
     if (connection.ok) {
       scheduleRajaMantriPhaseTimer(entry);
+      persistRajaMantriSession(sessionId, entry);
       emitRajaMantriGameUpdate(entry.game);
     }
   }
@@ -11244,6 +11245,7 @@ io.on("connection", (socket) => {
         const connection = setRajaMantriPlayerConnected(entry.game, userKey, false);
         if (!connection.ok) continue;
         scheduleRajaMantriPhaseTimer(entry);
+        persistRajaMantriSession(sessionId, entry);
         emitRajaMantriGameUpdate(entry.game);
         for (const player of entry.game.players) {
           if (player.isBot || player.username === userKey) continue;
