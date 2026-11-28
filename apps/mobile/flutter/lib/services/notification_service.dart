@@ -1777,7 +1777,7 @@ class NotificationService {
       final nextTurn = rawGame['turn']?.toString().trim().toLowerCase() ?? '';
       final account = _socket?.myUsername?.trim().toLowerCase() ?? '';
       if (account.isEmpty || nextTurn != account) return;
-      unawaited(showInAppGameTurn(data, context));
+      unawaited(showInAppGameTurn(Map<String, dynamic>.from(data), context));
     };
     _socket!.onIncomingMessage = (
       username,
