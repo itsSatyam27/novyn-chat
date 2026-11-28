@@ -1,8 +1,21 @@
 "use strict";
 const crypto = require("crypto");
+
+const INITIAL_MAX_LEVEL_GAP = 2;
+const LEVEL_GAP_WIDEN_INTERVAL_MS = 5_000;
+const MAX_LEVEL_GAP = 14;
+
 class PublicGameMatchmaking {
-  constructor({ timeoutMs = 60_000, onExpired = () => {}, createSessionId = () => crypto.randomUUID() } = {}) {
-    this.timeoutMs = timeoutMs; this.onExpired = onExpired; this.createSessionId = createSessionId;
+  constructor({
+    timeoutMs = 60_000,
+    onExpired = () => {},
+    createSessionId = () => crypto.randomUUID(),
+    now = () => Date.now(),
+  } = {}) {
+    this.timeoutMs = timeoutMs;
+    this.onExpired = onExpired;
+    this.createSessionId = createSessionId;
+    this.now = now;
     this.queues = new Map(); this.byUser = new Map();
   }
   join({ userKey, displayName, socketId, gameType, level, excludedUsers = [] }) {
@@ -41,6 +54,15 @@ class PublicGameMatchmaking {
       const levelDistance = hasComparableLevels
         ? Math.abs(playerLevel - entry.level)
         : Number.POSITIVE_INFINITY;
+      if (hasComparableLevels) {
+        const waitedMs = Math.max(0, this.now() - entry.joinedAt);
+        const allowedLevelGap = Math.min(
+          MAX_LEVEL_GAP,
+          INITIAL_MAX_LEVEL_GAP +
+            Math.floor(waitedMs / LEVEL_GAP_WIDEN_INTERVAL_MS),
+        );
+        if (levelDistance > allowedLevelGap) continue;
+      }
       if (index === -1 || levelDistance < bestLevelDistance) {
         index = candidateIndex;
         bestLevelDistance = levelDistance;
@@ -61,6 +83,7 @@ class PublicGameMatchmaking {
       socketId: socket,
       gameType: type,
       level: playerLevel,
+      joinedAt: this.now(),
       excludedUsers: excluded,
       timer: null,
     };
