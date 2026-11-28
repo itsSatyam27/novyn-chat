@@ -350,7 +350,7 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
                     ),
                     const SizedBox(width: 5),
                     Text(
-                      'Live',
+                      statusLabel,
                       style: TextStyle(
                         color: statusColor,
                         fontWeight: FontWeight.w700,
