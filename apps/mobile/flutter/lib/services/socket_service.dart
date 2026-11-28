@@ -2711,10 +2711,7 @@ class SocketService extends ChangeNotifier {
     }
   }
 
-  Future<Map<String, dynamic>> joinRandomGame(
-    String gameType, {
-    int? playerLevel,
-  }) async {
+  Future<Map<String, dynamic>> joinRandomGame(String gameType) async {
     await _waitForSocketAuthentication();
     final socket = _socket;
     if (socket == null || !_isConnected || !_isAuthenticated) {
@@ -2723,7 +2720,6 @@ class SocketService extends ChangeNotifier {
     final completer = Completer<Map<String, dynamic>>();
     socket.emitWithAck('join_random_game', {
       'gameType': gameType,
-      if (playerLevel != null) 'playerLevel': playerLevel,
     }, ack: (dynamic result) {
       if (completer.isCompleted) return;
       completer.complete(result is Map
