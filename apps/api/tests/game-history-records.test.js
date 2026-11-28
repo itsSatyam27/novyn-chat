@@ -103,5 +103,13 @@ test("Raja Mantri history uses completed server scores and never accepts bot ses
     ...session,
     players: [...session.players, { username: "bot_1", score: 0, isBot: true }],
   }, users), []);
+  assert.deepEqual(buildRajaMantriHistoryRecords({
+    ...session,
+    players: session.players.map((player) => ({ ...player })).concat({
+      username: "bot_1",
+      score: 0,
+      isBot: false,
+    }),
+  }, accounts("alice", "bob", "carol", "bot_1")), []);
   assert.deepEqual(buildRajaMantriHistoryRecords({ ...session, phase: "result" }, users), []);
 });
