@@ -4007,6 +4007,14 @@ class SocketService extends ChangeNotifier {
   double Function()? messageSoundVolume;
   void Function(Map<String, dynamic>)? onProfileData;
 
+  void playIncomingNotificationFeedback([String? sender]) {
+    if (!(notificationsMuted?.call(sender) ?? false)) {
+      unawaited(_playIncomingMessageSound());
+    }
+    final vibrate = notificationsVibrate;
+    if (vibrate != null) unawaited(vibrate(sender));
+  }
+
   Future<void> _playIncomingMessageSound() async {
     final tone = notificationTone?.call() ?? 'Drift';
     final asset = SettingsService.messageToneAsset(tone);
