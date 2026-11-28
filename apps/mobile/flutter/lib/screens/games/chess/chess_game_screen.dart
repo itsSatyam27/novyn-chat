@@ -450,7 +450,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
   }
 
   String _playerNameFromUser() {
-    final value = _user;
+    final value = widget.currentUsername.trim();
     return value.isEmpty ? 'You' : value;
   }
 
