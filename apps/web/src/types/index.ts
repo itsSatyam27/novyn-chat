@@ -50,6 +50,8 @@ export interface GameData {
     player2?: string;
     p1Move?: 'rock' | 'paper' | 'scissors';
     p2Move?: 'rock' | 'paper' | 'scissors';
+    round?: number;
+    roundResolved?: boolean;
     winningLine?: number[];
     movesCount?: number;
     strokes?: Array<{ x1: number; y1: number; x2: number; y2: number }>;
