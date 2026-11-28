@@ -1688,6 +1688,69 @@ function persistRajaMantriSession(sessionId, entry) {
   return persistActiveGameSession("rajamantri", sessionId, game, entry.expiresAt);
 }
 
+function clearRandomGameDisconnectTimer(entry, userKey) {
+  if (!(entry?.disconnectTimers instanceof Map)) return;
+  const key = normalizeName(userKey);
+  const timer = entry.disconnectTimers.get(key);
+  if (timer) clearTimeout(timer);
+  entry.disconnectTimers.delete(key);
+}
+
+function clearAllRandomGameDisconnectTimers(entry) {
+  if (!(entry?.disconnectTimers instanceof Map)) return;
+  for (const timer of entry.disconnectTimers.values()) clearTimeout(timer);
+  entry.disconnectTimers.clear();
+}
+
+function scheduleRandomGameDisconnectTimeout(sessionId, entry, disconnectedUserKey) {
+  if (!entry?.game || entry.game.state === "finished") return;
+  if (!(entry.disconnectTimers instanceof Map)) entry.disconnectTimers = new Map();
+  const userKey = normalizeName(disconnectedUserKey);
+  if (!entry.players.includes(userKey) || onlineUsers.has(userKey)) return;
+  const hasOnlineOpponent = entry.players.some((playerKey) =>
+    playerKey !== userKey && onlineUsers.has(playerKey)
+  );
+  if (!hasOnlineOpponent || entry.disconnectTimers.has(userKey)) return;
+
+  const timer = setTimeout(async () => {
+    entry.disconnectTimers.delete(userKey);
+    if (randomGameSessions.get(sessionId) !== entry || entry.game.state === "finished" ||
+        onlineUsers.has(userKey)) return;
+    const onlineOpponent = entry.players.find((playerKey) =>
+      playerKey !== userKey && onlineUsers.has(playerKey)
+    );
+    if (!onlineOpponent) return;
+
+    const result = applyGameMove(entry.game, userKey, { action: "leave_room" });
+    if (!result.ok) return;
+    entry.game = result.game;
+    await persistRandomGameSession(sessionId, entry);
+    await persistAuthoritativeGameHistoryRecords(
+      buildTwoPlayerGameHistoryRecords(entry.game, users),
+    );
+    const packet = {
+      sessionId,
+      game: entry.game,
+      updatedBy: "system",
+      reason: "opponent_disconnected",
+    };
+    for (const playerKey of entry.players) {
+      const playerSocketId = onlineUsers.get(playerKey);
+      if (playerSocketId) io.to(playerSocketId).emit("random_game_updated", packet);
+    }
+    void sendPushToUser(userKey, {
+      type: "game_result",
+      title: "Game ended",
+      body: "Your match was forfeited after the reconnect grace period.",
+      gameId: entry.game.id,
+      gameType: entry.game.gameType,
+      eventId: String(entry.game.id) + ":disconnect-forfeit:" + String(entry.game.updatedAt || Date.now()),
+    });
+  }, RANDOM_GAME_DISCONNECT_GRACE_MS);
+  if (timer.unref) timer.unref();
+  entry.disconnectTimers.set(userKey, timer);
+}
+
 function scheduleRandomSessionExpiry(sessionId, entry) {
   clearTimeout(entry.expiryTimer);
   entry.expiryTimer = setTimeout(() => {
@@ -1737,6 +1800,7 @@ async function restoreActiveGameSessions() {
         players,
         expiresAt,
         expiryTimer: null,
+        disconnectTimers: new Map(),
       };
       randomGameSessions.set(sessionId, entry);
       scheduleRandomSessionExpiry(sessionId, entry);
@@ -1782,6 +1846,7 @@ async function restoreActiveGameSessions() {
 // depend on a friendship or a chat thread, and are discarded after 30 minutes.
 const randomGameSessions = new Map();
 const RANDOM_GAME_SESSION_TTL_MS = 30 * 60 * 1000;
+const RANDOM_GAME_DISCONNECT_GRACE_MS = 60 * 1000;
 const pendingGameInvites = new Map();
 
 let mongoStorage = null;
@@ -5692,6 +5757,11 @@ function finalizeSocketAuthentication(socket, user) {
   // the latest authoritative snapshot to the newly authenticated socket so
   // the open game room can refresh its local cache without starting a new match.
   for (const match of listActiveRandomGamesForPlayer(randomGameSessions, userKey)) {
+    const entry = randomGameSessions.get(match.sessionId);
+    clearRandomGameDisconnectTimer(entry, userKey);
+    for (const opponentKey of entry?.players || []) {
+      if (opponentKey !== userKey) scheduleRandomGameDisconnectTimeout(match.sessionId, entry, opponentKey);
+    }
     const opponent = users.get(match.opponentUsername);
     socket.emit("random_game_restored", {
       sessionId: match.sessionId,
@@ -7566,7 +7636,13 @@ io.on("connection", (socket) => {
     }
 
     const game = challenge.game;
-    const randomEntry = { game, players: [first.userKey, second.userKey], expiresAt: Date.now() + RANDOM_GAME_SESSION_TTL_MS, expiryTimer: null };
+    const randomEntry = {
+      game,
+      players: [first.userKey, second.userKey],
+      expiresAt: Date.now() + RANDOM_GAME_SESSION_TTL_MS,
+      expiryTimer: null,
+      disconnectTimers: new Map(),
+    };
     randomGameSessions.set(result.sessionId, randomEntry); scheduleRandomSessionExpiry(result.sessionId, randomEntry); persistRandomGameSession(result.sessionId, randomEntry);
 
     const packet = (opponent) => ({
@@ -8044,6 +8120,8 @@ io.on("connection", (socket) => {
     }
 
     session.game = result.game;
+    if (session.game.state === "finished") clearAllRandomGameDisconnectTimers(session);
+    else clearRandomGameDisconnectTimer(session, userKey);
     await persistRandomGameSession(sessionId, session);
     if (session.game.state === "finished") {
       await persistAuthoritativeGameHistoryRecords(
@@ -11424,8 +11502,16 @@ io.on("connection", (socket) => {
 
     const existingSocketId = onlineUsers.get(userKey);
     if (existingSocketId === socket.id) {
-      // Keep the room alive while a disconnected participant is driven by
-      // server-side bot turns. A returning account can resume human control.
+      // Public matches get a short reconnect grace period. If the online
+      // opponent remains connected, the server records a forfeit; otherwise
+      // the match stays recoverable until either player reconnects.
+      for (const [sessionId, entry] of randomGameSessions) {
+        if (entry.players?.includes(normalizeName(userKey))) {
+          scheduleRandomGameDisconnectTimeout(sessionId, entry, userKey);
+        }
+      }
+
+      // Keep Raja Mantri rooms alive while disconnected players are auto-controlled.
       for (const [sessionId, entry] of rajaMantriSessions) {
         const connection = setRajaMantriPlayerConnected(entry.game, userKey, false);
         if (!connection.ok) continue;
