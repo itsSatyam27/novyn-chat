@@ -29,10 +29,10 @@ void main() {
     expect(find.text('Up or Down'), findsNothing);
 
     // The profile summary is intentionally collapsed by default.
-    expect(find.text('Matches'), findsNothing);
+    expect(find.text('PvP'), findsNothing);
     await tester.tap(find.byIcon(Icons.keyboard_arrow_down_rounded));
     await tester.pumpAndSettle();
-    expect(find.text('Matches'), findsOneWidget);
+    expect(find.text('PvP'), findsOneWidget);
     expect(find.text('Wins'), findsOneWidget);
     expect(find.text('Losses'), findsOneWidget);
     // The compact level badge and progress label are the visible XP UI.

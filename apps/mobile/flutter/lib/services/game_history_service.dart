@@ -55,10 +55,65 @@ class GameStatsSnapshot {
   int get losses => matches.where((match) => match.result == 'loss').length;
   int get draws => matches.where((match) => match.result == 'draw').length;
 
-  /// XP is derived from completed, de-duplicated match history.
+  int get practiceMatches => matches.where((match) => match.isBotMatch).length;
+  int get competitiveTotal =>
+      matches.where((match) => !match.isBotMatch).length;
+  int get competitiveWins => matches
+      .where((match) => !match.isBotMatch && match.result == 'win')
+      .length;
+  int get competitiveLosses => matches
+      .where((match) => !match.isBotMatch && match.result == 'loss')
+      .length;
+  int get competitiveDraws => matches
+      .where((match) => !match.isBotMatch && match.result == 'draw')
+      .length;
+  double get competitiveWinRate => competitiveTotal == 0
+      ? 0
+      : competitiveWins / competitiveTotal * 100;
+
+  /// Per-game competitive statistics exclude local bot/practice matches.
+  List<GameTypeStats> get gameBreakdown {
+    final grouped = <String, List<GameHistoryEntry>>{};
+    for (final match in matches) {
+      if (match.isBotMatch) continue;
+      final game = _normaliseGameType(match.gameType);
+      (grouped[game] ??= <GameHistoryEntry>[]).add(match);
+    }
+    final result = grouped.entries.map((entry) {
+      final gameMatches = entry.value;
+      final ordered = List<GameHistoryEntry>.from(gameMatches)
+        ..sort((a, b) => a.playedAt.compareTo(b.playedAt));
+      var current = 0;
+      var best = 0;
+      for (final match in ordered) {
+        if (match.result == 'win') {
+          current++;
+          if (current > best) best = current;
+        } else {
+          current = 0;
+        }
+      }
+      return GameTypeStats(
+        gameType: entry.key,
+        total: gameMatches.length,
+        wins: gameMatches.where((match) => match.result == 'win').length,
+        losses: gameMatches.where((match) => match.result == 'loss').length,
+        draws: gameMatches.where((match) => match.result == 'draw').length,
+        currentWinStreak: currentWinStreak(entry.key),
+        longestWinStreak: best,
+      );
+    }).toList()
+      ..sort((a, b) {
+        final byTotal = b.total.compareTo(a.total);
+        return byTotal != 0 ? byTotal : a.gameType.compareTo(b.gameType);
+      });
+    return List<GameTypeStats>.unmodifiable(result);
+  }
+
+  /// XP is derived from completed, de-duplicated competitive match history.
   /// Human matches: +10 completion, +25 win, +10 first human win each day.
-  /// Bot matches: +5 completion and +10 win, with no daily/milestone bonus.
   /// Every third consecutive human win in the same game grants +15 XP.
+  /// Bot matches remain in history but award no XP or competitive streak credit.
   int get totalXp {
     final chronological = List<GameHistoryEntry>.from(matches)
       ..sort((a, b) => a.playedAt.compareTo(b.playedAt));
@@ -110,6 +165,28 @@ class GameStatsSnapshot {
 
   static String _normaliseGameType(String value) =>
       value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+}
+
+class GameTypeStats {
+  const GameTypeStats({
+    required this.gameType,
+    required this.total,
+    required this.wins,
+    required this.losses,
+    required this.draws,
+    required this.currentWinStreak,
+    required this.longestWinStreak,
+  });
+
+  final String gameType;
+  final int total;
+  final int wins;
+  final int losses;
+  final int draws;
+  final int currentWinStreak;
+  final int longestWinStreak;
+
+  double get winRate => total == 0 ? 0 : wins / total * 100;
 }
 
 class GameHistoryService {
