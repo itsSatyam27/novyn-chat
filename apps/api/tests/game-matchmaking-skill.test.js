@@ -79,6 +79,10 @@ test("loads only bounded, server-authored history for the requested account and 
       calls.filter = filter;
       calls.options = options;
       return {
+        maxTimeMS(value) {
+          calls.maxTimeMS = value;
+          return this;
+        },
         sort(value) {
           calls.sort = value;
           return this;
@@ -115,6 +119,7 @@ test("loads only bounded, server-authored history for the requested account and 
     isBotMatch: { $ne: true },
   });
   assert.equal(calls.options.projection.source, 1);
+  assert.equal(calls.maxTimeMS, 5_000);
   assert.deepEqual(calls.sort, { playedAt: -1 });
   assert.equal(calls.limit, 2_000);
   assert.equal(skill.matches, 1);
@@ -127,4 +132,39 @@ test("does not attempt a matchmaking history read without a collection", async (
     () => loadMatchmakingSkill({ collection: null, userKey: "alice", gameType: "rps" }),
     /game-history collection is required/,
   );
+});
+
+test("propagates bounded Mongo query failures instead of returning a default level", async () => {
+  let maxTimeMs = null;
+  const collection = {
+    find() {
+      return {
+        maxTimeMS(value) {
+          maxTimeMs = value;
+          return this;
+        },
+        sort() {
+          return this;
+        },
+        limit() {
+          return this;
+        },
+        async toArray() {
+          const error = new Error("operation exceeded time limit");
+          error.code = 50;
+          throw error;
+        },
+      };
+    },
+  };
+
+  await assert.rejects(
+    () => loadMatchmakingSkill({
+      collection,
+      userKey: "alice",
+      gameType: "tictactoe",
+    }),
+    /operation exceeded time limit/,
+  );
+  assert.equal(maxTimeMs, 5_000);
 });

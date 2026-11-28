@@ -7704,30 +7704,47 @@ io.on("connection", (socket) => {
       return respond({ ok: false, message: "Invalid matchmaking request." });
     }
 
-    // The level sent by older clients is intentionally ignored. Derive the
-    // competitive level only from verified, server-authored human results.
+    // A repeated search invalidates any older lookup/queue immediately.
+    // Otherwise an old lookup or its 60-second queue timeout could complete
+    // during the new request and incorrectly close or replace the new search.
+    publicGameMatchmaking.cancel(userKey);
     const requestId = crypto.randomUUID();
     pendingRandomMatchmakingLookups.set(userKey, { requestId, socketId: socket.id });
-    let matchmakingLevel = 1;
-    if (mongoGameHistoryCollection) {
-      try {
-        matchmakingLevel = (await loadMatchmakingSkill({
-          collection: mongoGameHistoryCollection,
-          userKey,
-          gameType,
-        })).level;
-      } catch (error) {
-        const pending = pendingRandomMatchmakingLookups.get(userKey);
-        if (pending?.requestId !== requestId || pending?.socketId !== socket.id) {
-          return respond({ ok: true, cancelled: true });
-        }
+
+    // Random matchmaking must use verified competitive history. Do not fall
+    // back to a fabricated Level 1 when storage is unavailable; doing so would
+    // silently defeat skill-aware matching for every player during an outage.
+    if (!mongoGameHistoryCollection) {
+      const pending = pendingRandomMatchmakingLookups.get(userKey);
+      if (pending?.requestId === requestId && pending?.socketId === socket.id) {
         pendingRandomMatchmakingLookups.delete(userKey);
-        console.warn("[NovynGames] Verified matchmaking skill lookup failed:", error?.message || error);
-        return respond({
-          ok: false,
-          message: "Could not verify your competitive level. Please try again.",
-        });
       }
+      return respond({
+        ok: false,
+        message: "Matchmaking is temporarily unavailable. Please try again.",
+      });
+    }
+
+    // The level sent by older clients is intentionally ignored. Derive the
+    // competitive level only from verified, server-authored human results.
+    let matchmakingLevel;
+    try {
+      matchmakingLevel = (await loadMatchmakingSkill({
+        collection: mongoGameHistoryCollection,
+        userKey,
+        gameType,
+      })).level;
+    } catch (error) {
+      const pending = pendingRandomMatchmakingLookups.get(userKey);
+      if (pending?.requestId !== requestId || pending?.socketId !== socket.id) {
+        return respond({ ok: true, cancelled: true });
+      }
+      pendingRandomMatchmakingLookups.delete(userKey);
+      console.warn("[NovynGames] Verified matchmaking skill lookup failed:", error?.message || error);
+      return respond({
+        ok: false,
+        message: "Could not verify your competitive level. Please try again.",
+      });
     }
 
     const pending = pendingRandomMatchmakingLookups.get(userKey);

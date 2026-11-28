@@ -246,3 +246,34 @@ test("skill gap expands gradually for players who have waited in the queue", () 
   assert.deepEqual(match.players.map((player) => player.userKey), ["bob", "charlie"]);
   assert.equal(q.size, 0);
 });
+
+test("rejoining matchmaking replaces the old queue timeout", async () => {
+  const expired = [];
+  const q = new PublicGameMatchmaking({
+    timeoutMs: 25,
+    onExpired: (entry) => expired.push(entry),
+  });
+
+  assert.equal(q.join({
+    userKey: "alice",
+    socketId: "old_socket",
+    gameType: "tictactoe",
+    level: 1,
+  }).queued, true);
+
+  assert.equal(q.join({
+    userKey: "alice",
+    socketId: "new_socket",
+    gameType: "rps",
+    level: 2,
+  }).queued, true);
+
+  await new Promise((resolve) => setTimeout(resolve, 45));
+
+  assert.deepEqual(expired, [{
+    userKey: "alice",
+    socketId: "new_socket",
+    gameType: "rps",
+  }]);
+  assert.equal(q.size, 0);
+});

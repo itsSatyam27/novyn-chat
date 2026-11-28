@@ -7,6 +7,7 @@ const XP_PER_WIN = 25;
 const XP_PER_THREE_WIN_STREAK = 15;
 const XP_PER_LEVEL = 500;
 const MAX_MATCH_HISTORY = 2_000;
+const MAX_MATCHMAKING_SKILL_QUERY_MS = 5_000;
 
 function normalizeGameType(value) {
   return String(value || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -85,7 +86,11 @@ async function loadMatchmakingSkill({ collection, userKey, gameType }) {
     throw new TypeError("A game-history collection is required.");
   }
 
-  const matches = await collection.find({
+  // Bound the database-side query so a stalled history read cannot leave a
+  // matchmaking request pending indefinitely. MongoDB's maxTimeMS is applied
+  // to the cursor; the socket handler also rejects unavailable storage rather
+  // than silently assigning every player the same default level.
+  let cursor = collection.find({
     userKey: String(userKey || "").trim().toLowerCase(),
     gameType: normalizeGameType(gameType),
     source: "server",
@@ -100,7 +105,14 @@ async function loadMatchmakingSkill({ collection, userKey, gameType }) {
       source: 1,
       isBotMatch: 1,
     },
-  }).sort({ playedAt: -1 }).limit(MAX_MATCH_HISTORY).toArray();
+  });
+  if (typeof cursor.maxTimeMS === "function") {
+    cursor = cursor.maxTimeMS(MAX_MATCHMAKING_SKILL_QUERY_MS);
+  }
+  const matches = await cursor
+    .sort({ playedAt: -1 })
+    .limit(MAX_MATCH_HISTORY)
+    .toArray();
 
   return calculateMatchmakingSkill({ matches, gameType });
 }
@@ -109,4 +121,5 @@ module.exports = {
   calculateMatchmakingSkill,
   loadMatchmakingSkill,
   normalizeGameType,
+  MAX_MATCHMAKING_SKILL_QUERY_MS,
 };
