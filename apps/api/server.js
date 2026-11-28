@@ -1656,13 +1656,16 @@ async function persistAuthoritativeGameHistoryRecords(records) {
   if (!mongoGameHistoryCollection || !Array.isArray(records) || !records.length) return;
   try {
     await mongoGameHistoryCollection.bulkWrite(
-      records.map((record) => ({
-        updateOne: {
-          filter: { _id: record._id, userKey: record.userKey },
-          update: { $set: { ...record, source: "server" } },
-          upsert: true,
-        },
-      })),
+      records.map((record) => {
+        const { _id, ...fields } = record;
+        return {
+          updateOne: {
+            filter: { _id, userKey: record.userKey },
+            update: { $set: { ...fields, source: "server" } },
+            upsert: true,
+          },
+        };
+      }),
       { ordered: false },
     );
   } catch (error) {
