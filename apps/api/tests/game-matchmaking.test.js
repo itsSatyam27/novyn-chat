@@ -128,12 +128,14 @@ test("public matchmaking chooses the closest available player level", () => {
     socketId: "alice_socket",
     gameType: "tictactoe",
     level: 2,
+    excludedUsers: ["bob"],
   });
   q.join({
     userKey: "bob",
     socketId: "bob_socket",
     gameType: "tictactoe",
     level: 8,
+    excludedUsers: ["alice"],
   });
 
   const match = q.join({
@@ -156,12 +158,14 @@ test("equal level distance preserves FIFO order", () => {
     socketId: "alice_socket",
     gameType: "rps",
     level: 4,
+    excludedUsers: ["bob"],
   });
   q.join({
     userKey: "bob",
     socketId: "bob_socket",
     gameType: "rps",
     level: 8,
+    excludedUsers: ["alice"],
   });
 
   const match = q.join({
@@ -183,12 +187,14 @@ test("unknown level metadata keeps the existing FIFO fallback", () => {
     userKey: "alice",
     socketId: "alice_socket",
     gameType: "rps",
+    excludedUsers: ["bob"],
   });
   q.join({
     userKey: "bob",
     socketId: "bob_socket",
     gameType: "rps",
     level: 9,
+    excludedUsers: ["alice"],
   });
 
   const match = q.join({
