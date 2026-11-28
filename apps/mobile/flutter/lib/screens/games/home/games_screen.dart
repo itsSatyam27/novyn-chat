@@ -661,11 +661,12 @@ class _GameProfileHeroCardState extends State<_GameProfileHeroCard> {
   Widget build(BuildContext context) {
     final stats = widget.stats;
     final isDark = widget.isDark;
-    final total = stats.total;
-    final wins = stats.wins;
-    final losses = stats.losses;
-    final draws = stats.draws;
-    final winRate = total > 0 ? (wins / total * 100).round() : 0;
+    final total = stats.competitiveTotal;
+    final wins = stats.competitiveWins;
+    final losses = stats.competitiveLosses;
+    final draws = stats.competitiveDraws;
+    final practiceMatches = stats.practiceMatches;
+    final winRate = stats.competitiveWinRate.round();
     final theme = Theme.of(context);
     final accent = theme.colorScheme.primary;
     final foreground = isDark ? Colors.white : const Color(0xFF1E1A33);
@@ -829,7 +830,7 @@ class _GameProfileHeroCardState extends State<_GameProfileHeroCard> {
                           Expanded(
                             child: _HeroStatBox(
                               value: '$total',
-                              label: 'Matches',
+                              label: 'PvP',
                               bgColor: softSurface,
                               textColor: foreground,
                               labelColor: muted,
@@ -921,6 +922,63 @@ class _GameProfileHeroCardState extends State<_GameProfileHeroCard> {
                           ),
                         ],
                       ),
+                      if (practiceMatches > 0) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: softSurface,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.smart_toy_rounded,
+                                size: 17, color: muted),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text('Practice matches',
+                                  style: TextStyle(
+                                    fontFamily: 'PlusJakartaSans',
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: muted,
+                                  )),
+                              ),
+                              Text('$practiceMatches',
+                                style: TextStyle(
+                                  fontFamily: 'PlusJakartaSans',
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w900,
+                                  color: foreground,
+                                )),
+                            ],
+                          ),
+                        ),
+                      ],
+                      if (stats.gameBreakdown.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        Text('By game',
+                          style: TextStyle(
+                            fontFamily: 'PlusJakartaSans',
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            color: foreground,
+                          )),
+                        const SizedBox(height: 9),
+                        for (final game in stats.gameBreakdown) ...[
+                          _GameBreakdownTile(
+                            stats: game,
+                            isDark: isDark,
+                            foreground: foreground,
+                            muted: muted,
+                            accent: accent,
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                      ],
                       const SizedBox(height: 14),
                       Row(
                         children: [
@@ -962,6 +1020,113 @@ class _GameProfileHeroCardState extends State<_GameProfileHeroCard> {
                     ],
                   )
                 : const SizedBox.shrink(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GameBreakdownTile extends StatelessWidget {
+  const _GameBreakdownTile({
+    required this.stats,
+    required this.isDark,
+    required this.foreground,
+    required this.muted,
+    required this.accent,
+  });
+
+  final GameTypeStats stats;
+  final bool isDark;
+  final Color foreground;
+  final Color muted;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = switch (stats.gameType) {
+      'tictactoe' => 'Tic-Tac-Toe',
+      'rps' => 'Rock Paper Scissors',
+      'rajamantri' || 'raja_mantri' || 'rmcs' => 'Raja Mantri',
+      _ => 'Novyn Game',
+    };
+    final icon = switch (stats.gameType) {
+      'tictactoe' => Icons.tag_rounded,
+      'rps' => Icons.content_cut_rounded,
+      'rajamantri' || 'raja_mantri' || 'rmcs' => Icons.military_tech_rounded,
+      _ => Icons.sports_esports_rounded,
+    };
+    final surface = isDark ? const Color(0xFF18142B) : const Color(0xFFF7F5FC);
+    return Container(
+      padding: const EdgeInsets.all(11),
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: isDark ? .18 : .10),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            alignment: Alignment.center,
+            child: Icon(icon, size: 20, color: accent),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: foreground,
+                        )),
+                    ),
+                    const SizedBox(width: 8),
+                    Text('${stats.winRate.round()}%',
+                      style: TextStyle(
+                        fontFamily: 'PlusJakartaSans',
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        color: const Color(0xFF16834A),
+                      )),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '${stats.total} matches · ${stats.wins}W / ${stats.losses}L / ${stats.draws}D',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'PlusJakartaSans',
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                    color: muted,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Streak ${stats.currentWinStreak} · Best ${stats.longestWinStreak}',
+                  style: TextStyle(
+                    fontFamily: 'PlusJakartaSans',
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: muted,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
