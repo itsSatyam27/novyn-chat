@@ -163,7 +163,9 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
         _dismissActive();
       }
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || _activeInvitation?['messageId']?.toString() != id) {
+        return;
+      }
       setState(() {
         _working = false;
         _actionError = _friendlyError(error);
@@ -219,7 +221,9 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
         );
       }
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || _activeInvitation?['messageId']?.toString() != id) {
+        return;
+      }
       setState(() {
         _working = false;
         _actionError = _friendlyError(error);
