@@ -55,8 +55,8 @@ test("Chess voice leave revokes signaling and lets the same opponent reconnect",
 
 test("Chess voice disconnect removes every active membership", () => {
   const registry = new ChessVoiceRegistry({ createId: () => "voice-room-4" });
-  const first = registry.join("random:match-4", "alice", "bob");
-  registry.join("random:match-4", "bob", "alice");
+  const first = registry.join("friend:chat-4", "alice", "bob");
+  registry.join("friend:chat-4", "bob", "alice");
   const removed = registry.disconnect("alice");
   assert.equal(removed.length, 1);
   assert.equal(removed[0].peerUsername, "bob");
