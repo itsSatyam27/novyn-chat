@@ -7710,7 +7710,7 @@ io.on("connection", (socket) => {
     }
 
     const gameType = normalizeGameType(payload?.gameType);
-    if (!["tictactoe", "rps"].includes(gameType)) {
+    if (!["tictactoe", "rps", "chess"].includes(gameType)) {
       return respond({ ok: false, message: "Invalid matchmaking request." });
     }
 
