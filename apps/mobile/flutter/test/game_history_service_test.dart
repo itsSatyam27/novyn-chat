@@ -1,7 +1,9 @@
 import 'dart:convert';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novyn/services/game_history_service.dart';
+import 'package:novyn/screens/games/shared/history/game_history_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -212,6 +214,68 @@ void main() {
       prefs.getString('novyn_game_history_v1_alice'),
       contains('local-finish'),
     );
+  });
+
+  testWidgets('history screen filters draws and labels local bot matches',
+      (tester) async {
+    final now = DateTime.now();
+    SharedPreferences.setMockInitialValues({
+      'novyn_game_history_v1_alice': jsonEncode([
+        GameHistoryEntry(
+          id: 'bot-win',
+          gameType: 'tictactoe',
+          opponent: 'Practice opponent',
+          result: 'win',
+          playedAt: now,
+          isBotMatch: true,
+        ).toJson(),
+      ]),
+    });
+    GameHistoryService.cloudHistoryLoaderForTesting = () async => [
+      GameHistoryEntry(
+        id: 'human-win',
+        gameType: 'tictactoe',
+        opponent: 'bob',
+        result: 'win',
+        playedAt: now.subtract(const Duration(minutes: 2)),
+      ).toJson(),
+      GameHistoryEntry(
+        id: 'human-loss',
+        gameType: 'rps',
+        opponent: 'carol',
+        result: 'loss',
+        playedAt: now.subtract(const Duration(minutes: 3)),
+      ).toJson(),
+      GameHistoryEntry(
+        id: 'human-draw',
+        gameType: 'rajamantri',
+        opponent: 'dave, erin, frank',
+        result: 'draw',
+        playedAt: now.subtract(const Duration(minutes: 4)),
+      ).toJson(),
+    ];
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: GameHistoryScreen(username: 'alice'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('vs AI Bot · ' + _testTime(now)), findsOneWidget);
+    expect(find.text('Won'), findsNWidgets(2));
+    expect(find.text('Lost'), findsOneWidget);
+    expect(find.text('Draw'), findsOneWidget);
+
+    await tester.tap(find.textContaining('Draws'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Draw'), findsOneWidget);
+    expect(find.text('Won'), findsNothing);
+    expect(find.text('Lost'), findsNothing);
+    expect(find.text('Raja Mantri'), findsOneWidget);
+    expect(find.text('No draws this month'), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
 }
