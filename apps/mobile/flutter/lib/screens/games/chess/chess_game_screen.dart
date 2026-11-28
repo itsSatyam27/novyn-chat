@@ -91,6 +91,12 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
       (_data['black'] ?? _data['player2'])?.toString().trim().toLowerCase() == _user;
   bool get _myTurn => !_finished && _game['turn']?.toString().toLowerCase() == _user;
   String get _drawOffer => _data['drawOfferBy']?.toString().toLowerCase() ?? '';
+  bool get _voiceAllowed =>
+      !_offlineBot &&
+      !widget.isGroup &&
+      widget.randomSessionId == null &&
+      widget.messageId?.trim().isNotEmpty == true &&
+      widget.peerUsername.trim().isNotEmpty;
 
   @override
   void initState() {
@@ -113,10 +119,12 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
       if (!mounted) return;
       if (_offlineBot) return;
       _socket = context.read<SocketService>();
-      _socket!.onChessVoiceInviteCallback = _handleChessVoiceInvite;
-      _socket!.onChessVoicePeerJoinedCallback = _handleChessVoicePeerJoined;
-      _socket!.onChessVoiceSignalCallback = _handleChessVoiceSignal;
-      _socket!.onChessVoicePeerLeftCallback = _handleChessVoicePeerLeft;
+      if (_voiceAllowed) {
+        _socket!.onChessVoiceInviteCallback = _handleChessVoiceInvite;
+        _socket!.onChessVoicePeerJoinedCallback = _handleChessVoicePeerJoined;
+        _socket!.onChessVoiceSignalCallback = _handleChessVoiceSignal;
+        _socket!.onChessVoicePeerLeftCallback = _handleChessVoicePeerLeft;
+      }
       _socket!.addListener(_syncFromSocket);
       _syncFromSocket();
     });
@@ -509,11 +517,8 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
   }
 
   bool _matchesChessVoiceMatch(Map<String, dynamic> packet) {
-    if (widget.randomSessionId != null) {
-      return packet['scope'] == 'random' &&
-          packet['sessionId']?.toString() == widget.randomSessionId;
-    }
-    return packet['scope'] == 'friend' &&
+    return _voiceAllowed &&
+        packet['scope'] == 'friend' &&
         packet['messageId']?.toString() == widget.messageId;
   }
 
@@ -565,7 +570,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
   }
 
   Future<void> _toggleChessVoice() async {
-    if (_voiceJoining || _voiceMediaStarting || _finished) return;
+    if (!_voiceAllowed || _voiceJoining || _voiceMediaStarting || _finished) return;
     final activeVoice = _voice;
     if (activeVoice != null) {
       activeVoice.setMuted(!activeVoice.isMuted);
@@ -584,8 +589,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
     });
     try {
       final result = await socket.joinChessVoice(
-        scope: widget.randomSessionId != null ? 'random' : 'friend',
-        sessionId: widget.randomSessionId,
+        scope: 'friend',
         messageId: widget.messageId,
         peerUsername: widget.peerUsername,
       );
@@ -1373,34 +1377,59 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
                                       ],
                                     ),
                                   )
-                                else
+                                else if (_voiceAllowed)
                                   Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                                  children: [
-                                    _voiceControl(
-                                      _voice?.isMuted == true
-                                          ? Icons.mic_off_rounded
-                                          : Icons.mic_none_rounded,
-                                      _voiceMicLabel,
-                                      foreground,
-                                      muted,
-                                      _toggleChessVoice,
-                                      hint: _voiceMicHint,
-                                      active: _voice?.isConnected == true && _voice?.isMuted != true,
+                                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                    children: [
+                                      _voiceControl(
+                                        _voice?.isMuted == true
+                                            ? Icons.mic_off_rounded
+                                            : Icons.mic_none_rounded,
+                                        _voiceMicLabel,
+                                        foreground,
+                                        muted,
+                                        _toggleChessVoice,
+                                        hint: _voiceMicHint,
+                                        active: _voice?.isConnected == true && _voice?.isMuted != true,
+                                      ),
+                                      _voiceControl(
+                                        _voiceSpeakerEnabled
+                                            ? Icons.volume_up_rounded
+                                            : Icons.hearing_rounded,
+                                        _voiceSpeakerEnabled ? 'Speaker' : 'Earpiece',
+                                        foreground,
+                                        muted,
+                                        _toggleChessVoiceSpeaker,
+                                        hint: 'Audio output',
+                                        active: _voiceSpeakerEnabled,
+                                      ),
+                                    ],
+                                  )
+                                else
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                    decoration: BoxDecoration(
+                                      color: accent.withValues(alpha: .08),
+                                      borderRadius: BorderRadius.circular(18),
                                     ),
-                                    _voiceControl(
-                                      _voiceSpeakerEnabled
-                                          ? Icons.volume_up_rounded
-                                          : Icons.hearing_rounded,
-                                      _voiceSpeakerEnabled ? 'Speaker' : 'Earpiece',
-                                      foreground,
-                                      muted,
-                                      _toggleChessVoiceSpeaker,
-                                      hint: 'Audio output',
-                                      active: _voiceSpeakerEnabled,
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.lock_outline_rounded, color: muted, size: 19),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          'Friends only',
+                                          style: TextStyle(color: foreground, fontSize: 12, fontWeight: FontWeight.w800),
+                                        ),
+                                        const SizedBox(height: 3),
+                                        Text(
+                                          'Voice chat is available in friend matches',
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(color: muted, fontSize: 10),
+                                        ),
+                                      ],
                                     ),
-                                  ],
-                                ),
+                                  ),
                               ],
                             ),
                           ),
