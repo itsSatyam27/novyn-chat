@@ -113,6 +113,7 @@ void main() {
     expect(find.text('3 P / 4 P'), findsOneWidget);
     expect(find.text('Tic-Tac-Toe'), findsOneWidget);
     expect(find.text('Rock Paper'), findsOneWidget);
+    expect(find.text('Chess'), findsOneWidget);
     expect(find.text('Raja Mantri'), findsOneWidget);
     expect(find.text('Connect 4'), findsNothing);
     expect(find.text('Doodle Duel'), findsNothing);
@@ -131,8 +132,9 @@ void main() {
     expect(find.textContaining('0 / 500 XP'), findsOneWidget);
     expect(find.byKey(const ValueKey('game-streak-tictactoe')), findsOneWidget);
     expect(find.byKey(const ValueKey('game-streak-rps')), findsOneWidget);
+    expect(find.byKey(const ValueKey('game-streak-chess')), findsOneWidget);
     expect(find.byKey(const ValueKey('game-streak-rajamantri')), findsOneWidget);
-    expect(find.byIcon(Icons.local_fire_department_rounded), findsNWidgets(3));
+    expect(find.byIcon(Icons.local_fire_department_rounded), findsNWidgets(4));
     expect(find.text('Game History'), findsOneWidget);
     expect(find.text('Leaderboard'), findsOneWidget);
     expect(find.text('Achievements'), findsOneWidget);
