@@ -151,6 +151,12 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
   void _expireInvitation(Map<String, dynamic> packet) {
     final id = packet['messageId']?.toString() ?? '';
     if (id.isEmpty || !mounted) return;
+    // The overlay's own accept/decline handler dismisses after its ack.
+    // Ignore the matching server close event while that action is in flight
+    // so it cannot activate the next queue item before the local handler runs.
+    if (_working && _activeInvitation?['messageId']?.toString() == id) {
+      return;
+    }
     setState(() {
       _queue.removeWhere((invite) => invite['messageId']?.toString() == id);
       if (_activeInvitation?['messageId']?.toString() == id) {
