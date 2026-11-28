@@ -45,6 +45,7 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
     if (identical(socket, _socket)) return;
 
     _detachSocket();
+    _wasConnected = false;
     _socket = socket;
     socket.addListener(_handleSocketChanged);
     _invitationSubscription = socket.gameInvitationStream.listen(
