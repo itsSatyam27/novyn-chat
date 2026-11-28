@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 String resolveGameRoomStatusLabel({
   required bool isFinished,
@@ -7,9 +10,8 @@ String resolveGameRoomStatusLabel({
 }) {
   if (isFinished) return 'Finished';
   if (isOfflineBot) return 'Practice';
-  return isConnected ? statusLabel : 'Offline';
+  return isConnected ? 'Live' : 'Offline';
 }
-import 'package:provider/provider.dart';
 
 import '../../../../models/chat_models.dart';
 import '../../../../services/socket_service.dart';
