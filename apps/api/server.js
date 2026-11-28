@@ -15,6 +15,7 @@ const { registerCallHandlers, cancelCallForUser } = require("./server/realtime/c
 const { createGroupCallRegistry, registerGroupCallHandlers } = require("./server/realtime/group-call-handlers");
 const groupCallRegistry = createGroupCallRegistry();
 const { applyGameMove, createGameChallenge } = require("./server/realtime/game-rules");
+const { emitGameInviteClosed, expirePendingGameInvite } = require("./server/realtime/game-invitation-notifications");
 const {
   buildTwoPlayerGameHistoryRecords,
   buildRajaMantriHistoryRecords,
@@ -8180,13 +8181,13 @@ io.on("connection", (socket) => {
     }
     clearTimeout(invite.timer);
     pendingGameInvites.delete(messageId);
-    if (invite.acceptedSocketId) {
-      io.to(invite.acceptedSocketId).emit("game_invite_timeout", {
-        messageId,
-        gameType: invite.gameType,
-        reason: "cancelled",
-      });
-    }
+    emitGameInviteClosed({
+      invite,
+      messageId,
+      onlineUsers,
+      io,
+      reason: "cancelled",
+    });
     return respond({ ok: true });
   });
 
@@ -10623,10 +10624,13 @@ io.on("connection", (socket) => {
         timer: null,
       };
       invite.timer = setTimeout(() => {
-        if (pendingGameInvites.get(inviteId) !== invite) return;
-        pendingGameInvites.delete(inviteId);
-        const senderSocketId = onlineUsers.get(invite.fromKey);
-        if (senderSocketId) io.to(senderSocketId).emit("game_invite_timeout", { messageId: inviteId, gameType: invite.gameType });
+        expirePendingGameInvite({
+          messageId: inviteId,
+          invite,
+          pendingGameInvites,
+          onlineUsers,
+          io,
+        });
       }, 60_000);
       if (typeof invite.timer.unref === "function") invite.timer.unref();
       pendingGameInvites.set(inviteId, invite);
