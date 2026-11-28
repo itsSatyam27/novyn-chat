@@ -13,22 +13,32 @@ function listActiveRandomGamesForPlayer(sessions, userKey, now = Date.now()) {
       continue;
     }
 
-    if (!session || !Array.isArray(session.players) ||
-        !session.players.some((player) => String(player || "").trim().toLowerCase() === currentUser)) {
+    const players = Array.isArray(session?.players)
+      ? session.players.map((player) => String(player || "").trim().toLowerCase())
+      : [];
+    const game = session?.game;
+    const validPlayers = players.length === 2 &&
+      players.every(Boolean) &&
+      new Set(players).size === 2;
+    const validGame = Boolean(
+      game &&
+      typeof game === "object" &&
+      !Array.isArray(game) &&
+      ["tictactoe", "rps"].includes(game.gameType) &&
+      ["in_progress", "finished"].includes(game.state)
+    );
+
+    if (!validPlayers || !validGame) {
+      if (session?.expiryTimer) clearTimeout(session.expiryTimer);
+      sessions.delete(sessionId);
       continue;
     }
+    if (!players.includes(currentUser)) continue;
 
-    const opponentUsername = session.players
-      .map((player) => String(player || "").trim().toLowerCase())
-      .find((player) => player && player !== currentUser);
-    if (!opponentUsername || !session.game ||
-        typeof session.game !== "object" || Array.isArray(session.game)) {
-      continue;
-    }
-
+    const opponentUsername = players.find((player) => player !== currentUser);
     matches.push({
       sessionId: String(sessionId),
-      game: session.game,
+      game,
       opponentUsername,
     });
   }
