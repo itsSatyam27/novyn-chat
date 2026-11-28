@@ -622,6 +622,22 @@ class _GameMessageCardState extends State<GameMessageCard> {
   }
 }
 
+Map<String, dynamic> _copyGameSnapshot(Map<String, dynamic> game) => {
+      ...game,
+      'data': game['data'] is Map
+          ? Map<String, dynamic>.from(game['data'] as Map)
+          : <String, dynamic>{},
+    };
+
+bool _hasLiveRematchRequest(Map<String, dynamic> game) {
+  final data = game['data'];
+  final rematch = data is Map ? data['rematch'] : null;
+  if (rematch is! Map || rematch['status'] != 'pending') return false;
+  final expiresAt = int.tryParse(rematch['expiresAt']?.toString() ?? '');
+  return expiresAt != null &&
+      expiresAt > DateTime.now().millisecondsSinceEpoch;
+}
+
 void _showGameOverModal(
   BuildContext context, {
   required String emoji,
@@ -630,32 +646,68 @@ void _showGameOverModal(
   required String score,
   required Future<void> Function() onPlayAgain,
   required VoidCallback onClose,
+  required String currentUsername,
+  required ValueListenable<Map<String, dynamic>> gameState,
+  required VoidCallback onDismiss,
   Future<void> Function(String action)? onRematchAction,
-  bool isOpponentRequest = false,
-  String? playerLeft,
   String? opponentName,
   bool isOfflineBot = false,
 }) {
-  showModalBottomSheet<void>(
-    context: context,
-    isDismissible: true,
-    enableDrag: true,
-    backgroundColor: Colors.transparent,
-    builder: (sheetContext) {
-      return _GameOverModalContent(
-        emoji: emoji,
-        title: title,
-        subtitle: subtitle,
-        score: score,
-        onPlayAgain: onPlayAgain,
-        onClose: onClose,
-        onRematchAction: onRematchAction,
-        isOpponentRequest: isOpponentRequest,
-        playerLeft: playerLeft,
-        opponentName: opponentName,
-        isOfflineBot: isOfflineBot,
-      );
-    },
+  unawaited(
+    showModalBottomSheet<void>(
+      context: context,
+      isDismissible: true,
+      enableDrag: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return ValueListenableBuilder<Map<String, dynamic>>(
+          valueListenable: gameState,
+          builder: (context, game, _) {
+            final rawData = game['data'];
+            final data = rawData is Map
+                ? Map<String, dynamic>.from(rawData)
+                : <String, dynamic>{};
+            final rematch = data['rematch'];
+            final status =
+                rematch is Map ? rematch['status']?.toString() : null;
+            final requestedBy = rematch is Map
+                ? rematch['requestedBy']?.toString().toLowerCase()
+                : null;
+            final expiresAt = rematch is Map
+                ? int.tryParse(rematch['expiresAt']?.toString() ?? '')
+                : null;
+            final isLivePending = status == 'pending' &&
+                expiresAt != null &&
+                expiresAt > DateTime.now().millisecondsSinceEpoch;
+            final effectiveStatus =
+                status == 'pending' && !isLivePending ? 'expired' : status;
+            final normalizedUser = currentUsername.trim().toLowerCase();
+            return _GameOverModalContent(
+              emoji: emoji,
+              title: title,
+              subtitle: subtitle,
+              score: score,
+              onPlayAgain: onPlayAgain,
+              onClose: onClose,
+              onRematchAction: onRematchAction,
+              isOpponentRequest:
+                  isLivePending && requestedBy != normalizedUser,
+              isOwnRequest:
+                  isLivePending && requestedBy == normalizedUser,
+              rematchStatus: effectiveStatus,
+              rematchExpiresAt: expiresAt,
+              isMatchFinished: game['state']?.toString() == 'finished',
+              playerLeft: data['playerLeft']?.toString() ??
+                  (rematch is Map && status == 'opponent_left'
+                      ? rematch['leftBy']?.toString()
+                      : null),
+              opponentName: opponentName,
+              isOfflineBot: isOfflineBot,
+            );
+          },
+        );
+      },
+    ).whenComplete(onDismiss),
   );
 }
 
@@ -669,6 +721,10 @@ class _GameOverModalContent extends StatefulWidget {
     required this.onClose,
     this.onRematchAction,
     this.isOpponentRequest = false,
+    this.isOwnRequest = false,
+    this.rematchStatus,
+    this.rematchExpiresAt,
+    this.isMatchFinished = true,
     this.playerLeft,
     this.opponentName,
     this.isOfflineBot = false,
@@ -682,6 +738,10 @@ class _GameOverModalContent extends StatefulWidget {
   final VoidCallback onClose;
   final Future<void> Function(String action)? onRematchAction;
   final bool isOpponentRequest;
+  final bool isOwnRequest;
+  final String? rematchStatus;
+  final int? rematchExpiresAt;
+  final bool isMatchFinished;
   final String? playerLeft;
   final String? opponentName;
   final bool isOfflineBot;
