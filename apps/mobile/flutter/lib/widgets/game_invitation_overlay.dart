@@ -31,7 +31,8 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
   StreamSubscription<Map<String, dynamic>>? _timeoutSubscription;
   final Queue<Map<String, dynamic>> _queue =
       Queue<Map<String, dynamic>>();
-  final Set<String> _seenIds = <String>{};
+  static const int _maxRememberedInvitationIds = 256;
+  final LinkedHashSet<String> _seenIds = LinkedHashSet<String>();
   Map<String, dynamic>? _activeInvitation;
   bool _working = false;
   bool _wasConnected = false;
@@ -44,6 +45,7 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
     if (identical(socket, _socket)) return;
 
     _detachSocket();
+    _wasConnected = false;
     _socket = socket;
     socket.addListener(_handleSocketChanged);
     _invitationSubscription = socket.gameInvitationStream.listen(
@@ -83,37 +85,60 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
           _actionError = null;
           _working = false;
         });
+      } else {
+        _scheduleConnectionUiRefresh();
       }
       return;
     }
     if (!_wasConnected) {
       _wasConnected = true;
-      unawaited(_loadLatestPendingInvitation(socket));
+      if (_actionError == 'Reconnect to respond to this invitation.') {
+        _actionError = null;
+      }
+      _scheduleConnectionUiRefresh();
+      unawaited(_loadPendingInvitations(socket));
     }
   }
 
-  Future<void> _loadLatestPendingInvitation(SocketService socket) async {
+  void _scheduleConnectionUiRefresh() {
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  Future<void> _loadPendingInvitations(SocketService socket) async {
     try {
       final invitations = await socket.getPendingGameInvitations();
       if (!mounted || !identical(socket, _socket) || invitations.isEmpty) {
         return;
       }
-      // Show the newest outstanding invite after a reconnect/app resume.
-      _enqueueInvitation(invitations.last);
+      // The invitations screen presents newest first. Keep the same order in
+      // the compact overlay, then let the user respond to each outstanding invite.
+      for (final invitation in invitations.reversed) {
+        if (!mounted || !identical(socket, _socket)) return;
+        _enqueueInvitation(invitation);
+      }
     } catch (_) {
       // A temporary reconnect must not disturb whichever screen is open.
     }
   }
 
+  bool _rememberInvitationId(String id) {
+    if (id.isEmpty || !_seenIds.add(id)) return false;
+    while (_seenIds.length > _maxRememberedInvitationIds) {
+      _seenIds.remove(_seenIds.first);
+    }
+    return true;
+  }
+
   void _enqueueInvitation(Map<String, dynamic> invitation) {
     final id = invitation['messageId']?.toString() ?? '';
-    if (id.isEmpty || !_seenIds.add(id)) return;
-    if (mounted) {
-      setState(() {
-        _queue.addLast(Map<String, dynamic>.from(invitation));
-        _activateNext();
-      });
-    }
+    if (!mounted || !_rememberInvitationId(id)) return;
+    setState(() {
+      _queue.addLast(Map<String, dynamic>.from(invitation));
+      _activateNext();
+    });
   }
 
   void _activateNext() {
@@ -152,6 +177,10 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
     final socket = _socket;
     final id = invitation?['messageId']?.toString() ?? '';
     if (socket == null || id.isEmpty || _working) return;
+    if (!socket.isConnected || !socket.isAuthenticated) {
+      setState(() => _actionError = 'Reconnect to respond to this invitation.');
+      return;
+    }
 
     setState(() {
       _working = true;
@@ -179,6 +208,10 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
     final id = invitation?['messageId']?.toString() ?? '';
     final navigator = widget.navigatorKey.currentState;
     if (socket == null || id.isEmpty || _working) return;
+    if (!socket.isConnected || !socket.isAuthenticated) {
+      setState(() => _actionError = 'Reconnect to respond to this invitation.');
+      return;
+    }
     if (navigator == null) {
       setState(() => _actionError = 'Unable to open the game right now.');
       return;
@@ -252,6 +285,8 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
     final invitation = _activeInvitation;
     if (invitation == null) return const SizedBox.shrink();
 
+    final canRespond = _socket?.isConnected == true &&
+        _socket?.isAuthenticated == true;
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final sender = invitation['displayName']?.toString().trim().isNotEmpty == true
@@ -333,12 +368,15 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
                           ),
                       ],
                     ),
-                    if (_actionError != null) ...[
+                    if (_actionError != null || !canRespond) ...[
                       const SizedBox(height: 8),
                       Text(
-                        _actionError!,
+                        _actionError ??
+                            'Reconnect to accept or decline this invitation.',
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: colors.error,
+                          color: _actionError != null
+                              ? colors.error
+                              : colors.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -347,7 +385,8 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
                       children: [
                         const Spacer(),
                         OutlinedButton(
-                          onPressed: _working ? null : _declineInvitation,
+                          onPressed:
+                              _working || !canRespond ? null : _declineInvitation,
                           style: OutlinedButton.styleFrom(
                             minimumSize: const Size(94, 38),
                             padding: const EdgeInsets.symmetric(horizontal: 15),
@@ -359,7 +398,8 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
                         ),
                         const SizedBox(width: 8),
                         FilledButton.icon(
-                          onPressed: _working ? null : _acceptInvitation,
+                          onPressed:
+                              _working || !canRespond ? null : _acceptInvitation,
                           icon: const Icon(Icons.check_rounded, size: 17),
                           label: const Text('Accept'),
                           style: FilledButton.styleFrom(

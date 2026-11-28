@@ -9,6 +9,8 @@ function createMongoStorage(options = {}) {
   const usersCollectionName = String(options.usersCollectionName || "users").trim() || "users";
   const conversationsCollectionName = String(options.conversationsCollectionName || "conversations").trim() || "conversations";
   const messagesCollectionName = String(options.messagesCollectionName || "messages").trim() || "messages";
+  const gameHistoryCollectionName = String(options.gameHistoryCollectionName || "game_history").trim() || "game_history";
+  const MongoClientClass = options.MongoClientClass || MongoClient;
 
   let client = null;
   let db = null;
@@ -21,7 +23,8 @@ function createMongoStorage(options = {}) {
       collections?.conversations &&
       collections?.messages &&
       collections?.auth_sessions &&
-      collections?.media
+      collections?.media &&
+      collections?.game_history
     );
   }
 
@@ -43,7 +46,7 @@ function createMongoStorage(options = {}) {
     if (!uri) return false;
     if (isConnected()) return true;
 
-    client = new MongoClient(uri, {
+    client = new MongoClientClass(uri, {
       // Fail promptly when Atlas is unreachable instead of leaving API calls
       // waiting on the driver's long default server-selection window.
       serverSelectionTimeoutMS: Number(options.serverSelectionTimeoutMS) || 8000,
@@ -61,8 +64,9 @@ function createMongoStorage(options = {}) {
         conversations: db.collection(conversationsCollectionName),
         messages: db.collection(messagesCollectionName),
         auth_sessions: db.collection(options.authSessionsCollectionName || "auth_sessions"),
-        feedback: db.collection('feedback'),
+        feedback: db.collection("feedback"),
         media: db.collection(options.mediaCollectionName || "media_metadata"),
+        game_history: db.collection(gameHistoryCollectionName),
       };
       await ensureIndexes();
       return true;
