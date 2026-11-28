@@ -9,6 +9,7 @@ import '../../../services/game_history_service.dart';
 import '../../../services/socket_service.dart';
 import '../../../theme/novyn_theme.dart';
 import '../../../widgets/novyn_ui.dart';
+import '../../../widgets/novyn_header_actions.dart';
 import '../../../widgets/novyn_filter_chips.dart';
 import '../../../widgets/user_avatar.dart';
 import '../shared/history/game_history_screen.dart';
@@ -388,12 +389,9 @@ class _GamesScreenState extends State<GamesScreen> {
                           ),
                         ),
                       ),
-                      NovynIconButton(
-                        icon: _showSearch ? Icons.close_rounded : Icons.search_rounded,
-                        size: 46,
-                        radius: 18,
-                        iconSize: 22,
-                        onTap: () {
+                      NovynHeaderActions(
+                        searchVisible: _showSearch,
+                        onSearchTap: () {
                           setState(() {
                             _showSearch = !_showSearch;
                             if (!_showSearch) {
@@ -408,20 +406,19 @@ class _GamesScreenState extends State<GamesScreen> {
                             });
                           }
                         },
-                      ),
-                      const SizedBox(width: 10),
-                      _GamesOverflowMenu(
-                        pendingInviteCount: _pendingInviteCount,
-                        onInvitations: _openInvitations,
-                        onLeaderboard: () {
-                          _searchFocusNode.unfocus();
-                          Navigator.of(context).push<void>(
-                            MaterialPageRoute<void>(
-                              builder: (_) => const LeaderboardScreen(),
-                            ),
-                          );
-                        },
-                        onHistory: () => _openHistory(username),
+                        trailingAction: _GamesOverflowMenu(
+                          pendingInviteCount: _pendingInviteCount,
+                          onInvitations: _openInvitations,
+                          onLeaderboard: () {
+                            _searchFocusNode.unfocus();
+                            Navigator.of(context).push<void>(
+                              MaterialPageRoute<void>(
+                                builder: (_) => const LeaderboardScreen(),
+                              ),
+                            );
+                          },
+                          onHistory: () => _openHistory(username),
+                        ),
                       ),
                     ],
                   ),
@@ -681,21 +678,9 @@ class _GamesOverflowMenu extends StatelessWidget {
           child: menuRow(Icons.history_rounded, 'Match history'),
         ),
       ],
-      child: Container(
-        width: 46,
+      child: SizedBox(
+        width: 48,
         height: 46,
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: colors.outlineVariant),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: theme.brightness == Brightness.dark ? .12 : .035),
-              blurRadius: 12,
-              offset: const Offset(0, 7),
-            ),
-          ],
-        ),
         child: Stack(
           clipBehavior: Clip.none,
           children: [
@@ -703,7 +688,7 @@ class _GamesOverflowMenu extends StatelessWidget {
               child: Icon(
                 Icons.more_horiz_rounded,
                 size: 24,
-                color: colors.onSurface,
+                color: accent,
               ),
             ),
             if (pendingInviteCount > 0)
