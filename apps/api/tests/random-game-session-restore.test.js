@@ -10,7 +10,7 @@ test("restores only active random matches that belong to the authenticated playe
   const sessions = new Map([
     ["match-1", { expiresAt: 5000, players: ["alice", "bob"], game: gameOne }],
     ["match-2", { expiresAt: 5000, players: ["carol", "dave"], game: gameTwo }],
-    ["match-3", { expiresAt: 5000, players: ["alice", "erin"], game: { gameType: "rps" } }],
+    ["match-3", { expiresAt: 5000, players: ["alice", "erin"], game: { gameType: "rps", state: "in_progress" } }],
   ]);
 
   const restored = listActiveRandomGamesForPlayer(sessions, " ALICE ", 1000);
@@ -31,12 +31,19 @@ test("expired or malformed random sessions are pruned instead of restored", () =
   assert.equal(restored.length, 0);
   assert.equal(sessions.has("expired"), false);
   assert.equal(sessions.has("invalid-expiry"), false);
-  assert.equal(sessions.has("bad-game"), true);
+  assert.equal(sessions.has("bad-game"), false);
 });
 
-test("does not restore a session with no opponent", () => {
+test("prunes sessions with missing, duplicate, or extra players and malformed games", () => {
   const sessions = new Map([
-    ["solo", { expiresAt: 5000, players: ["alice"], game: { gameType: "tictactoe" } }],
+    ["solo", { expiresAt: 5000, players: ["alice"], game: { gameType: "tictactoe", state: "in_progress" } }],
+    ["duplicate", { expiresAt: 5000, players: ["alice", "alice"], game: { gameType: "tictactoe", state: "in_progress" } }],
+    ["extra", { expiresAt: 5000, players: ["alice", "bob", "carol"], game: { gameType: "tictactoe", state: "in_progress" } }],
+    ["array-game", { expiresAt: 5000, players: ["alice", "bob"], game: [] }],
+    ["unsupported-game", { expiresAt: 5000, players: ["alice", "bob"], game: { gameType: "connect4", state: "in_progress" } }],
+    ["missing-state", { expiresAt: 5000, players: ["alice", "bob"], game: { gameType: "rps" } }],
   ]);
+
   assert.deepEqual(listActiveRandomGamesForPlayer(sessions, "alice", 1000), []);
+  assert.equal(sessions.size, 0);
 });
