@@ -3,7 +3,6 @@ import 'dart:ui' as ui;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'game_invitation_utils.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart'
     hide Message;
@@ -19,6 +18,7 @@ import 'package:provider/provider.dart';
 import 'auth_service.dart';
 import 'settings_service.dart';
 import 'socket_service.dart';
+import 'game_invitation_utils.dart';
 import 'friend_service.dart';
 import '../screens/chats/chat_detail_screen.dart';
 import '../screens/calls/calls_screen.dart';
