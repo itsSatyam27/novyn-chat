@@ -256,7 +256,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
 
   int _time(bool white) {
     final base = ((white ? _data['whiteTimeMs'] : _data['blackTimeMs']) as num?)?.toInt() ?? 300000;
-    final whiteTurn = _fen.split(' ').elementAtOrNull(1) != 'b';
+    final whiteTurn = (_fen.split(' ').length > 1 && _fen.split(' ')[1] != 'b');
     if (white != whiteTurn || _finished) return math.max(0, base).toInt();
     final started = (_data['lastMoveAt'] as num?)?.toInt() ?? _now;
     return math.max(0, base - math.max(0, _now - started)).toInt();
@@ -280,7 +280,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
       if (winner == 'draw') return 'Draw · ' + (_data['endReason']?.toString() ?? '').replaceAll('_', ' ');
       return winner == _user ? 'You won' : (winner.isEmpty ? 'Match finished' : winner + ' won');
     }
-    final whiteTurn = _fen.split(' ').elementAtOrNull(1) != 'b';
+    final whiteTurn = (_fen.split(' ').length > 1 && _fen.split(' ')[1] != 'b');
     return (whiteTurn ? 'White' : 'Black') + ' to move' + (_data['check'] == true ? ' · Check' : '');
   }
 
@@ -293,7 +293,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
   }
 
   Widget _playerCard(bool white, Color foreground, Color muted, Color panel, Color accent) {
-    final active = !_finished && (_fen.split(' ').elementAtOrNull(1) != 'b') == white;
+    final active = !_finished && ((_fen.split(' ').length > 1 && _fen.split(' ')[1] != 'b')) == white;
     final mine = (white ? _data['white'] : _data['black'])?.toString().toLowerCase() == _user;
     return Expanded(
       child: Container(
