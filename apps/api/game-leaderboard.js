@@ -9,6 +9,7 @@ const VALID_GAME_TYPES = new Set([
   "doodle",
   "numberclash",
   "updown",
+  "chess",
 ]);
 
 function normalizeLeaderboardGame(value) {
