@@ -44,6 +44,7 @@ class _GameHistoryScreenState extends State<GameHistoryScreen> {
   String _title(String type) => switch (type.toLowerCase()) {
         'tictactoe' => 'Tic-Tac-Toe',
         'rps' => 'Rock Paper Scissors',
+        'chess' => 'Chess',
         'rajamantri' || 'raja_mantri' || 'rmcs' => 'Raja Mantri',
         _ => 'Novyn Game',
       };
@@ -51,6 +52,7 @@ class _GameHistoryScreenState extends State<GameHistoryScreen> {
   IconData _gameIcon(String type) => switch (type.toLowerCase()) {
         'rajamantri' || 'raja_mantri' || 'rmcs' => Icons.military_tech_rounded,
         'rps' => Icons.emoji_events_rounded,
+        'chess' => Icons.grid_3x3_rounded,
         _ => Icons.sports_esports_rounded,
       };
 
