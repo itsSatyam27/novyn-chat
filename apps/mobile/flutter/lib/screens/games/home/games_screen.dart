@@ -12,6 +12,7 @@ import '../../../widgets/novyn_header_actions.dart';
 import '../../../widgets/novyn_filter_chips.dart';
 import '../../../widgets/user_avatar.dart';
 import '../shared/history/game_history_screen.dart';
+import '../achievements/game_achievements_screen.dart';
 import '../shared/lobby/game_lobby_screen.dart';
 import '../raja_mantri/raja_mantri_lobby_screen.dart';
 import '../leaderboard/leaderboard_screen.dart';
@@ -329,6 +330,16 @@ class _GamesScreenState extends State<GamesScreen> {
                             );
                           },
                           onHistory: () => _openHistory(username),
+                          onAchievements: () {
+                            _searchFocusNode.unfocus();
+                            Navigator.of(context).push<void>(
+                              MaterialPageRoute<void>(
+                                builder: (_) => GameAchievementsScreen(
+                                  matches: _stats.matches,
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ],
@@ -348,6 +359,16 @@ class _GamesScreenState extends State<GamesScreen> {
                       Navigator.of(context).push<void>(
                         MaterialPageRoute<void>(
                           builder: (_) => const LeaderboardScreen(),
+                        ),
+                      );
+                    },
+                    onAchievementsTap: () {
+                      _searchFocusNode.unfocus();
+                      Navigator.of(context).push<void>(
+                        MaterialPageRoute<void>(
+                          builder: (_) => GameAchievementsScreen(
+                            matches: _stats.matches,
+                          ),
                         ),
                       );
                     },
@@ -470,7 +491,7 @@ class _GamesScreenState extends State<GamesScreen> {
   }
 }
 
-enum _GamesMenuAction { invitations, leaderboard, history }
+enum _GamesMenuAction { invitations, leaderboard, history, achievements }
 
 class _GamesOverflowMenu extends StatelessWidget {
   const _GamesOverflowMenu({
@@ -478,12 +499,14 @@ class _GamesOverflowMenu extends StatelessWidget {
     required this.onInvitations,
     required this.onLeaderboard,
     required this.onHistory,
+    required this.onAchievements,
   });
 
   final int pendingInviteCount;
   final VoidCallback onInvitations;
   final VoidCallback onLeaderboard;
   final VoidCallback onHistory;
+  final VoidCallback onAchievements;
 
   @override
   Widget build(BuildContext context) {
@@ -563,6 +586,9 @@ class _GamesOverflowMenu extends StatelessWidget {
           case _GamesMenuAction.history:
             onHistory();
             break;
+          case _GamesMenuAction.achievements:
+            onAchievements();
+            break;
         }
       },
       itemBuilder: (context) => [
@@ -587,6 +613,12 @@ class _GamesOverflowMenu extends StatelessWidget {
           height: 56,
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: menuRow(Icons.history_rounded, 'Match history'),
+        ),
+        PopupMenuItem<_GamesMenuAction>(
+          value: _GamesMenuAction.achievements,
+          height: 56,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: menuRow(Icons.military_tech_rounded, 'Achievements'),
         ),
       ],
       child: SizedBox(
@@ -639,6 +671,7 @@ class _GameProfileHeroCard extends StatefulWidget {
     required this.stats,
     required this.onHistoryTap,
     required this.onLeaderboardTap,
+    required this.onAchievementsTap,
     required this.isDark,
   });
 
@@ -648,6 +681,7 @@ class _GameProfileHeroCard extends StatefulWidget {
   final GameStatsSnapshot stats;
   final VoidCallback onHistoryTap;
   final VoidCallback onLeaderboardTap;
+  final VoidCallback onAchievementsTap;
   final bool isDark;
 
   @override
@@ -1016,6 +1050,27 @@ class _GameProfileHeroCardState extends State<_GameProfileHeroCard> {
                             ),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: widget.onAchievementsTap,
+                          icon: const Icon(Icons.military_tech_rounded, size: 19),
+                          label: const Text('Achievements'),
+                          style: FilledButton.styleFrom(
+                            foregroundColor: accent,
+                            backgroundColor: softSurface,
+                            elevation: 0,
+                            minimumSize: const Size.fromHeight(44),
+                            shape: const StadiumBorder(),
+                            textStyle: const TextStyle(
+                              fontFamily: 'PlusJakartaSans',
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
                       ),
                     ],
                   )
