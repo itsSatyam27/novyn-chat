@@ -8180,13 +8180,13 @@ io.on("connection", (socket) => {
     }
     clearTimeout(invite.timer);
     pendingGameInvites.delete(messageId);
-    if (invite.acceptedSocketId) {
-      io.to(invite.acceptedSocketId).emit("game_invite_timeout", {
-        messageId,
-        gameType: invite.gameType,
-        reason: "cancelled",
-      });
-    }
+    emitGameInvitationTimeoutToParticipants({
+      io,
+      onlineUsers,
+      invite,
+      messageId,
+      reason: "cancelled",
+    });
     return respond({ ok: true });
   });
 
