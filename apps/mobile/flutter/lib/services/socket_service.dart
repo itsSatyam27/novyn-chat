@@ -316,10 +316,10 @@ class SocketService extends ChangeNotifier {
   Function(Map)? onCallMediaUpgradeResponseCallback;
   Function(Map)? onCallScreenShareChangedCallback;
   Function(Map)? onWebRTCSignalCallback;
-  Function(Map)? onChessVoiceInviteCallback;
-  Function(Map)? onChessVoicePeerJoinedCallback;
-  Function(Map)? onChessVoiceSignalCallback;
-  Function(Map)? onChessVoicePeerLeftCallback;
+  Function(Map<String, dynamic>)? onChessVoiceInviteCallback;
+  Function(Map<String, dynamic>)? onChessVoicePeerJoinedCallback;
+  Function(Map<String, dynamic>)? onChessVoiceSignalCallback;
+  Function(Map<String, dynamic>)? onChessVoicePeerLeftCallback;
   Function(Map)? onGroupCallPromotedCallback;
   Function(Map)? onGroupCallInvitationCallback;
   Function(Map)? onGroupCallJoinedCallback;
