@@ -110,15 +110,43 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
   Future<void> _loadPendingInvitations(SocketService socket) async {
     try {
       final invitations = await socket.getPendingGameInvitations();
-      if (!mounted || !identical(socket, _socket) || invitations.isEmpty) {
-        return;
-      }
-      // The invitations screen presents newest first. Keep the same order in
-      // the compact overlay, then let the user respond to each outstanding invite.
-      for (final invitation in invitations.reversed) {
-        if (!mounted || !identical(socket, _socket)) return;
-        _enqueueInvitation(invitation);
-      }
+      if (!mounted || !identical(socket, _socket)) return;
+
+      // The server is authoritative after reconnect: remove invitations that
+      // expired, were accepted on another device, or were cancelled while this
+      // client was offline. Keep still-pending cards and restore any missing ones.
+      final pendingIds = invitations
+          .map((invite) => invite['messageId']?.toString() ?? '')
+          .where((id) => id.isNotEmpty)
+          .toSet();
+
+      setState(() {
+        _queue.removeWhere(
+          (invite) => !pendingIds.contains(invite['messageId']?.toString()),
+        );
+
+        final activeId = _activeInvitation?['messageId']?.toString() ?? '';
+        if (activeId.isNotEmpty && !pendingIds.contains(activeId)) {
+          _activeInvitation = null;
+          _actionError = null;
+          _working = false;
+        }
+
+        // The invitations screen presents newest first. Restore in that order
+        // without duplicating an invite already active or queued from the live stream.
+        for (final invitation in invitations.reversed) {
+          final id = invitation['messageId']?.toString() ?? '';
+          if (id.isEmpty ||
+              _activeInvitation?['messageId']?.toString() == id ||
+              _queue.any((item) => item['messageId']?.toString() == id)) {
+            continue;
+          }
+          if (_rememberInvitationId(id)) {
+            _queue.addLast(Map<String, dynamic>.from(invitation));
+          }
+        }
+        _activateNext();
+      });
     } catch (_) {
       // A temporary reconnect must not disturb whichever screen is open.
     }
