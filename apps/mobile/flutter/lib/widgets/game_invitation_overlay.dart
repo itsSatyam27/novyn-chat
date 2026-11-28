@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../services/socket_service.dart';
+import '../services/game_invitation_utils.dart';
 import '../screens/games/raja_mantri/raja_mantri_online_game_screen.dart';
 import '../screens/games/shared/room/game_room_screen.dart';
 
@@ -154,7 +155,11 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
     // The overlay's own accept/decline handler dismisses after its ack.
     // Ignore the matching server close event while that action is in flight
     // so it cannot activate the next queue item before the local handler runs.
-    if (_working && _activeInvitation?['messageId']?.toString() == id) {
+    if (shouldIgnoreInvitationCloseDuringAction(
+      working: _working,
+      activeInviteId: _activeInvitation?['messageId']?.toString(),
+      eventInviteId: id,
+    )) {
       return;
     }
     setState(() {
