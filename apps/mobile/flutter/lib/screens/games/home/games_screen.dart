@@ -62,8 +62,8 @@ class _GamesScreenState extends State<GamesScreen> {
       type: 'chess',
       title: 'Chess',
       subtitle: 'Classic strategy · 1v1',
-      icon: Icons.grid_3x3_rounded,
-      gradient: [Color(0xFF7955E8), Color(0xFF5136B8)],
+      icon: Icons.sports_esports_rounded,
+      gradient: [Color(0xFF202020), Color(0xFF050505)],
     ),
   ];
 
@@ -72,7 +72,7 @@ class _GamesScreenState extends State<GamesScreen> {
     title: 'Raja Mantri',
     subtitle: 'Chor Sipahi · 4P',
     icon: Icons.military_tech_rounded,
-    gradient: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
+    gradient: [Color(0xFF0F766E), Color(0xFF064E4A)],
   );
 
   @override
@@ -1289,7 +1289,17 @@ class _GameGridCard extends StatelessWidget {
                   color: Colors.white.withValues(alpha: 0.22),
                   borderRadius: BorderRadius.circular(13),
                 ),
-                child: Icon(game.icon, color: Colors.white, size: 22),
+                child: game.type == 'chess'
+                    ? const Text(
+                        '♞',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 29,
+                          height: 1,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      )
+                    : Icon(game.icon, color: Colors.white, size: 22),
               ),
               const Spacer(),
               Container(
