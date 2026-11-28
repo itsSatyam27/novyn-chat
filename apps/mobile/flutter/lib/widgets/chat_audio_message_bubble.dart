@@ -153,7 +153,6 @@ class _ChatAudioMessageBubbleState extends State<ChatAudioMessageBubble> {
     return ConstrainedBox(
       constraints: BoxConstraints(
         maxWidth: math.min(276.0, MediaQuery.sizeOf(context).width * .78).toDouble(),
-        minWidth: 220,
       ),
       child: Container(
         padding: const EdgeInsets.all(7),
