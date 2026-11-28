@@ -602,7 +602,7 @@ function applyChess(game, userKey, moveData) {
     fen: played.fen,
     moves: [...(Array.isArray(current.moves) ? current.moves : []), played.move].slice(-500),
     legalMoves: outcome.done ? [] : chessRules.legalMoves(nextPosition).map(chessRules.toUci),
-    canClaimDraw: !outcome.done && (nextPosition.halfmove >= 100 || nextRepetitions >= 2),
+    canClaimDraw: !outcome.done && (nextPosition.halfmove >= 100 || nextRepetitions >= 3),
     positionHistory: history.slice(-500),
     whiteTimeMs: nextWhiteTime,
     blackTimeMs: nextBlackTime,
