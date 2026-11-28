@@ -104,3 +104,64 @@ test("friend Tic-Tac-Toe completes a winning line and rejects further moves", ()
   );
   assert.equal(afterFinish.ok, false);
 });
+
+test("rematch controls reject chat members who are not assigned players", () => {
+  const finished = {
+    ...friendGame(),
+    state: "finished",
+    winner: "alice",
+  };
+
+  for (const action of ["rematch_request", "rematch_accept", "rematch_decline", "rematch", "leave_room"]) {
+    const result = applyGameMove(finished, "mallory", { action });
+    assert.equal(result.ok, false, action + " must reject a non-player");
+    assert.match(result.reason, /not a player/i);
+  }
+});
+
+test("rematch requests require a finished game and accept only the other player's live request", () => {
+  const active = friendGame();
+  const earlyRequest = applyGameMove(active, "alice", { action: "rematch_request" });
+  assert.equal(earlyRequest.ok, false);
+  assert.match(earlyRequest.reason, /finish the current game/i);
+
+  const finished = { ...active, state: "finished", winner: "alice" };
+  const request = applyGameMove(finished, "alice", { action: "rematch_request" });
+  assert.equal(request.ok, true);
+  assert.equal(request.game.data.rematch.status, "pending");
+
+  const duplicateRequest = applyGameMove(request.game, "alice", { action: "rematch_request" });
+  assert.equal(duplicateRequest.ok, true);
+  assert.equal(duplicateRequest.game.data.rematch.requestedBy, "alice");
+
+  const selfAccept = applyGameMove(request.game, "alice", { action: "rematch_accept" });
+  assert.equal(selfAccept.ok, false);
+
+  const bypassRequest = applyGameMove(finished, "bob", { action: "rematch" });
+  assert.equal(bypassRequest.ok, false);
+
+  const accepted = applyGameMove(request.game, "bob", { action: "rematch_accept" });
+  assert.equal(accepted.ok, true);
+  assert.equal(accepted.game.state, "in_progress");
+  assert.deepEqual(accepted.game.data.board, Array(9).fill(null));
+  assert.equal(accepted.game.data.rematch, null);
+
+  const duplicateAccept = applyGameMove(accepted.game, "bob", { action: "rematch_accept" });
+  assert.equal(duplicateAccept.ok, false);
+});
+
+test("expired rematch requests cannot be accepted or declined", () => {
+  const finished = { ...friendGame(), state: "finished", winner: "alice" };
+  const request = applyGameMove(finished, "alice", { action: "rematch_request" });
+  assert.equal(request.ok, true);
+  const expired = {
+    ...request.game,
+    data: {
+      ...request.game.data,
+      rematch: { ...request.game.data.rematch, expiresAt: Date.now() - 1 },
+    },
+  };
+
+  assert.equal(applyGameMove(expired, "bob", { action: "rematch_accept" }).ok, false);
+  assert.equal(applyGameMove(expired, "bob", { action: "rematch_decline" }).ok, false);
+});

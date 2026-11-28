@@ -71,6 +71,7 @@ function createRajaMantriGameSession({
 }
 
 function assignRoundRoles(session) {
+  session.finishedAt = 0;
   const roles = shuffle(ROLE_SETS[session.playerCount], session.random);
   session.players.forEach((player, index) => {
     player.role = roles[index];
@@ -226,6 +227,7 @@ function advanceRajaMantriRound(session, username) {
   if (session.round >= session.totalRounds) {
     session.phase = "finished";
     session.responseDeadlineAt = 0;
+    session.finishedAt = Date.now();
     return { ok: true, session };
   }
   session.round += 1;

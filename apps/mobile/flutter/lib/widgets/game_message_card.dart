@@ -481,7 +481,11 @@ class _GameMessageCardState extends State<GameMessageCard> {
         opponentName: widget.opponentDisplayName ?? widget.peerUsername,
         sendingMove: _sendingMove,
         startingRematch: _startingRematch,
-        onSendMove: (move) => _move({'move': move}),
+        onSendMove: (move) => _move({
+          'move': move,
+          'round': (int.tryParse(_data['round']?.toString() ?? '') ?? 1) +
+              (_data['roundResolved'] == true ? 1 : 0),
+        }),
         onPlayAgain: _startRematch,
         onRematchAction: _sendRematchAction,
       );

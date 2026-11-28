@@ -1873,14 +1873,26 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!activeChat || !user) return;
       const socket = getSocket();
       if (!socket) return;
+      const currentGame = messages.find(
+        (message) => message.id === messageId || message.game?.id === messageId
+      )?.game;
+      const serverMoveData =
+        currentGame?.gameType === 'rps' && moveData?.move
+          ? {
+              ...moveData,
+              round:
+                (Number(currentGame.data?.round) || 1) +
+                (currentGame.data?.roundResolved === true ? 1 : 0),
+            }
+          : moveData;
 
       // Update locally immediately for instant feedback
       setMessages((prev) =>
         prev.map((m) => {
           if ((m.id === messageId || (m.game && m.game.id === messageId)) && m.game) {
-            let nextData = { ...m.game.data, ...moveData };
+            let nextData = { ...m.game.data, ...serverMoveData };
             let nextTurn = moveData.turn !== undefined ? moveData.turn : m.game.turn;
-            if (m.game.gameType === 'rps' && moveData.move) {
+            if (m.game.gameType === 'rps' && serverMoveData.move) {
               const player1 = m.game.data.player1 || m.game.createdBy;
               const player2 = m.game.data.player2 || m.game.opponent || user.username;
               const choseAsPlayer1 = player1.toLowerCase() === user.username.toLowerCase();
@@ -1888,8 +1900,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 ...m.game.data,
                 player1,
                 player2,
-                p1Move: choseAsPlayer1 ? moveData.move : m.game.data.p1Move,
-                p2Move: choseAsPlayer1 ? m.game.data.p2Move : moveData.move,
+                p1Move: choseAsPlayer1 ? serverMoveData.move : m.game.data.p1Move,
+                p2Move: choseAsPlayer1 ? m.game.data.p2Move : serverMoveData.move,
               };
               nextTurn = choseAsPlayer1 ? player2 : player1;
             }
@@ -1911,11 +1923,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       socket.emit('game_move', {
         messageId,
         to: activeChat,
-        moveData,
+        moveData: serverMoveData,
       });
       triggerHaptic('medium');
     },
-    [activeChat, user]
+    [activeChat, user, messages]
   );
 
   const createGroup = useCallback(

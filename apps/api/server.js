@@ -15,7 +15,12 @@ const { registerCallHandlers, cancelCallForUser } = require("./server/realtime/c
 const { createGroupCallRegistry, registerGroupCallHandlers } = require("./server/realtime/group-call-handlers");
 const groupCallRegistry = createGroupCallRegistry();
 const { applyGameMove, createGameChallenge } = require("./server/realtime/game-rules");
+const {
+  buildTwoPlayerGameHistoryRecords,
+  buildRajaMantriHistoryRecords,
+} = require("./server/realtime/game-history-records");
 const { PublicGameMatchmaking } = require("./server/realtime/game-matchmaking");
+const { listActiveRandomGamesForPlayer } = require("./server/realtime/random-game-session-restore");
 const { buildGameLeaderboard, normalizeLeaderboardGame } = require("./game-leaderboard");
 const { RajaMantriMatchmaking } = require("./server/realtime/raja-mantri-matchmaking");
 const {
@@ -965,7 +970,7 @@ app.get("/api/games/history", requireUser, async (req, res) => {
   }
   try {
     const matches = await mongoGameHistoryCollection
-      .find({ userKey: req.userKey }, { projection: { _id: 0, userKey: 0 } })
+      .find({ userKey: req.userKey, source: "server" }, { projection: { _id: 0, userKey: 0 } })
       .sort({ playedAt: -1 })
       .limit(2000)
       .toArray();
@@ -984,60 +989,32 @@ app.post("/api/games/history", requireUser, requireCsrf, async (req, res) => {
   if (!incoming.length || incoming.length > 100) {
     return res.status(400).json({ error: "Submit between 1 and 100 completed matches." });
   }
-  const allowedGames = new Set(["tictactoe", "rps", "rockpaperscissors", "rajamantri", "ludo", "uno", "connect4", "doodle", "numberclash", "updown"]);
-  const docs = [];
+
+  // Clients may retry history sync, but they are never allowed to create or
+  // change leaderboard results. Only records produced by server game state
+  // transitions are accepted as verified history.
+  let verified = 0;
   for (const item of incoming) {
-    // Ignore bot records entirely: they neither award XP nor reset a human streak.
     if (item?.isBotMatch === true || item?.opponentType === "bot") continue;
-    const matchId = toDisplayName(item?.id || item?.matchId).slice(0, 160);
+    const matchId = String(item?.id || item?.matchId || "").trim().slice(0, 160);
     const gameType = toDisplayName(item?.gameType).toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 40);
-    const opponent = toDisplayName(item?.opponent).slice(0, 192);
-    const opponentNames = opponent.split(",").map((name) => name.trim()).filter(Boolean);
-    const opponentKeys = opponentNames.map(normalizeName);
-    const allOpponentsRegistered = opponentKeys.length > 0 &&
-      new Set(opponentKeys).size === opponentKeys.length &&
-      opponentKeys.every((opponentKey) =>
-        opponentKey !== req.userKey && users.get(opponentKey)?.isRegistered
-      );
     const result = ["win", "loss", "draw"].includes(item?.result) ? item.result : "";
-    const playedAt = new Date(item?.playedAt);
-    // A client flag is not proof that a match was human-vs-human. Require every
-    // recorded opponent (including multiplayer opponents) to be a registered account.
-    if (!matchId || !allowedGames.has(gameType) || !opponent ||
-        !allOpponentsRegistered || !result ||
-        opponentNames.some((name) => /^(ai|bot)(\b|[_ -])/i.test(name)) ||
-        !Number.isFinite(playedAt.getTime()) ||
-        playedAt.getTime() > Date.now() + 5 * 60 * 1000 ||
-        playedAt.getTime() < Date.now() - 5 * 365 * 24 * 60 * 60 * 1000) {
-      return res.status(400).json({ error: "A completed human match must include registered, different Novyn opponent accounts and valid match details." });
+    if (!matchId || !gameType || !result) continue;
+    try {
+      const stored = await mongoGameHistoryCollection.findOne({
+        _id: req.userKey + ":" + matchId,
+        userKey: req.userKey,
+        source: "server",
+      });
+      if (stored && stored.gameType === gameType && stored.result === result) {
+        verified += 1;
+      }
+    } catch (error) {
+      console.warn("[NovynGames] History verification failed:", error?.message || error);
+      return res.status(503).json({ error: "Cloud game history could not be verified." });
     }
-    docs.push({
-      _id: req.userKey + ":" + matchId,
-      userKey: req.userKey,
-      id: matchId,
-      gameType,
-      opponent,
-      result,
-      playedAt: playedAt.toISOString(),
-      isBotMatch: false,
-    });
   }
-  try {
-    if (docs.length) {
-      await mongoGameHistoryCollection.bulkWrite(
-        docs.map((doc) => ({ updateOne: {
-          filter: { _id: doc._id, userKey: req.userKey },
-          update: { $setOnInsert: doc },
-          upsert: true,
-        }})),
-        { ordered: false }
-      );
-    }
-    return res.json({ ok: true, saved: docs.length });
-  } catch (error) {
-    console.warn("[NovynGames] History write failed:", error?.message || error);
-    return res.status(503).json({ error: "Cloud game history could not be saved." });
-  }
+  return res.json({ ok: true, saved: verified, skipped: incoming.length - verified });
 });
 
 // Leaderboards aggregate persisted non-bot match records for registered accounts.
@@ -1081,7 +1058,7 @@ app.get("/api/games/leaderboard", requireUser, async (req, res) => {
       }
     }
 
-    const historyQuery = { isBotMatch: { $ne: true } };
+    const historyQuery = { isBotMatch: { $ne: true }, source: "server" };
     if (scope === "friends") {
       historyQuery.userKey = { $in: Array.from(eligibleUsers.keys()) };
     }
@@ -1576,11 +1553,13 @@ function scheduleRajaMantriPhaseTimer(entry) {
   if (entry.responseTimer && entry.responseTimerDeadline === deadline) return;
   clearTimeout(entry.responseTimer);
   entry.responseTimerDeadline = deadline;
-  entry.responseTimer = setTimeout(() => {
+  entry.responseTimer = setTimeout(async () => {
     entry.responseTimer = null;
     entry.responseTimerDeadline = 0;
     if (!rajaMantriSessions.has(game.sessionId) || rajaMantriSessions.get(game.sessionId) !== entry) return;
 
+    const previousGame = cloneRajaMantriGame(game);
+    const previousExpiresAt = entry.expiresAt;
     if (game.phase === "picking") {
       for (const player of game.players) {
         if (!player.isBot && !player.picked) {
@@ -1599,8 +1578,19 @@ function scheduleRajaMantriPhaseTimer(entry) {
       }
     }
 
-    emitRajaMantriGameUpdate(game);
+    const persisted = await persistRajaMantriSession(game.sessionId, entry);
+    if (!persisted) {
+      entry.game = previousGame;
+      entry.expiresAt = previousExpiresAt;
+      scheduleRajaMantriSessionExpiry(game.sessionId, entry);
+      if (["picking", "guessing"].includes(entry.game.phase)) {
+        entry.game.responseDeadlineAt = Date.now() + RAJA_MANTRI_RESPONSE_TIMEOUT_MS;
+        scheduleRajaMantriPhaseTimer(entry);
+      }
+      return;
+    }
     scheduleRajaMantriPhaseTimer(entry);
+    emitRajaMantriGameUpdate(entry.game);
   }, Math.max(0, deadline - Date.now()));
   if (typeof entry.responseTimer.unref === "function") entry.responseTimer.unref();
 }
@@ -1624,12 +1614,313 @@ function expireRajaMantriSession(sessionId) {
   clearTimeout(entry.expiryTimer);
   clearTimeout(entry.responseTimer);
   rajaMantriSessions.delete(sessionId);
+  void deletePersistedGameSession("rajamantri", sessionId);
+}
+
+function enqueueGameSessionPersistence(queueKey, operation) {
+  const previous = gameSessionPersistenceQueues.get(queueKey) || Promise.resolve();
+  const next = previous.catch(() => {}).then(operation);
+  gameSessionPersistenceQueues.set(queueKey, next);
+  const cleanup = () => {
+    if (gameSessionPersistenceQueues.get(queueKey) === next) {
+      gameSessionPersistenceQueues.delete(queueKey);
+    }
+  };
+  void next.then(cleanup, cleanup);
+  return next;
+}
+
+async function persistActiveGameSession(kind, sessionId, payload, expiresAt) {
+  const collection = mongoGameSessionsCollection;
+  if (!collection) return process.env.NODE_ENV !== "production";
+  const id = String(kind) + ":" + String(sessionId);
+  let snapshot;
+  try {
+    // Raja Mantri mutates its nested player state in place. Freeze the payload
+    // before enqueueing so a later turn cannot leak into an earlier DB write.
+    snapshot = JSON.parse(JSON.stringify(payload));
+  } catch (error) {
+    console.warn("[NovynGames] Active session snapshot rejected:", error?.message || error);
+    return false;
+  }
+  return enqueueGameSessionPersistence(id, async () => {
+    try {
+      await collection.updateOne(
+        { _id: id },
+        { $set: {
+          kind,
+          sessionId: String(sessionId),
+          payload: snapshot,
+          expiresAt: Number(expiresAt),
+          updatedAt: new Date(),
+        } },
+        { upsert: true },
+      );
+      return true;
+    } catch (error) {
+      console.warn("[NovynGames] Active session persistence failed:", error?.message || error);
+      return false;
+    }
+  });
+}
+
+async function deletePersistedGameSession(kind, sessionId) {
+  const collection = mongoGameSessionsCollection;
+  if (!collection) return;
+  const id = String(kind) + ":" + String(sessionId);
+  return enqueueGameSessionPersistence(id, async () => {
+    try {
+      await collection.deleteOne({ _id: id });
+    } catch (error) {
+      console.warn("[NovynGames] Session cleanup failed:", error?.message || error);
+    }
+  });
+}
+
+async function persistAuthoritativeGameHistoryRecords(records) {
+  if (!mongoGameHistoryCollection || !Array.isArray(records) || !records.length) return;
+  try {
+    await mongoGameHistoryCollection.bulkWrite(
+      records.map((record) => {
+        const { _id, ...fields } = record;
+        return {
+          updateOne: {
+            filter: { _id, userKey: record.userKey },
+            update: { $set: { ...fields, source: "server" } },
+            upsert: true,
+          },
+        };
+      }),
+      { ordered: false },
+    );
+  } catch (error) {
+    console.warn("[NovynGames] Authoritative history write failed:", error?.message || error);
+  }
+}
+
+async function restoreFinishedChatGameHistory() {
+  if (!mongoGameHistoryCollection) return;
+  let pending = [];
+  let restored = 0;
+  for (const messages of conversations.values()) {
+    if (!Array.isArray(messages)) continue;
+    for (const message of messages) {
+      const game = message?.game;
+      if (game?.state !== "finished") continue;
+      const records = buildTwoPlayerGameHistoryRecords(game, users);
+      if (!records.length) continue;
+      pending.push(...records);
+      restored += records.length;
+      if (pending.length >= 250) {
+        await persistAuthoritativeGameHistoryRecords(pending);
+        pending = [];
+      }
+    }
+  }
+  if (pending.length) await persistAuthoritativeGameHistoryRecords(pending);
+  if (restored) {
+    console.log("[NovynGames] Verified " + restored + " historical chat-game records.");
+  }
+}
+
+function persistRandomGameSession(sessionId, entry) {
+  if (!entry) return Promise.resolve(false);
+  // Extend the inactivity TTL after every accepted move or server-side
+  // forfeit, so a long but active match is not expired from its start time.
+  entry.expiresAt = Date.now() + RANDOM_GAME_SESSION_TTL_MS;
+  scheduleRandomSessionExpiry(sessionId, entry);
+  return persistActiveGameSession("random", sessionId, {
+    game: entry.game,
+    players: entry.players,
+  }, entry.expiresAt);
+}
+
+function persistRajaMantriSession(sessionId, entry) {
+  if (!entry?.game) return Promise.resolve(false);
+  if (entry.game.phase !== "finished") {
+    entry.expiresAt = Date.now() + RAJA_MANTRI_SESSION_TTL_MS;
+    scheduleRajaMantriSessionExpiry(sessionId, entry);
+  }
+  const game = { ...entry.game };
+  delete game.random;
+  return persistActiveGameSession("rajamantri", sessionId, game, entry.expiresAt);
+}
+
+function cloneRajaMantriGame(session) {
+  const snapshot = JSON.parse(JSON.stringify(session));
+  snapshot.random = typeof session.random === "function" ? session.random : Math.random;
+  return snapshot;
+}
+
+function clearRandomGameDisconnectTimer(entry, userKey) {
+  if (!(entry?.disconnectTimers instanceof Map)) return;
+  const key = normalizeName(userKey);
+  const timer = entry.disconnectTimers.get(key);
+  if (timer) clearTimeout(timer);
+  entry.disconnectTimers.delete(key);
+}
+
+function clearAllRandomGameDisconnectTimers(entry) {
+  if (!(entry?.disconnectTimers instanceof Map)) return;
+  for (const timer of entry.disconnectTimers.values()) clearTimeout(timer);
+  entry.disconnectTimers.clear();
+}
+
+function scheduleRandomGameDisconnectTimeout(sessionId, entry, disconnectedUserKey) {
+  if (!entry?.game || entry.game.state === "finished") return;
+  if (!(entry.disconnectTimers instanceof Map)) entry.disconnectTimers = new Map();
+  const userKey = normalizeName(disconnectedUserKey);
+  if (!entry.players.includes(userKey) || onlineUsers.has(userKey)) return;
+  const hasOnlineOpponent = entry.players.some((playerKey) =>
+    playerKey !== userKey && onlineUsers.has(playerKey)
+  );
+  if (!hasOnlineOpponent || entry.disconnectTimers.has(userKey)) return;
+
+  const timer = setTimeout(async () => {
+    entry.disconnectTimers.delete(userKey);
+    if (randomGameSessions.get(sessionId) !== entry || entry.game.state === "finished" ||
+        onlineUsers.has(userKey)) return;
+    const onlineOpponent = entry.players.find((playerKey) =>
+      playerKey !== userKey && onlineUsers.has(playerKey)
+    );
+    if (!onlineOpponent) return;
+
+    const previousGame = entry.game;
+    const previousExpiresAt = entry.expiresAt;
+    const result = applyGameMove(previousGame, userKey, { action: "leave_room" });
+    if (!result.ok) return;
+    entry.game = result.game;
+    const persisted = await persistRandomGameSession(sessionId, entry);
+    if (!persisted) {
+      entry.game = previousGame;
+      entry.expiresAt = previousExpiresAt;
+      scheduleRandomSessionExpiry(sessionId, entry);
+      scheduleRandomGameDisconnectTimeout(sessionId, entry, userKey);
+      return;
+    }
+    await persistAuthoritativeGameHistoryRecords(
+      buildTwoPlayerGameHistoryRecords(entry.game, users),
+    );
+    const packet = {
+      sessionId,
+      game: entry.game,
+      updatedBy: "system",
+      reason: "opponent_disconnected",
+    };
+    for (const playerKey of entry.players) {
+      const playerSocketId = onlineUsers.get(playerKey);
+      if (playerSocketId) io.to(playerSocketId).emit("random_game_updated", packet);
+    }
+    void sendPushToUser(userKey, {
+      type: "game_result",
+      title: "Game ended",
+      body: "Your match was forfeited after the reconnect grace period.",
+      gameId: entry.game.id,
+      gameType: entry.game.gameType,
+      eventId: String(entry.game.id) + ":disconnect-forfeit:" + String(entry.game.updatedAt || Date.now()),
+    });
+  }, RANDOM_GAME_DISCONNECT_GRACE_MS);
+  if (timer.unref) timer.unref();
+  entry.disconnectTimers.set(userKey, timer);
+}
+
+function scheduleRandomSessionExpiry(sessionId, entry) {
+  clearTimeout(entry.expiryTimer);
+  entry.expiryTimer = setTimeout(() => {
+    if (randomGameSessions.get(sessionId) !== entry) return;
+    clearAllRandomGameDisconnectTimers(entry);
+    randomGameSessions.delete(sessionId);
+    void deletePersistedGameSession("random", sessionId);
+  }, Math.max(0, entry.expiresAt - Date.now()));
+  if (entry.expiryTimer.unref) entry.expiryTimer.unref();
+}
+
+function scheduleRajaMantriSessionExpiry(sessionId, entry) {
+  clearTimeout(entry.expiryTimer);
+  entry.expiryTimer = setTimeout(() => {
+    if (rajaMantriSessions.get(sessionId) !== entry) return;
+    expireRajaMantriSession(sessionId);
+  }, Math.max(0, entry.expiresAt - Date.now()));
+  if (entry.expiryTimer.unref) entry.expiryTimer.unref();
+}
+
+async function restoreActiveGameSessions() {
+  if (!mongoGameSessionsCollection) return;
+  const now = Date.now();
+  await mongoGameSessionsCollection.deleteMany({
+    $or: [
+      { expiresAt: { $lte: now } },
+      { expiresAt: { $exists: false } },
+    ],
+  });
+  const docs = await mongoGameSessionsCollection.find({ expiresAt: { $gt: now } }).toArray();
+  for (const doc of docs) {
+    const expiresAt = Number(doc.expiresAt);
+    const sessionId = String(doc.sessionId || "");
+    if (!sessionId || !Number.isFinite(expiresAt) || expiresAt <= now) {
+      await mongoGameSessionsCollection.deleteOne({ _id: doc._id });
+      continue;
+    }
+    if (doc.kind === "random" && doc.payload?.game &&
+        Array.isArray(doc.payload.players)) {
+      const players = Array.from(new Set(doc.payload.players.map(normalizeName).filter(Boolean)));
+      if (players.length !== 2 || !doc.payload.game || typeof doc.payload.game !== "object" ||
+          Array.isArray(doc.payload.game)) {
+        await mongoGameSessionsCollection.deleteOne({ _id: doc._id });
+        continue;
+      }
+      const entry = {
+        game: doc.payload.game,
+        players,
+        expiresAt,
+        expiryTimer: null,
+        disconnectTimers: new Map(),
+      };
+      randomGameSessions.set(sessionId, entry);
+      scheduleRandomSessionExpiry(sessionId, entry);
+      if (entry.game.state === "finished") {
+        await persistAuthoritativeGameHistoryRecords(
+          buildTwoPlayerGameHistoryRecords(entry.game, users),
+        );
+      }
+      continue;
+    }
+    if (doc.kind === "rajamantri" && Array.isArray(doc.payload?.players)) {
+      const game = { ...doc.payload, random: Math.random };
+      for (const player of game.players) {
+        if (!player.isBot) {
+          player.isConnected = false;
+          player.autoControlled = true;
+        }
+      }
+      const entry = {
+        game,
+        expiresAt,
+        expiryTimer: null,
+        responseTimer: null,
+        responseTimerDeadline: 0,
+      };
+      rajaMantriSessions.set(sessionId, entry);
+      scheduleRajaMantriSessionExpiry(sessionId, entry);
+      scheduleRajaMantriPhaseTimer(entry);
+      if (game.phase === "finished") {
+        await persistAuthoritativeGameHistoryRecords(
+          buildRajaMantriHistoryRecords(game, users),
+        );
+      }
+      continue;
+    }
+    await mongoGameSessionsCollection.deleteOne({ _id: doc._id });
+  }
+  console.log("[NovynGames] Recovered " + randomGameSessions.size +
+    " random and " + rajaMantriSessions.size + " Raja Mantri sessions.");
 }
 
 // Random matches are short-lived, server-authoritative sessions. They do not
 // depend on a friendship or a chat thread, and are discarded after 30 minutes.
 const randomGameSessions = new Map();
 const RANDOM_GAME_SESSION_TTL_MS = 30 * 60 * 1000;
+const RANDOM_GAME_DISCONNECT_GRACE_MS = 60 * 1000;
 const pendingGameInvites = new Map();
 
 let mongoStorage = null;
@@ -1640,6 +1931,8 @@ let mongoMessagesCollection = null;
 let mongoAuthSessionsCollection = null;
 let mongoMediaCollection = null;
 let mongoGameHistoryCollection = null;
+let mongoGameSessionsCollection = null;
+const gameSessionPersistenceQueues = new Map();
 const mediaMetadataCache = new Map();
 
 let persistTimer = null;
@@ -3609,6 +3902,8 @@ async function initializeMongo() {
     mongoAuthSessionsCollection = mongoStorage.getCollection("auth_sessions");
     mongoMediaCollection = mongoStorage.getCollection("media");
     mongoGameHistoryCollection = mongoStorage.getCollection("game_history");
+    mongoGameSessionsCollection = mongoStorage.getCollection("active_game_sessions");
+    try { await mongoGameSessionsCollection.createIndex({ expiresAt: 1 }, { name: "active_game_session_expiry" }); } catch (e) { console.warn("[NovynGames] Active-session index deferred:", e?.message || e); }
     if (mongoGameHistoryCollection?.createIndex) {
       try {
         await mongoGameHistoryCollection.createIndex(
@@ -5510,10 +5805,11 @@ function finalizeSocketAuthentication(socket, user) {
   onlineUsers.set(userKey, socket.id);
 
   // Rejoining users resume their human turns in any active Raja Mantri room.
-  for (const entry of rajaMantriSessions.values()) {
+  for (const [sessionId, entry] of rajaMantriSessions) {
     const connection = setRajaMantriPlayerConnected(entry.game, userKey, true);
     if (connection.ok) {
       scheduleRajaMantriPhaseTimer(entry);
+      persistRajaMantriSession(sessionId, entry);
       emitRajaMantriGameUpdate(entry.game);
     }
   }
@@ -5530,6 +5826,27 @@ function finalizeSocketAuthentication(socket, user) {
 
   markUndeliveredAsDelivered(userKey);
   socket.emit("register_success", buildRegisterSuccessPayload(userKey, user));
+
+  // Public matches remain active across a temporary socket disconnect. Send
+  // the latest authoritative snapshot to the newly authenticated socket so
+  // the open game room can refresh its local cache without starting a new match.
+  for (const match of listActiveRandomGamesForPlayer(randomGameSessions, userKey)) {
+    const entry = randomGameSessions.get(match.sessionId);
+    clearRandomGameDisconnectTimer(entry, userKey);
+    for (const opponentKey of entry?.players || []) {
+      if (opponentKey !== userKey) scheduleRandomGameDisconnectTimeout(match.sessionId, entry, opponentKey);
+    }
+    const opponent = users.get(match.opponentUsername);
+    socket.emit("random_game_restored", {
+      sessionId: match.sessionId,
+      game: match.game,
+      opponent: {
+        username: match.opponentUsername,
+        displayName: toDisplayName(opponent?.displayName || opponent?.username || match.opponentUsername),
+      },
+    });
+  }
+
   emitStatusToFriends(userKey);
   emitFriendList(userKey);
   emitGroupListUpdatesForUser(userKey);
@@ -7361,7 +7678,7 @@ io.use(
 );
 
 io.on("connection", (socket) => {
-  socket.on("join_random_game", (payload, callback) => {
+  socket.on("join_random_game", async (payload, callback) => {
     const respond = typeof callback === "function" ? callback : () => {};
     const userKey = normalizeName(socket.data.userKey || "");
     if (!userKey || onlineUsers.get(userKey) !== socket.id) return respond({ ok: false, message: "Please sign in again before matchmaking." });
@@ -7393,14 +7710,24 @@ io.on("connection", (socket) => {
     }
 
     const game = challenge.game;
-    const expiryTimer = setTimeout(() => randomGameSessions.delete(result.sessionId), RANDOM_GAME_SESSION_TTL_MS);
-    if (typeof expiryTimer.unref === "function") expiryTimer.unref();
-    randomGameSessions.set(result.sessionId, {
+    const randomEntry = {
       game,
       players: [first.userKey, second.userKey],
       expiresAt: Date.now() + RANDOM_GAME_SESSION_TTL_MS,
-      expiryTimer,
-    });
+      expiryTimer: null,
+      disconnectTimers: new Map(),
+    };
+    randomGameSessions.set(result.sessionId, randomEntry);
+    scheduleRandomSessionExpiry(result.sessionId, randomEntry);
+    const persisted = await persistRandomGameSession(result.sessionId, randomEntry);
+    if (!persisted) {
+      clearTimeout(randomEntry.expiryTimer);
+      randomGameSessions.delete(result.sessionId);
+      const message = "Could not save the match. Please start matchmaking again.";
+      io.to(first.socketId).emit("random_match_timeout", { gameType: result.gameType, message });
+      io.to(second.socketId).emit("random_match_timeout", { gameType: result.gameType, message });
+      return respond({ ok: false, message });
+    }
 
     const packet = (opponent) => ({
       sessionId: result.sessionId,
@@ -7424,7 +7751,7 @@ io.on("connection", (socket) => {
     return respond({ ok: true, cancelled: publicGameMatchmaking.cancel(userKey) });
   });
 
-  socket.on("join_rajamantri_matchmaking", (payload, callback) => {
+  socket.on("join_rajamantri_matchmaking", async (payload, callback) => {
     const respond = typeof callback === "function" ? callback : () => {};
     const userKey = normalizeName(socket.data.userKey || "");
     if (!userKey || onlineUsers.get(userKey) !== socket.id) {
@@ -7474,14 +7801,30 @@ io.on("connection", (socket) => {
       }
       return respond({ ok: false, message: "A complete room could not be created. Please search again." });
     }
-    const expiryTimer = setTimeout(
-      () => expireRajaMantriSession(result.matchId),
-      RAJA_MANTRI_SESSION_TTL_MS,
-    );
-    if (typeof expiryTimer.unref === "function") expiryTimer.unref();
-    const sessionEntry = { game: gameSession, expiryTimer, responseTimer: null, responseTimerDeadline: 0 };
+    const sessionEntry = {
+      game: gameSession,
+      expiresAt: Date.now() + RAJA_MANTRI_SESSION_TTL_MS,
+      expiryTimer: null,
+      responseTimer: null,
+      responseTimerDeadline: 0,
+    };
     rajaMantriSessions.set(result.matchId, sessionEntry);
+    scheduleRajaMantriSessionExpiry(result.matchId, sessionEntry);
     scheduleRajaMantriPhaseTimer(sessionEntry);
+    const persisted = await persistRajaMantriSession(result.matchId, sessionEntry);
+    if (!persisted) {
+      clearTimeout(sessionEntry.expiryTimer);
+      clearTimeout(sessionEntry.responseTimer);
+      rajaMantriSessions.delete(result.matchId);
+      const message = "Could not save the match. Please search again.";
+      for (const player of result.players) {
+        io.to(player.socketId).emit("rajamantri_match_timeout", {
+          playerCount: result.playerCount,
+          message,
+        });
+      }
+      return respond({ ok: false, message });
+    }
     const packet = {
       matchId: result.matchId,
       sessionId: result.matchId,
@@ -7507,7 +7850,7 @@ io.on("connection", (socket) => {
     return respond({ ok: true, cancelled: rajaMantriMatchmaking.cancel(userKey) });
   });
 
-  socket.on("leave_rajamantri_game", (payload, callback) => {
+  socket.on("leave_rajamantri_game", async (payload, callback) => {
     const respond = typeof callback === "function" ? callback : () => {};
     const userKey = normalizeName(socket.data.userKey || "");
     const sessionId = String(payload?.sessionId || "").trim().slice(0, 128);
@@ -7519,8 +7862,18 @@ io.on("connection", (socket) => {
     if (!leavingPlayer) {
       return respond({ ok: false, message: "You are not a player in this match." });
     }
+    const previousGame = cloneRajaMantriGame(entry.game);
+    const previousExpiresAt = entry.expiresAt;
     const connection = setRajaMantriPlayerConnected(entry.game, userKey, false);
     if (!connection.ok) return respond({ ok: false, message: connection.reason });
+    const persisted = await persistRajaMantriSession(sessionId, entry);
+    if (!persisted) {
+      entry.game = previousGame;
+      entry.expiresAt = previousExpiresAt;
+      scheduleRajaMantriSessionExpiry(sessionId, entry);
+      scheduleRajaMantriPhaseTimer(entry);
+      return respond({ ok: false, message: "Could not save your reconnect state. Please retry." });
+    }
     scheduleRajaMantriPhaseTimer(entry);
     emitRajaMantriGameUpdate(entry.game);
     for (const player of entry.game.players) {
@@ -7552,7 +7905,7 @@ io.on("connection", (socket) => {
     return respond({ ok: true, game });
   });
 
-  socket.on("pick_rajamantri_chit", (payload, callback) => {
+  socket.on("pick_rajamantri_chit", async (payload, callback) => {
     const respond = typeof callback === "function" ? callback : () => {};
     const userKey = normalizeName(socket.data.userKey || "");
     const sessionId = String(payload?.sessionId || "").trim().slice(0, 128);
@@ -7563,14 +7916,24 @@ io.on("connection", (socket) => {
     if (!allowSocketAction(socket, "pick_rajamantri_chit", 8, 10_000)) {
       return respond({ ok: false, message: "Please wait before picking again." });
     }
+    const previousGame = cloneRajaMantriGame(entry.game);
+    const previousExpiresAt = entry.expiresAt;
     const result = pickRajaMantriChit(entry.game, userKey);
     if (!result.ok) return respond({ ok: false, message: result.reason });
+    const persisted = await persistRajaMantriSession(sessionId, entry);
+    if (!persisted) {
+      entry.game = previousGame;
+      entry.expiresAt = previousExpiresAt;
+      scheduleRajaMantriSessionExpiry(sessionId, entry);
+      scheduleRajaMantriPhaseTimer(entry);
+      return respond({ ok: false, message: "Could not save your pick. Please retry." });
+    }
     scheduleRajaMantriPhaseTimer(entry);
     emitRajaMantriGameUpdate(entry.game);
     return respond({ ok: true, game: getRajaMantriGameView(entry.game, userKey) });
   });
 
-  socket.on("guess_rajamantri_chor", (payload, callback) => {
+  socket.on("guess_rajamantri_chor", async (payload, callback) => {
     const respond = typeof callback === "function" ? callback : () => {};
     const userKey = normalizeName(socket.data.userKey || "");
     const sessionId = String(payload?.sessionId || "").trim().slice(0, 128);
@@ -7582,14 +7945,24 @@ io.on("connection", (socket) => {
     if (!allowSocketAction(socket, "guess_rajamantri_chor", 6, 10_000)) {
       return respond({ ok: false, message: "Please wait before guessing again." });
     }
+    const previousGame = cloneRajaMantriGame(entry.game);
+    const previousExpiresAt = entry.expiresAt;
     const result = guessRajaMantriChor(entry.game, userKey, suspectUsername);
     if (!result.ok) return respond({ ok: false, message: result.reason });
+    const persisted = await persistRajaMantriSession(sessionId, entry);
+    if (!persisted) {
+      entry.game = previousGame;
+      entry.expiresAt = previousExpiresAt;
+      scheduleRajaMantriSessionExpiry(sessionId, entry);
+      scheduleRajaMantriPhaseTimer(entry);
+      return respond({ ok: false, message: "Could not save your guess. Please retry." });
+    }
     scheduleRajaMantriPhaseTimer(entry);
     emitRajaMantriGameUpdate(entry.game);
     return respond({ ok: true, game: getRajaMantriGameView(entry.game, userKey) });
   });
 
-  socket.on("advance_rajamantri_round", (payload, callback) => {
+  socket.on("advance_rajamantri_round", async (payload, callback) => {
     const respond = typeof callback === "function" ? callback : () => {};
     const userKey = normalizeName(socket.data.userKey || "");
     const sessionId = String(payload?.sessionId || "").trim().slice(0, 128);
@@ -7600,9 +7973,24 @@ io.on("connection", (socket) => {
     if (!allowSocketAction(socket, "advance_rajamantri_round", 5, 30_000)) {
       return respond({ ok: false, message: "Please wait before continuing the round." });
     }
+    const previousGame = cloneRajaMantriGame(entry.game);
+    const previousExpiresAt = entry.expiresAt;
     const result = advanceRajaMantriRound(entry.game, userKey);
     if (!result.ok) return respond({ ok: false, message: result.reason });
+    const persisted = await persistRajaMantriSession(sessionId, entry);
+    if (!persisted) {
+      entry.game = previousGame;
+      entry.expiresAt = previousExpiresAt;
+      scheduleRajaMantriSessionExpiry(sessionId, entry);
+      scheduleRajaMantriPhaseTimer(entry);
+      return respond({ ok: false, message: "Could not save the next round. Please retry." });
+    }
     scheduleRajaMantriPhaseTimer(entry);
+    if (entry.game.phase === "finished") {
+      await persistAuthoritativeGameHistoryRecords(
+        buildRajaMantriHistoryRecords(entry.game, users),
+      );
+    }
     emitRajaMantriGameUpdate(entry.game);
     return respond({ ok: true, game: getRajaMantriGameView(entry.game, userKey) });
   });
@@ -7738,7 +8126,7 @@ io.on("connection", (socket) => {
     return respond({ ok: true });
   });
 
-  socket.on("start_rajamantri_friend_room", (payload, callback) => {
+  socket.on("start_rajamantri_friend_room", async (payload, callback) => {
     const respond = typeof callback === "function" ? callback : () => {};
     const userKey = normalizeName(socket.data.userKey || "");
     if (!userKey || onlineUsers.get(userKey) !== socket.id) {
@@ -7797,11 +8185,26 @@ io.on("connection", (socket) => {
     } catch (_) {
       return respond({ ok: false, message: "Could not create the Raja Mantri room." });
     }
-    const expiryTimer = setTimeout(() => expireRajaMantriSession(matchId), RAJA_MANTRI_SESSION_TTL_MS);
-    if (typeof expiryTimer.unref === "function") expiryTimer.unref();
-    const sessionEntry = { game, expiryTimer, responseTimer: null, responseTimerDeadline: 0 };
+    const sessionEntry = {
+      game,
+      expiresAt: Date.now() + RAJA_MANTRI_SESSION_TTL_MS,
+      expiryTimer: null,
+      responseTimer: null,
+      responseTimerDeadline: 0,
+    };
     rajaMantriSessions.set(matchId, sessionEntry);
+    scheduleRajaMantriSessionExpiry(matchId, sessionEntry);
     scheduleRajaMantriPhaseTimer(sessionEntry);
+    const persisted = await persistRajaMantriSession(matchId, sessionEntry);
+    if (!persisted) {
+      clearTimeout(sessionEntry.expiryTimer);
+      clearTimeout(sessionEntry.responseTimer);
+      rajaMantriSessions.delete(matchId);
+      return respond({
+        ok: false,
+        message: "Could not save this room. Your accepted invitations are still available; please retry.",
+      });
+    }
     for (const { messageId, invite } of invites) {
       clearTimeout(invite.timer);
       pendingGameInvites.delete(messageId);
@@ -7833,7 +8236,7 @@ io.on("connection", (socket) => {
     });
   });
 
-  socket.on("random_game_move", (payload, callback) => {
+  socket.on("random_game_move", async (payload, callback) => {
     const respond = typeof callback === "function" ? callback : () => {};
     const userKey = normalizeName(socket.data.userKey || "");
     const sessionId = String(payload?.sessionId || "").trim();
@@ -7843,19 +8246,45 @@ io.on("connection", (socket) => {
     }
     if (session.expiresAt <= Date.now()) {
       clearTimeout(session.expiryTimer);
+      clearAllRandomGameDisconnectTimers(session);
       randomGameSessions.delete(sessionId);
+      await deletePersistedGameSession("random", sessionId);
       return respond({ ok: false, message: "This random game has expired. Start a new match." });
     }
     if (!session.players.includes(userKey)) {
       return respond({ ok: false, message: "You are not a player in this game." });
     }
 
-    const result = applyGameMove(session.game, userKey, payload?.moveData);
+    const previousGame = session.game;
+    const previousExpiresAt = session.expiresAt;
+    const result = applyGameMove(previousGame, userKey, payload?.moveData);
     if (!result.ok) {
       return respond({ ok: false, message: result.reason || "Invalid game move." });
     }
 
     session.game = result.game;
+    if (session.game.state === "finished") clearAllRandomGameDisconnectTimers(session);
+    else clearRandomGameDisconnectTimer(session, userKey);
+    const persisted = await persistRandomGameSession(sessionId, session);
+    if (!persisted) {
+      session.game = previousGame;
+      session.expiresAt = previousExpiresAt;
+      scheduleRandomSessionExpiry(sessionId, session);
+      for (const playerKey of session.players) {
+        if (!onlineUsers.has(playerKey)) {
+          scheduleRandomGameDisconnectTimeout(sessionId, session, playerKey);
+        }
+      }
+      return respond({
+        ok: false,
+        message: "Could not save this move. Please retry when the connection is stable.",
+      });
+    }
+    if (session.game.state === "finished") {
+      await persistAuthoritativeGameHistoryRecords(
+        buildTwoPlayerGameHistoryRecords(session.game, users),
+      );
+    }
     const packet = {
       sessionId,
       game: session.game,
@@ -9750,7 +10179,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("game_move", (payload, callback) => {
+  socket.on("game_move", async (payload, callback) => {
     const respond = typeof callback === "function" ? callback : () => {};
     const userKey = socket.data.userKey;
     if (!userKey) return respond({ ok: false, message: "Please sign in again." });
@@ -9787,9 +10216,24 @@ io.on("connection", (socket) => {
       return respond({ ok: false, message });
     }
 
+    const previousGame = item.game;
     item.game = result.game;
     const updatedGame = item.game;
-    schedulePersist();
+    try {
+      await flushStatePersistNow();
+    } catch (error) {
+      item.game = previousGame;
+      schedulePersist();
+      return respond({
+        ok: false,
+        message: "Could not save this move. Please retry when the connection is stable.",
+      });
+    }
+    if (updatedGame.state === "finished") {
+      await persistAuthoritativeGameHistoryRecords(
+        buildTwoPlayerGameHistoryRecords(updatedGame, users),
+      );
+    }
     respond({ ok: true, game: updatedGame });
 
     const packet = {
@@ -11217,7 +11661,7 @@ io.on("connection", (socket) => {
     schedulePersist
   });
 
-  socket.on("disconnect", () => {
+  socket.on("disconnect", async () => {
     const userKey = socket.data.userKey;
     if (!userKey) return;
     publicGameMatchmaking.disconnect(userKey, socket.id);
@@ -11225,12 +11669,16 @@ io.on("connection", (socket) => {
 
     const existingSocketId = onlineUsers.get(userKey);
     if (existingSocketId === socket.id) {
-      // Keep the room alive while a disconnected participant is driven by
-      // server-side bot turns. A returning account can resume human control.
+      // Remove this socket from presence before awaiting persistence. A new
+      // login can now register without this stale disconnect deleting it later.
+      onlineUsers.delete(userKey);
+
+      // Keep Raja Mantri rooms alive while disconnected players are auto-controlled.
       for (const [sessionId, entry] of rajaMantriSessions) {
         const connection = setRajaMantriPlayerConnected(entry.game, userKey, false);
         if (!connection.ok) continue;
         scheduleRajaMantriPhaseTimer(entry);
+        await persistRajaMantriSession(sessionId, entry);
         emitRajaMantriGameUpdate(entry.game);
         for (const player of entry.game.players) {
           if (player.isBot || player.username === userKey) continue;
@@ -11308,7 +11756,13 @@ io.on("connection", (socket) => {
         }
       }
 
-      onlineUsers.delete(userKey);
+      // Start the reconnect grace timer only after presence is removed, so the
+      // timer cannot mistake the disconnecting socket for a live participant.
+      for (const [sessionId, entry] of randomGameSessions) {
+        if (entry.players?.includes(normalizeName(userKey))) {
+          scheduleRandomGameDisconnectTimeout(sessionId, entry, userKey);
+        }
+      }
       emitStatusToFriends(userKey);
       emitGroupListUpdatesForUser(userKey);
       emitDiscoverOnlineToAll();
@@ -11350,6 +11804,9 @@ async function shutdown() {
   try {
     await persistInFlight.catch(() => {});
     await authPersistInFlight.catch(() => {});
+    await Promise.all(
+      Array.from(gameSessionPersistenceQueues.values(), (write) => write.catch(() => {})),
+    );
     await persistNow();
     await persistAuthStateNow();
   } catch (err) {
@@ -11402,6 +11859,8 @@ function listenWithPortFallback(preferredPort, options = {}) {
 
 async function bootstrap() {
   await loadState();
+  await restoreFinishedChatGameHistory();
+  await restoreActiveGameSessions();
   queueAllScheduledMessages();
   startRetentionMaintenanceLoop();
 

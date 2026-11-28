@@ -44,9 +44,10 @@ test("removed group game types are rejected", () => {
 test("group Rock Paper Scissors assigns the first challenger and resolves best of three", () => {
   let game = groupGame("rps");
   for (let round = 0; round < 3; round++) {
-    const first = applyGameMove(game, "alice", { move: "rock" });
+    const expectedRound = (Number(game.data.round) || 1) + (game.data.roundResolved === true ? 1 : 0);
+    const first = applyGameMove(game, "alice", { move: "rock", round: expectedRound });
     assert.equal(first.ok, true);
-    const second = applyGameMove(first.game, "bob", { move: "scissors" });
+    const second = applyGameMove(first.game, "bob", { move: "scissors", round: expectedRound });
     assert.equal(second.ok, true);
     game = second.game;
     if (round < 2) assert.equal(game.state, "in_progress");
