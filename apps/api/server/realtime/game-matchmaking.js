@@ -26,7 +26,7 @@ class PublicGameMatchmaking {
     const playerLevel = Number.isInteger(parsedLevel) && parsedLevel >= 1 && parsedLevel <= 10_000
       ? parsedLevel
       : null;
-    if (!user || !socket || !["tictactoe", "rps"].includes(type)) return { ok: false, message: "Invalid matchmaking request." };
+    if (!user || !socket || !["tictactoe", "rps", "chess"].includes(type)) return { ok: false, message: "Invalid matchmaking request." };
     this.cancel(user);
     const excluded = new Set(
       (Array.isArray(excludedUsers) ? excludedUsers : [])
