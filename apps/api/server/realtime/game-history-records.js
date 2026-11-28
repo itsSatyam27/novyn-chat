@@ -48,9 +48,7 @@ function buildTwoPlayerGameHistoryRecords(game, users) {
       id: matchId,
       gameType: game.gameType,
       opponent: opponents.join(", "),
-      result: winnerKeys.size > 1
-      ? winnerKeys.has(userKey) ? "draw" : "loss"
-      : winnerKeys.has(userKey) ? "win" : "loss",
+      result: winnerKey === "draw" ? "draw" : winnerKey === userKey ? "win" : "loss",
       playedAt: playedAt.toISOString(),
       isBotMatch: false,
     };
@@ -84,7 +82,9 @@ function buildRajaMantriHistoryRecords(session, users) {
       .filter((key) => key !== userKey)
       .map((key) => String(accounts.get(key)?.username || key))
       .join(", "),
-    result: winnerKey === "draw" ? "draw" : winnerKey === userKey ? "win" : "loss",
+    result: winnerKeys.size > 1
+      ? winnerKeys.has(userKey) ? "draw" : "loss"
+      : winnerKeys.has(userKey) ? "win" : "loss",
     playedAt: playedAt.toISOString(),
     isBotMatch: false,
   }));
