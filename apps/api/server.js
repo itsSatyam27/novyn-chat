@@ -3233,6 +3233,10 @@ function formatPushBody(text, fallback = "New message") {
 
 async function sendPushToUser(userKey, payload) {
   if (!userKey) return;
+  if (payload?.type === "game_invitation") {
+    const expiresAt = Number(payload.expiresAt);
+    if (Number.isFinite(expiresAt) && expiresAt > 0 && expiresAt <= Date.now()) return;
+  }
   const user = users.get(userKey);
   if (!user || user.notificationsEnabled === false) return;
   const presenceMode = normalizePresenceMode(user.presenceMode);
@@ -4506,7 +4510,12 @@ function deliverFriendMessage(params = {}) {
       (!params.isEncrypted && String(text).toLowerCase().includes("@" + String(friend.username || toKey).toLowerCase()));
     void sendPushToUser(toKey, {
       type: isGameChallenge ? "game_invitation" : "message",
-      ...(isGameChallenge ? { gameId: message.game.id, gameType: message.game.gameType } : {}),
+      ...(isGameChallenge ? {
+        gameId: message.game.id,
+        gameType: message.game.gameType,
+        expiresAt: params.gameInviteExpiresAt,
+        eventId: message.id || message.messageId || "",
+      } : {}),
       mentionOrReply,
       title: `New message from ${me.username}`,
       body: bodyText,
@@ -8111,7 +8120,10 @@ io.on("connection", (socket) => {
     const userKey = normalizeName(socket.data.userKey || "");
     const messageId = toDisplayName(payload?.messageId).slice(0, 128);
     const invite = pendingGameInvites.get(messageId);
-    if (!userKey || !invite || invite.toKey !== userKey || invite.expiresAt <= Date.now()) {
+    if (!userKey || onlineUsers.get(userKey) !== socket.id) {
+      return respond({ ok: false, message: "Reconnect to respond to this invitation." });
+    }
+    if (!invite || invite.toKey !== userKey || invite.expiresAt <= Date.now()) {
       pendingGameInvites.delete(messageId);
       return respond({ ok: false, message: "This game invite has expired." });
     }
@@ -8154,7 +8166,10 @@ io.on("connection", (socket) => {
     const userKey = normalizeName(socket.data.userKey || "");
     const messageId = toDisplayName(payload?.messageId).slice(0, 128);
     const invite = pendingGameInvites.get(messageId);
-    if (!userKey || !invite || invite.toKey !== userKey || invite.expiresAt <= Date.now()) {
+    if (!userKey || onlineUsers.get(userKey) !== socket.id) {
+      return respond({ ok: false, message: "Reconnect to respond to this invitation." });
+    }
+    if (!invite || invite.toKey !== userKey || invite.expiresAt <= Date.now()) {
       return respond({ ok: false, message: "This game invite is no longer active." });
     }
     clearTimeout(invite.timer);
@@ -8175,13 +8190,17 @@ io.on("connection", (socket) => {
     const userKey = normalizeName(socket.data.userKey || "");
     const messageId = toDisplayName(payload?.messageId).slice(0, 128);
     const invite = pendingGameInvites.get(messageId);
-    if (!userKey || !invite || invite.fromKey !== userKey) {
+    if (!userKey || onlineUsers.get(userKey) !== socket.id) {
+      return respond({ ok: false, message: "Reconnect to manage this invitation." });
+    }
+    if (!invite || invite.fromKey !== userKey) {
       return respond({ ok: false, message: "This invite is no longer active." });
     }
     clearTimeout(invite.timer);
     pendingGameInvites.delete(messageId);
-    if (invite.acceptedSocketId) {
-      io.to(invite.acceptedSocketId).emit("game_invite_timeout", {
+    const recipientSocketId = invite.acceptedSocketId || onlineUsers.get(invite.toKey);
+    if (recipientSocketId) {
+      io.to(recipientSocketId).emit("game_invite_timeout", {
         messageId,
         gameType: invite.gameType,
         reason: "cancelled",
@@ -10584,6 +10603,7 @@ io.on("connection", (socket) => {
       return;
     }
 
+    const gameInviteExpiresAt = game ? Date.now() + 60_000 : null;
     const result = deliverFriendMessage({
       fromKey: userKey,
       toKey: to,
@@ -10591,6 +10611,7 @@ io.on("connection", (socket) => {
       attachment,
       replyTo,
       game,
+      gameInviteExpiresAt,
       poll,
       ciphertext,
       iv,
@@ -10619,15 +10640,22 @@ io.on("connection", (socket) => {
         gameType: game.gameType,
         game: result.message.game || game,
         messageId: inviteId,
-        expiresAt: Date.now() + 60_000,
+        expiresAt: gameInviteExpiresAt || Date.now() + 60_000,
         timer: null,
       };
       invite.timer = setTimeout(() => {
         if (pendingGameInvites.get(inviteId) !== invite) return;
         pendingGameInvites.delete(inviteId);
+        const timeoutPacket = {
+          messageId: inviteId,
+          gameType: invite.gameType,
+          reason: "expired",
+        };
         const senderSocketId = onlineUsers.get(invite.fromKey);
-        if (senderSocketId) io.to(senderSocketId).emit("game_invite_timeout", { messageId: inviteId, gameType: invite.gameType });
-      }, 60_000);
+        if (senderSocketId) io.to(senderSocketId).emit("game_invite_timeout", timeoutPacket);
+        const recipientSocketId = onlineUsers.get(invite.toKey);
+        if (recipientSocketId) io.to(recipientSocketId).emit("game_invite_timeout", timeoutPacket);
+      }, Math.max(0, (gameInviteExpiresAt || Date.now() + 60_000) - Date.now()));
       if (typeof invite.timer.unref === "function") invite.timer.unref();
       pendingGameInvites.set(inviteId, invite);
       const recipientSocketId = onlineUsers.get(invite.toKey);
