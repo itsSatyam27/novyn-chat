@@ -1,4 +1,14 @@
 import 'package:flutter/material.dart';
+
+String resolveGameRoomStatusLabel({
+  required bool isFinished,
+  required bool isOfflineBot,
+  required bool isConnected,
+}) {
+  if (isFinished) return 'Finished';
+  if (isOfflineBot) return 'Practice';
+  return isConnected ? statusLabel : 'Offline';
+}
 import 'package:provider/provider.dart';
 
 import '../../../../models/chat_models.dart';
@@ -127,12 +137,22 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
     if (s == null || !s.isConnected) return;
     final rId = widget.randomSessionId;
     if (rId != null && rId.isNotEmpty) {
-      s.moveRandomGame(rId, const {'action': 'leave_room'});
+      unawaited(
+        s.moveRandomGame(rId, const {'action': 'leave_room'})
+            .then<void>((_) {}, onError: (_) {}),
+      );
       return;
     }
     final mId = widget.messageId;
     if (mId != null && mId.isNotEmpty && widget.peerUsername.isNotEmpty) {
-      s.makeGameMove(mId, widget.peerUsername, const {'action': 'leave_room'}, isGroup: widget.isGroup);
+      unawaited(
+        s.makeGameMove(
+          mId,
+          widget.peerUsername,
+          const {'action': 'leave_room'},
+          isGroup: widget.isGroup,
+        ).then<void>((_) {}, onError: (_) {}),
+      );
     }
   }
 
@@ -209,6 +229,7 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
     const names = <String, String>{
       'tictactoe': 'Tic-Tac-Toe',
       'rps': 'Rock Paper Scissors',
+      'rajamantri': 'Raja Mantri',
     };
     return names[game['gameType']?.toString()] ?? 'Novyn Game';
   }
@@ -236,11 +257,26 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
     final colors = theme.colorScheme;
     final accent = colors.primary;
     final title = _gameTitle(game ?? widget.initialGame);
-    final opponent = widget.opponentDisplayName?.trim().isNotEmpty == true
-        ? widget.opponentDisplayName!
-        : (game?['opponent']?.toString() ?? widget.peerUsername);
-
+    final opponentCandidate = widget.opponentDisplayName?.trim().isNotEmpty == true
+        ? widget.opponentDisplayName!.trim()
+        : (game?['opponent']?.toString().trim() ?? widget.peerUsername.trim());
+    final opponent = opponentCandidate.isNotEmpty
+        ? opponentCandidate
+        : (widget.randomSessionId != null ? 'Opponent' : 'Player');
+    final isOfflineBot = game?['isOfflineBot'] == true ||
+        widget.initialGame['isOfflineBot'] == true;
+    final isFinished = game?['state']?.toString() == 'finished';
+    final statusLabel = resolveGameRoomStatusLabel(
+      isFinished: isFinished,
+      isOfflineBot: isOfflineBot,
+      isConnected: socket.isConnected,
+    );
     final isDark = theme.brightness == Brightness.dark;
+    final statusColor = isFinished
+        ? const Color(0xFF16834A)
+        : isOfflineBot || socket.isConnected
+            ? accent
+            : colors.onSurfaceVariant;
 
     return PopScope<void>(
       canPop: _allowPop,
@@ -296,7 +332,7 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: accent.withValues(alpha: .12),
+                  color: statusColor.withValues(alpha: .12),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(
@@ -306,7 +342,7 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
                       width: 6,
                       height: 6,
                       decoration: BoxDecoration(
-                        color: accent,
+                        color: statusColor,
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -314,7 +350,7 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
                     Text(
                       'Live',
                       style: TextStyle(
-                        color: accent,
+                        color: statusColor,
                         fontWeight: FontWeight.w700,
                         fontSize: 11,
                       ),
