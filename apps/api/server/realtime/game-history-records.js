@@ -60,7 +60,8 @@ function buildRajaMantriHistoryRecords(session, users) {
   const players = session.players;
   if (players.length < 3 || players.some((player) => player.isBot === true)) return [];
   const playerKeys = players.map((player) => normalizeKey(player.username));
-  if (playerKeys.some((key) => !key) || new Set(playerKeys).size !== playerKeys.length) return [];
+  if (playerKeys.some((key) => !key || /^(ai|bot)(\\b|[_ -])/i.test(key)) ||
+      new Set(playerKeys).size !== playerKeys.length) return [];
   const accounts = getRegisteredHumanAccounts(playerKeys, users);
   if (!accounts) return [];
 
