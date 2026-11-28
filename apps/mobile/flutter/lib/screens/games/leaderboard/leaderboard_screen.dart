@@ -447,7 +447,7 @@ class _LeaderboardPlayerTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  '@$username · $matches matches · $wins wins · $winRate% win rate\${currentStreak >= 2 ? ' · 🔥 $currentStreak streak' : ''}',
+                  '@$username · $matches matches · $wins wins · $winRate% win rate${currentStreak >= 2 ? ' · 🔥 $currentStreak streak' : ''}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
