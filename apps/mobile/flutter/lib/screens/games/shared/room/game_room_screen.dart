@@ -3,6 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../models/chat_models.dart';
+import '../../../../services/socket_service.dart';
+import '../../../../widgets/game_message_card.dart';
+
 String resolveGameRoomStatusLabel({
   required bool isFinished,
   required bool isOfflineBot,
@@ -12,10 +16,6 @@ String resolveGameRoomStatusLabel({
   if (isOfflineBot) return 'Practice';
   return isConnected ? 'Live' : 'Offline';
 }
-
-import '../../../../models/chat_models.dart';
-import '../../../../services/socket_service.dart';
-import '../../../../widgets/game_message_card.dart';
 
 class GameRoomScreen extends StatefulWidget {
   const GameRoomScreen({
