@@ -2,9 +2,40 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novyn/screens/games/home/games_screen.dart';
 import 'package:novyn/screens/games/shared/room/game_room_screen.dart';
+import 'package:novyn/screens/games/invitations/game_invitation_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  test('game invitation expiry guard rejects stale entries safely', () {
+    const now = 1_800_000_000_000;
+    expect(
+      isGameInvitationExpired(
+        <String, dynamic>{'expiresAt': now - 1},
+        nowMilliseconds: now,
+      ),
+      isTrue,
+    );
+    expect(
+      isGameInvitationExpired(
+        <String, dynamic>{'expiresAt': now + 1},
+        nowMilliseconds: now,
+      ),
+      isFalse,
+    );
+    expect(
+      isGameInvitationExpired(
+        <String, dynamic>{},
+        nowMilliseconds: now,
+      ),
+      isFalse,
+    );
+    expect(
+      gameInvitationExpiryTimestamp(
+        <String, dynamic>{'expiresAt': '1800000000000'},
+      ),
+      now,
+    );
+  });
   test('game room status reflects match and connection state', () {
     expect(
       resolveGameRoomStatusLabel(
