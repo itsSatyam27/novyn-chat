@@ -1353,6 +1353,7 @@ app.get(
 
 
 const conversationWallpapers = new Map();
+const conversationThemes = new Map();
 
 const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(__dirname, "runtime", "data"));
 const DATA_FILE = path.join(DATA_DIR, "chat-state.json");
@@ -2426,6 +2427,7 @@ function createUserRecord(username) {
 function serializeState() {
   return {
     wallpapers: Array.from(conversationWallpapers.entries()),
+    themes: Array.from(conversationThemes.entries()),
     users: Array.from(users.entries()).map(([key, user]) => ({
       key,
       username: user.username,
@@ -2790,6 +2792,7 @@ async function persistMongoNow() {
           retentionDays: 0,
           groups: state.groups || [],
           wallpapers: state.wallpapers || [],
+          themes: state.themes || [],
           scheduledMessages: state.scheduledMessages || [],
         },
       },
@@ -3406,6 +3409,12 @@ function applyLoadedState(parsed) {
       conversationWallpapers.set(entry[0], entry[1]);
     }
   }
+  conversationThemes.clear();
+  for (const entry of parsed?.themes || []) {
+    if (Array.isArray(entry) && typeof entry[0] === 'string' && typeof entry[1] === 'string') {
+      conversationThemes.set(entry[0], entry[1]);
+    }
+  }
   users.clear();
   conversations.clear();
   groups.clear();
@@ -3835,7 +3844,7 @@ async function loadStateFromMongoCollections() {
     mongoLegacyCollection
       ? mongoLegacyCollection.findOne(
           { _id: "main" },
-          { projection: { groups: 1, scheduledMessages: 1, wallpapers: 1 } }
+          { projection: { groups: 1, scheduledMessages: 1, wallpapers: 1, themes: 1 } }
         )
       : null,
   ]);
@@ -3874,6 +3883,7 @@ async function loadStateFromMongoCollections() {
     })),
     groups: Array.isArray(legacyDoc?.groups) ? legacyDoc.groups : [],
     wallpapers: Array.isArray(legacyDoc?.wallpapers) ? legacyDoc.wallpapers : [],
+    themes: Array.isArray(legacyDoc?.themes) ? legacyDoc.themes : [],
     scheduledMessages: Array.isArray(legacyDoc?.scheduledMessages) ? legacyDoc.scheduledMessages : [],
   };
 
@@ -5681,6 +5691,7 @@ async function removeUserAccount(rawUserKey, { disconnectSockets = true } = {}) 
         const groupConversationKey = getGroupConversationKey(groupId);
         conversations.delete(groupConversationKey);
         conversationWallpapers.delete(groupConversationKey);
+        conversationThemes.delete(groupConversationKey);
         continue;
       }
       group.ownerKey = nextOwner;
@@ -5698,6 +5709,7 @@ async function removeUserAccount(rawUserKey, { disconnectSockets = true } = {}) 
         conversationKey.split("::").includes(userKey)) {
       conversations.delete(conversationKey);
       conversationWallpapers.delete(conversationKey);
+      conversationThemes.delete(conversationKey);
       continue;
     }
     if (isGroupConversationKey(conversationKey) && Array.isArray(history)) {
@@ -10476,6 +10488,63 @@ io.on("connection", (socket) => {
       to: resolved.targetKey,
       from: userKey,
       wallpaper,
+      toType: resolved.type,
+    });
+  });
+
+  socket.on("set_chat_theme", (payload) => {
+    const userKey = socket.data.userKey;
+    if (!userKey) return;
+    const to = toDisplayName(payload?.to);
+    const rawTheme = String(payload?.theme || "").trim().toLowerCase();
+    const theme = rawTheme === "columbina" ? rawTheme : "";
+    const requestedType = payload?.toType || payload?.kind || "friend";
+    if (!to) return;
+
+    const resolved = resolveChatTargetForUser(userKey, to, requestedType, { inferGroup: true });
+    if (!resolved.ok) {
+      socket.emit("error_message", { message: resolved.message || "You are not authorized for this chat." });
+      return;
+    }
+
+    if (theme) conversationThemes.set(resolved.conversationKey, theme);
+    else conversationThemes.delete(resolved.conversationKey);
+    schedulePersist();
+
+    const packet = { to: resolved.targetKey, from: userKey, theme, toType: resolved.type };
+    socket.emit("chat_theme_updated", packet);
+
+    if (resolved.type === "group") {
+      for (const memberKey of resolved.group.members || []) {
+        const memberSocketId = onlineUsers.get(normalizeName(memberKey));
+        if (memberSocketId && normalizeName(memberKey) !== normalizeName(userKey)) {
+          io.to(memberSocketId).emit("chat_theme_updated", packet);
+        }
+      }
+    } else {
+      const friendSocketId = onlineUsers.get(normalizeName(resolved.targetKey));
+      if (friendSocketId) io.to(friendSocketId).emit("chat_theme_updated", packet);
+    }
+  });
+
+  socket.on("get_chat_theme", (payload) => {
+    const userKey = socket.data.userKey;
+    if (!userKey) return;
+    const to = toDisplayName(payload?.to);
+    const requestedType = payload?.toType || payload?.kind || "friend";
+    if (!to) return;
+
+    const resolved = resolveChatTargetForUser(userKey, to, requestedType, { inferGroup: true });
+    if (!resolved.ok) {
+      socket.emit("error_message", { message: resolved.message || "You are not authorized for this chat." });
+      return;
+    }
+
+    const theme = conversationThemes.get(resolved.conversationKey) || "";
+    socket.emit("chat_theme_updated", {
+      to: resolved.targetKey,
+      from: userKey,
+      theme,
       toType: resolved.type,
     });
   });

@@ -152,6 +152,7 @@ class _ChatContentSnapshot {
     required this.peerIsTyping,
     required this.peerIsRecordingVoice,
     required this.chatWallpaper,
+    required this.chatTheme,
     required this.messageStatusRevision,
   });
 
@@ -159,6 +160,7 @@ class _ChatContentSnapshot {
   final bool peerIsTyping;
   final bool peerIsRecordingVoice;
   final String chatWallpaper;
+  final String chatTheme;
   final int messageStatusRevision;
 
   @override
@@ -168,6 +170,7 @@ class _ChatContentSnapshot {
         peerIsTyping != other.peerIsTyping ||
         peerIsRecordingVoice != other.peerIsRecordingVoice ||
         chatWallpaper != other.chatWallpaper ||
+        chatTheme != other.chatTheme ||
         messageStatusRevision != other.messageStatusRevision ||
         messages.length != other.messages.length) {
       return false;
@@ -181,6 +184,7 @@ class _ChatContentSnapshot {
         peerIsTyping,
         peerIsRecordingVoice,
         chatWallpaper,
+        chatTheme,
         messageStatusRevision,
       );
 }
@@ -927,6 +931,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         peerIsTyping: service.peerIsTyping,
         peerIsRecordingVoice: service.peerIsRecordingVoice,
         chatWallpaper: service.chatWallpaper,
+        chatTheme: service.chatTheme,
         messageStatusRevision: service.messageStatusRevision,
       ),
     );
@@ -940,7 +945,14 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
             decoration: _wallpaperDecoration(snapshot.chatWallpaper),
           ),
         ),
-        if (snapshot.chatWallpaper.trim().isEmpty)
+        if (snapshot.chatTheme == 'columbina')
+          Positioned.fill(
+            child: SvgPicture.asset(
+              'assets/images/columbina_chat_theme.svg',
+              fit: BoxFit.cover,
+            ),
+          )
+        else if (snapshot.chatWallpaper.trim().isEmpty)
           Positioned.fill(
             child: Builder(
               builder: (wallpaperContext) {
@@ -963,6 +975,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                   ),
                 );
               },
+            ),
+          )
+        else if (snapshot.chatWallpaper.startsWith('doodle:'))
+          Positioned.fill(
+            child: SvgPicture.asset(
+              _doodleWallpaperAsset(snapshot.chatWallpaper),
+              fit: BoxFit.cover,
             ),
           ),
         Scaffold(
@@ -991,6 +1010,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                                     snapshot.peerIsTyping,
                                     peerIsRecordingVoice:
                                         snapshot.peerIsRecordingVoice,
+                                    isColumbinaTheme: snapshot.chatTheme == 'columbina',
                                   ),
                       ),
                       if (_showJumpToLatest && messages.isNotEmpty)
@@ -1352,6 +1372,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
       case 'mute-off':
         await _setPeerMuted(false);
         break;
+      case 'theme':
+        _showChatThemePicker();
+        break;
       case 'wallpaper':
         _showWallpaperPicker();
         break;
@@ -1671,6 +1694,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     List<Message> messages,
     bool peerIsTyping, {
     bool peerIsRecordingVoice = false,
+    bool isColumbinaTheme = false,
   }) {
     if (messages.length > _lastMessageCount) {
       final addedMessages = messages.length - _lastMessageCount;
@@ -1807,6 +1831,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
             messageStatus: socket.messageStatusFor(current.id),
             myUid: _myUid ?? '',
             quickEmojis: _quickEmojis,
+            isColumbinaTheme: isColumbinaTheme,
             onReply: _startReply,
             onForward: _showForwardDialog,
           ),
@@ -4397,6 +4422,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
         ? const Color(0xFF0B0B17)
         : const Color(0xFFF7F6FF);
     if (value.isEmpty) return BoxDecoration(color: defaultBg);
+    if (value == 'doodle:classic') return const BoxDecoration(color: Color(0xFFF2EEFC));
+    if (value == 'doodle:night') return const BoxDecoration(color: Color(0xFF1C1D34));
+    if (value == 'doodle:nature') return const BoxDecoration(color: Color(0xFFF1F7F0));
+    if (value == 'doodle:playful') return const BoxDecoration(color: Color(0xFFFFF2EB));
     if (value.startsWith('http://') || value.startsWith('https://')) {
       return BoxDecoration(
           image: DecorationImage(
@@ -4409,20 +4438,115 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
     return BoxDecoration(color: defaultBg);
   }
 
+  Future<void> _showChatThemePicker() async {
+    final current = _socketService.chatTheme == 'columbina';
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        final scheme = Theme.of(sheetContext).colorScheme;
+        return SafeArea(
+          top: false,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 26),
+            decoration: BoxDecoration(
+              color: scheme.surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(child: Container(width: 38, height: 4, decoration: BoxDecoration(color: scheme.onSurfaceVariant.withValues(alpha: .35), borderRadius: BorderRadius.circular(8)))),
+                const SizedBox(height: 18),
+                Row(children: [
+                  Icon(Icons.palette_rounded, color: scheme.primary, size: 26),
+                  const SizedBox(width: 12),
+                  const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Chat themes', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+                    Text('Personalise this conversation'),
+                  ])),
+                ]),
+                const SizedBox(height: 18),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: SizedBox(
+                    height: 230,
+                    width: double.infinity,
+                    child: Stack(fit: StackFit.expand, children: [
+                      SvgPicture.asset('assets/images/columbina_chat_theme.svg', fit: BoxFit.cover),
+                      Align(alignment: Alignment.topLeft, child: Container(
+                        margin: const EdgeInsets.all(14), padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(color: const Color(0xE52B2855), borderRadius: BorderRadius.circular(18)),
+                        child: const Text('Moonlight whispers…', style: TextStyle(color: Color(0xFFEAE6FF))),
+                      )),
+                      Align(alignment: Alignment.bottomRight, child: Container(
+                        margin: const EdgeInsets.all(14), padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFFB8A8F7),Color(0xFF9686DF)]), borderRadius: BorderRadius.circular(18)),
+                        child: const Text('Moon’s Lullaby 🌙', style: TextStyle(color: Color(0xFF252344))),
+                      )),
+                    ]),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Container(width: 48, height: 48, decoration: BoxDecoration(color: const Color(0xFF7669C6), borderRadius: BorderRadius.circular(14)), child: const Icon(Icons.nightlight_round, color: Colors.white)),
+                  title: const Text('Columbina · Moon’s Lullaby', style: TextStyle(fontWeight: FontWeight.w700)),
+                  subtitle: const Text('Moonlit violet · feathered celestial wallpaper'),
+                  trailing: current ? const Icon(Icons.check_circle, color: Color(0xFF9D8CF0)) : null,
+                  onTap: () => Navigator.pop(sheetContext, 'columbina'),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Container(width: 48, height: 48, decoration: BoxDecoration(color: scheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(14)), child: Icon(Icons.refresh_rounded, color: scheme.onSurface)),
+                  title: const Text('Default chat style', style: TextStyle(fontWeight: FontWeight.w700)),
+                  subtitle: const Text('Restore Novyn chat colors'),
+                  onTap: () => Navigator.pop(sheetContext, 'default'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (selected == null || !mounted) return;
+    // The server resolves direct-message recipients by canonical username.
+    // Group conversations continue to use their group ID.
+    final chatTarget = widget.isGroup
+        ? (widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username)
+        : widget.peer.username;
+    _socketService.setChatTheme(
+      selected == 'default' ? '' : selected,
+      chatTarget,
+      isGroup: widget.isGroup,
+    );
+  }
+
+  String _doodleWallpaperAsset(String wallpaper) {
+    switch (wallpaper) {
+      case 'doodle:night':
+        return 'assets/images/chat_doodle_night.svg';
+      case 'doodle:nature':
+        return 'assets/images/chat_doodle_nature.svg';
+      case 'doodle:playful':
+        return 'assets/images/chat_doodle_playful.svg';
+      case 'doodle:classic':
+      default:
+        return 'assets/images/chat_doodle_classic.svg';
+    }
+  }
+
   Future<void> _showWallpaperPicker() async {
+    final chatTarget = widget.isGroup
+        ? (widget.peer.uid.isNotEmpty ? widget.peer.uid : widget.peer.username)
+        : widget.peer.username;
     const presets = <Map<String, String>>[
-      {'name': 'Default', 'value': ''},
-      {'name': 'Lavender', 'value': '#EDE9FE'},
-      {'name': 'Blush', 'value': '#FCE7F3'},
-      {'name': 'Cloud', 'value': '#F1F5F9'},
-      {'name': 'Mint', 'value': '#D1FAE5'},
-      {'name': 'Peach', 'value': '#FFEDD5'},
-      {'name': 'Midnight', 'value': '#111827'},
-      {'name': 'Amethyst', 'value': '#241B3D'},
-      {'name': 'Deep slate', 'value': '#0F172A'},
-      {'name': 'Ocean', 'value': '#0B2535'},
-      {'name': 'Forest', 'value': '#102A24'},
-      {'name': 'Burgundy', 'value': '#351827'},
+      {'name': 'Classic', 'value': 'doodle:classic', 'asset': 'assets/images/chat_doodle_classic.svg'},
+      {'name': 'Midnight', 'value': 'doodle:night', 'asset': 'assets/images/chat_doodle_night.svg'},
+      {'name': 'Nature', 'value': 'doodle:nature', 'asset': 'assets/images/chat_doodle_nature.svg'},
+      {'name': 'Playful', 'value': 'doodle:playful', 'asset': 'assets/images/chat_doodle_playful.svg'},
     ];
 
     await showModalBottomSheet<void>(
@@ -4435,15 +4559,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
           top: false,
           child: Container(
             constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(sheetContext).size.height * .78,
+              maxHeight: MediaQuery.of(sheetContext).size.height * .72,
             ),
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
             decoration: BoxDecoration(
               color: scheme.surface,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(28)),
-              border: Border.all(
-                  color: scheme.outlineVariant.withValues(alpha: .6)),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              border: Border.all(color: scheme.outlineVariant.withValues(alpha: .6)),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -4469,8 +4591,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                         color: scheme.primary.withValues(alpha: .12),
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      child:
-                          Icon(Icons.wallpaper_rounded, color: scheme.primary),
+                      child: Icon(Icons.wallpaper_rounded, color: scheme.primary),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -4478,14 +4599,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text('Chat wallpaper',
-                              style: Theme.of(sheetContext)
-                                  .textTheme
-                                  .titleLarge
+                              style: Theme.of(sheetContext).textTheme.titleLarge
                                   ?.copyWith(fontWeight: FontWeight.w800)),
-                          Text('Personalise your conversation background',
-                              style: Theme.of(sheetContext)
-                                  .textTheme
-                                  .bodySmall
+                          Text('Doodle backgrounds only · Chat theme stays unchanged',
+                              style: Theme.of(sheetContext).textTheme.bodySmall
                                   ?.copyWith(color: scheme.onSurfaceVariant)),
                         ],
                       ),
@@ -4493,47 +4610,48 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                   ],
                 ),
                 const SizedBox(height: 18),
-                Text('PRESETS',
-                    style: Theme.of(sheetContext)
-                        .textTheme
-                        .labelSmall
-                        ?.copyWith(
-                            color: scheme.primary,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.2)),
-                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Text('DOODLE WALLPAPERS',
+                        style: Theme.of(sheetContext).textTheme.labelSmall?.copyWith(
+                              color: scheme.primary,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.1,
+                            )),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () {
+                        context.read<SocketService>().setChatWallpaper(
+                              '',
+                              chatTarget,
+                              isGroup: widget.isGroup,
+                            );
+                        Navigator.pop(sheetContext);
+                      },
+                      child: const Text('Reset'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
                 Flexible(
                   child: GridView.builder(
                     shrinkWrap: true,
                     itemCount: presets.length,
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
                       crossAxisSpacing: 12,
                       mainAxisSpacing: 14,
-                      childAspectRatio: .94,
+                      childAspectRatio: 1.23,
                     ),
                     itemBuilder: (context, index) {
                       final preset = presets[index];
                       final value = preset['value']!;
-                      final selected =
-                          context.watch<SocketService>().chatWallpaper == value;
-                      final color = value.isEmpty
-                          ? (Theme.of(context).brightness == Brightness.dark
-                              ? const Color(0xFF0B0B17)
-                              : const Color(0xFFF7F6FF))
-                          : Color(
-                              int.parse('FF${value.substring(1)}', radix: 16));
-                      final foreground = color.computeLuminance() < .35
-                          ? Colors.white
-                          : const Color(0xFF29243D);
+                      final selected = context.watch<SocketService>().chatWallpaper == value;
                       return InkWell(
                         onTap: () {
                           context.read<SocketService>().setChatWallpaper(
                                 value,
-                                widget.peer.uid.isNotEmpty
-                                    ? widget.peer.uid
-                                    : widget.peer.username,
+                                chatTarget,
                                 isGroup: widget.isGroup,
                               );
                           Navigator.pop(sheetContext);
@@ -4542,155 +4660,56 @@ class _ChatDetailScreenState extends State<ChatDetailScreen>
                         child: Column(
                           children: [
                             Expanded(
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 180),
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(9),
-                                decoration: BoxDecoration(
-                                  color: color,
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: selected
-                                        ? scheme.primary
-                                        : scheme.outlineVariant,
-                                    width: selected ? 2.2 : 1,
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(14),
+                                    child: Container(
+                                      color: value == 'doodle:night'
+                                          ? const Color(0xFF1C1D34)
+                                          : value == 'doodle:nature'
+                                              ? const Color(0xFFF1F7F0)
+                                              : value == 'doodle:playful'
+                                                  ? const Color(0xFFFFF2EB)
+                                                  : const Color(0xFFF2EEFC),
+                                      child: SvgPicture.asset(
+                                        preset['asset']!,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
                                   ),
-                                ),
-                                child: Stack(
-                                  children: [
-                                    Align(
-                                      alignment: Alignment.topLeft,
-                                      child: Container(
-                                        width: 35,
-                                        height: 13,
-                                        decoration: BoxDecoration(
-                                          color:
-                                              foreground.withValues(alpha: .12),
-                                          borderRadius:
-                                              BorderRadius.circular(8),
-                                        ),
-                                      ),
+                                  if (selected)
+                                    Positioned(
+                                      top: 8,
+                                      right: 8,
+                                      child: Icon(Icons.check_circle_rounded,
+                                          color: scheme.primary, size: 21),
                                     ),
-                                    Align(
-                                      alignment: Alignment.centerLeft,
-                                      child: Container(
-                                        width: 43,
-                                        height: 17,
-                                        decoration: BoxDecoration(
-                                          color:
-                                              foreground.withValues(alpha: .16),
-                                          borderRadius:
-                                              BorderRadius.circular(10),
-                                        ),
-                                      ),
-                                    ),
-                                    Align(
-                                      alignment: Alignment.bottomRight,
-                                      child: Container(
-                                        width: 42,
-                                        height: 17,
-                                        decoration: BoxDecoration(
-                                          color: scheme.primary
-                                              .withValues(alpha: .78),
-                                          borderRadius:
-                                              BorderRadius.circular(10),
-                                        ),
-                                      ),
-                                    ),
-                                    if (selected)
-                                      Align(
-                                        alignment: Alignment.topRight,
-                                        child: Icon(Icons.check_circle_rounded,
-                                            color: scheme.primary, size: 18),
-                                      ),
-                                  ],
-                                ),
+                                ],
                               ),
                             ),
-                            const SizedBox(height: 6),
-                            Text(preset['name']!,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(sheetContext)
-                                    .textTheme
-                                    .labelSmall
-                                    ?.copyWith(
-                                        fontWeight: selected
-                                            ? FontWeight.w800
-                                            : FontWeight.w600,
-                                        color: selected
-                                            ? scheme.primary
-                                            : scheme.onSurface)),
+                            const SizedBox(height: 7),
+                            Text(
+                              preset['name']!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(sheetContext).textTheme.labelMedium
+                                  ?.copyWith(
+                                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                                color: selected ? scheme.primary : scheme.onSurface,
+                              ),
+                            ),
                           ],
                         ),
                       );
                     },
                   ),
                 ),
-                const SizedBox(height: 14),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: _uploadingAttachment
-                        ? null
-                        : () async {
-                            final picked = await _imagePicker.pickImage(
-                              source: ImageSource.gallery,
-                              imageQuality: 82,
-                            );
-                            if (picked == null || !sheetContext.mounted) return;
-                            if (mounted)
-                              setState(() => _uploadingAttachment = true);
-                            try {
-                              final bytes = await picked.readAsBytes();
-                              final url = await ApiService.uploadMedia(
-                                bytes,
-                                picked.name,
-                                _mimeForFile(picked.name),
-                              );
-                              if (url == null)
-                                throw StateError('Wallpaper upload failed.');
-                              if (!mounted || !sheetContext.mounted) return;
-                              context.read<SocketService>().setChatWallpaper(
-                                    url,
-                                    widget.peer.uid.isNotEmpty
-                                        ? widget.peer.uid
-                                        : widget.peer.username,
-                                  );
-                              Navigator.pop(sheetContext);
-                            } catch (error) {
-                              if (mounted) {
-                                NovynAlert.show(
-                                    context,
-                                    error is StateError
-                                        ? error.message.toString()
-                                        : 'Could not upload wallpaper. Please try again.',
-                                    isError: true,
-                                    title: 'Wallpaper upload failed',
-                                    icon: Icons.wallpaper_rounded);
-                              }
-                            } finally {
-                              if (mounted)
-                                setState(() => _uploadingAttachment = false);
-                            }
-                          },
-                    icon: _uploadingAttachment
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2))
-                        : Icon(Icons.photo_library_outlined),
-                    label: Text(_uploadingAttachment
-                        ? 'Uploading wallpaper…'
-                        : 'Choose from gallery'),
-                  ),
-                ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 8),
                 Center(
                   child: Text('Wallpaper is saved for this conversation.',
-                      style: Theme.of(sheetContext)
-                          .textTheme
-                          .bodySmall
+                      style: Theme.of(sheetContext).textTheme.bodySmall
                           ?.copyWith(color: scheme.onSurfaceVariant)),
                 ),
               ],
@@ -5194,6 +5213,7 @@ class _MessageBubble extends StatelessWidget {
   final String messageStatus;
   final String myUid;
   final List<String> quickEmojis;
+  final bool isColumbinaTheme;
   final ValueChanged<dynamic>? onReply;
   final ValueChanged<dynamic>? onForward;
 
@@ -5206,6 +5226,7 @@ class _MessageBubble extends StatelessWidget {
     this.messageStatus = 'sent',
     this.myUid = '',
     this.quickEmojis = defaultQuickReactionEmojis,
+    this.isColumbinaTheme = false,
     this.onReply,
     this.onForward,
   });
@@ -5288,9 +5309,9 @@ class _MessageBubble extends StatelessWidget {
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                               colors: [
-                                Theme.of(context).colorScheme.primary,
+                                isColumbinaTheme ? const Color(0xFFB8A8F7) : Theme.of(context).colorScheme.primary,
                                 Color.lerp(
-                                  Theme.of(context).colorScheme.primary,
+                                  isColumbinaTheme ? const Color(0xFF9686DF) : Theme.of(context).colorScheme.primary,
                                   Colors.black,
                                   0.08,
                                 )!,
@@ -5299,16 +5320,20 @@ class _MessageBubble extends StatelessWidget {
                           : null,
                       color: isMe
                           ? null
-                          : (Theme.of(context).brightness == Brightness.dark
-                              ? const Color(0xFF1D1C2A)
-                              : Colors.white),
+                          : (isColumbinaTheme
+                              ? const Color(0xE52B2855)
+                              : (Theme.of(context).brightness == Brightness.dark
+                                  ? const Color(0xFF1D1C2A)
+                                  : Colors.white)),
                       border: isMe
                           ? null
                           : Border.all(
-                              color: Theme.of(context).brightness ==
-                                      Brightness.dark
-                                  ? const Color(0x18BEB8FF)
-                                  : const Color(0x166D5DFC),
+                              color: isColumbinaTheme
+                                  ? const Color(0x668F88D9)
+                                  : (Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? const Color(0x18BEB8FF)
+                                      : const Color(0x166D5DFC)),
                             ),
                       borderRadius: BorderRadius.only(
                         topLeft: const Radius.circular(18),
@@ -7936,8 +7961,15 @@ class _ChatMenuPopover extends StatelessWidget {
                       tint: Color(0xFF4388D7),
                     ),
                     const _MenuRow(
+                      value: 'theme',
+                      icon: Icons.palette_rounded,
+                      title: 'Chat Theme',
+                      tint: Color(0xFF8D78E8),
+                      chevron: true,
+                    ),
+                    const _MenuRow(
                       value: 'wallpaper',
-                      icon: Icons.palette_outlined,
+                      icon: Icons.wallpaper_rounded,
                       title: 'Chat wallpaper',
                       tint: Color(0xFFC83C77),
                     ),

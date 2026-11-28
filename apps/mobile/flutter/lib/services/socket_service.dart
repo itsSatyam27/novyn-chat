@@ -227,6 +227,8 @@ class SocketService extends ChangeNotifier {
   bool _activeChatCaptureProtected = false;
   String _chatWallpaper = '';
   String get chatWallpaper => _chatWallpaper;
+  String _chatTheme = '';
+  String get chatTheme => _chatTheme;
 
   // Typing
   bool _peerIsTyping = false;
@@ -1400,7 +1402,39 @@ class SocketService extends ChangeNotifier {
       final to = data['to']?.toString().toLowerCase() ?? '';
       final current = _currentChatWith?.toLowerCase();
       if (current != null && (current == from || current == to)) {
-        _chatWallpaper = data['wallpaper']?.toString() ?? '';
+        final wallpaper = data['wallpaper']?.toString() ?? '';
+        if (wallpaper == 'theme:columbina') {
+          // Migrate the original combined theme/wallpaper value without
+          // allowing future wallpaper changes to reset the chat theme.
+          _chatWallpaper = '';
+          _chatTheme = 'columbina';
+          final target = _currentChatWith;
+          if (target != null) {
+            _socket?.emit('set_chat_theme', {
+              'to': target,
+              'toType': _currentChatIsGroup ? 'group' : 'friend',
+              'theme': 'columbina',
+            });
+            _socket?.emit('set_chat_wallpaper', {
+              'to': target,
+              'toType': _currentChatIsGroup ? 'group' : 'friend',
+              'wallpaper': '',
+            });
+          }
+        } else {
+          _chatWallpaper = wallpaper;
+        }
+        notifyListeners();
+      }
+    });
+
+    _socket!.on('chat_theme_updated', (data) {
+      if (data is! Map) return;
+      final from = data['from']?.toString().toLowerCase() ?? '';
+      final to = data['to']?.toString().toLowerCase() ?? '';
+      final current = _currentChatWith?.toLowerCase();
+      if (current != null && (current == from || current == to)) {
+        _chatTheme = data['theme']?.toString() == 'columbina' ? 'columbina' : '';
         notifyListeners();
       }
     });
@@ -2369,6 +2403,7 @@ class SocketService extends ChangeNotifier {
     _currentChatWith = peerUsername;
     _currentChatIsGroup = isGroup;
     _chatWallpaper = '';
+    _chatTheme = '';
     _messages = List<Message>.from(cachedHistory);
     _peerIsTyping = false;
     _peerIsRecordingVoice =
@@ -2402,6 +2437,8 @@ class SocketService extends ChangeNotifier {
     connection?.emit('get_history',
         {'to': peerUsername, 'kind': isGroup ? 'group' : 'friend'});
     connection?.emit('get_chat_wallpaper',
+        {'to': peerUsername, 'toType': isGroup ? 'group' : 'friend'});
+    connection?.emit('get_chat_theme',
         {'to': peerUsername, 'toType': isGroup ? 'group' : 'friend'});
 
     return historyRequest.future
@@ -3281,6 +3318,15 @@ class SocketService extends ChangeNotifier {
       'to': peerUsername,
       'toType': isGroup ? 'group' : 'friend',
       'wallpaper': wallpaper,
+    });
+  }
+
+  void setChatTheme(String theme, String peerUsername, {bool isGroup = false}) {
+    _requireConnection();
+    _socket!.emit('set_chat_theme', {
+      'to': peerUsername,
+      'toType': isGroup ? 'group' : 'friend',
+      'theme': theme,
     });
   }
 
@@ -4685,6 +4731,7 @@ class SocketService extends ChangeNotifier {
     _currentChatWith = null;
     _currentChatIsGroup = false;
     _chatWallpaper = '';
+    _chatTheme = '';
     _peerIsTyping = false;
     _peerIsRecordingVoice = false;
     _typingInChats.clear();
