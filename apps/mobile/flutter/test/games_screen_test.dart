@@ -64,6 +64,33 @@ void main() {
     expect(merged.map((invite) => invite['messageId']).toSet().length, 2);
   });
 
+  test('an invite close event cannot dismiss the next item during an active response', () {
+    expect(
+      shouldIgnoreInvitationCloseDuringAction(
+        working: true,
+        activeInviteId: 'invite-a',
+        eventInviteId: 'invite-a',
+      ),
+      isTrue,
+    );
+    expect(
+      shouldIgnoreInvitationCloseDuringAction(
+        working: true,
+        activeInviteId: 'invite-a',
+        eventInviteId: 'invite-b',
+      ),
+      isFalse,
+    );
+    expect(
+      shouldIgnoreInvitationCloseDuringAction(
+        working: false,
+        activeInviteId: 'invite-a',
+        eventInviteId: 'invite-a',
+      ),
+      isFalse,
+    );
+  });
+
   test('foreground game invites do not get a second system alert on a live app', () {
     expect(
       shouldShowForegroundGameInvitationSystemNotification(
