@@ -20,6 +20,7 @@ const {
   buildRajaMantriHistoryRecords,
 } = require("./server/realtime/game-history-records");
 const { PublicGameMatchmaking } = require("./server/realtime/game-matchmaking");
+const { loadMatchmakingSkill, normalizeGameType } = require("./server/realtime/game-matchmaking-skill");
 const { listActiveRandomGamesForPlayer } = require("./server/realtime/random-game-session-restore");
 const { buildGameLeaderboard, normalizeLeaderboardGame } = require("./game-leaderboard");
 const { RajaMantriMatchmaking } = require("./server/realtime/raja-mantri-matchmaking");
@@ -1514,6 +1515,8 @@ const {
   authUserAliases,
   httpRateLimits,
 } = runtimeState;
+
+const pendingRandomMatchmakingLookups = new Map();
 
 const publicGameMatchmaking = new PublicGameMatchmaking({
   timeoutMs: 60_000,
@@ -3912,6 +3915,14 @@ async function initializeMongo() {
         );
       } catch (error) {
         console.warn("[NovynGames] Leaderboard index setup deferred:", error?.message || error);
+      }
+      try {
+        await mongoGameHistoryCollection.createIndex(
+          { userKey: 1, gameType: 1, playedAt: 1 },
+          { name: "game_history_user_game_played_at" }
+        );
+      } catch (error) {
+        console.warn("[NovynGames] Matchmaking history index setup deferred:", error?.message || error);
       }
     }
     if (mongoMediaCollection) {
@@ -7681,17 +7692,66 @@ io.on("connection", (socket) => {
   socket.on("join_random_game", async (payload, callback) => {
     const respond = typeof callback === "function" ? callback : () => {};
     const userKey = normalizeName(socket.data.userKey || "");
-    if (!userKey || onlineUsers.get(userKey) !== socket.id) return respond({ ok: false, message: "Please sign in again before matchmaking." });
-    if (!allowSocketAction(socket, "join_random_game", 4, 60_000)) return respond({ ok: false, message: "Please wait before trying matchmaking again." });
+    if (!userKey || onlineUsers.get(userKey) !== socket.id) {
+      return respond({ ok: false, message: "Please sign in again before matchmaking." });
+    }
+    if (!allowSocketAction(socket, "join_random_game", 4, 60_000)) {
+      return respond({ ok: false, message: "Please wait before trying matchmaking again." });
+    }
+
+    const gameType = normalizeGameType(payload?.gameType);
+    if (!["tictactoe", "rps"].includes(gameType)) {
+      return respond({ ok: false, message: "Invalid matchmaking request." });
+    }
+
+    // The level sent by older clients is intentionally ignored. Derive the
+    // competitive level only from verified, server-authored human results.
+    const requestId = crypto.randomUUID();
+    pendingRandomMatchmakingLookups.set(userKey, { requestId, socketId: socket.id });
+    let matchmakingLevel = 1;
+    if (mongoGameHistoryCollection) {
+      try {
+        matchmakingLevel = (await loadMatchmakingSkill({
+          collection: mongoGameHistoryCollection,
+          userKey,
+          gameType,
+        })).level;
+      } catch (error) {
+        const pending = pendingRandomMatchmakingLookups.get(userKey);
+        if (pending?.requestId !== requestId || pending?.socketId !== socket.id) {
+          return respond({ ok: true, cancelled: true });
+        }
+        pendingRandomMatchmakingLookups.delete(userKey);
+        console.warn("[NovynGames] Verified matchmaking skill lookup failed:", error?.message || error);
+        return respond({
+          ok: false,
+          message: "Could not verify your competitive level. Please try again.",
+        });
+      }
+    }
+
+    const pending = pendingRandomMatchmakingLookups.get(userKey);
+    if (pending?.requestId !== requestId || pending?.socketId !== socket.id) {
+      return respond({ ok: true, cancelled: true });
+    }
+    if (!socket.connected || onlineUsers.get(userKey) !== socket.id) {
+      pendingRandomMatchmakingLookups.delete(userKey);
+      return respond({ ok: false, message: "Reconnect before starting matchmaking." });
+    }
+    pendingRandomMatchmakingLookups.delete(userKey);
+
     const user = users.get(userKey);
     const excludedUsers = Array.from(new Set([
       ...Array.from(user?.friends || []),
       ...Array.from(user?.blockedUsers || []),
     ].map(normalizeName).filter(Boolean)));
     const result = publicGameMatchmaking.join({
-      userKey, displayName: toDisplayName(user?.displayName || user?.username || userKey),
-      socketId: socket.id, gameType: payload?.gameType,
-      level: payload?.playerLevel, excludedUsers,
+      userKey,
+      displayName: toDisplayName(user?.displayName || user?.username || userKey),
+      socketId: socket.id,
+      gameType,
+      level: matchmakingLevel,
+      excludedUsers,
     });
     if (!result.ok) return respond(result);
     if (!result.matched) return respond({ ok: true, queued: true, timeoutMs: 60_000 });
@@ -7729,26 +7789,35 @@ io.on("connection", (socket) => {
       return respond({ ok: false, message });
     }
 
-    const packet = (opponent) => ({
+    const packet = (opponent, player) => ({
       sessionId: result.sessionId,
       gameType: result.gameType,
       game,
+      playerLevel: Number.isInteger(player.level) ? player.level : 1,
       opponent: {
         username: opponent.userKey,
         displayName: opponent.displayName,
-        ...(Number.isInteger(opponent.level) ? { level: opponent.level } : {}),
+        level: Number.isInteger(opponent.level) ? opponent.level : 1,
       },
     });
-    io.to(first.socketId).emit("random_match_found", packet(second));
-    io.to(second.socketId).emit("random_match_found", packet(first));
+    io.to(first.socketId).emit("random_match_found", packet(second, first));
+    io.to(second.socketId).emit("random_match_found", packet(first, second));
     return respond({ ok: true, matched: true, sessionId: result.sessionId, game });
   });
 
   socket.on("cancel_random_game", (payload, callback) => {
     const respond = typeof callback === "function" ? callback : () => {};
     const userKey = normalizeName(socket.data.userKey || "");
-    if (!userKey) return respond({ ok: false, message: "Please sign in again." });
-    return respond({ ok: true, cancelled: publicGameMatchmaking.cancel(userKey) });
+    if (!userKey || onlineUsers.get(userKey) !== socket.id) {
+      return respond({ ok: false, message: "Reconnect before cancelling matchmaking." });
+    }
+    const pending = pendingRandomMatchmakingLookups.get(userKey);
+    const cancelledPending = pending?.socketId === socket.id;
+    if (cancelledPending) pendingRandomMatchmakingLookups.delete(userKey);
+    return respond({
+      ok: true,
+      cancelled: publicGameMatchmaking.cancel(userKey) || cancelledPending,
+    });
   });
 
   socket.on("join_rajamantri_matchmaking", async (payload, callback) => {
@@ -11664,6 +11733,10 @@ io.on("connection", (socket) => {
   socket.on("disconnect", async () => {
     const userKey = socket.data.userKey;
     if (!userKey) return;
+    const pendingRandomLookup = pendingRandomMatchmakingLookups.get(userKey);
+    if (pendingRandomLookup?.socketId === socket.id) {
+      pendingRandomMatchmakingLookups.delete(userKey);
+    }
     publicGameMatchmaking.disconnect(userKey, socket.id);
     rajaMantriMatchmaking.disconnect(userKey, socket.id);
 

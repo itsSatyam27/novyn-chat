@@ -332,8 +332,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
       _queueDeadline = DateTime.now().add(const Duration(seconds: 60));
     });
     try {
-      await socket.joinRandomGame(widget.gameType,
-          playerLevel: widget.playerLevel);
+      await socket.joinRandomGame(widget.gameType);
       if (!mounted || !_searchingRandom) return;
       _queueTimer?.cancel();
       _queueTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -602,7 +601,8 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
               ? _auth!.user!.displayName
               : currentUsername,
           opponentName: opponentName,
-          currentLevel: widget.playerLevel,
+          currentLevel: int.tryParse(data['playerLevel']?.toString() ?? '') ??
+              widget.playerLevel,
           opponentLevel: int.tryParse(opponent['level']?.toString() ?? ''),
           onLeave: () {
             _socket?.moveRandomGame(sessionId, const {'action': 'leave_room'});

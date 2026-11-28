@@ -356,6 +356,8 @@ class _LeaderboardPlayerTile extends StatelessWidget {
     final matches = _number('matches');
     final wins = _number('wins');
     final winRate = _number('winRate');
+    final currentStreak = _number('currentStreak');
+    final bestStreak = _number('bestStreak');
     final rankColor = rank == 1
         ? const Color(0xFFFFC857)
         : rank == 2
@@ -455,6 +457,33 @@ class _LeaderboardPlayerTile extends StatelessWidget {
                     fontWeight: FontWeight.w500,
                   ),
                 ),
+                if (currentStreak > 0 || bestStreak > 0) ...[
+                  const SizedBox(height: 4),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 2,
+                    children: [
+                      if (currentStreak > 0)
+                        Text(
+                          '🔥 $currentStreak current',
+                          style: TextStyle(
+                            color: accent,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      if (bestStreak > 0)
+                        Text(
+                          'Best $bestStreak',
+                          style: TextStyle(
+                            color: muted,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),

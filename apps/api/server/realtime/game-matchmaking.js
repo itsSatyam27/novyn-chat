@@ -1,8 +1,21 @@
 "use strict";
 const crypto = require("crypto");
+
+const INITIAL_MAX_LEVEL_GAP = 2;
+const LEVEL_GAP_WIDEN_INTERVAL_MS = 4_000;
+const MAX_LEVEL_GAP = 14;
+
 class PublicGameMatchmaking {
-  constructor({ timeoutMs = 60_000, onExpired = () => {}, createSessionId = () => crypto.randomUUID() } = {}) {
-    this.timeoutMs = timeoutMs; this.onExpired = onExpired; this.createSessionId = createSessionId;
+  constructor({
+    timeoutMs = 60_000,
+    onExpired = () => {},
+    createSessionId = () => crypto.randomUUID(),
+    now = () => Date.now(),
+  } = {}) {
+    this.timeoutMs = timeoutMs;
+    this.onExpired = onExpired;
+    this.createSessionId = createSessionId;
+    this.now = now;
     this.queues = new Map(); this.byUser = new Map();
   }
   join({ userKey, displayName, socketId, gameType, level, excludedUsers = [] }) {
@@ -22,13 +35,39 @@ class PublicGameMatchmaking {
     );
     excluded.add(user);
     const queue = this.queues.get(type) || [];
-    // A match is valid only when both players consider the other a stranger.
-    // This protects against stale/inconsistent one-way friend lists as well.
-    const index = queue.findIndex((entry) =>
-      entry.userKey !== user &&
-      !excluded.has(entry.userKey) &&
-      !entry.excludedUsers.has(user)
-    );
+    // Match only strangers, then prefer the closest known player level.
+    // Queue order remains the tie-breaker, so equally skilled players keep
+    // FIFO fairness. Missing level metadata falls back to normal queue order.
+    let index = -1;
+    let bestLevelDistance = Number.POSITIVE_INFINITY;
+    for (let candidateIndex = 0; candidateIndex < queue.length; candidateIndex += 1) {
+      const entry = queue[candidateIndex];
+      if (
+        entry.userKey === user ||
+        excluded.has(entry.userKey) ||
+        entry.excludedUsers.has(user)
+      ) {
+        continue;
+      }
+      const hasComparableLevels =
+        playerLevel !== null && Number.isInteger(entry.level);
+      const levelDistance = hasComparableLevels
+        ? Math.abs(playerLevel - entry.level)
+        : Number.POSITIVE_INFINITY;
+      if (hasComparableLevels) {
+        const waitedMs = Math.max(0, this.now() - entry.joinedAt);
+        const allowedLevelGap = Math.min(
+          MAX_LEVEL_GAP,
+          INITIAL_MAX_LEVEL_GAP +
+            Math.floor(waitedMs / LEVEL_GAP_WIDEN_INTERVAL_MS),
+        );
+        if (levelDistance > allowedLevelGap) continue;
+      }
+      if (index === -1 || levelDistance < bestLevelDistance) {
+        index = candidateIndex;
+        bestLevelDistance = levelDistance;
+      }
+    }
     if (index >= 0) {
       const opponent = queue.splice(index, 1)[0]; clearTimeout(opponent.timer); this.byUser.delete(opponent.userKey);
       if (queue.length) this.queues.set(type, queue); else this.queues.delete(type);
@@ -44,6 +83,7 @@ class PublicGameMatchmaking {
       socketId: socket,
       gameType: type,
       level: playerLevel,
+      joinedAt: this.now(),
       excludedUsers: excluded,
       timer: null,
     };

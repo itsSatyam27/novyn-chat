@@ -86,6 +86,9 @@ function buildGameLeaderboard({
         overall: createStats(),
         games: new Map(),
         streaks: new Map(),
+        bestStreaks: new Map(),
+        overallStreak: 0,
+        bestOverallStreak: 0,
       };
       aggregates.set(userKey, aggregate);
     }
@@ -104,10 +107,25 @@ function buildGameLeaderboard({
     addResult(aggregate.overall, match.result, timestamp);
     addResult(gameStats, match.result, timestamp);
 
+    // Overall streaks span all games; each game's competitive bonus
+    // streak remains isolated in aggregate.streaks below.
+    aggregate.overallStreak = match.result === "win"
+      ? aggregate.overallStreak + 1
+      : 0;
+    aggregate.bestOverallStreak = Math.max(
+      aggregate.bestOverallStreak,
+      aggregate.overallStreak,
+    );
+
     const streak = match.result === "win"
       ? (aggregate.streaks.get(match.gameType) || 0) + 1
       : 0;
     aggregate.streaks.set(match.gameType, streak);
+    const bestStreak = Math.max(
+      aggregate.bestStreaks.get(match.gameType) || 0,
+      streak,
+    );
+    aggregate.bestStreaks.set(match.gameType, bestStreak);
     if (match.result === "win" && streak > 0 && streak % 3 === 0) {
       aggregate.overall.score += 15;
       gameStats.score += 15;
@@ -129,6 +147,12 @@ function buildGameLeaderboard({
       : aggregate.games.get(gameFilter);
     if (!stats && userKey !== safeViewerKey) continue;
     const selected = stats || createStats();
+    const currentStreak = gameFilter === "overall"
+      ? aggregate.overallStreak
+      : aggregate.streaks.get(gameFilter) || 0;
+    const bestStreak = gameFilter === "overall"
+      ? aggregate.bestOverallStreak
+      : aggregate.bestStreaks.get(gameFilter) || 0;
     const winRate = selected.matches > 0
       ? Math.round((selected.wins / selected.matches) * 100)
       : 0;
@@ -141,6 +165,8 @@ function buildGameLeaderboard({
       losses: selected.losses,
       draws: selected.draws,
       winRate,
+      currentStreak,
+      bestStreak,
       lastPlayedAt: selected.lastPlayedAt,
       isSelf: userKey === safeViewerKey,
     });
