@@ -1553,7 +1553,7 @@ function scheduleRajaMantriPhaseTimer(entry) {
   if (entry.responseTimer && entry.responseTimerDeadline === deadline) return;
   clearTimeout(entry.responseTimer);
   entry.responseTimerDeadline = deadline;
-  entry.responseTimer = setTimeout(() => {
+  entry.responseTimer = setTimeout(async () => {
     entry.responseTimer = null;
     entry.responseTimerDeadline = 0;
     if (!rajaMantriSessions.has(game.sessionId) || rajaMantriSessions.get(game.sessionId) !== entry) return;
@@ -1576,7 +1576,9 @@ function scheduleRajaMantriPhaseTimer(entry) {
       }
     }
 
-    emitRajaMantriGameUpdate(game); scheduleRajaMantriPhaseTimer(entry); persistRajaMantriSession(game.sessionId, entry);
+    scheduleRajaMantriPhaseTimer(entry);
+    await persistRajaMantriSession(game.sessionId, entry);
+    emitRajaMantriGameUpdate(game);
   }, Math.max(0, deadline - Date.now()));
   if (typeof entry.responseTimer.unref === "function") entry.responseTimer.unref();
 }
@@ -7630,7 +7632,7 @@ io.use(
 );
 
 io.on("connection", (socket) => {
-  socket.on("join_random_game", (payload, callback) => {
+  socket.on("join_random_game", async (payload, callback) => {
     const respond = typeof callback === "function" ? callback : () => {};
     const userKey = normalizeName(socket.data.userKey || "");
     if (!userKey || onlineUsers.get(userKey) !== socket.id) return respond({ ok: false, message: "Please sign in again before matchmaking." });
@@ -7669,7 +7671,9 @@ io.on("connection", (socket) => {
       expiryTimer: null,
       disconnectTimers: new Map(),
     };
-    randomGameSessions.set(result.sessionId, randomEntry); scheduleRandomSessionExpiry(result.sessionId, randomEntry); persistRandomGameSession(result.sessionId, randomEntry);
+    randomGameSessions.set(result.sessionId, randomEntry);
+    scheduleRandomSessionExpiry(result.sessionId, randomEntry);
+    await persistRandomGameSession(result.sessionId, randomEntry);
 
     const packet = (opponent) => ({
       sessionId: result.sessionId,
@@ -7693,7 +7697,7 @@ io.on("connection", (socket) => {
     return respond({ ok: true, cancelled: publicGameMatchmaking.cancel(userKey) });
   });
 
-  socket.on("join_rajamantri_matchmaking", (payload, callback) => {
+  socket.on("join_rajamantri_matchmaking", async (payload, callback) => {
     const respond = typeof callback === "function" ? callback : () => {};
     const userKey = normalizeName(socket.data.userKey || "");
     if (!userKey || onlineUsers.get(userKey) !== socket.id) {
@@ -7743,11 +7747,6 @@ io.on("connection", (socket) => {
       }
       return respond({ ok: false, message: "A complete room could not be created. Please search again." });
     }
-    const expiryTimer = setTimeout(
-      () => expireRajaMantriSession(result.matchId),
-      RAJA_MANTRI_SESSION_TTL_MS,
-    );
-    if (typeof expiryTimer.unref === "function") expiryTimer.unref();
     const sessionEntry = {
       game: gameSession,
       expiresAt: Date.now() + RAJA_MANTRI_SESSION_TTL_MS,
@@ -7758,7 +7757,7 @@ io.on("connection", (socket) => {
     rajaMantriSessions.set(result.matchId, sessionEntry);
     scheduleRajaMantriSessionExpiry(result.matchId, sessionEntry);
     scheduleRajaMantriPhaseTimer(sessionEntry);
-    persistRajaMantriSession(result.matchId, sessionEntry);
+    await persistRajaMantriSession(result.matchId, sessionEntry);
     const packet = {
       matchId: result.matchId,
       sessionId: result.matchId,
@@ -7784,7 +7783,7 @@ io.on("connection", (socket) => {
     return respond({ ok: true, cancelled: rajaMantriMatchmaking.cancel(userKey) });
   });
 
-  socket.on("leave_rajamantri_game", (payload, callback) => {
+  socket.on("leave_rajamantri_game", async (payload, callback) => {
     const respond = typeof callback === "function" ? callback : () => {};
     const userKey = normalizeName(socket.data.userKey || "");
     const sessionId = String(payload?.sessionId || "").trim().slice(0, 128);
@@ -7799,6 +7798,7 @@ io.on("connection", (socket) => {
     const connection = setRajaMantriPlayerConnected(entry.game, userKey, false);
     if (!connection.ok) return respond({ ok: false, message: connection.reason });
     scheduleRajaMantriPhaseTimer(entry);
+    await persistRajaMantriSession(sessionId, entry);
     emitRajaMantriGameUpdate(entry.game);
     for (const player of entry.game.players) {
       if (player.isBot || player.username === userKey) continue;
@@ -7829,7 +7829,7 @@ io.on("connection", (socket) => {
     return respond({ ok: true, game });
   });
 
-  socket.on("pick_rajamantri_chit", (payload, callback) => {
+  socket.on("pick_rajamantri_chit", async (payload, callback) => {
     const respond = typeof callback === "function" ? callback : () => {};
     const userKey = normalizeName(socket.data.userKey || "");
     const sessionId = String(payload?.sessionId || "").trim().slice(0, 128);
@@ -7843,12 +7843,12 @@ io.on("connection", (socket) => {
     const result = pickRajaMantriChit(entry.game, userKey);
     if (!result.ok) return respond({ ok: false, message: result.reason });
     scheduleRajaMantriPhaseTimer(entry);
-    persistRajaMantriSession(sessionId, entry);
+    await persistRajaMantriSession(sessionId, entry);
     emitRajaMantriGameUpdate(entry.game);
     return respond({ ok: true, game: getRajaMantriGameView(entry.game, userKey) });
   });
 
-  socket.on("guess_rajamantri_chor", (payload, callback) => {
+  socket.on("guess_rajamantri_chor", async (payload, callback) => {
     const respond = typeof callback === "function" ? callback : () => {};
     const userKey = normalizeName(socket.data.userKey || "");
     const sessionId = String(payload?.sessionId || "").trim().slice(0, 128);
@@ -7862,7 +7862,8 @@ io.on("connection", (socket) => {
     }
     const result = guessRajaMantriChor(entry.game, userKey, suspectUsername);
     if (!result.ok) return respond({ ok: false, message: result.reason });
-    scheduleRajaMantriPhaseTimer(entry); persistRajaMantriSession(sessionId, entry);
+    scheduleRajaMantriPhaseTimer(entry);
+    await persistRajaMantriSession(sessionId, entry);
     emitRajaMantriGameUpdate(entry.game);
     return respond({ ok: true, game: getRajaMantriGameView(entry.game, userKey) });
   });
@@ -7881,7 +7882,7 @@ io.on("connection", (socket) => {
     const result = advanceRajaMantriRound(entry.game, userKey);
     if (!result.ok) return respond({ ok: false, message: result.reason });
     scheduleRajaMantriPhaseTimer(entry);
-    persistRajaMantriSession(sessionId, entry);
+    await persistRajaMantriSession(sessionId, entry);
     if (entry.game.phase === "finished") {
       await persistAuthoritativeGameHistoryRecords(
         buildRajaMantriHistoryRecords(entry.game, users),
@@ -11522,7 +11523,7 @@ io.on("connection", (socket) => {
     schedulePersist
   });
 
-  socket.on("disconnect", () => {
+  socket.on("disconnect", async () => {
     const userKey = socket.data.userKey;
     if (!userKey) return;
     publicGameMatchmaking.disconnect(userKey, socket.id);
@@ -11535,7 +11536,7 @@ io.on("connection", (socket) => {
         const connection = setRajaMantriPlayerConnected(entry.game, userKey, false);
         if (!connection.ok) continue;
         scheduleRajaMantriPhaseTimer(entry);
-        persistRajaMantriSession(sessionId, entry);
+        await persistRajaMantriSession(sessionId, entry);
         emitRajaMantriGameUpdate(entry.game);
         for (const player of entry.game.players) {
           if (player.isBot || player.username === userKey) continue;
