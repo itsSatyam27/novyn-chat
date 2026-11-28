@@ -137,6 +137,9 @@ test("rematch requests require a finished game and accept only the other player'
   const selfAccept = applyGameMove(request.game, "alice", { action: "rematch_accept" });
   assert.equal(selfAccept.ok, false);
 
+  const bypassRequest = applyGameMove(finished, "bob", { action: "rematch" });
+  assert.equal(bypassRequest.ok, false);
+
   const accepted = applyGameMove(request.game, "bob", { action: "rematch_accept" });
   assert.equal(accepted.ok, true);
   assert.equal(accepted.game.state, "in_progress");
