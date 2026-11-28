@@ -42,3 +42,14 @@ bool shouldShowForegroundGameInvitationSystemNotification({
   // the prompt. Avoid showing a second system notification for the same invite.
   return !appResumed || !socketConnected || !socketAuthenticated;
 }
+
+bool shouldIgnoreInvitationCloseDuringAction({
+  required bool working,
+  required String? activeInviteId,
+  required String eventInviteId,
+}) {
+  return working &&
+      activeInviteId != null &&
+      activeInviteId.isNotEmpty &&
+      activeInviteId == eventInviteId;
+}
