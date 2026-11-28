@@ -92,6 +92,9 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
     }
     if (!_wasConnected) {
       _wasConnected = true;
+      if (_actionError == 'Reconnect to respond to this invitation.') {
+        _actionError = null;
+      }
       _scheduleConnectionUiRefresh();
       unawaited(_loadPendingInvitations(socket));
     }
@@ -382,7 +385,8 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
                       children: [
                         const Spacer(),
                         OutlinedButton(
-                          onPressed: _working || !canRespond ? null : _declineInvitation,
+                          onPressed:
+                              _working || !canRespond ? null : _declineInvitation,
                           style: OutlinedButton.styleFrom(
                             minimumSize: const Size(94, 38),
                             padding: const EdgeInsets.symmetric(horizontal: 15),
@@ -394,7 +398,8 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
                         ),
                         const SizedBox(width: 8),
                         FilledButton.icon(
-                          onPressed: _working || !canRespond ? null : _acceptInvitation,
+                          onPressed:
+                              _working || !canRespond ? null : _acceptInvitation,
                           icon: const Icon(Icons.check_rounded, size: 17),
                           label: const Text('Accept'),
                           style: FilledButton.styleFrom(
