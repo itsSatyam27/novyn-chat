@@ -79,6 +79,10 @@ test("loads only bounded, server-authored history for the requested account and 
       calls.filter = filter;
       calls.options = options;
       return {
+        maxTimeMS(value) {
+          calls.maxTimeMS = value;
+          return this;
+        },
         sort(value) {
           calls.sort = value;
           return this;
@@ -115,6 +119,7 @@ test("loads only bounded, server-authored history for the requested account and 
     isBotMatch: { $ne: true },
   });
   assert.equal(calls.options.projection.source, 1);
+  assert.equal(calls.maxTimeMS, 5_000);
   assert.deepEqual(calls.sort, { playedAt: -1 });
   assert.equal(calls.limit, 2_000);
   assert.equal(skill.matches, 1);
