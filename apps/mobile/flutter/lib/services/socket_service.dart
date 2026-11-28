@@ -272,6 +272,15 @@ class SocketService extends ChangeNotifier {
   Function(Map)? onGameInviteAccepted;
   Function(Map)? onGameInviteTimeout;
   Function(Map)? onGameInvitationReceived;
+  final StreamController<Map<String, dynamic>> _gameInvitationStreamController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  final StreamController<Map<String, dynamic>> _gameInvitationTimeoutStreamController =
+      StreamController<Map<String, dynamic>>.broadcast();
+
+  Stream<Map<String, dynamic>> get gameInvitationStream =>
+      _gameInvitationStreamController.stream;
+  Stream<Map<String, dynamic>> get gameInvitationTimeoutStream =>
+      _gameInvitationTimeoutStreamController.stream;
   Function(Map)? onGameMoveUpdated;
   Function(Map)? onRajaMantriMatchFound;
   Function(Map)? onRajaMantriMatchProgress;
@@ -1738,7 +1747,11 @@ class SocketService extends ChangeNotifier {
     });
     _socket!.on('game_invitation_received', (data) {
       if (data is Map) {
-        onGameInvitationReceived?.call(Map<String, dynamic>.from(data));
+        final packet = Map<String, dynamic>.from(data);
+        if (!_gameInvitationStreamController.isClosed) {
+          _gameInvitationStreamController.add(packet);
+        }
+        onGameInvitationReceived?.call(packet);
       }
     });
     _socket!.on('game_invite_timeout', (data) {
@@ -1750,6 +1763,9 @@ class SocketService extends ChangeNotifier {
           _rajaMantriExpiredInvites.add(messageId);
           _rajaMantriInviteSessions.remove(messageId);
           notifyListeners();
+        }
+        if (!_gameInvitationTimeoutStreamController.isClosed) {
+          _gameInvitationTimeoutStreamController.add(packet);
         }
         onGameInviteTimeout?.call(packet);
       }
@@ -4678,6 +4694,8 @@ class SocketService extends ChangeNotifier {
     disconnect();
     _audioPlayer.dispose();
     contacts.dispose();
+    unawaited(_gameInvitationStreamController.close());
+    unawaited(_gameInvitationTimeoutStreamController.close());
     super.dispose();
   }
 }
