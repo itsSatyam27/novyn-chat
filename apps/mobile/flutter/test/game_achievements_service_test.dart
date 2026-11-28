@@ -62,7 +62,7 @@ void main() {
       expect(byId['all_rounder']!.progress, 2);
     });
 
-    test('streak achievements require consecutive wins in the same game', () {
+    test('streak progress is tracked independently for each game', () {
       final mixed = GameAchievementsService.evaluate([
         match('m1', 'tictactoe', 'win', 1),
         match('m2', 'rps', 'win', 2),
@@ -75,7 +75,7 @@ void main() {
         (item) => item.id == 'hat_trick',
       );
       expect(mixedHatTrick.progress, 3);
-      expect(mixedHatTrick.isUnlocked, isFalse);
+      expect(mixedHatTrick.isUnlocked, isTrue);
 
       final sameGame = GameAchievementsService.evaluate([
         match('s1', 'rps', 'win', 1),
