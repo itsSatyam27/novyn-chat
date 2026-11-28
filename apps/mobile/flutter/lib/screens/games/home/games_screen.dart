@@ -58,6 +58,13 @@ class _GamesScreenState extends State<GamesScreen> {
       icon: Icons.content_cut_rounded,
       gradient: [Color(0xFFE53468), Color(0xFFD61E53)],
     ),
+    _GameOption(
+      type: 'chess',
+      title: 'Chess',
+      subtitle: 'Classic strategy · 1v1',
+      icon: Icons.grid_4x4_rounded,
+      gradient: [Color(0xFF7955E8), Color(0xFF5136B8)],
+    ),
   ];
 
   static const _GameOption _rajaMantriGame = _GameOption(
