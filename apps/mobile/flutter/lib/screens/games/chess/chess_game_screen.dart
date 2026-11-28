@@ -18,7 +18,6 @@ class ChessGameScreen extends StatefulWidget {
     this.peerUsername = '',
     this.randomSessionId,
     this.opponentDisplayName,
-    this.isGroup = false,
     this.isOfflineBot = false,
   });
 
@@ -28,7 +27,6 @@ class ChessGameScreen extends StatefulWidget {
   final String peerUsername;
   final String? randomSessionId;
   final String? opponentDisplayName;
-  final bool isGroup;
   final bool isOfflineBot;
 
   @override
@@ -91,13 +89,31 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
       (_data['black'] ?? _data['player2'])?.toString().trim().toLowerCase() == _user;
   bool get _myTurn => !_finished && _game['turn']?.toString().toLowerCase() == _user;
   String get _drawOffer => _data['drawOfferBy']?.toString().toLowerCase() ?? '';
-  bool get _voiceAllowed =>
-      !_offlineBot &&
-      !widget.isGroup &&
-      widget.randomSessionId == null &&
-      !(_game['id']?.toString().startsWith('random_') ?? false) &&
-      widget.messageId?.trim().isNotEmpty == true &&
-      widget.peerUsername.trim().isNotEmpty;
+  bool get _voiceAllowed {
+    final white = (_data['white'] ?? _data['player1'])
+            ?.toString()
+            .trim()
+            .toLowerCase() ??
+        '';
+    final black = (_data['black'] ?? _data['player2'])
+            ?.toString()
+            .trim()
+            .toLowerCase() ??
+        '';
+    final peer = widget.peerUsername.trim().toLowerCase();
+    final isMatchPlayerPair =
+        (white == _user && black == peer) ||
+        (black == _user && white == peer);
+
+    return !_offlineBot &&
+        widget.randomSessionId == null &&
+        !(_game['id']?.toString().startsWith('random_') ?? false) &&
+        widget.messageId?.trim().isNotEmpty == true &&
+        peer.isNotEmpty &&
+        white != _botUser &&
+        black != _botUser &&
+        isMatchPlayerPair;
+  }
 
   @override
   void initState() {
@@ -458,7 +474,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
       final socket = _socket ?? context.read<SocketService>();
       final result = widget.randomSessionId != null
           ? await socket.moveRandomGame(widget.randomSessionId!, payload)
-          : await socket.makeGameMove(widget.messageId ?? '', widget.peerUsername, payload, isGroup: widget.isGroup);
+          : await socket.makeGameMove(widget.messageId ?? '', widget.peerUsername, payload);
       if (result['game'] is Map && mounted) {
         setState(() {
           _game = Map<String, dynamic>.from(result['game'] as Map);
