@@ -4,6 +4,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
   calculateMatchmakingSkill,
+  loadMatchmakingSkill,
   normalizeGameType,
 } = require("../server/realtime/game-matchmaking-skill");
 
@@ -68,4 +69,62 @@ test("unknown game types safely receive the entry level", () => {
     currentStreak: 0,
     bestStreak: 0,
   });
+});
+
+
+test("loads only bounded, server-authored history for the requested account and game", async () => {
+  const calls = {};
+  const collection = {
+    find(filter, options) {
+      calls.filter = filter;
+      calls.options = options;
+      return {
+        sort(value) {
+          calls.sort = value;
+          return this;
+        },
+        limit(value) {
+          calls.limit = value;
+          return this;
+        },
+        async toArray() {
+          return [
+            {
+              id: "verified-win",
+              source: "server",
+              gameType: "rps",
+              result: "win",
+              playedAt: "2026-02-01T10:00:00.000Z",
+            },
+          ];
+        },
+      };
+    },
+  };
+
+  const skill = await loadMatchmakingSkill({
+    collection,
+    userKey: "  ALICE ",
+    gameType: "RPS",
+  });
+
+  assert.deepEqual(calls.filter, {
+    userKey: "alice",
+    gameType: "rps",
+    source: "server",
+    isBotMatch: { $ne: true },
+  });
+  assert.equal(calls.options.projection.source, 1);
+  assert.deepEqual(calls.sort, { playedAt: -1 });
+  assert.equal(calls.limit, 2_000);
+  assert.equal(skill.matches, 1);
+  assert.equal(skill.wins, 1);
+  assert.equal(skill.level, 1);
+});
+
+test("does not attempt a matchmaking history read without a collection", async () => {
+  await assert.rejects(
+    () => loadMatchmakingSkill({ collection: null, userKey: "alice", gameType: "rps" }),
+    /game-history collection is required/,
+  );
 });
