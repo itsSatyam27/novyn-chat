@@ -208,7 +208,7 @@ class _ChatAudioMessageBubbleState extends State<ChatAudioMessageBubble> {
               const SizedBox(width: 9),
               Expanded(
                 child: CustomPaint(
-                  size: const Size(double.infinity, 34),
+                  size: const Size(1, 34),
                   painter: _ChatAudioWaveformPainter(
                     progress: progress,
                     playedColor: outgoing ? Colors.white : accent,
