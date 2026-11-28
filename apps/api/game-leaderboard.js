@@ -87,6 +87,8 @@ function buildGameLeaderboard({
         games: new Map(),
         streaks: new Map(),
         bestStreaks: new Map(),
+        overallStreak: 0,
+        bestOverallStreak: 0,
       };
       aggregates.set(userKey, aggregate);
     }
@@ -104,6 +106,14 @@ function buildGameLeaderboard({
     const timestamp = match.playedAt.toISOString();
     addResult(aggregate.overall, match.result, timestamp);
     addResult(gameStats, match.result, timestamp);
+
+    aggregate.overallStreak = match.result === "win"
+      ? aggregate.overallStreak + 1
+      : 0;
+    aggregate.bestOverallStreak = Math.max(
+      aggregate.bestOverallStreak,
+      aggregate.overallStreak,
+    );
 
     const streak = match.result === "win"
       ? (aggregate.streaks.get(match.gameType) || 0) + 1
@@ -136,10 +146,10 @@ function buildGameLeaderboard({
     if (!stats && userKey !== safeViewerKey) continue;
     const selected = stats || createStats();
     const currentStreak = gameFilter === "overall"
-      ? Math.max(0, ...aggregate.streaks.values())
+      ? aggregate.overallStreak
       : aggregate.streaks.get(gameFilter) || 0;
     const bestStreak = gameFilter === "overall"
-      ? Math.max(0, ...aggregate.bestStreaks.values())
+      ? aggregate.bestOverallStreak
       : aggregate.bestStreaks.get(gameFilter) || 0;
     const winRate = selected.matches > 0
       ? Math.round((selected.wins / selected.matches) * 100)
