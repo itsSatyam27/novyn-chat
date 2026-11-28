@@ -25,7 +25,7 @@ function buildTwoPlayerGameHistoryRecords(game, users) {
   const playerKeys = Array.from(new Set(playerValues.map(normalizeKey).filter(Boolean)));
   const accounts = getRegisteredHumanAccounts(playerKeys, users);
   if (!accounts || playerKeys.length !== 2 ||
-      playerKeys.some((key) => /^(ai|bot)(\\b|[_ -])/i.test(key))) return [];
+      playerKeys.some((key) => /^(ai|bot)(\b|[_ -])/i.test(key))) return [];
 
   const winnerKey = normalizeKey(game.winner);
   if (winnerKey !== "draw" && !playerKeys.includes(winnerKey)) return [];
