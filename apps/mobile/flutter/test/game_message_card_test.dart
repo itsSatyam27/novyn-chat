@@ -432,6 +432,51 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('incoming rematch request updates an open result sheet', (tester) async {
+    final socket = _FakeSocketService();
+    final game = finishedGame();
+    late StateSetter updateGame;
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<SocketService>.value(
+        value: socket,
+        child: MaterialApp(
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) {
+                updateGame = setState;
+                return GameMessageCard(
+                  messageId: 'game-message-1',
+                  game: game,
+                  currentUsername: 'alice',
+                  peerUsername: 'bob',
+                  compact: false,
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Great match! Want a rematch?'), findsOneWidget);
+    updateGame(() {
+      (game['data'] as Map<String, dynamic>)['rematch'] = {
+        'status': 'pending',
+        'requestedBy': 'bob',
+        'requestedAt': DateTime.now().millisecondsSinceEpoch,
+        'expiresAt': DateTime.now().millisecondsSinceEpoch + 15000,
+      };
+    });
+    await tester.pumpAndSettle();
+
+    expect(find.text('Rematch Challenge!'), findsOneWidget);
+    expect(find.textContaining('Accept ('), findsOneWidget);
+    expect(find.text('Decline'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('requester cancels a rematch with the dedicated cancel action', (tester) async {
     final socket = _FakeSocketService();
     await tester.pumpWidget(gameCardHost(socket));
