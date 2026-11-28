@@ -6475,32 +6475,6 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 
-  Widget _attachmentFileTile(String name, IconData icon) {
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 220),
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 22),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              name,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 12),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _showEditDialog(BuildContext context) {
     final ctrl = TextEditingController(text: message.text as String);
     showDialog(
