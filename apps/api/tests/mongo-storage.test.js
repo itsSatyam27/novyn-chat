@@ -41,7 +41,7 @@ function createFakeMongoClient() {
   return { FakeMongoClient, collections };
 }
 
-test("Mongo storage exposes and indexes game_history for leaderboard queries", async () => {
+test("Mongo storage exposes game_history for leaderboard queries", async () => {
   const { FakeMongoClient, collections } = createFakeMongoClient();
   const storage = createMongoStorage({
     uri: "mongodb://example.test/novyn",
