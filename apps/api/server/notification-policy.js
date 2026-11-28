@@ -44,8 +44,11 @@ function shouldDeliverNotification(user, payload = {}, timestamp = Date.now()) {
     }
   } else if (type === "game_invitation" && user.gameInvitationsEnabled === false) {
     return false;
-  } else if (type === "game_turn" && user.gameTurnEnabled === false) {
-    return false;
+  } else if (type === "game_turn") {
+    const mode = ["in_app", "push", "off"].includes(user.gameTurnDelivery)
+      ? user.gameTurnDelivery
+      : (user.gameTurnEnabled === false ? "off" : "push");
+    if (mode !== "push") return false;
   } else if (type === "game_result" && user.gameResultsEnabled === false) {
     return false;
   }
