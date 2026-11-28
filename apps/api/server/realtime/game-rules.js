@@ -701,7 +701,7 @@ function createGameChallenge(input = {}, { randomInt = crypto.randomInt } = {}) 
         clockMs: 300000,
         whiteTimeMs: 300000,
         blackTimeMs: 300000,
-        lastMoveAt: Date.now(),
+        lastMoveAt: 0,
         drawOfferBy: null,
       }
     : { host: userName, players: [userName], round: 1, target: 5 };
