@@ -7819,11 +7819,6 @@ io.on("connection", (socket) => {
     if (!result.ok) return respond({ ok: false, message: result.reason });
     scheduleRajaMantriPhaseTimer(entry);
     persistRajaMantriSession(sessionId, entry);
-    if (entry.game.phase === "finished") {
-      await persistAuthoritativeGameHistoryRecords(
-        buildRajaMantriHistoryRecords(entry.game, users),
-      );
-    }
     emitRajaMantriGameUpdate(entry.game);
     return respond({ ok: true, game: getRajaMantriGameView(entry.game, userKey) });
   });
@@ -7860,7 +7855,13 @@ io.on("connection", (socket) => {
     }
     const result = advanceRajaMantriRound(entry.game, userKey);
     if (!result.ok) return respond({ ok: false, message: result.reason });
-    scheduleRajaMantriPhaseTimer(entry); persistRajaMantriSession(sessionId, entry);
+    scheduleRajaMantriPhaseTimer(entry);
+    persistRajaMantriSession(sessionId, entry);
+    if (entry.game.phase === "finished") {
+      await persistAuthoritativeGameHistoryRecords(
+        buildRajaMantriHistoryRecords(entry.game, users),
+      );
+    }
     emitRajaMantriGameUpdate(entry.game);
     return respond({ ok: true, game: getRajaMantriGameView(entry.game, userKey) });
   });
