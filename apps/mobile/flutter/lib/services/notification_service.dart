@@ -708,6 +708,13 @@ class NotificationService {
   static Future<void> showGameNotification(Map<String, dynamic> data) async {
     final type = data['type']?.toString() ?? '';
     if (!const {'game_invitation', 'game_turn', 'game_result'}.contains(type)) return;
+    if (type == 'game_invitation') {
+      final expiresAt = int.tryParse(data['expiresAt']?.toString() ?? '');
+      if (expiresAt != null &&
+          expiresAt <= DateTime.now().millisecondsSinceEpoch) {
+        return;
+      }
+    }
     final prefs = await SharedPreferences.getInstance();
     await prefs.reload();
     final account = (prefs.getString('novyn_notification_account') ?? '')
