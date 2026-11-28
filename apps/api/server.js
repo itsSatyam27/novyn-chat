@@ -8382,6 +8382,12 @@ io.on("connection", (socket) => {
       String(entry.id) === messageId && entry.game && entry.game.gameType === "chess"
     );
     const game = message?.game;
+    // Public matchmaking creates a dedicated random_* game record. Even if
+    // these players happen to be friends already, this match type cannot use
+    // the friend-only voice path.
+    if (String(game?.id || "").startsWith("random_")) {
+      return respond({ ok: false, message: "Chess voice is unavailable in random matches." });
+    }
     const gameData = game?.data && typeof game.data === "object" ? game.data : {};
     const players = new Set([
       game?.createdBy, game?.opponent, gameData.white, gameData.black,
