@@ -1598,6 +1598,8 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
   List<dynamic>? _optimisticBoard;
   String? _error;
   bool _gameOverModalShown = false;
+  bool _gameOverModalOpen = false;
+  late final ValueNotifier<Map<String, dynamic>> _liveGame;
 
   Map<String, dynamic> get _data => widget.game['data'] is Map
       ? Map<String, dynamic>.from(widget.game['data'] as Map)
@@ -1608,6 +1610,7 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
   @override
   void initState() {
     super.initState();
+    _liveGame = ValueNotifier<Map<String, dynamic>>(_copyGameSnapshot(widget.game));
     if (_finished) {
       _gameOverModalShown = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1619,6 +1622,7 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
   @override
   void didUpdateWidget(covariant _TicTacToeMatchPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _liveGame.value = _copyGameSnapshot(widget.game);
     if (oldWidget.game['data'] != widget.game['data']) {
       _optimisticBoard = null;
       _error = null;
@@ -1628,12 +1632,26 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _showGameOver();
       });
+    } else if (_finished &&
+        _hasLiveRematchRequest(widget.game) &&
+        !_gameOverModalOpen) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showGameOver();
+      });
     } else if (!_finished) {
       _gameOverModalShown = false;
     }
   }
 
+  @override
+  void dispose() {
+    _liveGame.dispose();
+    super.dispose();
+  }
+
   void _showGameOver() {
+    if (_gameOverModalOpen) return;
+    _gameOverModalOpen = true;
     final winner = widget.game['winner']?.toString() ?? '';
     final meWon = winner.toLowerCase() == widget.currentUsername.toLowerCase();
     final tie = winner == 'draw';
@@ -1669,8 +1687,11 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
       onPlayAgain: widget.onPlayAgain,
       onClose: () => Navigator.of(context).maybePop(),
       onRematchAction: widget.onRematchAction,
-      isOpponentRequest: isOpponentRequest,
-      playerLeft: playerLeft,
+      currentUsername: widget.currentUsername,
+      gameState: _liveGame,
+      onDismiss: () {
+        if (mounted) _gameOverModalOpen = false;
+      },
       opponentName: opponentName,
       isOfflineBot: widget.isOfflineBot,
     );
@@ -2089,6 +2110,8 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
   bool _revealed = false;
   bool _roundTransitioning = false;
   bool _gameOverModalShown = false;
+  bool _gameOverModalOpen = false;
+  late final ValueNotifier<Map<String, dynamic>> _liveGame;
   String _leftShuffle = 'rock';
   String _rightShuffle = 'paper';
   String _status = 'Pick your move';
@@ -2116,6 +2139,7 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
   @override
   void initState() {
     super.initState();
+    _liveGame = ValueNotifier<Map<String, dynamic>>(_copyGameSnapshot(widget.game));
     _shakeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 420),
@@ -2138,6 +2162,7 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
   @override
   void didUpdateWidget(covariant _RockPaperScissorsPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _liveGame.value = _copyGameSnapshot(widget.game);
     final currentData = widget.game['data'];
     final currentState = widget.game['state']?.toString();
     if (!identical(_lastObservedData, currentData) ||
@@ -2145,6 +2170,13 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
       _lastObservedData = currentData;
       _lastObservedState = currentState;
       _syncGame();
+    }
+    if (_finished &&
+        _hasLiveRematchRequest(widget.game) &&
+        !_gameOverModalOpen) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showGameOver();
+      });
     }
   }
 
@@ -2155,6 +2187,7 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
     _revealTimer?.cancel();
     _nextRoundTimer?.cancel();
     _shakeController.dispose();
+    _liveGame.dispose();
     super.dispose();
   }
 
@@ -2288,6 +2321,8 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
   }
 
   void _showGameOver() {
+    if (_gameOverModalOpen) return;
+    _gameOverModalOpen = true;
     final winner = widget.game['winner']?.toString() ?? '';
     final iWon = winner.toLowerCase() == widget.currentUsername.toLowerCase();
     final tie = winner == 'draw';
@@ -2316,8 +2351,11 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
       onPlayAgain: widget.onPlayAgain,
       onClose: () => Navigator.of(context).maybePop(),
       onRematchAction: widget.onRematchAction,
-      isOpponentRequest: isOpponentRequest,
-      playerLeft: playerLeft,
+      currentUsername: widget.currentUsername,
+      gameState: _liveGame,
+      onDismiss: () {
+        if (mounted) _gameOverModalOpen = false;
+      },
       opponentName: _opponentFullName,
       isOfflineBot: widget.isOfflineBot,
     );
