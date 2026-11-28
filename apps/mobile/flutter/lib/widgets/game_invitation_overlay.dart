@@ -117,12 +117,42 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
     });
   }
 
+  int? _invitationExpiryMillis(Map<String, dynamic> invitation) {
+    final raw = invitation['expiresAt'];
+    if (raw is num) return raw.toInt();
+    return int.tryParse(raw?.toString() ?? '');
+  }
+
+  bool _isInvitationExpired(Map<String, dynamic> invitation) {
+    final expiry = _invitationExpiryMillis(invitation);
+    return expiry != null && expiry <= DateTime.now().millisecondsSinceEpoch;
+  }
+
+  void _pruneExpiredInvitations() {
+    final expiredIds = <String>{};
+    final active = _activeInvitation;
+    if (active != null && _isInvitationExpired(active)) {
+      expiredIds.add(active['messageId']?.toString() ?? '');
+    }
+    for (final invitation in _queue) {
+      if (_isInvitationExpired(invitation)) {
+        expiredIds.add(invitation['messageId']?.toString() ?? '');
+      }
+    }
+    for (final id in expiredIds) {
+      _removeResolvedInvitation(id);
+    }
+  }
+
   Future<void> _loadPendingInvitations(SocketService socket) async {
     try {
       final invitations = await socket.getPendingGameInvitations();
-      if (!mounted || !identical(socket, _socket) || invitations.isEmpty) {
+      if (!mounted || !identical(socket, _socket)) {
         return;
       }
+      // Timers may have expired while this device was disconnected.
+      // Clear stale local UI before reconciling the server's current queue.
+      _pruneExpiredInvitations();
       // The invitations screen presents newest first. Keep the same order in
       // the compact overlay, then let the user respond to each outstanding invite.
       for (final invitation in invitations.reversed) {
@@ -144,7 +174,12 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
 
   void _enqueueInvitation(Map<String, dynamic> invitation) {
     final id = invitation['messageId']?.toString() ?? '';
-    if (!mounted || !_rememberInvitationId(id)) return;
+    if (!mounted) return;
+    if (_isInvitationExpired(invitation)) {
+      _removeResolvedInvitation(id);
+      return;
+    }
+    if (!_rememberInvitationId(id)) return;
     setState(() {
       _queue.addLast(Map<String, dynamic>.from(invitation));
       _activateNext();
