@@ -95,6 +95,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
       !_offlineBot &&
       !widget.isGroup &&
       widget.randomSessionId == null &&
+      !(_game['id']?.toString().startsWith('random_') ?? false) &&
       widget.messageId?.trim().isNotEmpty == true &&
       widget.peerUsername.trim().isNotEmpty;
 
