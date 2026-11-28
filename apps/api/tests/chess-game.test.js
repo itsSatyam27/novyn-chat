@@ -83,19 +83,17 @@ test("Chess challenge is a one-to-one match with server-generated legal moves", 
   assert.equal(group.ok, false);
 });
 
-test("Chess clocks start when the room opens, not when an invite is created", () => {
+test("Chess clocks remain paused through invitation and begin on the first move", () => {
   const created = createGameChallenge({
     userKey: "alice", userDisplayName: "alice", to: "bob", toType: "friend",
     game: { gameType: "chess" },
   }).game;
   assert.equal(created.data.lastMoveAt, 0);
-  const started = applyGameMove(created, "alice", { action: "start_clock" });
-  assert.equal(started.ok, true);
-  assert.ok(started.game.data.lastMoveAt > 0);
-  const startedAt = started.game.data.lastMoveAt;
-  const repeated = applyGameMove(started.game, "bob", { action: "start_clock" });
-  assert.equal(repeated.ok, true);
-  assert.equal(repeated.game.data.lastMoveAt, startedAt);
+  const firstMove = applyGameMove(created, "alice", { move: "e2e4" });
+  assert.equal(firstMove.ok, true);
+  assert.ok(firstMove.game.data.lastMoveAt > 0);
+  assert.ok(firstMove.game.data.whiteTimeMs > 0);
+  assert.equal(firstMove.game.turn, "bob");
 });
 
 test("Chess game accepts legal alternating moves and rejects out-of-turn or illegal moves", () => {
