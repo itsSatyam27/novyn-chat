@@ -19,8 +19,8 @@ class GameAchievement {
 
   bool get isUnlocked => progress >= target;
   double get progressFraction =>
-      target <= 0 ? 1 : (progress / target).clamp(0.0, 1.0).toDouble();
-  int get safeProgress => progress.clamp(0, target);
+      target <= 0 ? 1.0 : (progress / target).clamp(0.0, 1.0).toDouble();
+  int get safeProgress => progress.clamp(0, target).toInt();
 }
 
 class GameAchievementsSnapshot {
