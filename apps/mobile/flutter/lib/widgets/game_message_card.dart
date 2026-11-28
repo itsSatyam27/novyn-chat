@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'novyn_alert.dart';
@@ -1665,17 +1666,6 @@ class _TicTacToeMatchPanelState extends State<_TicTacToeMatchPanel> {
     final myScore = isPlayerX ? winsX : winsO;
     final opponentScore = isPlayerX ? winsO : winsX;
 
-    final rematch = data['rematch'];
-    final isOpponentRequest = rematch is Map &&
-        rematch['status'] == 'pending' &&
-        rematch['requestedBy']?.toString().toLowerCase() !=
-            widget.currentUsername.toLowerCase();
-
-    final playerLeft = data['playerLeft']?.toString() ??
-        (rematch is Map && rematch['status'] == 'opponent_left'
-            ? rematch['leftBy']?.toString()
-            : null);
-
     _showGameOverModal(
       context,
       emoji: tie ? '🤝' : (meWon ? '🏆' : '⚡'),
@@ -2328,17 +2318,6 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
     final tie = winner == 'draw';
     final myScore = _isPlayer1 ? _displayedP1Score : _displayedP2Score;
     final otherScore = _isPlayer1 ? _displayedP2Score : _displayedP1Score;
-
-    final rematch = widget.game['data']?['rematch'];
-    final isOpponentRequest = rematch is Map &&
-        rematch['status'] == 'pending' &&
-        rematch['requestedBy']?.toString().toLowerCase() !=
-            widget.currentUsername.toLowerCase();
-
-    final playerLeft = widget.game['data']?['playerLeft']?.toString() ??
-        (rematch is Map && rematch['status'] == 'opponent_left'
-            ? rematch['leftBy']?.toString()
-            : null);
 
     _showGameOverModal(
       context,
