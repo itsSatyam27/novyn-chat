@@ -579,6 +579,7 @@ function applyChess(game, userKey, moveData) {
     player2: black,
     fen: played.fen,
     moves: [...(Array.isArray(current.moves) ? current.moves : []), played.move].slice(-500),
+    legalMoves: outcome.done ? [] : chessRules.legalMoves(nextPosition).map(chessRules.toUci),
     positionHistory: history.slice(-500),
     whiteTimeMs: nextWhiteTime,
     blackTimeMs: nextBlackTime,
@@ -646,6 +647,9 @@ function createGameChallenge(input = {}, { randomInt = crypto.randomInt } = {}) 
 
   const gameType = String(requested.gameType || "");
   if (!GAME_TYPES.has(gameType)) return { ok: false, reason: "Unsupported game." };
+  if (gameType === "chess" && toType !== "friend") {
+    return { ok: false, reason: "Chess is currently available for one-to-one matches only." };
+  }
 
   const titles = { tictactoe: "Tic-Tac-Toe", rps: "Rock Paper Scissors", rajamantri: "Raja Mantri Chor Sipahi", chess: "Chess" };
   const board = gameType === "tictactoe" ? Array(9).fill(null) : undefined;
@@ -668,6 +672,7 @@ function createGameChallenge(input = {}, { randomInt = crypto.randomInt } = {}) 
         blackName: initialOpponent || String(to || ""),
         fen: chessRules.START_FEN,
         moves: [],
+        legalMoves: chessRules.legalMoves(chessRules.parseFen(chessRules.START_FEN)).map(chessRules.toUci),
         positionHistory: [chessRules.positionKey(chessRules.parseFen(chessRules.START_FEN))],
         clockMs: 300000,
         whiteTimeMs: 300000,
