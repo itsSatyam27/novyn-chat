@@ -29,10 +29,12 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
   SocketService? _socket;
   StreamSubscription<Map<String, dynamic>>? _invitationSubscription;
   StreamSubscription<Map<String, dynamic>>? _timeoutSubscription;
+  StreamSubscription<String>? _resolvedSubscription;
   final Queue<Map<String, dynamic>> _queue =
       Queue<Map<String, dynamic>>();
   static const int _maxRememberedInvitationIds = 256;
   final LinkedHashSet<String> _seenIds = LinkedHashSet<String>();
+  final LinkedHashSet<String> _resolvedIds = LinkedHashSet<String>();
   Map<String, dynamic>? _activeInvitation;
   bool _working = false;
   bool _wasConnected = false;
@@ -54,6 +56,9 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
     _timeoutSubscription = socket.gameInvitationTimeoutStream.listen(
       _expireInvitation,
     );
+    _resolvedSubscription = socket.gameInvitationResolvedStream.listen(
+      _removeResolvedInvitation,
+    );
     _handleSocketChanged();
   }
 
@@ -67,8 +72,13 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
     if (timeoutSubscription != null) {
       unawaited(timeoutSubscription.cancel());
     }
+    final resolvedSubscription = _resolvedSubscription;
+    if (resolvedSubscription != null) {
+      unawaited(resolvedSubscription.cancel());
+    }
     _invitationSubscription = null;
     _timeoutSubscription = null;
+    _resolvedSubscription = null;
   }
 
   void _handleSocketChanged() {
@@ -107,25 +117,115 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
     });
   }
 
+  int? _invitationExpiryMillis(Map<String, dynamic> invitation) {
+    final raw = invitation['expiresAt'];
+    if (raw is num) return raw.toInt();
+    return int.tryParse(raw?.toString() ?? '');
+  }
+
+  bool _isInvitationExpired(Map<String, dynamic> invitation) {
+    final expiry = _invitationExpiryMillis(invitation);
+    return expiry != null && expiry <= DateTime.now().millisecondsSinceEpoch;
+  }
+
+  void _pruneExpiredInvitations() {
+    final expiredIds = <String>{};
+    final active = _activeInvitation;
+    if (active != null && _isInvitationExpired(active)) {
+      expiredIds.add(active['messageId']?.toString() ?? '');
+    }
+    for (final invitation in _queue) {
+      if (_isInvitationExpired(invitation)) {
+        expiredIds.add(invitation['messageId']?.toString() ?? '');
+      }
+    }
+    for (final id in expiredIds) {
+      _removeResolvedInvitation(id);
+    }
+  }
+
   Future<void> _loadPendingInvitations(SocketService socket) async {
+    final idsAtRequestStart = <String>{
+      if ((_activeInvitation?['messageId']?.toString() ?? '').isNotEmpty)
+        _activeInvitation!['messageId'].toString(),
+      ..._queue
+          .map((invite) => invite['messageId']?.toString() ?? '')
+          .where((id) => id.isNotEmpty),
+    };
     try {
       final invitations = await socket.getPendingGameInvitations();
-      if (!mounted || !identical(socket, _socket) || invitations.isEmpty) {
-        return;
+      if (!mounted || !identical(socket, _socket)) return;
+
+      // Expire any local overlay state before treating the server snapshot as
+      // authoritative. Invitations arriving after this request began survive.
+      _pruneExpiredInvitations();
+      final pendingById = <String, Map<String, dynamic>>{};
+      for (final invitation in invitations) {
+        final id = invitation['messageId']?.toString() ?? '';
+        if (id.isNotEmpty &&
+            !_resolvedIds.contains(id) &&
+            !_isInvitationExpired(invitation)) {
+          pendingById[id] = Map<String, dynamic>.from(invitation);
+        }
       }
-      // The invitations screen presents newest first. Keep the same order in
-      // the compact overlay, then let the user respond to each outstanding invite.
-      for (final invitation in invitations.reversed) {
-        if (!mounted || !identical(socket, _socket)) return;
-        _enqueueInvitation(invitation);
+
+      void preserveLiveArrival(Map<String, dynamic> invitation) {
+        final id = invitation['messageId']?.toString() ?? '';
+        if (id.isNotEmpty &&
+            !idsAtRequestStart.contains(id) &&
+            !_resolvedIds.contains(id) &&
+            !_isInvitationExpired(invitation)) {
+          pendingById[id] = Map<String, dynamic>.from(invitation);
+        }
       }
+
+      final activeAtResponse = _activeInvitation;
+      if (activeAtResponse != null) preserveLiveArrival(activeAtResponse);
+      for (final invitation in _queue) {
+        preserveLiveArrival(invitation);
+      }
+
+      final pendingInvitations = pendingById.values.toList()
+        ..sort((a, b) => (_invitationExpiryMillis(a) ?? 0)
+            .compareTo(_invitationExpiryMillis(b) ?? 0));
+      final pendingIds = pendingById.keys.toSet();
+
+      setState(() {
+        _queue.removeWhere(
+          (invitation) => !pendingIds.contains(
+            invitation['messageId']?.toString(),
+          ),
+        );
+
+        final activeId = _activeInvitation?['messageId']?.toString() ?? '';
+        if (activeId.isNotEmpty && !pendingIds.contains(activeId)) {
+          _activeInvitation = null;
+          _actionError = null;
+          _working = false;
+        }
+
+        // Restore newest invitations without duplicating a live arrival.
+        for (final invitation in pendingInvitations.reversed) {
+          final id = invitation['messageId']?.toString() ?? '';
+          if (id.isEmpty ||
+              _resolvedIds.contains(id) ||
+              _activeInvitation?['messageId']?.toString() == id ||
+              _queue.any((item) => item['messageId']?.toString() == id)) {
+            continue;
+          }
+          if (_rememberInvitationId(id)) {
+            _queue.addLast(Map<String, dynamic>.from(invitation));
+          }
+        }
+        _activateNext();
+      });
     } catch (_) {
       // A temporary reconnect must not disturb whichever screen is open.
     }
   }
 
   bool _rememberInvitationId(String id) {
-    if (id.isEmpty || !_seenIds.add(id)) return false;
+    if (id.isEmpty || _resolvedIds.contains(id) || !_seenIds.add(id)) return false;
     while (_seenIds.length > _maxRememberedInvitationIds) {
       _seenIds.remove(_seenIds.first);
     }
@@ -134,7 +234,12 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
 
   void _enqueueInvitation(Map<String, dynamic> invitation) {
     final id = invitation['messageId']?.toString() ?? '';
-    if (!mounted || !_rememberInvitationId(id)) return;
+    if (!mounted) return;
+    if (_isInvitationExpired(invitation)) {
+      _removeResolvedInvitation(id);
+      return;
+    }
+    if (!_rememberInvitationId(id)) return;
     setState(() {
       _queue.addLast(Map<String, dynamic>.from(invitation));
       _activateNext();
@@ -149,11 +254,22 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
   }
 
   void _expireInvitation(Map<String, dynamic> packet) {
-    final id = packet['messageId']?.toString() ?? '';
-    if (id.isEmpty || !mounted) return;
+    _removeResolvedInvitation(packet['messageId']?.toString() ?? '');
+  }
+
+  void _removeResolvedInvitation(String id) {
+    if (id.isEmpty) return;
+    _resolvedIds.add(id);
+    while (_resolvedIds.length > _maxRememberedInvitationIds) {
+      _resolvedIds.remove(_resolvedIds.first);
+    }
+    if (!mounted) return;
+    final isActive = _activeInvitation?['messageId']?.toString() == id;
+    final hasQueued = _queue.any((invite) => invite['messageId']?.toString() == id);
+    if (!isActive && !hasQueued) return;
     setState(() {
       _queue.removeWhere((invite) => invite['messageId']?.toString() == id);
-      if (_activeInvitation?['messageId']?.toString() == id) {
+      if (isActive) {
         _activeInvitation = null;
         _actionError = null;
         _working = false;
@@ -188,6 +304,7 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
     });
     try {
       await socket.rejectGameInvite(id);
+      socket.notifyGameInvitationResolved(id);
       if (mounted && _activeInvitation?['messageId']?.toString() == id) {
         _dismissActive();
       }
@@ -223,6 +340,7 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
     });
     try {
       await socket.acceptGameInvite(id);
+      socket.notifyGameInvitationResolved(id);
       if (!mounted) return;
       _dismissActive();
       FocusManager.instance.primaryFocus?.unfocus();
