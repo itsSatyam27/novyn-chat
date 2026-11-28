@@ -1,9 +1,45 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novyn/screens/games/home/games_screen.dart';
+import 'package:novyn/screens/games/shared/room/game_room_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  test('game room status reflects match and connection state', () {
+    expect(
+      resolveGameRoomStatusLabel(
+        isFinished: true,
+        isOfflineBot: true,
+        isConnected: false,
+      ),
+      'Finished',
+    );
+    expect(
+      resolveGameRoomStatusLabel(
+        isFinished: false,
+        isOfflineBot: true,
+        isConnected: false,
+      ),
+      'Practice',
+    );
+    expect(
+      resolveGameRoomStatusLabel(
+        isFinished: false,
+        isOfflineBot: false,
+        isConnected: false,
+      ),
+      'Offline',
+    );
+    expect(
+      resolveGameRoomStatusLabel(
+        isFinished: false,
+        isOfflineBot: false,
+        isConnected: true,
+      ),
+      'Live',
+    );
+  });
+
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   testWidgets('Games hub lists each game as its own entry point', (tester) async {
