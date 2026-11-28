@@ -724,23 +724,6 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
     return glyphs[piece] ?? '';
   }
 
-  Widget _pillAction(String label, IconData icon, Color foreground, Color panel, VoidCallback? action) =>
-    Expanded(child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 3),
-      child: OutlinedButton.icon(
-        onPressed: _busy ? null : action,
-        icon: Icon(icon, size: 14),
-        label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: foreground, backgroundColor: panel,
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-          side: BorderSide(color: foreground.withValues(alpha: .16)),
-          shape: const StadiumBorder(),
-        ),
-      ),
-    ));
-
   Future<void> _openMatchPanel() async {
     final screenSize = MediaQuery.sizeOf(context);
     final dialogWidth = math.min(screenSize.width * .76, 820.0).toDouble();
@@ -1317,6 +1300,52 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
             },
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _roundAction(
+    String label,
+    IconData icon,
+    Color foreground,
+    Color accent,
+    VoidCallback? action,
+  ) {
+    final enabled = action != null && !_busy;
+    return SizedBox(
+      width: 86,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Material(
+            color: accent.withValues(alpha: enabled ? .12 : .06),
+            shape: const CircleBorder(),
+            child: InkWell(
+              onTap: enabled ? action : null,
+              customBorder: const CircleBorder(),
+              child: SizedBox(
+                width: 58,
+                height: 58,
+                child: Icon(
+                  icon,
+                  size: 25,
+                  color: enabled ? accent : foreground.withValues(alpha: .4),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 7),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: foreground,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }
