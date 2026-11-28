@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../../../models/chat_models.dart';
 import '../../../../services/socket_service.dart';
 import '../../../../widgets/game_message_card.dart';
+import '../../chess/chess_game_screen.dart';
 
 String resolveGameRoomStatusLabel({
   required bool isFinished,
@@ -279,6 +280,18 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
         : isOfflineBot || socket.isConnected
             ? accent
             : colors.onSurfaceVariant;
+
+    if ((game ?? widget.initialGame)['gameType']?.toString() == 'chess') {
+      return ChessGameScreen(
+        currentUsername: widget.currentUsername,
+        initialGame: game ?? widget.initialGame,
+        messageId: widget.messageId,
+        peerUsername: widget.peerUsername,
+        randomSessionId: widget.randomSessionId,
+        opponentDisplayName: widget.opponentDisplayName,
+        isGroup: widget.isGroup,
+      );
+    }
 
     return PopScope<void>(
       canPop: _allowPop,
