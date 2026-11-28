@@ -165,6 +165,7 @@ class NovynApp extends StatelessWidget {
                 .contains(sender.trim().toLowerCase());
             return !preferences.notificationsOn ||
                 !preferences.inAppSounds ||
+                !preferences.notificationPreference('notificationSoundEnabled') ||
                 (preferences.doNotDisturbEnabled && !favorite);
           };
           socket.notificationsVibrate = ([String? sender]) async {
@@ -173,6 +174,7 @@ class NovynApp extends StatelessWidget {
                 .contains(sender.trim().toLowerCase());
             if (preferences.notificationsOn &&
                 preferences.inAppVibration &&
+                preferences.notificationPreference('notificationVibrationEnabled') &&
                 (!preferences.doNotDisturbEnabled || favorite)) {
               await HapticService.vibrateNotification();
             }
