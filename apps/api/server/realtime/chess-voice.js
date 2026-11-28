@@ -30,8 +30,13 @@ class ChessVoiceRegistry {
     const key = String(matchKey || "").trim();
     const user = String(userKey || "").trim().toLowerCase();
     const peer = String(peerKey || "").trim().toLowerCase();
-    if (!key || !user || !peer || user === peer) {
-      return { ok: false, message: "Invalid Chess voice match." };
+    if (!key || !key.startsWith("friend:") || !user || !peer || user === peer) {
+      return {
+        ok: false,
+        message: key.startsWith("random:")
+          ? "Chess voice is available only in friend matches."
+          : "Invalid Chess voice match.",
+      };
     }
 
     let session = this._byMatch.get(key);
