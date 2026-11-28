@@ -156,7 +156,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
   Future<void> _tapSquare(int index, List<String> board) async {
     if (!_myTurn || _busy || _finished) return;
     final piece = board[index];
-    final whiteToMove = _fen.split(' ').elementAtOrNull(1) != 'b';
+    final whiteToMove = (_fen.split(' ').length > 1 && _fen.split(' ')[1] != 'b');
     final owned = piece.isNotEmpty &&
         (whiteToMove ? _whitePieces.contains(piece) : _blackPieces.contains(piece));
     if (_selected == null) {
@@ -257,14 +257,9 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
   int _time(bool white) {
     final base = ((white ? _data['whiteTimeMs'] : _data['blackTimeMs']) as num?)?.toInt() ?? 300000;
     final whiteTurn = _fen.split(' ').elementAtOrNull(1) != 'b';
-    if (white != whiteTurn || _finished) return math.max(0, base);
+    if (white != whiteTurn || _finished) return math.max(0, base).toInt();
     final started = (_data['lastMoveAt'] as num?)?.toInt() ?? _now;
-    return math.max(0, base - math.max(0, _now - started));
-  }
-
-  String _clock(bool white) {
-    final total = (_time(white) / 1000).floor();
-    return total ~/ 60 .toString();
+    return math.max(0, base - math.max(0, _now - started)).toInt();
   }
 
   String _formatClock(bool white) {
@@ -575,7 +570,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
                 const SizedBox(width: 8),
                 Expanded(child: Column(children: [
                   Expanded(child: LayoutBuilder(builder: (context, boardConstraints) {
-                    final size = math.min(boardConstraints.maxWidth, boardConstraints.maxHeight);
+                    final size = math.min(boardConstraints.maxWidth, boardConstraints.maxHeight).toDouble();
                     return Center(child: SizedBox(width: size, height: size, child: _board(accent)));
                   })),
                   SizedBox(height: 36, child: Row(children: [
