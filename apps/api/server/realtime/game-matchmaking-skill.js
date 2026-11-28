@@ -80,7 +80,33 @@ function calculateMatchmakingSkill({ matches, gameType }) {
   };
 }
 
+async function loadMatchmakingSkill({ collection, userKey, gameType }) {
+  if (!collection || typeof collection.find !== "function") {
+    throw new TypeError("A game-history collection is required.");
+  }
+
+  const matches = await collection.find({
+    userKey: String(userKey || "").trim().toLowerCase(),
+    gameType: normalizeGameType(gameType),
+    source: "server",
+    isBotMatch: { $ne: true },
+  }, {
+    projection: {
+      _id: 0,
+      id: 1,
+      gameType: 1,
+      result: 1,
+      playedAt: 1,
+      source: 1,
+      isBotMatch: 1,
+    },
+  }).sort({ playedAt: -1 }).limit(MAX_MATCH_HISTORY).toArray();
+
+  return calculateMatchmakingSkill({ matches, gameType });
+}
+
 module.exports = {
   calculateMatchmakingSkill,
+  loadMatchmakingSkill,
   normalizeGameType,
 };
