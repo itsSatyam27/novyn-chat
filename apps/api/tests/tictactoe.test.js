@@ -245,6 +245,22 @@ test("Rock Paper Scissors handles best-of-three draws and rejects invalid or rep
 });
 
 
+test("a disconnected Rock Paper Scissors player can be forfeited only once", () => {
+  const start = createRpsGame();
+  const result = applyGameMove(start, "bob", { action: "leave_room" });
+  assert.equal(result.ok, true);
+  assert.equal(result.game.state, "finished");
+  assert.equal(result.game.winner, "Alice");
+  assert.equal(result.game.data.forfeitedBy, "bob");
+  assert.equal(result.game.data.rematch.status, "opponent_left");
+
+  const duplicateForfeit = applyGameMove(result.game, "bob", { action: "leave_room" });
+  assert.equal(duplicateForfeit.ok, true);
+  assert.equal(duplicateForfeit.game.winner, "Alice");
+  const outsider = applyGameMove(result.game, "mallory", { action: "leave_room" });
+  assert.equal(outsider.ok, false);
+});
+
 test("leaving a two-player Tic-Tac-Toe match awards the win to the remaining player", () => {
   const start = createFriendGame();
   const result = applyGameMove(start, "bob", { action: "leave_room" });
