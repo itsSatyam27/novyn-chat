@@ -156,9 +156,13 @@ function applyRps(game, userKey, moveData) {
   const p2Score = Math.max(0, Number(current.p2Score) || 0);
   const round = Math.max(1, Number(current.round) || 1);
   const currentRoundResolved = current.roundResolved === true;
+  const expectedRound = round + (currentRoundResolved ? 1 : 0);
+  if (!Number.isInteger(moveData.round) || moveData.round !== expectedRound) {
+    return { ok: false, reason: "This move belongs to an old or invalid round. Refresh the game and try again." };
+  }
 
-  // The first move after a revealed round opens the next round. This lets
-  // either player act first without relying on both clients to reset in sync.
+  // The first move after a revealed round opens the next round. The explicit
+  // round number makes a delayed retry from the previous round harmless.
   const base = currentRoundResolved
     ? {
         ...current,
@@ -312,7 +316,7 @@ function handleRematchAction(game, userKey, moveData) {
     };
   }
 
-  if (moveData.action === "rematch_decline" || moveData.action === "rematch_accept") {
+  if (moveData.action === "rematch_decline" || moveData.action === "rematch_accept" || moveData.action === "rematch") {
     const pending = current.rematch;
     const expiresAt = Number(pending?.expiresAt);
     if (pending?.status !== "pending" || !Number.isFinite(expiresAt) || expiresAt <= now) {
