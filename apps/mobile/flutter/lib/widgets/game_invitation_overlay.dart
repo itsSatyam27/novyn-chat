@@ -109,20 +109,47 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
   }
 
   Future<void> _loadPendingInvitations(SocketService socket) async {
+    final idsAtRequestStart = <String>{
+      if ((_activeInvitation?['messageId']?.toString() ?? '').isNotEmpty)
+        _activeInvitation!['messageId'].toString(),
+      ..._queue
+          .map((invite) => invite['messageId']?.toString() ?? '')
+          .where((id) => id.isNotEmpty),
+    };
     try {
       final invitations = await socket.getPendingGameInvitations();
       if (!mounted || !identical(socket, _socket)) return;
 
-      // The server is authoritative after reconnect: remove invitations that
-      // expired, were accepted on another device, or were cancelled while this
-      // client was offline. Keep still-pending cards and restore any missing ones.
-      final pendingInvitations = invitations
-          .where((invite) => !isGameInvitationExpired(invite))
-          .toList();
-      final pendingIds = pendingInvitations
-          .map((invite) => invite['messageId']?.toString() ?? '')
-          .where((id) => id.isNotEmpty)
-          .toSet();
+      // The server is authoritative for invitations that existed when the
+      // request began. Preserve any live invite delivered after that snapshot
+      // started so a concurrent arrival is not mistaken for stale server data.
+      final pendingById = <String, Map<String, dynamic>>{};
+      for (final invite in invitations) {
+        final id = invite['messageId']?.toString() ?? '';
+        if (id.isNotEmpty && !isGameInvitationExpired(invite)) {
+          pendingById[id] = invite;
+        }
+      }
+
+      void preserveLiveArrival(Map<String, dynamic> invite) {
+        final id = invite['messageId']?.toString() ?? '';
+        if (id.isNotEmpty &&
+            !idsAtRequestStart.contains(id) &&
+            !isGameInvitationExpired(invite)) {
+          pendingById[id] = invite;
+        }
+      }
+
+      final activeAtResponse = _activeInvitation;
+      if (activeAtResponse != null) preserveLiveArrival(activeAtResponse);
+      for (final invite in _queue) {
+        preserveLiveArrival(invite);
+      }
+
+      final pendingInvitations = pendingById.values.toList()
+        ..sort((a, b) => (gameInvitationExpiryTimestamp(a) ?? 0)
+            .compareTo(gameInvitationExpiryTimestamp(b) ?? 0));
+      final pendingIds = pendingById.keys.toSet();
 
       setState(() {
         _queue.removeWhere(
@@ -136,8 +163,7 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
           _working = false;
         }
 
-        // The invitations screen presents newest first. Restore in that order
-        // without duplicating an invite already active or queued from the live stream.
+        // Restore newest invitations first without duplicating a live arrival.
         for (final invitation in pendingInvitations.reversed) {
           final id = invitation['messageId']?.toString() ?? '';
           if (id.isEmpty ||
