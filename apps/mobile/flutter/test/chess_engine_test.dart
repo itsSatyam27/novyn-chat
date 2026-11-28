@@ -36,7 +36,7 @@ void main() {
     final enPassant = playLine(ChessEngine.startFen, [
       'e2e4', 'a7a6', 'e4e5', 'd7d5', 'e5d6',
     ]);
-    expect(enPassant.split(' ')[0], contains('3P4'));
+    expect(enPassant.split(' ')[0], contains('p2P4'));
 
     final promotion = ChessEngine.applyMove(
       '4k3/P7/8/8/8/8/8/4K3 w - - 0 1',
