@@ -1721,7 +1721,11 @@ async function restoreFinishedChatGameHistory() {
 }
 
 function persistRandomGameSession(sessionId, entry) {
-  if (!entry) return Promise.resolve();
+  if (!entry) return Promise.resolve(false);
+  // Extend the inactivity TTL after every accepted move or server-side
+  // forfeit, so a long but active match is not expired from its start time.
+  entry.expiresAt = Date.now() + RANDOM_GAME_SESSION_TTL_MS;
+  scheduleRandomSessionExpiry(sessionId, entry);
   return persistActiveGameSession("random", sessionId, {
     game: entry.game,
     players: entry.players,
@@ -1775,12 +1779,15 @@ function scheduleRandomGameDisconnectTimeout(sessionId, entry, disconnectedUserK
     if (!onlineOpponent) return;
 
     const previousGame = entry.game;
+    const previousExpiresAt = entry.expiresAt;
     const result = applyGameMove(previousGame, userKey, { action: "leave_room" });
     if (!result.ok) return;
     entry.game = result.game;
     const persisted = await persistRandomGameSession(sessionId, entry);
     if (!persisted) {
       entry.game = previousGame;
+      entry.expiresAt = previousExpiresAt;
+      scheduleRandomSessionExpiry(sessionId, entry);
       scheduleRandomGameDisconnectTimeout(sessionId, entry, userKey);
       return;
     }
@@ -8230,6 +8237,7 @@ io.on("connection", (socket) => {
     }
 
     const previousGame = session.game;
+    const previousExpiresAt = session.expiresAt;
     const result = applyGameMove(previousGame, userKey, payload?.moveData);
     if (!result.ok) {
       return respond({ ok: false, message: result.reason || "Invalid game move." });
@@ -8241,6 +8249,13 @@ io.on("connection", (socket) => {
     const persisted = await persistRandomGameSession(sessionId, session);
     if (!persisted) {
       session.game = previousGame;
+      session.expiresAt = previousExpiresAt;
+      scheduleRandomSessionExpiry(sessionId, session);
+      for (const playerKey of session.players) {
+        if (!onlineUsers.has(playerKey)) {
+          scheduleRandomGameDisconnectTimeout(sessionId, session, playerKey);
+        }
+      }
       return respond({
         ok: false,
         message: "Could not save this move. Please retry when the connection is stable.",
