@@ -18,6 +18,7 @@ void main() {
           reason: key,
         );
       }
+      expect(settings.gameTurnDelivery, 'in_app');
       expect(settings.quietHoursStart, '22:00');
       expect(settings.quietHoursEnd, '07:00');
     });
@@ -30,6 +31,7 @@ void main() {
 
       await settings.setNotificationPreference('groupMessagesEnabled', false);
       await settings.setNotificationPreference('quietHoursEnabled', true);
+      await settings.setGameTurnDelivery('push');
       await settings.setQuietHoursSchedule(
         start: '23:15',
         end: '06:45',
@@ -41,6 +43,7 @@ void main() {
 
       expect(restored.notificationPreference('groupMessagesEnabled'), isFalse);
       expect(restored.notificationPreference('quietHoursEnabled'), isTrue);
+      expect(restored.gameTurnDelivery, 'push');
       expect(restored.quietHoursStart, '23:15');
       expect(restored.quietHoursEnd, '06:45');
       expect(restored.quietHoursOffsetMinutes, 330);
@@ -48,6 +51,25 @@ void main() {
         restored.notificationPreferencesPayload()['quietHoursOffsetMinutes'],
         330,
       );
+    });
+
+    test('server notification preferences hydrate the game-turn delivery mode', () async {
+      SharedPreferences.setMockInitialValues({});
+      final settings = SettingsService();
+      await settings.load();
+      await settings.hydrateNotificationPreferencesFromServer({
+        'gameTurnDelivery': 'off',
+        'gameTurnEnabled': false,
+      });
+      expect(settings.gameTurnDelivery, 'off');
+      expect(settings.notificationPreferencesPayload()['gameTurnDelivery'], 'off');
+    });
+
+    test('game-turn delivery rejects unsupported values', () async {
+      SharedPreferences.setMockInitialValues({});
+      final settings = SettingsService();
+      await settings.load();
+      await expectLater(settings.setGameTurnDelivery('later'), throwsArgumentError);
     });
 
     test('quiet hours rejects invalid time values', () async {

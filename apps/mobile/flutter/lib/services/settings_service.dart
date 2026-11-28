@@ -198,6 +198,7 @@ class SettingsService extends ChangeNotifier {
   String _quietHoursStart = '22:00';
   String _quietHoursEnd = '07:00';
   int _quietHoursOffsetMinutes = 0;
+  String _gameTurnDelivery = 'in_app';
   String _autoDownloadWifi = 'all'; // 'all', 'photos', 'none'
   String _autoDownloadMobile = 'photos'; // 'all', 'photos', 'none'
   String _photoQuality = 'high'; // 'high', 'medium', 'low'
@@ -362,6 +363,7 @@ class SettingsService extends ChangeNotifier {
       _notificationPreferences[key] ?? notificationPreferenceDefaults[key] ?? false;
   Map<String, dynamic> notificationPreferencesPayload() => {
     ..._notificationPreferences,
+    'gameTurnDelivery': _gameTurnDelivery,
     'quietHoursStart': _quietHoursStart,
     'quietHoursEnd': _quietHoursEnd,
     'quietHoursOffsetMinutes': _quietHoursOffsetMinutes,
@@ -369,6 +371,7 @@ class SettingsService extends ChangeNotifier {
   String get quietHoursStart => _quietHoursStart;
   String get quietHoursEnd => _quietHoursEnd;
   int get quietHoursOffsetMinutes => _quietHoursOffsetMinutes;
+  String get gameTurnDelivery => _gameTurnDelivery;
 
   Future<void> setNotificationPreference(String key, bool value) async {
     final storageKey = notificationPreferenceStorageKeys[key];
@@ -377,6 +380,20 @@ class SettingsService extends ChangeNotifier {
     }
     _notificationPreferences[key] = value;
     await _prefs.setBool(storageKey, value);
+    notifyListeners();
+  }
+
+  Future<void> setGameTurnDelivery(String value) async {
+    const supported = {'in_app', 'push', 'off'};
+    if (!supported.contains(value)) {
+      throw ArgumentError.value(value, 'value', 'Unsupported game-turn delivery mode');
+    }
+    _gameTurnDelivery = value;
+    _notificationPreferences['gameTurnEnabled'] = value != 'off';
+    await Future.wait([
+      _prefs.setString('notification_game_turn_delivery', value),
+      _prefs.setBool('notification_game_turn', value != 'off'),
+    ]);
     notifyListeners();
   }
 
@@ -400,6 +417,14 @@ class SettingsService extends ChangeNotifier {
         await _prefs.setBool(entry.value, value);
         changed = true;
       }
+    }
+    final delivery = values['gameTurnDelivery'];
+    if (delivery is String && const {'in_app', 'push', 'off'}.contains(delivery)) {
+      _gameTurnDelivery = delivery;
+      _notificationPreferences['gameTurnEnabled'] = delivery != 'off';
+      await _prefs.setString('notification_game_turn_delivery', delivery);
+      await _prefs.setBool('notification_game_turn', delivery != 'off');
+      changed = true;
     }
     final start = values['quietHoursStart'];
     final end = values['quietHoursEnd'];
@@ -711,6 +736,17 @@ class SettingsService extends ChangeNotifier {
       _notificationPreferences[entry.key] =
           _prefs.getBool(entry.value) ?? notificationPreferenceDefaults[entry.key]!;
     }
+    final savedGameTurnDelivery = _prefs.getString('notification_game_turn_delivery');
+    if (const {'in_app', 'push', 'off'}.contains(savedGameTurnDelivery)) {
+      _gameTurnDelivery = savedGameTurnDelivery!;
+    } else {
+      // Migrate the former boolean toggle: enabled now defaults to in-app only.
+      _gameTurnDelivery = _prefs.getBool('notification_game_turn') == false
+          ? 'off'
+          : 'in_app';
+      await _prefs.setString('notification_game_turn_delivery', _gameTurnDelivery);
+    }
+    _notificationPreferences['gameTurnEnabled'] = _gameTurnDelivery != 'off';
     _quietHoursStart = _prefs.getString(_kQuietHoursStart) ?? '22:00';
     _quietHoursEnd = _prefs.getString(_kQuietHoursEnd) ?? '07:00';
     _quietHoursOffsetMinutes = (_prefs.getInt(_kQuietHoursOffsetMinutes) ??

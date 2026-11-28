@@ -88,6 +88,7 @@ bool _canDisplayNotification(
   String type, {
   bool isGroup = false,
   bool mentionOrReply = false,
+  bool forPush = true,
 }) {
   if (!(prefs.getBool('notifications_on') ?? true)) return false;
   switch (type) {
@@ -116,7 +117,9 @@ bool _canDisplayNotification(
       if (!_preferenceEnabled(prefs, 'notification_game_invitations')) return false;
       break;
     case 'game_turn':
-      if (!_preferenceEnabled(prefs, 'notification_game_turn')) return false;
+      final delivery = prefs.getString('notification_game_turn_delivery') ??
+          (_preferenceEnabled(prefs, 'notification_game_turn') ? 'push' : 'off');
+      if (forPush ? delivery != 'push' : delivery == 'off') return false;
       break;
     case 'game_result':
       if (!_preferenceEnabled(prefs, 'notification_game_results')) return false;
@@ -677,6 +680,31 @@ class NotificationService {
     );
   }
 
+  static Future<void> showInAppGameTurn(
+    Map<String, dynamic> data,
+    BuildContext context,
+  ) async {
+    if (!context.mounted) return;
+    final chatId = data['chat']?.toString().trim() ?? '';
+    if (chatId.isEmpty) return;
+    final rawGame = data['game'];
+    final gameTitle = (data['gameTitle'] ??
+            (rawGame is Map ? rawGame['title'] : null))
+        ?.toString()
+        .trim();
+    final body = gameTitle == null || gameTitle.isEmpty
+        ? "It's your turn in a Novyn game"
+        : "It's your turn in $gameTitle";
+    await showInAppMessage(
+      chatId,
+      body,
+      context,
+      isGroup: data['group'] == true || data['kind']?.toString() == 'group',
+      notificationType: 'game_turn',
+      titleOverride: 'Your turn',
+    );
+  }
+
   static Future<void> showGameNotification(Map<String, dynamic> data) async {
     final type = data['type']?.toString() ?? '';
     if (!const {'game_invitation', 'game_turn', 'game_result'}.contains(type)) return;
@@ -1167,6 +1195,7 @@ class NotificationService {
           settings.notificationPreference(entry.key),
         );
       }
+      await prefs.setString('notification_game_turn_delivery', settings.gameTurnDelivery);
       await prefs.setString('notification_quiet_hours_start', settings.quietHoursStart);
       await prefs.setString('notification_quiet_hours_end', settings.quietHoursEnd);
       await prefs.setInt(
@@ -1349,6 +1378,8 @@ class NotificationService {
     BuildContext context, {
     bool isGroup = false,
     bool mentionOrReply = false,
+    String notificationType = 'message',
+    String? titleOverride,
   }) async {
     final preferences = await SharedPreferences.getInstance();
     await preferences.reload();
@@ -1359,9 +1390,10 @@ class NotificationService {
     final chatKey = username.trim().toLowerCase();
     if (!_canDisplayNotification(
       preferences,
-      'message',
+      notificationType,
       isGroup: isGroup,
       mentionOrReply: mentionOrReply,
+      forPush: false,
     ) || preferences.getBool('novyn_mute_' + chatKey) == true) return;
     // Keep the host screen context for navigation. The banner's animated
     // builder context is disposed as soon as the overlay entry is removed.
@@ -1379,9 +1411,11 @@ class NotificationService {
       return;
     }
 
-    final preview = settings.messagePreview && !settings.hideNotificationContent
+    final preview = notificationType == 'game_turn'
         ? messageBody.trim()
-        : (isGroup ? 'New group message' : 'You have a new message');
+        : settings.messagePreview && !settings.hideNotificationContent
+            ? messageBody.trim()
+            : (isGroup ? 'New group message' : 'You have a new message');
     final senderProfile = isGroup ? null : _socket?.contacts.findUser(username);
     String? groupTitle;
     if (isGroup) {
@@ -1393,11 +1427,11 @@ class NotificationService {
         }
       }
     }
-    final title = isGroup
+    final title = titleOverride ?? (isGroup
         ? (groupTitle?.isNotEmpty == true ? groupTitle! : 'Group message')
         : (senderProfile?.name.trim().isNotEmpty == true
             ? senderProfile!.name.trim()
-            : username);
+            : username));
     // Foreground messages use only this branded in-app banner. The operating
     // system notification is reserved for background/terminated delivery.
     _inAppBannerTimer?.cancel();
@@ -1537,6 +1571,9 @@ class NotificationService {
       );
       _inAppBannerEntry = entry;
       overlay.insert(entry);
+      if (notificationType == 'game_turn') {
+        _socket?.playIncomingNotificationFeedback(chatKey);
+      }
       _inAppBannerTimer = Timer(const Duration(seconds: 3), () {
         if (_inAppBannerEntry == entry) {
           entry.remove();
@@ -1730,6 +1767,18 @@ class NotificationService {
     _presenceAuth!.addListener(_syncPresentation);
     _syncPresentation();
     await _initializeLocalNotifications(context);
+    _socket!.onGameMoveUpdated = (data) {
+      if (!context.mounted ||
+          WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
+        return;
+      }
+      final rawGame = data['game'];
+      if (rawGame is! Map || rawGame['state']?.toString() == 'finished') return;
+      final nextTurn = rawGame['turn']?.toString().trim().toLowerCase() ?? '';
+      final account = _socket?.myUsername?.trim().toLowerCase() ?? '';
+      if (account.isEmpty || nextTurn != account) return;
+      unawaited(showInAppGameTurn(Map<String, dynamic>.from(data), context));
+    };
     _socket!.onIncomingMessage = (
       username,
       body,
@@ -1915,6 +1964,7 @@ class NotificationService {
     }
     if (_socket != null) {
       _socket!.onIncomingMessage = null;
+      _socket!.onGameMoveUpdated = null;
       _socket!.onCallInviteCallback = null;
       _socket!.onAuthenticated = null;
     }
@@ -1949,7 +1999,19 @@ class NotificationService {
   static void _handleForegroundMessage(
       RemoteMessage message, BuildContext context) {
     final type = message.data['type'];
-    if (type == 'game_invitation' || type == 'game_turn' || type == 'game_result') {
+    if (type == 'game_turn') {
+      final account = (_presenceAuth?.user?.username ?? _activeUsername ?? '')
+          .trim()
+          .toLowerCase();
+      final recipient = message.data['recipient']?.toString().trim().toLowerCase() ?? '';
+      if (account.isEmpty || (recipient.isNotEmpty && recipient != account)) return;
+      if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed &&
+          _socket?.isConnected != true) {
+        unawaited(showInAppGameTurn(message.data, context));
+      }
+      return;
+    }
+    if (type == 'game_invitation' || type == 'game_result') {
       unawaited(showGameNotification(message.data));
       return;
     }

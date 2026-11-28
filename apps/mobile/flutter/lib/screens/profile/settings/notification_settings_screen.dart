@@ -82,6 +82,32 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
     );
   }
 
+  Future<void> _saveGameTurnDelivery(String value) async {
+    const key = 'gameTurnDelivery';
+    if (_savingKeys.contains(key)) return;
+    setState(() => _savingKeys.add(key));
+    try {
+      final result = await context.read<SocketService>().updateAccountSettings({
+        'gameTurnDelivery': value,
+        'gameTurnEnabled': value != 'off',
+      });
+      if (result['ok'] != true) {
+        throw StateError(
+          result['message']?.toString() ?? 'Your Turn setting was not saved.',
+        );
+      }
+      await context.read<SettingsService>().setGameTurnDelivery(value);
+    } catch (error) {
+      if (mounted) {
+        context.showNovynAlert(
+          SnackBar(content: Text('Could not save Your Turn setting: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _savingKeys.remove(key));
+    }
+  }
+
   Future<void> _pickQuietHours(bool isStart) async {
     final settings = context.read<SettingsService>();
     final current = isStart ? settings.quietHoursStart : settings.quietHoursEnd;
@@ -344,12 +370,11 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
                 iconBgColor: isDark ? const Color(0xFF381F2E) : const Color(0xFFFDE8F1),
                 title: 'Game invitations',
               ),
-              toggle(
-                key: 'gameTurnEnabled',
-                icon: Icons.play_arrow_rounded,
-                iconColor: green,
-                iconBgColor: isDark ? const Color(0xFF1A3327) : const Color(0xFFE2F7ED),
-                title: 'Your turn',
+              _GameTurnDeliveryRow(
+                value: settings.gameTurnDelivery,
+                enabled: enabled,
+                saving: _savingKeys.contains('gameTurnDelivery'),
+                onChanged: _saveGameTurnDelivery,
               ),
               toggle(
                 key: 'gameResultsEnabled',
@@ -623,6 +648,101 @@ class _NotificationToggleRow extends StatelessWidget {
             },
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _GameTurnDeliveryRow extends StatelessWidget {
+  final String value;
+  final bool enabled;
+  final bool saving;
+  final ValueChanged<String> onChanged;
+
+  const _GameTurnDeliveryRow({
+    required this.value,
+    required this.enabled,
+    required this.saving,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final ink = dark ? Colors.white : const Color(0xFF1A1730);
+    final primary = Theme.of(context).colorScheme.primary;
+    const choices = <(String, String)>[
+      ('in_app', 'In-App'),
+      ('push', 'Push + App'),
+      ('off', 'Off'),
+    ];
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 180),
+      opacity: enabled ? 1 : .45,
+      child: IgnorePointer(
+        ignoring: !enabled || saving,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 13, 16, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: dark ? const Color(0xFF1A3327) : const Color(0xFFE2F7ED),
+                      borderRadius: BorderRadius.circular(13),
+                    ),
+                    child: const Icon(Icons.play_arrow_rounded, color: Color(0xFF10B981), size: 21),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Your turn', style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600, color: ink, letterSpacing: -.2)),
+                        const SizedBox(height: 2),
+                        Text('Choose how game-turn reminders reach you', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                      ],
+                    ),
+                  ),
+                  if (saving)
+                    const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  for (final choice in choices) ...[
+                    Expanded(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () {
+                          HapticService.vibrate(NovynHapticType.selection);
+                          if (choice.$1 != value) onChanged(choice.$1);
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 160),
+                          alignment: Alignment.center,
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: value == choice.$1 ? primary.withValues(alpha: dark ? .24 : .10) : (dark ? const Color(0xFF28253E) : const Color(0xFFF5F2FA)),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: value == choice.$1 ? primary : (dark ? const Color(0xFF37334F) : const Color(0xFFEDE9F6))),
+                          ),
+                          child: Text(choice.$2, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, fontWeight: value == choice.$1 ? FontWeight.w700 : FontWeight.w500, color: value == choice.$1 ? primary : Theme.of(context).colorScheme.onSurfaceVariant)),
+                        ),
+                      ),
+                    ),
+                    if (choice != choices.last) const SizedBox(width: 7),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

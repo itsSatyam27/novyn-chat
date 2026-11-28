@@ -3398,7 +3398,14 @@ function toSerializedUserEntry(doc) {
     videoCallsEnabled: doc?.videoCallsEnabled !== false,
     missedCallsEnabled: doc?.missedCallsEnabled !== false,
     gameInvitationsEnabled: doc?.gameInvitationsEnabled !== false,
-    gameTurnEnabled: doc?.gameTurnEnabled !== false,
+    gameTurnEnabled: doc?.gameTurnDelivery === 'off'
+      ? false
+      : doc?.gameTurnDelivery === 'in_app' || doc?.gameTurnDelivery === 'push'
+        ? true
+        : doc?.gameTurnEnabled !== false,
+    gameTurnDelivery: ['in_app', 'push', 'off'].includes(doc?.gameTurnDelivery)
+      ? doc.gameTurnDelivery
+      : doc?.gameTurnEnabled === false ? 'off' : 'in_app',
     gameResultsEnabled: doc?.gameResultsEnabled !== false,
     quietHoursEnabled: doc?.quietHoursEnabled === true,
     quietHoursStart: doc?.quietHoursStart || "22:00",
@@ -8481,7 +8488,14 @@ io.on("connection", (socket) => {
         videoCallsEnabled: user.videoCallsEnabled !== false,
         missedCallsEnabled: user.missedCallsEnabled !== false,
         gameInvitationsEnabled: user.gameInvitationsEnabled !== false,
-        gameTurnEnabled: user.gameTurnEnabled !== false,
+        gameTurnEnabled: user.gameTurnDelivery === 'off'
+          ? false
+          : user.gameTurnDelivery === 'in_app' || user.gameTurnDelivery === 'push'
+            ? true
+            : user.gameTurnEnabled !== false,
+        gameTurnDelivery: ['in_app', 'push', 'off'].includes(user.gameTurnDelivery)
+          ? user.gameTurnDelivery
+          : user.gameTurnEnabled === false ? 'off' : 'in_app',
         gameResultsEnabled: user.gameResultsEnabled !== false,
         quietHoursEnabled: user.quietHoursEnabled === true,
         quietHoursStart: user.quietHoursStart || "22:00",
@@ -8548,6 +8562,10 @@ io.on("connection", (socket) => {
     ];
     for (const key of notificationBooleanKeys) {
       if (typeof payload?.[key] === "boolean") user[key] = payload[key];
+    }
+    if (["in_app", "push", "off"].includes(payload?.gameTurnDelivery)) {
+      user.gameTurnDelivery = payload.gameTurnDelivery;
+      user.gameTurnEnabled = payload.gameTurnDelivery !== "off";
     }
     if (typeof payload?.quietHoursStart === "string" &&
         /^([01]\d|2[0-3]):[0-5]\d$/.test(payload.quietHoursStart)) user.quietHoursStart = payload.quietHoursStart;
@@ -9786,6 +9804,10 @@ io.on("connection", (socket) => {
       updatedBy: userKey,
       to: resolvedTarget.targetKey,
       from: userKey,
+      chat: isGroup ? resolvedTarget.group.id : (users.get(userKey)?.username || userKey),
+      group: isGroup,
+      groupId: isGroup ? resolvedTarget.group.id : undefined,
+      gameTitle: updatedGame.title || "Novyn game",
     };
 
     socket.emit("game_move_updated", packet);
