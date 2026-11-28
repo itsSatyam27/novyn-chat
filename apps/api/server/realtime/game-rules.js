@@ -316,6 +316,33 @@ function handleRematchAction(game, userKey, moveData) {
     };
   }
 
+  if (moveData.action === "rematch_cancel") {
+    const pending = current.rematch;
+    const expiresAt = Number(pending?.expiresAt);
+    if (pending?.status !== "pending" || !Number.isFinite(expiresAt) || expiresAt <= now) {
+      return { ok: false, reason: "The rematch request has expired or is no longer available." };
+    }
+    if (!sameUser(pending.requestedBy, userKey)) {
+      return { ok: false, reason: "Only the player who requested the rematch can cancel it." };
+    }
+    return {
+      ok: true,
+      game: {
+        ...game,
+        data: {
+          ...current,
+          rematch: {
+            ...pending,
+            status: "cancelled",
+            cancelledBy: String(userKey || "").trim().toLowerCase(),
+            cancelledAt: now,
+          },
+        },
+        updatedAt: now,
+      },
+    };
+  }
+
   if (moveData.action === "rematch_decline" || moveData.action === "rematch_accept" || moveData.action === "rematch") {
     const pending = current.rematch;
     const expiresAt = Number(pending?.expiresAt);
@@ -422,6 +449,7 @@ function applyGameMove(game, userKey, moveData) {
     moveData.action === "rematch_request" ||
     moveData.action === "rematch_accept" ||
     moveData.action === "rematch_decline" ||
+    moveData.action === "rematch_cancel" ||
     moveData.action === "leave_room"
   ) {
     return handleRematchAction(game, userKey, moveData);
