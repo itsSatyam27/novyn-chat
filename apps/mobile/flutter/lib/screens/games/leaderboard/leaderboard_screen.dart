@@ -356,6 +356,7 @@ class _LeaderboardPlayerTile extends StatelessWidget {
     final matches = _number('matches');
     final wins = _number('wins');
     final winRate = _number('winRate');
+    final currentStreak = _number('currentStreak');
     final rankColor = rank == 1
         ? const Color(0xFFFFC857)
         : rank == 2
@@ -446,7 +447,7 @@ class _LeaderboardPlayerTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  '@$username · $matches matches · $wins wins · $winRate% win rate',
+                  '@$username · $matches matches · $wins wins · $winRate% win rate\${currentStreak >= 2 ? ' · 🔥 $currentStreak streak' : ''}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
