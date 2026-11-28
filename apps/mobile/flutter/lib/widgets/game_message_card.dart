@@ -481,6 +481,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
         opponentName: widget.opponentDisplayName ?? widget.peerUsername,
         sendingMove: _sendingMove,
         startingRematch: _startingRematch,
+        isOfflineBot: _isOfflineBot,
         onSendMove: (move) => _move({
           'move': move,
           'round': (int.tryParse(_data['round']?.toString() ?? '') ?? 1) +
@@ -576,14 +577,20 @@ class _GameMessageCardState extends State<GameMessageCard> {
     if (_startingRematch) return;
     setState(() => _startingRematch = true);
     try {
-      final socket = context.read<SocketService>();
-      await socket.makeGameMove(
-        widget.messageId,
-        widget.peerUsername,
-        {'action': 'rematch_accept'},
-        isGroup: widget.isGroup,
-      );
-    } catch (_) {
+      await _sendRematchAction('rematch_request');
+    } catch (error) {
+      if (mounted) {
+        NovynAlert.show(
+          context,
+          error is StateError
+              ? error.message.toString()
+              : 'Could not request a rematch. Check your connection and try again.',
+          isError: true,
+          title: 'Rematch unavailable',
+          icon: Icons.sync_problem_rounded,
+          tone: NovynAlertTone.warning,
+        );
+      }
     } finally {
       if (mounted) setState(() => _startingRematch = false);
     }
@@ -596,15 +603,22 @@ class _GameMessageCardState extends State<GameMessageCard> {
       }
       return;
     }
+    final socket = context.read<SocketService>();
     try {
-      final socket = context.read<SocketService>();
-      await socket.makeGameMove(
-        widget.messageId,
-        widget.peerUsername,
-        {'action': action},
-        isGroup: widget.isGroup,
-      );
-    } catch (_) {}
+      final randomSessionId = widget.randomSessionId;
+      if (randomSessionId != null && randomSessionId.isNotEmpty) {
+        await socket.moveRandomGame(randomSessionId, {'action': action});
+      } else {
+        await socket.makeGameMove(
+          widget.messageId,
+          widget.peerUsername,
+          {'action': action},
+          isGroup: widget.isGroup,
+        );
+      }
+    } catch (_) {
+      if (action != 'leave_room') rethrow;
+    }
   }
 }
 
@@ -1900,6 +1914,7 @@ class _RockPaperScissorsPanel extends StatefulWidget {
     required this.opponentName,
     required this.sendingMove,
     required this.startingRematch,
+    required this.isOfflineBot,
     required this.onSendMove,
     required this.onPlayAgain,
     this.onRematchAction,
@@ -1911,6 +1926,7 @@ class _RockPaperScissorsPanel extends StatefulWidget {
   final String opponentName;
   final bool sendingMove;
   final bool startingRematch;
+  final bool isOfflineBot;
   final Future<bool> Function(String move) onSendMove;
   final Future<void> Function() onPlayAgain;
   final Future<void> Function(String action)? onRematchAction;
@@ -2164,6 +2180,7 @@ class _RockPaperScissorsPanelState extends State<_RockPaperScissorsPanel> with S
       isOpponentRequest: isOpponentRequest,
       playerLeft: playerLeft,
       opponentName: _opponentFullName,
+      isOfflineBot: widget.isOfflineBot,
     );
   }
 
