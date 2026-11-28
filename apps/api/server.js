@@ -7823,10 +7823,16 @@ io.on("connection", (socket) => {
   socket.on("cancel_random_game", (payload, callback) => {
     const respond = typeof callback === "function" ? callback : () => {};
     const userKey = normalizeName(socket.data.userKey || "");
-    if (!userKey) return respond({ ok: false, message: "Please sign in again." });
+    if (!userKey || onlineUsers.get(userKey) !== socket.id) {
+      return respond({ ok: false, message: "Reconnect before cancelling matchmaking." });
+    }
     const pending = pendingRandomMatchmakingLookups.get(userKey);
-    if (pending?.socketId === socket.id) pendingRandomMatchmakingLookups.delete(userKey);
-    return respond({ ok: true, cancelled: publicGameMatchmaking.cancel(userKey) || Boolean(pending) });
+    const cancelledPending = pending?.socketId === socket.id;
+    if (cancelledPending) pendingRandomMatchmakingLookups.delete(userKey);
+    return respond({
+      ok: true,
+      cancelled: publicGameMatchmaking.cancel(userKey) || cancelledPending,
+    });
   });
 
   socket.on("join_rajamantri_matchmaking", async (payload, callback) => {
