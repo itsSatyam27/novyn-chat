@@ -499,6 +499,19 @@ function applyChess(game, userKey, moveData) {
     },
   });
 
+  if (moveData.action === "start_clock") {
+    const startedAt = Number(current.lastMoveAt) || 0;
+    if (startedAt > 0) return { ok: true, game };
+    return {
+      ok: true,
+      game: {
+        ...game,
+        data: { ...current, lastMoveAt: now },
+        updatedAt: now,
+      },
+    };
+  }
+
   if (moveData.action === "resign") {
     return finish(actor === white ? black : white, "resignation");
   }
