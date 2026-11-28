@@ -18,11 +18,11 @@ jobs:
           SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NOVYN_CHAT_APP }}
         run: |
           if [ -z "$SA_JSON" ]; then
-            echo "::error::Secret FIREBASE_SERVICE_ACCOUNT_NOVYN_CHAT_APP is not set. Add it in repo Settings → Secrets → Actions."
+            echo "::error::Secret FIREBASE_SERVICE_ACCOUNT_NOVYN_CHAT_APP is not set."
             exit 1
           fi
           echo "$SA_JSON" | python3 -m json.tool > /dev/null || {
-            echo "::error::Secret FIREBASE_SERVICE_ACCOUNT_NOVYN_CHAT_APP is not valid JSON. Re-generate the service account key from Firebase Console."
+            echo "::error::Firebase service account secret is not valid JSON."
             exit 1
           }
 
@@ -33,10 +33,20 @@ jobs:
 
       - run: npm ci && npm run build
 
-      - name: Deploy Firebase preview (non-blocking on Hosting quota limits)
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        continue-on-error: true
-        with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NOVYN_CHAT_APP }}
-          projectId: novyn-chat-app
+      # The Firebase Hosting preview-channel quota can be exhausted. Treat that
+      # specific platform limitation as a warning, while failing other deploy errors.
+      - name: Deploy Firebase preview (quota-aware)
+        env:
+          SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NOVYN_CHAT_APP }}
+        run: |
+          echo "$SA_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-service-account.json"
+          npx --yes firebase-tools hosting:channel:deploy "pr${{ github.event.pull_request.number }}" --expires 7d --project novyn-chat-app --debug > "$RUNNER_TEMP/firebase-deploy.log" 2>&1 || {
+            if grep -Eqi 'channel quota reached|RESOURCE_EXHAUSTED|HTTP Error: 429' "$RUNNER_TEMP/firebase-deploy.log"; then
+              echo "::warning::Firebase Hosting preview channel quota is exhausted; build passed but preview was not deployed."
+              tail -n 30 "$RUNNER_TEMP/firebase-deploy.log"
+            else
+              cat "$RUNNER_TEMP/firebase-deploy.log"
+              exit 1
+            fi
+          }

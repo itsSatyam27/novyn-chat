@@ -16,8 +16,6 @@ import '../shared/lobby/game_lobby_screen.dart';
 import '../raja_mantri/raja_mantri_lobby_screen.dart';
 import '../leaderboard/leaderboard_screen.dart';
 import '../invitations/game_invitations_screen.dart';
-import '../shared/room/game_room_screen.dart';
-import '../raja_mantri/raja_mantri_online_game_screen.dart';
 
 class GamesScreen extends StatefulWidget {
   const GamesScreen({super.key});
@@ -41,9 +39,8 @@ class _GamesScreenState extends State<GamesScreen> {
   double _prevBottomInset = 0;
   SocketService? _invitationSocket;
   int _pendingInviteCount = 0;
-  bool _showingInvitePopup = false;
   bool _wasSocketConnected = false;
-  final Set<String> _shownInvitationIds = <String>{};
+  final Set<String> _countedInvitationIds = <String>{};
 
   static const List<_GameOption> _games = <_GameOption>[
     _GameOption(
@@ -76,7 +73,7 @@ class _GamesScreenState extends State<GamesScreen> {
     unawaited(_loadLastPlayed());
     GameHistoryService.revision.addListener(_onGameHistoryChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _loadPendingInvitations(showLatest: true);
+      if (mounted) _loadPendingInvitations();
     });
   }
 
@@ -97,20 +94,13 @@ class _GamesScreenState extends State<GamesScreen> {
     }
   }
 
-  Future<void> _loadPendingInvitations({bool showLatest = false}) async {
+  Future<void> _loadPendingInvitations() async {
     final socket = _invitationSocket;
     if (socket == null || !socket.isConnected) return;
     try {
       final invitations = await socket.getPendingGameInvitations();
       if (!mounted) return;
       setState(() => _pendingInviteCount = invitations.length);
-      if (showLatest && invitations.isNotEmpty) {
-        final latest = invitations.last;
-        final id = latest['messageId']?.toString() ?? '';
-        if (id.isNotEmpty && !_shownInvitationIds.contains(id)) {
-          _showIncomingInvitation(latest);
-        }
-      }
     } catch (_) {
       // A transient socket reconnect must not block the Games screen.
     }
@@ -118,87 +108,9 @@ class _GamesScreenState extends State<GamesScreen> {
 
   void _handleIncomingGameInvitation(Map invitation) {
     if (!mounted) return;
-    final packet = Map<String, dynamic>.from(invitation);
-    final id = packet['messageId']?.toString() ?? '';
-    if (id.isEmpty) return;
-    setState(() => _pendingInviteCount++);
-    _showIncomingInvitation(packet);
-  }
-
-  Future<void> _showIncomingInvitation(Map<String, dynamic> invitation) async {
     final id = invitation['messageId']?.toString() ?? '';
-    final socket = _invitationSocket;
-    if (!mounted || id.isEmpty || socket == null || !socket.isConnected ||
-        _showingInvitePopup || _shownInvitationIds.contains(id)) return;
-    final route = ModalRoute.of(context);
-    if (route != null && !route.isCurrent) return;
-    _shownInvitationIds.add(id);
-    _showingInvitePopup = true;
-    await showModalBottomSheet<void>(
-      context: context,
-      useSafeArea: true,
-      isScrollControlled: false,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) => _IncomingGameInviteSheet(
-        invitation: invitation,
-        onAccept: () async {
-          try {
-            await socket.acceptGameInvite(id);
-            if (!mounted) return;
-            Navigator.of(sheetContext).pop();
-            _showingInvitePopup = false;
-            if (invitation['gameType']?.toString() == 'rajamantri') {
-              await Navigator.of(context).push<void>(
-                MaterialPageRoute<void>(
-                  builder: (_) => RajaMantriInviteWaitingScreen(
-                    messageId: id,
-                    hostName: invitation['displayName']?.toString() ??
-                        invitation['from']?.toString() ?? 'Friend',
-                  ),
-                ),
-              );
-            } else if (invitation['game'] is Map) {
-              await Navigator.of(context).push<void>(
-                MaterialPageRoute<void>(
-                  builder: (_) => GameRoomScreen(
-                    currentUsername: _statsUsername,
-                    initialGame: Map<String, dynamic>.from(invitation['game'] as Map),
-                    messageId: id,
-                    peerUsername: invitation['from']?.toString() ?? '',
-                    opponentDisplayName: invitation['displayName']?.toString(),
-                  ),
-                ),
-              );
-            }
-            unawaited(_loadPendingInvitations());
-          } catch (error) {
-            if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(error.toString().replaceFirst('Bad state: ', ''))),
-            );
-          }
-        },
-        onReject: () async {
-          try {
-            await socket.rejectGameInvite(id);
-            if (!mounted) return;
-            Navigator.of(sheetContext).pop();
-            _showingInvitePopup = false;
-            if (_pendingInviteCount > 0) {
-              setState(() => _pendingInviteCount--);
-            }
-            unawaited(_loadPendingInvitations());
-          } catch (error) {
-            if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(error.toString().replaceFirst('Bad state: ', ''))),
-            );
-          }
-        },
-      ),
-    );
-    _showingInvitePopup = false;
-    if (mounted) unawaited(_loadPendingInvitations());
+    if (id.isEmpty || !_countedInvitationIds.add(id)) return;
+    setState(() => _pendingInviteCount++);
   }
 
   Future<void> _openInvitations() async {
@@ -242,7 +154,7 @@ class _GamesScreenState extends State<GamesScreen> {
     }
     final connected = socket?.isConnected == true;
     if (connected && !_wasSocketConnected) {
-      unawaited(_loadPendingInvitations(showLatest: true));
+      unawaited(_loadPendingInvitations());
     }
     _wasSocketConnected = connected;
     final user = Provider.of<AuthService?>(context)?.user;
@@ -1368,87 +1280,3 @@ class _GameOption {
   final IconData icon;
   final List<Color> gradient;
 }
-
-class _IncomingGameInviteSheet extends StatelessWidget {
-  const _IncomingGameInviteSheet({
-    required this.invitation,
-    required this.onAccept,
-    required this.onReject,
-  });
-
-  final Map<String, dynamic> invitation;
-  final VoidCallback onAccept;
-  final VoidCallback onReject;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    final accent = colors.primary;
-    final isDark = theme.brightness == Brightness.dark;
-    final name = invitation['displayName']?.toString().trim().isNotEmpty == true
-        ? invitation['displayName'].toString()
-        : invitation['from']?.toString() ?? 'A friend';
-    final gameType = invitation['gameType']?.toString().toLowerCase() ?? '';
-    final gameName = gameType == 'tictactoe'
-        ? 'Tic-Tac-Toe'
-        : gameType == 'rps'
-            ? 'Rock Paper Scissors'
-            : gameType == 'rajamantri'
-                ? 'Raja Mantri'
-                : 'a game';
-    final gameDetails = gameType == 'tictactoe'
-        ? '2 players · Classic match'
-        : gameType == 'rps'
-            ? '2 players · First to 3 wins'
-            : gameType == 'rajamantri'
-                ? '3–4 players · Chor Sipahi'
-                : 'Live multiplayer match';
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF211B37) : Colors.white,
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: accent.withValues(alpha: .22)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .16), blurRadius: 24, offset: const Offset(0, -5))],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(width: 38, height: 4, decoration: BoxDecoration(color: isDark ? Colors.white24 : const Color(0xFFD8D2EA), borderRadius: BorderRadius.circular(4))),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              UserAvatar(name: name, photoUrl: invitation['avatarId']?.toString() ?? '', radius: 26, fallbackColor: accent),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: theme.colorScheme.onSurface)),
-                    const SizedBox(height: 3),
-                    Text('invited you to play $gameName', style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
-                    const SizedBox(height: 4),
-                    Text(gameDetails, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: accent)),
-                  ],
-                ),
-              ),
-              Icon(Icons.sports_esports_rounded, color: accent, size: 25),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(child: OutlinedButton(onPressed: onReject, style: OutlinedButton.styleFrom(foregroundColor: theme.colorScheme.onSurfaceVariant, minimumSize: const Size.fromHeight(44), shape: const StadiumBorder()), child: const Text('Reject'))),
-              const SizedBox(width: 10),
-              Expanded(child: FilledButton(onPressed: onAccept, style: FilledButton.styleFrom(backgroundColor: accent, foregroundColor: colors.onPrimary, minimumSize: const Size.fromHeight(44), shape: const StadiumBorder()), child: const Text('Accept'))),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-

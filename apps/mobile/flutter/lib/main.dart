@@ -22,6 +22,7 @@ import 'models/user_model.dart';
 import 'theme/novyn_theme.dart';
 import 'screens/splash/splash_screen.dart';
 import 'widgets/app_lock_wrapper.dart';
+import 'widgets/game_invitation_overlay.dart';
 import 'services/call_overlay_service.dart';
 import 'services/profile_deep_link_service.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -92,6 +93,7 @@ void main() async {
 }
 
 class NovynApp extends StatelessWidget {
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
   final SettingsService settings;
   const NovynApp({super.key, required this.settings});
 
@@ -194,6 +196,7 @@ class NovynApp extends StatelessWidget {
       child: Consumer<SettingsService>(
         builder: (context, s, _) {
           return MaterialApp(
+            navigatorKey: NovynApp.navigatorKey,
             title: 'Novyn',
             debugShowCheckedModeBanner: false,
             theme: NovynTheme.lightTheme(accent: s.accentColorEnabled ? Color(s.accentColorValue) : NovynTheme.indigo, highContrast: s.highContrast),
@@ -235,6 +238,9 @@ class NovynApp extends StatelessWidget {
                       fit: StackFit.expand,
                       children: [
                         child!,
+                        GameInvitationOverlay(
+                          navigatorKey: NovynApp.navigatorKey,
+                        ),
                         ValueListenableBuilder<Widget?>(
                           valueListenable: CallOverlayService.miniCall,
                           builder: (context, miniCall, _) =>
