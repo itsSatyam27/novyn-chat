@@ -4,15 +4,23 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { ChessVoiceRegistry } = require("../server/realtime/chess-voice");
 
+test("Chess voice registry rejects public random matchmaking rooms", () => {
+  const registry = new ChessVoiceRegistry({ createId: () => "voice-room-random" });
+  const result = registry.join("random:match-public", "alice", "stranger");
+
+  assert.equal(result.ok, false);
+  assert.match(result.message, /friend matches/i);
+});
+
 test("Chess voice requires both participants before signaling is authorized", () => {
   const registry = new ChessVoiceRegistry({ createId: () => "voice-room-1" });
-  const first = registry.join("random:match-1", "alice", "bob");
+  const first = registry.join("friend:chat-1", "alice", "bob");
   assert.equal(first.ok, true);
   assert.equal(first.roomId, "voice-room-1");
   assert.equal(first.peerReady, false);
   assert.equal(registry.authorizeSignal(first.roomId, "alice").ok, false);
 
-  const second = registry.join("random:match-1", "bob", "alice");
+  const second = registry.join("friend:chat-1", "bob", "alice");
   assert.equal(second.ok, true);
   assert.equal(second.roomId, first.roomId);
   assert.equal(second.peerReady, true);
@@ -31,15 +39,15 @@ test("Chess voice rooms reject a third participant and mismatched match pairing"
 
 test("Chess voice leave revokes signaling and lets the same opponent reconnect", () => {
   const registry = new ChessVoiceRegistry({ createId: () => "voice-room-3" });
-  const first = registry.join("random:match-3", "alice", "bob");
-  registry.join("random:match-3", "bob", "alice");
+  const first = registry.join("friend:chat-3", "alice", "bob");
+  registry.join("friend:chat-3", "bob", "alice");
 
   const left = registry.leave(first.roomId, "bob");
   assert.equal(left.peerUsername, "alice");
   assert.equal(left.peerStillJoined, true);
   assert.equal(registry.authorizeSignal(first.roomId, "alice").ok, false);
 
-  const rejoined = registry.join("random:match-3", "bob", "alice");
+  const rejoined = registry.join("friend:chat-3", "bob", "alice");
   assert.equal(rejoined.roomId, first.roomId);
   assert.equal(rejoined.peerReady, true);
   assert.equal(registry.authorizeSignal(first.roomId, "alice").ok, true);
