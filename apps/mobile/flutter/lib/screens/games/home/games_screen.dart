@@ -1285,6 +1285,7 @@ class _GameGridCard extends StatelessWidget {
               Container(
                 width: 40,
                 height: 40,
+                alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.22),
                   borderRadius: BorderRadius.circular(13),
@@ -1292,6 +1293,7 @@ class _GameGridCard extends StatelessWidget {
                 child: game.type == 'chess'
                     ? const Text(
                         '♞',
+                        textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 29,
