@@ -765,19 +765,71 @@ class _GameOverModalContentState extends State<_GameOverModalContent> {
       _statusNote = '${widget.opponentName ?? "Player 2"} left the room';
     } else if (widget.isOpponentRequest) {
       _opponentWantsRematch = true;
-      _startTimer();
+      _startTimer(expiresAt: widget.rematchExpiresAt);
+    } else if (widget.isOwnRequest) {
+      _rematchRequested = true;
+      _startTimer(expiresAt: widget.rematchExpiresAt);
+    } else if (widget.rematchStatus == 'declined') {
+      _statusNote = 'Rematch declined';
+    } else if (widget.rematchStatus == 'cancelled') {
+      _statusNote = 'Rematch request cancelled';
+    } else if (widget.rematchStatus == 'expired') {
+      _statusNote = 'Rematch request timed out';
     }
   }
 
   @override
   void didUpdateWidget(covariant _GameOverModalContent oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!widget.isMatchFinished && oldWidget.isMatchFinished) {
+      _timer?.cancel();
+      if (!_loading) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) Navigator.of(context).maybePop();
+        });
+      }
+      return;
+    }
     if (widget.playerLeft != null && widget.playerLeft != oldWidget.playerLeft) {
       _timer?.cancel();
       setState(() {
         _rematchRequested = false;
         _opponentWantsRematch = false;
         _statusNote = '${widget.opponentName ?? "Player 2"} left the room';
+      });
+      return;
+    }
+    final rematchChanged =
+        widget.rematchStatus != oldWidget.rematchStatus ||
+        widget.isOpponentRequest != oldWidget.isOpponentRequest ||
+        widget.isOwnRequest != oldWidget.isOwnRequest ||
+        widget.rematchExpiresAt != oldWidget.rematchExpiresAt;
+    if (!rematchChanged) return;
+    _timer?.cancel();
+    if (widget.isOpponentRequest) {
+      setState(() {
+        _rematchRequested = false;
+        _opponentWantsRematch = true;
+        _statusNote = null;
+      });
+      _startTimer(expiresAt: widget.rematchExpiresAt);
+    } else if (widget.isOwnRequest) {
+      setState(() {
+        _rematchRequested = true;
+        _opponentWantsRematch = false;
+        _statusNote = null;
+      });
+      _startTimer(expiresAt: widget.rematchExpiresAt);
+    } else {
+      setState(() {
+        _rematchRequested = false;
+        _opponentWantsRematch = false;
+        _statusNote = switch (widget.rematchStatus) {
+          'declined' => 'Rematch declined',
+          'cancelled' => 'Rematch request cancelled',
+          'expired' => 'Rematch request timed out',
+          _ => null,
+        };
       });
     }
   }
@@ -788,9 +840,18 @@ class _GameOverModalContentState extends State<_GameOverModalContent> {
     super.dispose();
   }
 
-  void _startTimer() {
+  void _startTimer({int? expiresAt}) {
     _timer?.cancel();
-    _secondsRemaining = 15;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    _secondsRemaining = expiresAt == null
+        ? 15
+        : ((expiresAt - now) / 1000).ceil().clamp(0, 15).toInt();
+    if (_secondsRemaining <= 0) {
+      _rematchRequested = false;
+      _opponentWantsRematch = false;
+      _statusNote = 'Rematch request timed out';
+      return;
+    }
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) {
         timer.cancel();
