@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../services/socket_service.dart';
 import '../screens/games/raja_mantri/raja_mantri_online_game_screen.dart';
+import '../screens/games/invitations/game_invitation_utils.dart';
 import '../screens/games/shared/room/game_room_screen.dart';
 
 /// App-wide, non-modal game invitation surface.
@@ -115,7 +116,10 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
       // The server is authoritative after reconnect: remove invitations that
       // expired, were accepted on another device, or were cancelled while this
       // client was offline. Keep still-pending cards and restore any missing ones.
-      final pendingIds = invitations
+      final pendingInvitations = invitations
+          .where((invite) => !isGameInvitationExpired(invite))
+          .toList();
+      final pendingIds = pendingInvitations
           .map((invite) => invite['messageId']?.toString() ?? '')
           .where((id) => id.isNotEmpty)
           .toSet();
@@ -134,7 +138,7 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
 
         // The invitations screen presents newest first. Restore in that order
         // without duplicating an invite already active or queued from the live stream.
-        for (final invitation in invitations.reversed) {
+        for (final invitation in pendingInvitations.reversed) {
           final id = invitation['messageId']?.toString() ?? '';
           if (id.isEmpty ||
               _activeInvitation?['messageId']?.toString() == id ||
@@ -162,7 +166,11 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
 
   void _enqueueInvitation(Map<String, dynamic> invitation) {
     final id = invitation['messageId']?.toString() ?? '';
-    if (!mounted || !_rememberInvitationId(id)) return;
+    if (!mounted ||
+        isGameInvitationExpired(invitation) ||
+        !_rememberInvitationId(id)) {
+      return;
+    }
     setState(() {
       _queue.addLast(Map<String, dynamic>.from(invitation));
       _activateNext();
