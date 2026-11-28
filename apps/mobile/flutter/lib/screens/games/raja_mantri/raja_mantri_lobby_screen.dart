@@ -673,6 +673,7 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
     final muted = isDark ? Colors.white60 : _muted;
     final friends = _filteredFriends;
     final needed = _requiredFriends;
+
     return PopScope<void>(
       canPop: !_sendingInvites && !_searchingPlayers,
       onPopInvokedWithResult: (didPop, _) {
@@ -683,280 +684,430 @@ class _RajaMantriLobbyScreenState extends State<RajaMantriLobbyScreen> {
         }
       },
       child: Scaffold(
-      backgroundColor: background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 12, 24, 14),
-              child: Row(
-                children: [
-                  Material(
-                    color: isDark ? const Color(0xFF201B36) : Colors.white,
-                    shape: const CircleBorder(),
-                    child: IconButton(
-                      onPressed: _sendingInvites || _searchingPlayers
-                          ? null
-                          : () => Navigator.of(context).pop(),
-                      icon: Icon(Icons.arrow_back_rounded, color: foreground, size: 26),
-                      iconSize: 26,
-                      padding: const EdgeInsets.all(14),
-                      constraints: const BoxConstraints(),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Text(
-                      'Raja Mantri Chor Sipahi',
-                      maxLines: 2,
-                      style: TextStyle(
-                        fontFamily: 'PlusJakartaSans',
-                        fontWeight: FontWeight.w800,
-                        fontSize: 22,
-                        color: foreground,
-                        height: 1.12,
+        backgroundColor: background,
+        body: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 12, 24, 14),
+                child: Row(
+                  children: [
+                    Material(
+                      color: isDark ? const Color(0xFF201B36) : Colors.white,
+                      shape: const CircleBorder(),
+                      child: IconButton(
+                        onPressed: _sendingInvites || _searchingPlayers
+                            ? null
+                            : () => Navigator.of(context).pop(),
+                        icon: Icon(
+                          Icons.arrow_back_rounded,
+                          color: foreground,
+                          size: 26,
+                        ),
+                        iconSize: 26,
+                        padding: const EdgeInsets.all(14),
+                        constraints: const BoxConstraints(),
                       ),
                     ),
-                  ),
-                  PopupMenuButton<int>(
-                    initialValue: _playerCount,
-                    onSelected: _changePlayerCount,
-                    color: isDark ? const Color(0xFF201B36) : Colors.white,
-                    itemBuilder: (_) => const [
-                      PopupMenuItem(value: 3, child: Text('3 players')),
-                      PopupMenuItem(value: 4, child: Text('4 players')),
-                    ],
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF2D2648) : accent.withValues(alpha: .12),
-                        borderRadius: BorderRadius.circular(24),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        'Raja Mantri Chor Sipahi',
+                        maxLines: 2,
+                        style: TextStyle(
+                          fontFamily: 'PlusJakartaSans',
+                          fontWeight: FontWeight.w800,
+                          fontSize: 22,
+                          color: foreground,
+                          height: 1.12,
+                        ),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
+                    ),
+                    PopupMenuButton<int>(
+                      initialValue: _playerCount,
+                      onSelected: _changePlayerCount,
+                      color: isDark ? const Color(0xFF201B36) : Colors.white,
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(value: 3, child: Text('3 players')),
+                        PopupMenuItem(value: 4, child: Text('4 players')),
+                      ],
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 13,
+                          vertical: 9,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? const Color(0xFF2D2648)
+                              : accent.withValues(alpha: .12),
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '$_playerCount players',
+                              style: TextStyle(
+                                color: foreground,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(width: 3),
+                            Icon(
+                              Icons.expand_more_rounded,
+                              color: foreground,
+                              size: 18,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Quick play',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: muted,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
                         children: [
-                          Text('$_playerCount players', style: TextStyle(color: foreground, fontWeight: FontWeight.w800)),
-                          const SizedBox(width: 3),
-                          Icon(Icons.expand_more_rounded, color: foreground, size: 18),
+                          Expanded(
+                            child: _RMQuickPlayTile(
+                              title: 'Fill with bots',
+                              subtitle: 'Works offline',
+                              icon: Icons.smart_toy_outlined,
+                              iconBackground: const Color(0xFFDDF3E9),
+                              iconColor: const Color(0xFF176B45),
+                              background:
+                                  isDark ? const Color(0xFF201B36) : Colors.white,
+                              foreground: foreground,
+                              subtitleColor: muted,
+                              onTap: _openFillBotsRoom,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: _RMQuickPlayTile(
+                              title: 'Random players',
+                              subtitle: 'Find a match online',
+                              icon: Icons.public_rounded,
+                              iconBackground: const Color(0xFF796CF4),
+                              iconColor: Colors.white,
+                              background: accent,
+                              foreground: Colors.white,
+                              subtitleColor:
+                                  Colors.white.withValues(alpha: .88),
+                              onTap: _startRandomSearch,
+                            ),
+                          ),
                         ],
                       ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                children: [
-                  Text('Quick play', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: muted)),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _RMQuickPlayTile(
-                          title: 'Fill with bots',
-                          subtitle: 'Works offline',
-                          icon: Icons.smart_toy_outlined,
-                          iconBackground: const Color(0xFFDDF3E9),
-                          iconColor: const Color(0xFF176B45),
-                          background: isDark ? const Color(0xFF201B36) : Colors.white,
-                          foreground: foreground,
-                          subtitleColor: muted,
-                          onTap: _openFillBotsRoom,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: _RMQuickPlayTile(
-                          title: 'Random players',
-                          subtitle: 'Find a match online',
-                          icon: Icons.public_rounded,
-                          iconBackground: const Color(0xFF796CF4),
-                          iconColor: Colors.white,
-                          background: accent,
-                          foreground: Colors.white,
-                          subtitleColor: Colors.white.withValues(alpha: .88),
-                          onTap: _startRandomSearch,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 26),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text('Invite friends', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: muted)),
-                      ),
-                      Text(
-                        '${_selectedFriends.length} of $needed selected',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: muted),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _searchController,
-                    onChanged: (_) => setState(() {}),
-                    style: TextStyle(color: foreground, fontSize: 15),
-                    decoration: InputDecoration(
-                      hintText: 'Search by username',
-                      hintStyle: TextStyle(color: muted, fontSize: 15),
-                      prefixIcon: Icon(Icons.search_rounded, color: muted, size: 24),
-                      filled: true,
-                      fillColor: isDark ? const Color(0xFF201B36) : Colors.white,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(28), borderSide: BorderSide.none),
-                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(28), borderSide: BorderSide.none),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(28),
-                        borderSide: BorderSide(color: accent, width: 1.5),
-                      ),
-                      suffixIcon: _searchController.text.isEmpty
-                          ? null
-                          : IconButton(
-                              onPressed: () {
-                                _searchController.clear();
-                                setState(() {});
-                              },
-                              icon: Icon(Icons.close_rounded, color: muted),
-                            ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  if (_loadingFriends && _friends.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                    )
-                  else if (_friendLoadFailed && _friends.isEmpty)
-                    TextButton.icon(
-                      onPressed: _loadFriends,
-                      icon: const Icon(Icons.refresh_rounded),
-                      label: const Text('Could not load friends · Retry'),
-                    )
-                  else if (friends.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.all(22),
-                      child: Text(
-                        _friends.isEmpty ? 'Add friends in Contacts to invite them here.' : 'No friends found.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: muted),
-                      ),
-                    )
-                  else
-                    ...friends.map((friend) {
-                      final key = friend.username.toLowerCase();
-                      final selected = _selectedFriends.contains(key);
-                      final canSelect = selected || _selectedFriends.length < needed;
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 5),
-                        child: Material(
-                          color: selected
-                              ? (isDark ? const Color(0xFF332A57) : const Color(0xFFEEEAFE))
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(22),
-                          child: InkWell(
-                            onTap: canSelect ? () => _toggleFriend(friend, !selected) : null,
-                            borderRadius: BorderRadius.circular(22),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                              child: Row(
-                                children: [
-                                  UserAvatar(
-                                    name: friend.name.isNotEmpty ? friend.name : friend.username,
-                                    photoUrl: friend.photoUrl,
-                                    radius: 23,
-                                    isOnline: friend.isOnline,
-                                    presence: friend.status,
-                                    showOnlineIndicator: true,
-                                  ),
-                                  const SizedBox(width: 13),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          friend.name.isNotEmpty ? friend.name : friend.username,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(color: foreground, fontWeight: FontWeight.w800, fontSize: 15),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          '@${friend.username} · ${friend.isOnline ? friend.status : 'Offline'}',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(color: muted, fontSize: 13),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  AnimatedContainer(
-                                    duration: const Duration(milliseconds: 160),
-                                    width: 28,
-                                    height: 28,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(8),
-                                      color: selected ? accent : Colors.transparent,
-                                      border: Border.all(
-                                        color: selected ? accent : Theme.of(context).colorScheme.outline,
-                                        width: 2,
-                                      ),
-                                    ),
-                                    child: selected
-                                        ? const Icon(Icons.check_rounded, color: Colors.white, size: 18)
-                                        : null,
-                                  ),
-                                ],
+                      const SizedBox(height: 22),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Invite friends',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: muted,
                               ),
                             ),
                           ),
+                          Text(
+                            '${_selectedFriends.length} of $needed selected',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: muted,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _searchController,
+                        onChanged: (_) => setState(() {}),
+                        style: TextStyle(color: foreground, fontSize: 15),
+                        decoration: InputDecoration(
+                          hintText: 'Search by username',
+                          hintStyle: TextStyle(color: muted, fontSize: 15),
+                          prefixIcon: Icon(
+                            Icons.search_rounded,
+                            color: muted,
+                            size: 24,
+                          ),
+                          filled: true,
+                          fillColor:
+                              isDark ? const Color(0xFF201B36) : Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 14,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(28),
+                            borderSide: BorderSide.none,
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(28),
+                            borderSide: BorderSide.none,
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(28),
+                            borderSide:
+                                BorderSide(color: accent, width: 1.5),
+                          ),
+                          suffixIcon: _searchController.text.isEmpty
+                              ? null
+                              : IconButton(
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() {});
+                                  },
+                                  icon: Icon(
+                                    Icons.close_rounded,
+                                    color: muted,
+                                  ),
+                                ),
                         ),
-                      );
-                    }),
-                ],
+                      ),
+                      const SizedBox(height: 8),
+                      Expanded(
+                        child: _loadingFriends && _friends.isEmpty
+                            ? const Center(
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : _friendLoadFailed && _friends.isEmpty
+                                ? Center(
+                                    child: TextButton.icon(
+                                      onPressed: _loadFriends,
+                                      icon: const Icon(Icons.refresh_rounded),
+                                      label: const Text(
+                                        'Could not load friends · Retry',
+                                      ),
+                                    ),
+                                  )
+                                : friends.isEmpty
+                                    ? Center(
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(22),
+                                          child: Text(
+                                            _friends.isEmpty
+                                                ? 'Add friends in Contacts to invite them here.'
+                                                : 'No friends found.',
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(color: muted),
+                                          ),
+                                        ),
+                                      )
+                                    : ListView.builder(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 8,
+                                        ),
+                                        itemCount: friends.length,
+                                        itemBuilder: (context, index) {
+                                          final friend = friends[index];
+                                          final key =
+                                              friend.username.toLowerCase();
+                                          final selected =
+                                              _selectedFriends.contains(key);
+                                          final canSelect = selected ||
+                                              _selectedFriends.length < needed;
+                                          return Padding(
+                                            padding: const EdgeInsets.only(
+                                              bottom: 5,
+                                            ),
+                                            child: Material(
+                                              color: selected
+                                                  ? (isDark
+                                                      ? const Color(0xFF332A57)
+                                                      : const Color(0xFFEEEAFE))
+                                                  : Colors.transparent,
+                                              borderRadius:
+                                                  BorderRadius.circular(22),
+                                              child: InkWell(
+                                                onTap: canSelect
+                                                    ? () => _toggleFriend(
+                                                        friend, !selected)
+                                                    : null,
+                                                borderRadius:
+                                                    BorderRadius.circular(22),
+                                                child: Padding(
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                    horizontal: 12,
+                                                    vertical: 12,
+                                                  ),
+                                                  child: Row(
+                                                    children: [
+                                                      UserAvatar(
+                                                        name: friend.name
+                                                                .isNotEmpty
+                                                            ? friend.name
+                                                            : friend.username,
+                                                        photoUrl: friend.photoUrl,
+                                                        radius: 23,
+                                                        isOnline: friend.isOnline,
+                                                        presence: friend.status,
+                                                        showOnlineIndicator: true,
+                                                      ),
+                                                      const SizedBox(width: 13),
+                                                      Expanded(
+                                                        child: Column(
+                                                          crossAxisAlignment:
+                                                              CrossAxisAlignment
+                                                                  .start,
+                                                          children: [
+                                                            Text(
+                                                              friend.name
+                                                                      .isNotEmpty
+                                                                  ? friend.name
+                                                                  : friend
+                                                                      .username,
+                                                              maxLines: 1,
+                                                              overflow:
+                                                                  TextOverflow
+                                                                      .ellipsis,
+                                                              style: TextStyle(
+                                                                color: foreground,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w800,
+                                                                fontSize: 15,
+                                                              ),
+                                                            ),
+                                                            const SizedBox(
+                                                              height: 2,
+                                                            ),
+                                                            Text(
+                                                              '@${friend.username} · ${friend.isOnline ? friend.status : 'Offline'}',
+                                                              maxLines: 1,
+                                                              overflow:
+                                                                  TextOverflow
+                                                                      .ellipsis,
+                                                              style: TextStyle(
+                                                                color: muted,
+                                                                fontSize: 13,
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 12),
+                                                      AnimatedContainer(
+                                                        duration:
+                                                            const Duration(
+                                                          milliseconds: 160,
+                                                        ),
+                                                        width: 28,
+                                                        height: 28,
+                                                        decoration:
+                                                            BoxDecoration(
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(8),
+                                                          color: selected
+                                                              ? accent
+                                                              : Colors
+                                                                  .transparent,
+                                                          border: Border.all(
+                                                            color: selected
+                                                                ? accent
+                                                                : Theme.of(
+                                                                        context)
+                                                                    .colorScheme
+                                                                    .outline,
+                                                            width: 2,
+                                                          ),
+                                                        ),
+                                                        child: selected
+                                                            ? const Icon(
+                                                                Icons
+                                                                    .check_rounded,
+                                                                color:
+                                                                    Colors.white,
+                                                                size: 18,
+                                                              )
+                                                            : null,
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
-            SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 18),
-                child: SizedBox(
-                  height: 62,
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: _selectedFriends.isNotEmpty && !_sendingInvites
-                        ? _inviteSelectedFriends
-                        : null,
-                    icon: _sendingInvites
-                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Icon(Icons.person_add_alt_1_rounded, size: 22),
-                    label: Text(
-                      _sendingInvites
-                          ? 'Sending invites…'
-                          : _selectedFriends.isEmpty
-                              ? 'Select friends to invite'
-                              : 'Invite ${_selectedFriends.length} friend${_selectedFriends.length == 1 ? '' : 's'}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
-                    ),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: accent,
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: const Color(0xFFE5E0F6),
-                      disabledForegroundColor: muted,
-                      shape: const StadiumBorder(),
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 18),
+                  child: SizedBox(
+                    height: 62,
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: _selectedFriends.isNotEmpty && !_sendingInvites
+                          ? _inviteSelectedFriends
+                          : null,
+                      icon: _sendingInvites
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.person_add_alt_1_rounded,
+                              size: 22,
+                            ),
+                      label: Text(
+                        _sendingInvites
+                            ? 'Sending invites…'
+                            : _selectedFriends.isEmpty
+                                ? 'Select friends to invite'
+                                : 'Invite ${_selectedFriends.length} friend${_selectedFriends.length == 1 ? '' : 's'}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: accent,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: const Color(0xFFE5E0F6),
+                        disabledForegroundColor: muted,
+                        shape: const StadiumBorder(),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
