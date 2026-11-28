@@ -8467,7 +8467,7 @@ io.on("connection", (socket) => {
 
   socket.on("chess_voice_leave", (payload) => {
     const userKey = normalizeName(socket.data.userKey || "");
-    if (!userKey) return;
+    if (!userKey || onlineUsers.get(userKey) !== socket.id) return;
     const roomId = String(payload?.roomId || "").trim().slice(0, 128);
     const left = chessVoiceRegistry.leave(roomId, userKey);
     if (!left) return;
@@ -8482,7 +8482,8 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     const userKey = normalizeName(socket.data.userKey || "");
-    if (!userKey) return;
+    // Ignore stale sockets replaced by a newer authenticated connection.
+    if (!userKey || onlineUsers.get(userKey) !== socket.id) return;
     for (const left of chessVoiceRegistry.disconnect(userKey)) {
       const peerSocketId = onlineUsers.get(left.peerUsername);
       if (peerSocketId) {
