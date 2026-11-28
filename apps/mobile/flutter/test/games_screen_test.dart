@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   test('game invitation expiry guard rejects stale entries safely', () {
-    const now = 1_800_000_000_000;
+    const now = 1800000000000;
     expect(
       isGameInvitationExpired(
         <String, dynamic>{'expiresAt': now - 1},
