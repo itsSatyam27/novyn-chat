@@ -23,6 +23,7 @@ const { PublicGameMatchmaking } = require("./server/realtime/game-matchmaking");
 const { loadMatchmakingSkill, normalizeGameType } = require("./server/realtime/game-matchmaking-skill");
 const { listActiveRandomGamesForPlayer } = require("./server/realtime/random-game-session-restore");
 const { buildGameLeaderboard, normalizeLeaderboardGame } = require("./game-leaderboard");
+const { emitGameInvitationTimeoutToParticipants } = require("./server/realtime/game-invitation-lifecycle");
 const { RajaMantriMatchmaking } = require("./server/realtime/raja-mantri-matchmaking");
 const {
   createRajaMantriGameSession,
@@ -8126,13 +8127,12 @@ io.on("connection", (socket) => {
       invite.timer = setTimeout(() => {
         if (pendingGameInvites.get(messageId) !== invite) return;
         pendingGameInvites.delete(messageId);
-        const hostSocketId = onlineUsers.get(invite.fromKey);
-        if (hostSocketId) {
-          io.to(hostSocketId).emit("game_invite_timeout", { messageId, gameType: invite.gameType });
-        }
-        if (invite.acceptedSocketId) {
-          io.to(invite.acceptedSocketId).emit("game_invite_timeout", { messageId, gameType: invite.gameType });
-        }
+        emitGameInvitationTimeoutToParticipants({
+          io,
+          onlineUsers,
+          invite,
+          messageId,
+        });
       }, 5 * 60 * 1000);
       if (typeof invite.timer.unref === "function") invite.timer.unref();
     } else {
@@ -10625,8 +10625,12 @@ io.on("connection", (socket) => {
       invite.timer = setTimeout(() => {
         if (pendingGameInvites.get(inviteId) !== invite) return;
         pendingGameInvites.delete(inviteId);
-        const senderSocketId = onlineUsers.get(invite.fromKey);
-        if (senderSocketId) io.to(senderSocketId).emit("game_invite_timeout", { messageId: inviteId, gameType: invite.gameType });
+        emitGameInvitationTimeoutToParticipants({
+          io,
+          onlineUsers,
+          invite,
+          messageId: inviteId,
+        });
       }, 60_000);
       if (typeof invite.timer.unref === "function") invite.timer.unref();
       pendingGameInvites.set(inviteId, invite);
