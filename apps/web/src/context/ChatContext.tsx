@@ -823,9 +823,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (m.id === messageId && m.game) {
             const updatedGame: GameData = game || {
               ...m.game,
-              state: serverMoveData.state || m.game.state,
-              turn: serverMoveData.turn !== undefined ? serverMoveData.turn : m.game.turn,
-              winner: serverMoveData.winner !== undefined ? serverMoveData.winner : m.game.winner,
+              state: moveData.state || m.game.state,
+              turn: moveData.turn !== undefined ? moveData.turn : m.game.turn,
+              winner: moveData.winner !== undefined ? moveData.winner : m.game.winner,
               data: { ...m.game.data, ...moveData },
               lastMoveBy: updatedBy,
               updatedAt: Date.now(),
