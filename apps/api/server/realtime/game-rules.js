@@ -428,6 +428,7 @@ function handleRematchAction(game, userKey, moveData) {
             fen: chessRules.START_FEN,
             moves: [],
             legalMoves: chessRules.legalMoves(chessRules.parseFen(chessRules.START_FEN)).map(chessRules.toUci),
+            canClaimDraw: false,
             positionHistory: [chessRules.positionKey(chessRules.parseFen(chessRules.START_FEN))],
             whiteTimeMs: current.clockMs || 300000,
             blackTimeMs: current.clockMs || 300000,
@@ -526,6 +527,9 @@ function applyChess(game, userKey, moveData) {
     return finish("draw", "agreement", { ...current, drawOfferBy: null });
   }
   if (moveData.action === "claim_draw") {
+    if (String(game.turn || "").trim().toLowerCase() !== actor) {
+      return { ok: false, reason: "It is not your turn." };
+    }
     const position = chessRules.parseFen(current.fen || chessRules.START_FEN);
     const history = Array.isArray(current.positionHistory) ? current.positionHistory : [];
     const repetitions = history.filter((entry) => entry === chessRules.positionKey(position)).length;
@@ -533,6 +537,21 @@ function applyChess(game, userKey, moveData) {
       return { ok: false, reason: "A draw cannot be claimed yet." };
     }
     return finish("draw", position.halfmove >= 100 ? "fifty_move_rule" : "threefold_repetition");
+  }
+
+  if (moveData.action === "claim_timeout") {
+    const position = chessRules.parseFen(current.fen || chessRules.START_FEN);
+    const clockMs = Math.max(0, Number(current.clockMs) || 300000);
+    const whiteTimeMs = Math.max(0, Number(current.whiteTimeMs ?? clockMs) || 0);
+    const blackTimeMs = Math.max(0, Number(current.blackTimeMs ?? clockMs) || 0);
+    const elapsed = Math.max(0, now - Math.max(0, Number(current.lastMoveAt) || now));
+    const remaining = (position.turn === 1 ? whiteTimeMs : blackTimeMs) - elapsed;
+    if (remaining > 0) return { ok: false, reason: "The active player's clock has not expired." };
+    return finish(position.turn === 1 ? black : white, "timeout", {
+      ...current,
+      whiteTimeMs: position.turn === 1 ? 0 : whiteTimeMs,
+      blackTimeMs: position.turn === -1 ? 0 : blackTimeMs,
+    });
   }
 
   if (!game.turn || String(game.turn).trim().toLowerCase() !== actor) {
@@ -572,6 +591,8 @@ function applyChess(game, userKey, moveData) {
   const outcome = chessRules.evaluate(nextPosition, history);
   const nextWhiteTime = position.turn === 1 ? remaining : whiteTimeMs;
   const nextBlackTime = position.turn === -1 ? remaining : blackTimeMs;
+  const nextPositionKey = chessRules.positionKey(nextPosition);
+  const nextRepetitions = history.filter((entry) => entry === nextPositionKey).length;
   const nextData = {
     ...current,
     white,
@@ -581,6 +602,7 @@ function applyChess(game, userKey, moveData) {
     fen: played.fen,
     moves: [...(Array.isArray(current.moves) ? current.moves : []), played.move].slice(-500),
     legalMoves: outcome.done ? [] : chessRules.legalMoves(nextPosition).map(chessRules.toUci),
+    canClaimDraw: !outcome.done && (nextPosition.halfmove >= 100 || nextRepetitions >= 2),
     positionHistory: history.slice(-500),
     whiteTimeMs: nextWhiteTime,
     blackTimeMs: nextBlackTime,
@@ -674,6 +696,7 @@ function createGameChallenge(input = {}, { randomInt = crypto.randomInt } = {}) 
         fen: chessRules.START_FEN,
         moves: [],
         legalMoves: chessRules.legalMoves(chessRules.parseFen(chessRules.START_FEN)).map(chessRules.toUci),
+        canClaimDraw: false,
         positionHistory: [chessRules.positionKey(chessRules.parseFen(chessRules.START_FEN))],
         clockMs: 300000,
         whiteTimeMs: 300000,
