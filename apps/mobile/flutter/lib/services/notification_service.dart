@@ -12,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'message_encryption_service.dart';
 import 'backup_progress.dart';
 import 'firebase_configuration.dart';
+import 'notification_delivery_policy.dart';
 import '../models/chat_models.dart';
 import '../models/user_model.dart';
 import 'package:provider/provider.dart';
@@ -143,6 +144,16 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: FirebaseConfiguration.options);
   ui.DartPluginRegistrant.ensureInitialized();
   final data = message.data;
+  // FCM automatically posts notification-payload messages while Android is
+  // backgrounded. Let the OS own those alerts; posting them again through
+  // flutter_local_notifications creates two tray entries for one message.
+  // Keep the local renderer for data-only pushes (including legacy encrypted DMs).
+  if (!shouldRenderLocalBackgroundNotification(
+    hasSystemNotification: message.notification != null,
+  )) {
+    debugPrint('[NovynNotifications] Skipped local rendering; FCM already owns the system alert.');
+    return;
+  }
   if (data['type'] == 'call') {
     final prefs = await SharedPreferences.getInstance();
     await prefs.reload();
