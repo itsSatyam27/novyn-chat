@@ -71,7 +71,7 @@ class GameStatsSnapshot {
       ? 0
       : competitiveWins / competitiveTotal * 100;
 
-  /// Per-game statistics include only server-verified human matches.
+  /// Per-game competitive statistics exclude local bot/practice matches.
   List<GameTypeStats> get gameBreakdown {
     final grouped = <String, List<GameHistoryEntry>>{};
     for (final match in matches) {
@@ -110,10 +110,10 @@ class GameStatsSnapshot {
     return List<GameTypeStats>.unmodifiable(result);
   }
 
-  /// XP is derived from completed, de-duplicated match history.
+  /// XP is derived from completed, de-duplicated competitive match history.
   /// Human matches: +10 completion, +25 win, +10 first human win each day.
-  /// Bot matches: +5 completion and +10 win, with no daily/milestone bonus.
   /// Every third consecutive human win in the same game grants +15 XP.
+  /// Bot matches remain in history but award no XP or competitive streak credit.
   int get totalXp {
     final chronological = List<GameHistoryEntry>.from(matches)
       ..sort((a, b) => a.playedAt.compareTo(b.playedAt));
