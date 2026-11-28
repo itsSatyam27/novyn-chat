@@ -1571,6 +1571,9 @@ class NotificationService {
       );
       _inAppBannerEntry = entry;
       overlay.insert(entry);
+      if (notificationType == 'game_turn') {
+        _socket?.playIncomingNotificationFeedback(chatKey);
+      }
       _inAppBannerTimer = Timer(const Duration(seconds: 3), () {
         if (_inAppBannerEntry == entry) {
           entry.remove();
@@ -1997,10 +2000,14 @@ class NotificationService {
       RemoteMessage message, BuildContext context) {
     final type = message.data['type'];
     if (type == 'game_turn') {
-      if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
-        if (_socket?.isConnected != true) {
-          unawaited(showInAppGameTurn(message.data, context));
-        }
+      final account = (_presenceAuth?.user?.username ?? _activeUsername ?? '')
+          .trim()
+          .toLowerCase();
+      final recipient = message.data['recipient']?.toString().trim().toLowerCase() ?? '';
+      if (account.isEmpty || (recipient.isNotEmpty && recipient != account)) return;
+      if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed &&
+          _socket?.isConnected != true) {
+        unawaited(showInAppGameTurn(message.data, context));
       }
       return;
     }
