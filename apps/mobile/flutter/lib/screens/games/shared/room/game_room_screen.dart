@@ -312,7 +312,6 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
         peerUsername: widget.peerUsername,
         randomSessionId: widget.randomSessionId,
         opponentDisplayName: widget.opponentDisplayName,
-        isGroup: widget.isGroup,
         isOfflineBot: isOfflineBot,
       );
     }
