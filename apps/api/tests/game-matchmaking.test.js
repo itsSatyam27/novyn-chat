@@ -208,3 +208,41 @@ test("unknown level metadata keeps the existing FIFO fallback", () => {
   assert.equal(q.size, 1);
   q.cancel("bob");
 });
+
+
+test("skill gap expands gradually for players who have waited in the queue", () => {
+  let now = 1_000;
+  const q = new PublicGameMatchmaking({ now: () => now });
+
+  assert.equal(q.join({
+    userKey: "alice",
+    socketId: "alice_socket",
+    gameType: "tictactoe",
+    level: 1,
+    excludedUsers: ["bob"],
+  }).queued, true);
+
+  // A five-level gap is too wide for a new queue entry.
+  assert.equal(q.join({
+    userKey: "bob",
+    socketId: "bob_socket",
+    gameType: "tictactoe",
+    level: 6,
+    excludedUsers: ["alice"],
+  }).queued, true);
+  assert.equal(q.size, 2);
+
+  // After waiting, Bob's allowed skill range expands to include level 1.
+  now += 15_000;
+  assert.equal(q.cancel("alice"), true);
+  const match = q.join({
+    userKey: "charlie",
+    socketId: "charlie_socket",
+    gameType: "tictactoe",
+    level: 1,
+  });
+
+  assert.equal(match.matched, true);
+  assert.deepEqual(match.players.map((player) => player.userKey), ["bob", "charlie"]);
+  assert.equal(q.size, 0);
+});
