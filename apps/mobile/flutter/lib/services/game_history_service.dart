@@ -122,49 +122,99 @@ class GameHistoryService {
   static String _key(String username) =>
       '$_keyPrefix${Uri.encodeComponent(username.trim().toLowerCase())}';
 
+  @visibleForTesting
+  static Future<List<Map<String, dynamic>>?> Function()?
+      cloudHistoryLoaderForTesting;
+
+  static List<GameHistoryEntry> _decodeEntries(Object? decoded) {
+    if (decoded is! List) return <GameHistoryEntry>[];
+    final unique = <String, GameHistoryEntry>{};
+    for (final raw in decoded) {
+      if (raw is! Map) continue;
+      try {
+        final entry = GameHistoryEntry.fromJson(
+          Map<String, dynamic>.from(raw),
+        );
+        if (entry.id.isEmpty ||
+            entry.gameType.trim().isEmpty ||
+            !const {'win', 'loss', 'draw'}.contains(entry.result) ||
+            entry.playedAt.millisecondsSinceEpoch <= 0) {
+          continue;
+        }
+        unique[entry.id] = entry;
+      } catch (_) {
+        // A malformed row must not hide the rest of the match history.
+      }
+    }
+    final matches = unique.values.toList()
+      ..sort((a, b) => b.playedAt.compareTo(a.playedAt));
+    return matches;
+  }
+
+  static Future<List<GameHistoryEntry>> _loadLocalMatches(
+    String username, {
+    SharedPreferences? preferences,
+  }) async {
+    if (username.trim().isEmpty) return <GameHistoryEntry>[];
+    try {
+      final prefs = preferences ?? await SharedPreferences.getInstance();
+      final raw = prefs.getString(_key(username));
+      if (raw == null || raw.isEmpty) return <GameHistoryEntry>[];
+      return _decodeEntries(jsonDecode(raw));
+    } catch (_) {
+      return <GameHistoryEntry>[];
+    }
+  }
+
   static Future<GameStatsSnapshot> load(String username) async {
     if (username.trim().isEmpty) return GameStatsSnapshot.empty;
+
+    // The local cache is read first so the history remains usable offline.
+    // A missing cache is not an empty account: always try the cloud source too.
+    SharedPreferences? prefs;
+    var localMatches = <GameHistoryEntry>[];
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(_key(username));
-      if (raw == null || raw.isEmpty) return GameStatsSnapshot.empty;
-      final decoded = jsonDecode(raw);
-      if (decoded is! List) return GameStatsSnapshot.empty;
-      final matches = decoded
-          .whereType<Map>()
-          .map((entry) => GameHistoryEntry.fromJson(
-                Map<String, dynamic>.from(entry),
-              ))
-          .where((entry) => entry.id.isNotEmpty)
-          .toList()
-        ..sort((a, b) => b.playedAt.compareTo(a.playedAt));
-      // Cloud is the durable source. Keep the local cache as an offline fallback,
-      // and migrate any pre-cloud human matches using idempotent match IDs.
-      final localHuman = matches.where((match) => !match.isBotMatch).toList();
-      for (var offset = 0; offset < localHuman.length; offset += 100) {
-        final batch = localHuman.skip(offset).take(100).toList();
-        await ApiService.saveGameHistory(batch.map((match) => match.toJson()).toList());
-      }
-      final cloud = await ApiService.getGameHistory();
-      if (cloud != null) {
-        final merged = <String, GameHistoryEntry>{
-          for (final match in matches) match.id: match,
-          for (final raw in cloud)
-            if ((raw['id'] ?? '').toString().isNotEmpty)
-              raw['id'].toString(): GameHistoryEntry.fromJson(raw),
-        };
-        final synced = merged.values.toList()
-          ..sort((a, b) => b.playedAt.compareTo(a.playedAt));
+      prefs = await SharedPreferences.getInstance();
+      localMatches = await _loadLocalMatches(username, preferences: prefs);
+    } catch (_) {
+      // Continue with the cloud read even when local storage is unavailable.
+    }
+
+    List<Map<String, dynamic>>? cloud;
+    try {
+      final loader = cloudHistoryLoaderForTesting;
+      cloud = loader == null
+          ? await ApiService.getGameHistory()
+          : await loader();
+    } catch (_) {
+      cloud = null;
+    }
+
+    if (cloud == null) {
+      return GameStatsSnapshot(List<GameHistoryEntry>.unmodifiable(localMatches));
+    }
+
+    // Server records are authoritative for matching IDs. Local-only entries
+    // stay visible as an offline/legacy fallback, but clients never upload
+    // unverified results into competitive history.
+    final merged = <String, GameHistoryEntry>{
+      for (final match in localMatches) match.id: match,
+      for (final match in _decodeEntries(cloud)) match.id: match,
+    };
+    final synced = merged.values.toList()
+      ..sort((a, b) => b.playedAt.compareTo(a.playedAt));
+
+    if (prefs != null) {
+      try {
         await prefs.setString(
           _key(username),
           jsonEncode(synced.map((match) => match.toJson()).toList()),
         );
-        return GameStatsSnapshot(List<GameHistoryEntry>.unmodifiable(synced));
+      } catch (_) {
+        // A cache write failure must not discard the loaded cloud history.
       }
-      return GameStatsSnapshot(List<GameHistoryEntry>.unmodifiable(matches));
-    } catch (_) {
-      return GameStatsSnapshot.empty;
     }
+    return GameStatsSnapshot(List<GameHistoryEntry>.unmodifiable(synced));
   }
 
   static Future<void> recordFinishedMatch({
@@ -207,8 +257,8 @@ class GameHistoryService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final key = _key(username);
-      final existing = await load(username);
-      if (existing.matches.any((match) => match.id == matchId)) return;
+      final existing = await _loadLocalMatches(username, preferences: prefs);
+      if (existing.any((match) => match.id == matchId)) return;
       final matches = <GameHistoryEntry>[
         GameHistoryEntry(
           id: matchId,
@@ -218,25 +268,13 @@ class GameHistoryService {
           playedAt: playedAt,
           isBotMatch: isBotMatch,
         ),
-        ...existing.matches,
+        ...existing,
       ]..sort((a, b) => b.playedAt.compareTo(a.playedAt));
       await prefs.setString(
         key,
         jsonEncode(matches.map((match) => match.toJson()).toList()),
       );
       revision.value++;
-      if (!isBotMatch) {
-        await ApiService.saveGameHistory([
-          GameHistoryEntry(
-            id: matchId,
-            gameType: gameType,
-            opponent: opponent.trim().isEmpty ? 'Opponent' : opponent.trim(),
-            result: normalizedResult,
-            playedAt: playedAt,
-            isBotMatch: false,
-          ).toJson(),
-        ]);
-      }
     } catch (_) {
       // A failed local write must never interrupt a finished match.
     }
