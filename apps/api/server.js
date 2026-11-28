@@ -8147,6 +8147,14 @@ io.on("connection", (socket) => {
         from: userKey,
       });
     }
+    emitGameInviteClosed({
+      invite,
+      messageId,
+      onlineUsers,
+      io,
+      reason: "accepted",
+      extraSocketIds: [socket.id],
+    });
     return respond({ ok: true, waitingForHost: invite.gameType === "rajamantri" });
   });
 
@@ -8168,6 +8176,14 @@ io.on("connection", (socket) => {
         by: userKey,
       });
     }
+    emitGameInviteClosed({
+      invite,
+      messageId,
+      onlineUsers,
+      io,
+      reason: "rejected",
+      extraSocketIds: [socket.id],
+    });
     return respond({ ok: true });
   });
 
