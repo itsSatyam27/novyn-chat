@@ -115,7 +115,14 @@ function createFcmMessage(userKey, user, payload = {}) {
     "app_update",
   ]);
   const systemVisible = !silent && visibleAlertTypes.has(type);
-  const ttlMs = isCall ? 45000 : FOUR_WEEKS_MS;
+  const requestedExpiry = Number(payload.expiresAt);
+  const hasExpiry = type === "game_invitation" &&
+    Number.isFinite(requestedExpiry) && requestedExpiry > 0;
+  const ttlMs = isCall
+    ? 45000
+    : hasExpiry
+      ? Math.max(0, Math.min(FOUR_WEEKS_MS, requestedExpiry - Date.now()))
+      : FOUR_WEEKS_MS;
   const previewAllowed =
     user?.messagePreviewEnabled !== false &&
     user?.hideNotificationContent !== true &&
@@ -154,7 +161,7 @@ function createFcmMessage(userKey, user, payload = {}) {
     "url", "tag", "groupId", "callStatus", "callId", "callExpiresAt", "isVideo",
     "groupCall", "groupCallId", "invitedBy", "invitedByDisplayName",
     "from", "displayName", "action", "build", "releaseTag", "releaseUrl",
-    "gameId", "gameType", "mentionOrReply", "ciphertext", "iv",
+    "gameId", "gameType", "expiresAt", "mentionOrReply", "ciphertext", "iv",
     "senderPublicKey", "messageId",
   ];
   for (const key of optionalFields) {
