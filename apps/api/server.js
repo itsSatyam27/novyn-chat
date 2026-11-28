@@ -20,7 +20,7 @@ const {
   buildRajaMantriHistoryRecords,
 } = require("./server/realtime/game-history-records");
 const { PublicGameMatchmaking } = require("./server/realtime/game-matchmaking");
-const { calculateMatchmakingSkill, normalizeGameType } = require("./server/realtime/game-matchmaking-skill");
+const { loadMatchmakingSkill, normalizeGameType } = require("./server/realtime/game-matchmaking-skill");
 const { listActiveRandomGamesForPlayer } = require("./server/realtime/random-game-session-restore");
 const { buildGameLeaderboard, normalizeLeaderboardGame } = require("./game-leaderboard");
 const { RajaMantriMatchmaking } = require("./server/realtime/raja-mantri-matchmaking");
@@ -7711,26 +7711,11 @@ io.on("connection", (socket) => {
     let matchmakingLevel = 1;
     if (mongoGameHistoryCollection) {
       try {
-        const verifiedMatches = await mongoGameHistoryCollection.find({
+        matchmakingLevel = (await loadMatchmakingSkill({
+          collection: mongoGameHistoryCollection,
           userKey,
           gameType,
-          source: "server",
-          isBotMatch: { $ne: true },
-        }, {
-          projection: {
-            _id: 0,
-            id: 1,
-            gameType: 1,
-            result: 1,
-            playedAt: 1,
-            source: 1,
-            isBotMatch: 1,
-          },
-        }).sort({ playedAt: -1 }).limit(2_000).toArray();
-        matchmakingLevel = calculateMatchmakingSkill({
-          matches: verifiedMatches,
-          gameType,
-        }).level;
+        })).level;
       } catch (error) {
         const pending = pendingRandomMatchmakingLookups.get(userKey);
         if (pending?.requestId !== requestId || pending?.socketId !== socket.id) {
