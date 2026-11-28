@@ -793,11 +793,9 @@ class _GameOverModalContentState extends State<_GameOverModalContent> {
     }
     if (widget.playerLeft != null && widget.playerLeft != oldWidget.playerLeft) {
       _timer?.cancel();
-      setState(() {
-        _rematchRequested = false;
-        _opponentWantsRematch = false;
-        _statusNote = '${widget.opponentName ?? "Player 2"} left the room';
-      });
+      _rematchRequested = false;
+      _opponentWantsRematch = false;
+      _statusNote = '${widget.opponentName ?? "Player 2"} left the room';
       return;
     }
     final rematchChanged =
@@ -808,30 +806,24 @@ class _GameOverModalContentState extends State<_GameOverModalContent> {
     if (!rematchChanged) return;
     _timer?.cancel();
     if (widget.isOpponentRequest) {
-      setState(() {
-        _rematchRequested = false;
-        _opponentWantsRematch = true;
-        _statusNote = null;
-      });
+      _rematchRequested = false;
+      _opponentWantsRematch = true;
+      _statusNote = null;
       _startTimer(expiresAt: widget.rematchExpiresAt);
     } else if (widget.isOwnRequest) {
-      setState(() {
-        _rematchRequested = true;
-        _opponentWantsRematch = false;
-        _statusNote = null;
-      });
+      _rematchRequested = true;
+      _opponentWantsRematch = false;
+      _statusNote = null;
       _startTimer(expiresAt: widget.rematchExpiresAt);
     } else {
-      setState(() {
-        _rematchRequested = false;
-        _opponentWantsRematch = false;
-        _statusNote = switch (widget.rematchStatus) {
-          'declined' => 'Rematch declined',
-          'cancelled' => 'Rematch request cancelled',
-          'expired' => 'Rematch request timed out',
-          _ => null,
-        };
-      });
+      _rematchRequested = false;
+      _opponentWantsRematch = false;
+      _statusNote = switch (widget.rematchStatus) {
+        'declined' => 'Rematch declined',
+        'cancelled' => 'Rematch request cancelled',
+        'expired' => 'Rematch request timed out',
+        _ => null,
+      };
     }
   }
 
