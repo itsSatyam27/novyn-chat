@@ -1,10 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:novyn/screens/games/home/games_screen.dart';
+import 'package:novyn/screens/games/invitations/game_invitations_screen.dart';
 import 'package:novyn/screens/games/shared/room/game_room_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  test('invitation refresh keeps live arrivals and drops resolved/expired IDs', () {
+    final merged = mergeGameInvitationLists(
+      snapshot: [
+        {'messageId': 'invite-old', 'expiresAt': 1200, 'displayName': 'Snapshot'},
+        {'messageId': 'invite-expired', 'expiresAt': 999},
+        {'messageId': 'invite-resolved', 'expiresAt': 1600},
+      ],
+      live: [
+        {'messageId': 'invite-old', 'expiresAt': 1200, 'displayName': 'Live'},
+        {'messageId': 'invite-new', 'expiresAt': 1500},
+      ],
+      resolvedIds: {'invite-resolved'},
+      nowMillis: 1000,
+    );
+
+    expect(merged.map((invite) => invite['messageId']).toList(), [
+      'invite-new',
+      'invite-old',
+    ]);
+    expect(merged.last['displayName'], 'Live');
+  });
+
   test('game room status reflects match and connection state', () {
     expect(
       resolveGameRoomStatusLabel(
