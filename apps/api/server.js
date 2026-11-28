@@ -8112,8 +8112,20 @@ io.on("connection", (socket) => {
     const userKey = normalizeName(socket.data.userKey || "");
     const messageId = toDisplayName(payload?.messageId).slice(0, 128);
     const invite = pendingGameInvites.get(messageId);
-    if (!userKey || !invite || invite.toKey !== userKey || invite.expiresAt <= Date.now()) {
-      pendingGameInvites.delete(messageId);
+    if (!userKey || !invite || invite.toKey !== userKey) {
+      return respond({ ok: false, message: "This game invite has expired." });
+    }
+    if (invite.expiresAt <= Date.now()) {
+      clearTimeout(invite.timer);
+      if (pendingGameInvites.get(messageId) === invite) {
+        expirePendingGameInvite({
+          messageId,
+          invite,
+          pendingGameInvites,
+          onlineUsers,
+          io,
+        });
+      }
       return respond({ ok: false, message: "This game invite has expired." });
     }
     clearTimeout(invite.timer);
@@ -8125,15 +8137,13 @@ io.on("connection", (socket) => {
       invite.acceptedSocketId = socket.id;
       invite.expiresAt = Date.now() + 5 * 60 * 1000;
       invite.timer = setTimeout(() => {
-        if (pendingGameInvites.get(messageId) !== invite) return;
-        pendingGameInvites.delete(messageId);
-        const hostSocketId = onlineUsers.get(invite.fromKey);
-        if (hostSocketId) {
-          io.to(hostSocketId).emit("game_invite_timeout", { messageId, gameType: invite.gameType });
-        }
-        if (invite.acceptedSocketId) {
-          io.to(invite.acceptedSocketId).emit("game_invite_timeout", { messageId, gameType: invite.gameType });
-        }
+        expirePendingGameInvite({
+          messageId,
+          invite,
+          pendingGameInvites,
+          onlineUsers,
+          io,
+        });
       }, 5 * 60 * 1000);
       if (typeof invite.timer.unref === "function") invite.timer.unref();
     } else {
@@ -8163,7 +8173,20 @@ io.on("connection", (socket) => {
     const userKey = normalizeName(socket.data.userKey || "");
     const messageId = toDisplayName(payload?.messageId).slice(0, 128);
     const invite = pendingGameInvites.get(messageId);
-    if (!userKey || !invite || invite.toKey !== userKey || invite.expiresAt <= Date.now()) {
+    if (!userKey || !invite || invite.toKey !== userKey) {
+      return respond({ ok: false, message: "This game invite is no longer active." });
+    }
+    if (invite.expiresAt <= Date.now()) {
+      clearTimeout(invite.timer);
+      if (pendingGameInvites.get(messageId) === invite) {
+        expirePendingGameInvite({
+          messageId,
+          invite,
+          pendingGameInvites,
+          onlineUsers,
+          io,
+        });
+      }
       return respond({ ok: false, message: "This game invite is no longer active." });
     }
     clearTimeout(invite.timer);
