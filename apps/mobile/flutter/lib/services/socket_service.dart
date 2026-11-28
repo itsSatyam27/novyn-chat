@@ -272,6 +272,7 @@ class SocketService extends ChangeNotifier {
   Function(Map)? onGameInviteAccepted;
   Function(Map)? onGameInviteTimeout;
   Function(Map)? onGameInvitationReceived;
+  Function(Map)? onGameMoveUpdated;
   Function(Map)? onRajaMantriMatchFound;
   Function(Map)? onRajaMantriMatchProgress;
   Function(Map)? onRajaMantriMatchTimeout;
@@ -1311,9 +1312,12 @@ class SocketService extends ChangeNotifier {
 
     _socket!.on('game_move_updated', (data) {
       if (data is! Map) return;
-      final messageId = data['messageId']?.toString() ?? '';
-      final rawGame = data['game'];
-      if (messageId.isEmpty || rawGame is! Map) return;
+      final packet = Map<String, dynamic>.from(data);
+      final messageId = packet['messageId']?.toString() ?? '';
+      final rawGame = packet['game'];
+      if (rawGame is! Map) return;
+      onGameMoveUpdated?.call(packet);
+      if (messageId.isEmpty) return;
       final index = _messages.indexWhere((message) => message.id == messageId);
       if (index == -1) {
         _pendingGameUpdates[messageId] = Map<String, dynamic>.from(rawGame);
