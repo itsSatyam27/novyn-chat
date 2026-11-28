@@ -8,7 +8,6 @@ import '../../../services/auth_service.dart';
 import '../../../services/game_history_service.dart';
 import '../../../services/socket_service.dart';
 import '../../../theme/novyn_theme.dart';
-import '../../../widgets/novyn_ui.dart';
 import '../../../widgets/novyn_header_actions.dart';
 import '../../../widgets/novyn_filter_chips.dart';
 import '../../../widgets/user_avatar.dart';
