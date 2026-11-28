@@ -1,11 +1,14 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../models/chat_models.dart';
+import '../../../../services/chess_engine.dart';
 import '../../../../services/socket_service.dart';
 import '../../../../widgets/game_message_card.dart';
+import '../../chess/chess_game_screen.dart';
 
 String resolveGameRoomStatusLabel({
   required bool isFinished,
@@ -44,6 +47,7 @@ class GameRoomScreen extends StatefulWidget {
     required String currentUsername,
     required String gameType,
     required String title,
+    String botDifficulty = 'medium',
   }) {
     final account = currentUsername.trim();
     if (account.isEmpty) {
@@ -53,14 +57,37 @@ class GameRoomScreen extends StatefulWidget {
       return;
     }
 
+    final isChess = gameType == 'chess';
+    final chessUserIsWhite = !isChess || math.Random.secure().nextBool();
+    final chessWhite = chessUserIsWhite ? account : 'novyn_chess_bot';
+    final chessBlack = chessUserIsWhite ? 'novyn_chess_bot' : account;
     final initialGame = <String, dynamic>{
       'gameType': gameType,
       'title': title,
       'state': 'in_progress',
       'createdBy': account,
-      'turn': account,
+      'turn': isChess ? chessWhite : account,
       'isOfflineBot': true,
-      'data': gameType == 'tictactoe'
+      'botDifficulty': botDifficulty,
+      'data': isChess
+          ? <String, dynamic>{
+              'white': chessWhite,
+              'black': chessBlack,
+              'whiteName': chessUserIsWhite ? account : 'Chess Bot',
+              'blackName': chessUserIsWhite ? 'Chess Bot' : account,
+              'player1': chessWhite,
+              'player2': chessBlack,
+              'fen': ChessEngine.startFen,
+              'legalMoves': ChessEngine.legalMoves(ChessEngine.startFen),
+              'moves': <String>[],
+              'lastMove': '',
+              'lastMoveAt': 0,
+              'whiteTimeMs': 300000,
+              'blackTimeMs': 300000,
+              'check': false,
+              'canClaimDraw': false,
+            }
+          : gameType == 'tictactoe'
           ? <String, dynamic>{
               'playerX': account,
               'playerO': 'AI Bot',
@@ -87,6 +114,7 @@ class GameRoomScreen extends StatefulWidget {
           peerUsername: 'AI Bot',
           currentUsername: account,
           initialGame: initialGame,
+          opponentDisplayName: isChess ? 'Chess Bot' : null,
         ),
       ),
     );
@@ -279,6 +307,18 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
         : isOfflineBot || socket.isConnected
             ? accent
             : colors.onSurfaceVariant;
+
+    if ((game ?? widget.initialGame)['gameType']?.toString() == 'chess') {
+      return ChessGameScreen(
+        currentUsername: widget.currentUsername,
+        initialGame: game ?? widget.initialGame,
+        messageId: widget.messageId,
+        peerUsername: widget.peerUsername,
+        randomSessionId: widget.randomSessionId,
+        opponentDisplayName: widget.opponentDisplayName,
+        isOfflineBot: isOfflineBot,
+      );
+    }
 
     return PopScope<void>(
       canPop: _allowPop,

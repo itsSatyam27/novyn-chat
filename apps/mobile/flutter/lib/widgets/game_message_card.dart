@@ -371,7 +371,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
               color: colors.primary.withValues(alpha: .11),
               borderRadius: BorderRadius.circular(13),
             ),
-            child: Icon(Icons.sports_esports_rounded, color: colors.primary),
+            child: Icon(_type == 'chess' ? Icons.grid_3x3_rounded : Icons.sports_esports_rounded, color: colors.primary),
           ),
           const SizedBox(width: 11),
           Expanded(
@@ -513,7 +513,7 @@ class _GameMessageCardState extends State<GameMessageCard> {
         children: [
           Row(
             children: [
-              const Icon(Icons.sports_esports_rounded, size: 17),
+              Icon(_type == 'chess' ? Icons.grid_3x3_rounded : Icons.sports_esports_rounded, size: 17),
               const SizedBox(width: 7),
               Expanded(
                 child: Text(_title, style: const TextStyle(fontFamily: 'PlusJakartaSans', fontSize: 13, fontWeight: FontWeight.w800)),

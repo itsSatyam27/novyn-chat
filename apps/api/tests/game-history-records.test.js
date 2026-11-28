@@ -81,6 +81,22 @@ test("two-player game history records draws and rejects forged or non-human resu
   }, users), []);
 });
 
+test("Chess history uses the authoritative white and black player keys", () => {
+  const users = accounts("alice", "bob");
+  const records = buildTwoPlayerGameHistoryRecords({
+    id: "chess-game",
+    gameType: "chess",
+    state: "finished",
+    winner: "bob",
+    updatedAt: 1795831200123,
+    data: { white: "alice", black: "bob", player1: "alice", player2: "bob" },
+  }, users);
+  assert.deepEqual(records.map((record) => [record.userKey, record.result, record.opponent]), [
+    ["alice", "loss", "bob"],
+    ["bob", "win", "alice"],
+  ]);
+});
+
 test("Raja Mantri history uses completed server scores and never accepts bot sessions", () => {
   const users = accounts("alice", "bob", "carol");
   const session = {

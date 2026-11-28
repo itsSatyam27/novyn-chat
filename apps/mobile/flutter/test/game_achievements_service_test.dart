@@ -107,18 +107,19 @@ void main() {
       expect(hatTrick.isUnlocked, isTrue);
     });
 
-    test('all-rounder counts the three available games only', () {
+    test('all-rounder counts the four available games only', () {
       final snapshot = GameAchievementsService.evaluate([
         match('m1', 'tictactoe', 'loss', 1),
         match('m2', 'rps', 'draw', 2),
         match('m3', 'Raja Mantri', 'loss', 3),
-        match('m4', 'uno', 'win', 4),
+        match('m4', 'Chess', 'win', 4),
+        match('m5', 'uno', 'win', 5),
       ]);
 
       final allRounder = snapshot.achievements.firstWhere(
         (item) => item.id == 'all_rounder',
       );
-      expect(allRounder.progress, 3);
+      expect(allRounder.progress, 4);
       expect(allRounder.isUnlocked, isTrue);
     });
   });

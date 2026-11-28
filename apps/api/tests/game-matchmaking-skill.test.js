@@ -12,6 +12,7 @@ test("normalizes supported matchmaking games", () => {
   assert.equal(normalizeGameType("Tic-Tac-Toe"), "tictactoe");
   assert.equal(normalizeGameType("RPS"), "rps");
   assert.equal(normalizeGameType("Raja Mantri"), "rajamantri");
+  assert.equal(normalizeGameType("Chess"), "chess");
 });
 
 test("derives skill score, level, and win streaks from verified human matches", () => {

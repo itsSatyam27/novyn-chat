@@ -97,9 +97,9 @@ class GameAchievementsService {
     _AchievementRule(
       id: 'all_rounder',
       title: 'All-Rounder',
-      description: 'Complete a human match in all 3 available games.',
+      description: 'Complete a human match in all 4 available games.',
       iconKey: 'all_rounder',
-      target: 3,
+      target: 4,
       metric: _AchievementMetric.gameVariety,
     ),
   ];
@@ -160,6 +160,7 @@ class GameAchievementsService {
       'tictactoe' => 'tictactoe',
       'rps' || 'rockpaperscissors' => 'rps',
       'rajamantri' || 'rmcs' => 'rajamantri',
+      'chess' => 'chess',
       _ => null,
     };
   }

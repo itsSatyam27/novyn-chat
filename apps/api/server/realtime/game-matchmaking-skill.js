@@ -1,6 +1,6 @@
 "use strict";
 
-const VALID_GAME_TYPES = new Set(["tictactoe", "rps"]);
+const VALID_GAME_TYPES = new Set(["tictactoe", "rps", "chess"]);
 const VALID_RESULTS = new Set(["win", "loss", "draw"]);
 const XP_PER_MATCH = 10;
 const XP_PER_WIN = 25;

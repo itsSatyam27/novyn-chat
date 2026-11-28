@@ -302,6 +302,8 @@ class SocketService extends ChangeNotifier {
   final Map<String, String> _rajaMantriInviteSessions = <String, String>{};
   final Set<String> _rajaMantriExpiredInvites = <String>{};
   final Map<String, Map<String, dynamic>> _randomGames = <String, Map<String, dynamic>>{};
+  final Map<String, List<Map<String, dynamic>>> _randomGameChats =
+      <String, List<Map<String, dynamic>>>{};
   final List<Map<String, dynamic>> _pendingGroupCallSignals = [];
   // Game moves can arrive before the corresponding chat history page.
   final Map<String, Map<String, dynamic>> _pendingGameUpdates =
@@ -314,6 +316,10 @@ class SocketService extends ChangeNotifier {
   Function(Map)? onCallMediaUpgradeResponseCallback;
   Function(Map)? onCallScreenShareChangedCallback;
   Function(Map)? onWebRTCSignalCallback;
+  Function(Map<String, dynamic>)? onChessVoiceInviteCallback;
+  Function(Map<String, dynamic>)? onChessVoicePeerJoinedCallback;
+  Function(Map<String, dynamic>)? onChessVoiceSignalCallback;
+  Function(Map<String, dynamic>)? onChessVoicePeerLeftCallback;
   Function(Map)? onGroupCallPromotedCallback;
   Function(Map)? onGroupCallInvitationCallback;
   Function(Map)? onGroupCallJoinedCallback;
@@ -357,6 +363,11 @@ class SocketService extends ChangeNotifier {
     final game = _randomGames[sessionId];
     return game == null ? null : Map<String, dynamic>.from(game);
   }
+
+  List<Map<String, dynamic>> randomGameChatFor(String sessionId) =>
+      List<Map<String, dynamic>>.unmodifiable(
+        _randomGameChats[sessionId] ?? const <Map<String, dynamic>>[],
+      );
 
   // ── Connect ───────────────────────────────────────────────────────────────
   /// Rebuild the socket handshake after the REST session cookie rotates.
@@ -1728,6 +1739,19 @@ class SocketService extends ChangeNotifier {
       }
     });
 
+    _socket!.on('chess_voice_invite', (data) {
+      if (data is Map) onChessVoiceInviteCallback?.call(Map<String, dynamic>.from(data));
+    });
+    _socket!.on('chess_voice_peer_joined', (data) {
+      if (data is Map) onChessVoicePeerJoinedCallback?.call(Map<String, dynamic>.from(data));
+    });
+    _socket!.on('chess_voice_signal', (data) {
+      if (data is Map) onChessVoiceSignalCallback?.call(Map<String, dynamic>.from(data));
+    });
+    _socket!.on('chess_voice_peer_left', (data) {
+      if (data is Map) onChessVoicePeerLeftCallback?.call(Map<String, dynamic>.from(data));
+    });
+
     _socket!.on('random_game_restored', (data) {
       if (data is! Map) return;
       final packet = Map<String, dynamic>.from(data);
@@ -1757,6 +1781,24 @@ class SocketService extends ChangeNotifier {
       _randomGames[sessionId] = Map<String, dynamic>.from(game);
       notifyListeners();
       onRandomGameUpdated?.call(packet);
+    });
+    _socket!.on('random_game_chat_message', (data) {
+      if (data is! Map) return;
+      final packet = Map<String, dynamic>.from(data);
+      final sessionId = packet['sessionId']?.toString() ?? '';
+      if (sessionId.isEmpty) return;
+      final messages = _randomGameChats.putIfAbsent(
+        sessionId,
+        () => <Map<String, dynamic>>[],
+      );
+      final messageId = packet['id']?.toString() ?? '';
+      if (messageId.isNotEmpty &&
+          messages.any((message) => message['id']?.toString() == messageId)) {
+        return;
+      }
+      messages.add(packet);
+      if (messages.length > 50) messages.removeRange(0, messages.length - 50);
+      notifyListeners();
     });
     _socket!.on('random_match_timeout', (data) {
       if (data is Map) onRandomMatchTimeout?.call(Map<String, dynamic>.from(data));
@@ -2988,6 +3030,92 @@ class SocketService extends ChangeNotifier {
     return result;
   }
 
+  Future<Map<String, dynamic>> joinChessVoice({
+    required String scope,
+    String? sessionId,
+    String? messageId,
+    String? peerUsername,
+  }) async {
+    await _waitForSocketAuthentication();
+    final socket = _socket;
+    if (socket == null || !_isConnected || !_isAuthenticated) {
+      throw StateError('Reconnect to Novyn before joining Chess voice.');
+    }
+    final completer = Completer<Map<String, dynamic>>();
+    socket.emitWithAck('chess_voice_join', {
+      'scope': scope,
+      if (sessionId != null) 'sessionId': sessionId,
+      if (messageId != null) 'messageId': messageId,
+      if (peerUsername != null) 'peerUsername': peerUsername,
+    }, ack: (dynamic result) {
+      if (completer.isCompleted) return;
+      completer.complete(result is Map
+          ? Map<String, dynamic>.from(result)
+          : <String, dynamic>{
+              'ok': false,
+              'message': 'The server did not confirm Chess voice access.',
+            });
+    });
+    final result = await completer.future.timeout(
+      const Duration(seconds: 8),
+      onTimeout: () => <String, dynamic>{
+        'ok': false,
+        'message': 'Chess voice request timed out. Please retry.',
+      },
+    );
+    if (result['ok'] != true) {
+      throw StateError(result['message']?.toString() ??
+          'Could not join Chess voice.');
+    }
+    return result;
+  }
+
+  void sendChessVoiceSignal(String roomId, Map<String, dynamic> signal) {
+    if (roomId.isEmpty || !_isConnected || !_isAuthenticated) return;
+    _socket?.emit('chess_voice_signal', {
+      'roomId': roomId,
+      'signal': signal,
+    });
+  }
+
+  void leaveChessVoice(String roomId) {
+    if (roomId.isEmpty) return;
+    _socket?.emit('chess_voice_leave', {'roomId': roomId});
+  }
+
+  Future<Map<String, dynamic>> sendRandomGameChat(
+    String sessionId,
+    String text,
+  ) async {
+    final trimmed = text.trim();
+    if (sessionId.trim().isEmpty || trimmed.isEmpty || trimmed.length > 600) {
+      throw StateError('Write a message with up to 600 characters.');
+    }
+    await _waitForSocketAuthentication();
+    final socket = _socket;
+    if (socket == null || !_isConnected || !_isAuthenticated) {
+      throw StateError('Reconnect to Novyn before sending match chat.');
+    }
+    final completer = Completer<Map<String, dynamic>>();
+    socket.emitWithAck('random_game_chat', {
+      'sessionId': sessionId,
+      'text': trimmed,
+    }, ack: (dynamic result) {
+      if (completer.isCompleted) return;
+      completer.complete(result is Map
+          ? Map<String, dynamic>.from(result)
+          : <String, dynamic>{'ok': false, 'message': 'Could not send match chat.'});
+    });
+    final result = await completer.future.timeout(
+      const Duration(seconds: 8),
+      onTimeout: () => <String, dynamic>{'ok': false, 'message': 'Match chat timed out. Please retry.'},
+    );
+    if (result['ok'] != true) {
+      throw StateError(result['message']?.toString() ?? 'Match chat failed.');
+    }
+    return result;
+  }
+
   Future<void> cancelRandomGame() async {
     final socket = _socket;
     if (socket == null || !_isConnected || !_isAuthenticated) {
@@ -3171,6 +3299,7 @@ class SocketService extends ChangeNotifier {
     const titles = {
       'tictactoe': 'Tic-Tac-Toe',
       'rps': 'Rock • Paper • Scissors',
+      'chess': 'Chess',
       'rajamantri': 'Raja Mantri Chor Sipahi',
     };
     return titles[type] ?? 'Game';

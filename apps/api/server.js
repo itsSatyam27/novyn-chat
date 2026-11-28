@@ -15,6 +15,7 @@ const { registerCallHandlers, cancelCallForUser } = require("./server/realtime/c
 const { createGroupCallRegistry, registerGroupCallHandlers } = require("./server/realtime/group-call-handlers");
 const groupCallRegistry = createGroupCallRegistry();
 const { applyGameMove, createGameChallenge } = require("./server/realtime/game-rules");
+const { ChessVoiceRegistry } = require("./server/realtime/chess-voice");
 const {
   buildTwoPlayerGameHistoryRecords,
   buildRajaMantriHistoryRecords,
@@ -1926,6 +1927,7 @@ const randomGameSessions = new Map();
 const RANDOM_GAME_SESSION_TTL_MS = 30 * 60 * 1000;
 const RANDOM_GAME_DISCONNECT_GRACE_MS = 60 * 1000;
 const pendingGameInvites = new Map();
+const chessVoiceRegistry = new ChessVoiceRegistry();
 
 let mongoStorage = null;
 let mongoLegacyCollection = null;
@@ -7710,7 +7712,7 @@ io.on("connection", (socket) => {
     }
 
     const gameType = normalizeGameType(payload?.gameType);
-    if (!["tictactoe", "rps"].includes(gameType)) {
+    if (!["tictactoe", "rps", "chess"].includes(gameType)) {
       return respond({ ok: false, message: "Invalid matchmaking request." });
     }
 
@@ -7786,10 +7788,16 @@ io.on("connection", (socket) => {
     const [first, second] = result.players;
     const challenge = createGameChallenge({
       userKey: first.userKey,
-      userDisplayName: first.userKey,
+      userDisplayName: first.displayName || first.userKey,
       to: second.userKey,
       toType: "friend",
-      game: { id: "random_" + result.sessionId, gameType: result.gameType },
+      game: {
+        id: "random_" + result.sessionId,
+        gameType: result.gameType,
+        ...(result.gameType === "chess"
+          ? { opponentDisplayName: second.displayName || second.userKey }
+          : {}),
+      },
     });
     if (!challenge.ok) {
       io.to(first.socketId).emit("random_match_timeout", { gameType: result.gameType, message: challenge.reason || "This game is unavailable right now." });
@@ -8338,6 +8346,184 @@ io.on("connection", (socket) => {
       playerCount,
       players: packet.players,
     });
+  });
+
+  // Chess voice uses match-scoped WebRTC signaling. No call logs, recordings,
+  // or ordinary-call state are created by this feature.
+  socket.on("chess_voice_join", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : () => {};
+    const userKey = normalizeName(socket.data.userKey || "");
+    if (!userKey || onlineUsers.get(userKey) !== socket.id) {
+      return respond({ ok: false, message: "Reconnect to join Chess voice." });
+    }
+    if (!allowSocketAction(socket, "chess_voice_join", 8, 60_000)) {
+      return respond({ ok: false, message: "Please wait before joining Chess voice again." });
+    }
+
+    if (payload?.scope !== "friend") {
+      return respond({ ok: false, message: "Chess voice is available only in friend matches." });
+    }
+
+    const messageId = toDisplayName(payload?.messageId).slice(0, 128);
+    const requestedPeer = toDisplayName(payload?.peerUsername);
+    if (!messageId || !requestedPeer) {
+      return respond({ ok: false, message: "A Chess match and opponent are required for voice." });
+    }
+    const resolved = resolveChatTargetForUser(userKey, requestedPeer, "friend", { inferGroup: false });
+    if (!resolved.ok || resolved.type !== "friend") {
+      return respond({ ok: false, message: "You are not authorized for this Chess match." });
+    }
+    const peerKey = normalizeName(resolved.targetKey || requestedPeer);
+    if (!peerKey || peerKey === userKey || usersAreBlocked(userKey, peerKey)) {
+      return respond({ ok: false, message: "Chess voice is unavailable for this contact." });
+    }
+    const messages = conversations.get(resolved.conversationKey) || [];
+    const message = messages.find((entry) =>
+      String(entry.id) === messageId && entry.game && entry.game.gameType === "chess"
+    );
+    const game = message?.game;
+    // Public matchmaking creates a dedicated random_* game record. Even if
+    // these players happen to be friends already, this match type cannot use
+    // the friend-only voice path.
+    if (String(game?.id || "").startsWith("random_")) {
+      return respond({ ok: false, message: "Chess voice is unavailable in random matches." });
+    }
+    const gameData = game?.data && typeof game.data === "object" ? game.data : {};
+    const players = new Set([
+      game?.createdBy, game?.opponent, gameData.white, gameData.black,
+      gameData.player1, gameData.player2,
+    ].map(normalizeName).filter(Boolean));
+    if (!game || game.state !== "in_progress" ||
+        !players.has(userKey) || !players.has(peerKey)) {
+      return respond({ ok: false, message: "This Chess match is not active for both players." });
+    }
+    const matchKey = "friend:" + String(resolved.conversationKey) + ":" + messageId;
+    const inviteContext = { scope: "friend", messageId };
+
+    const peerSocketId = onlineUsers.get(peerKey);
+    if (!peerSocketId) {
+      return respond({ ok: false, message: "Your opponent must be online to join voice." });
+    }
+    const joined = chessVoiceRegistry.join(matchKey, userKey, peerKey);
+    if (!joined.ok) return respond(joined);
+
+    const account = users.get(userKey);
+    const displayName = toDisplayName(account?.displayName || account?.username || userKey);
+    if (joined.peerReady) {
+      io.to(peerSocketId).emit("chess_voice_peer_joined", {
+        roomId: joined.roomId,
+        peerUsername: userKey,
+        initiator: peerKey.localeCompare(userKey) < 0,
+      });
+    } else {
+      io.to(peerSocketId).emit("chess_voice_invite", {
+        roomId: joined.roomId,
+        ...inviteContext,
+        peerUsername: userKey,
+        displayName,
+      });
+    }
+    return respond({
+      ok: true,
+      roomId: joined.roomId,
+      peerUsername: peerKey,
+      peerReady: joined.peerReady,
+      initiator: joined.initiator,
+    });
+  });
+
+  socket.on("chess_voice_signal", (payload) => {
+    const userKey = normalizeName(socket.data.userKey || "");
+    if (!userKey || onlineUsers.get(userKey) !== socket.id) return;
+    if (!allowSocketAction(socket, "chess_voice_signal", 120, 60_000)) return;
+    const roomId = String(payload?.roomId || "").trim().slice(0, 128);
+    const signal = payload?.signal;
+    if (!roomId || !signal || typeof signal !== "object" || Array.isArray(signal)) return;
+    const signalType = String(signal.type || "");
+    if (!["offer", "answer", "candidate"].includes(signalType)) return;
+    let encoded;
+    try { encoded = JSON.stringify(signal); } catch (_) { return; }
+    if (!encoded || encoded.length > 20_000) return;
+
+    const authorization = chessVoiceRegistry.authorizeSignal(roomId, userKey);
+    if (!authorization.ok) return;
+    const peerSocketId = onlineUsers.get(authorization.peerUsername);
+    if (!peerSocketId) return;
+    io.to(peerSocketId).emit("chess_voice_signal", {
+      roomId,
+      from: userKey,
+      signal,
+    });
+  });
+
+  socket.on("chess_voice_leave", (payload) => {
+    const userKey = normalizeName(socket.data.userKey || "");
+    if (!userKey || onlineUsers.get(userKey) !== socket.id) return;
+    const roomId = String(payload?.roomId || "").trim().slice(0, 128);
+    const left = chessVoiceRegistry.leave(roomId, userKey);
+    if (!left) return;
+    const peerSocketId = onlineUsers.get(left.peerUsername);
+    if (peerSocketId) {
+      io.to(peerSocketId).emit("chess_voice_peer_left", {
+        roomId,
+        peerUsername: userKey,
+      });
+    }
+  });
+
+  socket.on("disconnect", () => {
+    const userKey = normalizeName(socket.data.userKey || "");
+    // Ignore stale sockets replaced by a newer authenticated connection.
+    if (!userKey || onlineUsers.get(userKey) !== socket.id) return;
+    for (const left of chessVoiceRegistry.disconnect(userKey)) {
+      const peerSocketId = onlineUsers.get(left.peerUsername);
+      if (peerSocketId) {
+        io.to(peerSocketId).emit("chess_voice_peer_left", {
+          roomId: left.roomId,
+          peerUsername: userKey,
+        });
+      }
+    }
+  });
+
+  socket.on("random_game_chat", (payload, callback) => {
+    const respond = typeof callback === "function" ? callback : () => {};
+    const userKey = normalizeName(socket.data.userKey || "");
+    const sessionId = String(payload?.sessionId || "").trim();
+    const session = randomGameSessions.get(sessionId);
+    if (!userKey || onlineUsers.get(userKey) !== socket.id || !session) {
+      return respond({ ok: false, message: "This random game session is no longer available." });
+    }
+    if (session.expiresAt <= Date.now() || session.game?.state !== "in_progress") {
+      return respond({ ok: false, message: "Match chat is no longer available." });
+    }
+    if (!session.players.includes(userKey)) {
+      return respond({ ok: false, message: "You are not a player in this game." });
+    }
+    if (!allowSocketAction(socket, "random_game_chat", 30, 60_000)) {
+      return respond({ ok: false, message: "Match chat rate limit reached. Please slow down." });
+    }
+    const messageText = String(payload?.text || "").replace(/[\u0000-\u001f\u007f]/g, " ").trim();
+    if (!messageText || messageText.length > 600) {
+      return respond({ ok: false, message: "Write a message with up to 600 characters." });
+    }
+    const account = users.get(userKey);
+    const packet = {
+      id: crypto.randomUUID(),
+      sessionId,
+      from: account?.username || userKey,
+      displayName: toDisplayName(account?.displayName || account?.username || userKey),
+      text: messageText,
+      createdAt: Date.now(),
+    };
+    if (!Array.isArray(session.chatMessages)) session.chatMessages = [];
+    session.chatMessages.push(packet);
+    if (session.chatMessages.length > 50) session.chatMessages.splice(0, session.chatMessages.length - 50);
+    for (const playerKey of session.players) {
+      const playerSocketId = onlineUsers.get(normalizeName(playerKey));
+      if (playerSocketId) io.to(playerSocketId).emit("random_game_chat_message", packet);
+    }
+    return respond({ ok: true, message: packet });
   });
 
   socket.on("random_game_move", async (payload, callback) => {

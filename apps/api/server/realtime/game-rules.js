@@ -1,7 +1,8 @@
 "use strict";
 
 const crypto = require("crypto");
-const GAME_TYPES = new Set(["tictactoe", "rps", "rajamantri"]);
+const chessRules = require("./chess-rules");
+const GAME_TYPES = new Set(["tictactoe", "rps", "rajamantri", "chess"]);
 const RPS_MOVES = new Set(["rock", "paper", "scissors"]);
 
 function sameUser(a, b) {
@@ -234,7 +235,7 @@ function applyRps(game, userKey, moveData) {
   };
 }
 
-function handleRematchAction(game, userKey, moveData) {
+function handleRematchAction(game, userKey, moveData, { randomInt = crypto.randomInt } = {}) {
   const current = cloneData(game.data);
   const player1 = current.player1 || current.playerX || game.createdBy;
   const player2 = current.player2 || current.playerO || game.opponent;
@@ -407,6 +408,50 @@ function handleRematchAction(game, userKey, moveData) {
       };
     }
 
+    if (game.gameType === "chess") {
+      const previousWhite = current.white || current.player1 || player1;
+      const previousBlack = current.black || current.player2 || player2;
+      const previousWhiteName = current.whiteName || previousWhite;
+      const previousBlackName = current.blackName || previousBlack;
+      const whiteGetsPreviousWhite = randomInt(2) === 0;
+      const white = whiteGetsPreviousWhite ? previousWhite : previousBlack;
+      const black = whiteGetsPreviousWhite ? previousBlack : previousWhite;
+      const whiteName = whiteGetsPreviousWhite ? previousWhiteName : previousBlackName;
+      const blackName = whiteGetsPreviousWhite ? previousBlackName : previousWhiteName;
+      const now = Date.now();
+      return {
+        ok: true,
+        game: {
+          ...game,
+          state: "in_progress",
+          winner: undefined,
+          turn: white,
+          data: {
+            ...current,
+            white,
+            black,
+            player1: white,
+            player2: black,
+            whiteName,
+            blackName,
+            fen: chessRules.START_FEN,
+            moves: [],
+            legalMoves: chessRules.legalMoves(chessRules.parseFen(chessRules.START_FEN)).map(chessRules.toUci),
+            canClaimDraw: false,
+            positionHistory: [chessRules.positionKey(chessRules.parseFen(chessRules.START_FEN))],
+            whiteTimeMs: current.clockMs || 300000,
+            blackTimeMs: current.clockMs || 300000,
+            lastMoveAt: 0,
+            drawOfferBy: null,
+            endReason: null,
+            rematch: null,
+          },
+          lastMoveBy: userKey,
+          updatedAt: now,
+        },
+      };
+    }
+
     if (game.gameType === "rps") {
       return {
         ok: true,
@@ -438,7 +483,168 @@ function handleRematchAction(game, userKey, moveData) {
   return { ok: false, reason: "Invalid rematch action." };
 }
 
-function applyGameMove(game, userKey, moveData) {
+
+function applyChess(game, userKey, moveData) {
+  const current = cloneData(game.data);
+  const white = String(current.white || current.player1 || game.createdBy || "").trim().toLowerCase();
+  const black = String(current.black || current.player2 || game.opponent || "").trim().toLowerCase();
+  const actor = String(userKey || "").trim().toLowerCase();
+  if (!white || !black || white === black || (actor !== white && actor !== black)) {
+    return { ok: false, reason: "You are not a player in this game." };
+  }
+  if (game.state === "finished") return { ok: false, reason: "Game is already finished." };
+
+  const now = Date.now();
+  const finish = (winner, reason, data = current) => ({
+    ok: true,
+    game: {
+      ...game,
+      state: "finished",
+      winner,
+      turn: "",
+      data: {
+        ...data,
+        legalMoves: [],
+        canClaimDraw: false,
+        drawOfferBy: null,
+        endReason: reason,
+        finishedAt: now,
+      },
+      lastMoveBy: actor,
+      updatedAt: now,
+    },
+  });
+
+  if (moveData.action === "resign") {
+    return finish(actor === white ? black : white, "resignation");
+  }
+  if (moveData.action === "draw_offer") {
+    if (current.drawOfferBy && current.drawOfferBy !== actor) {
+      return { ok: false, reason: "Your opponent has already offered a draw." };
+    }
+    return {
+      ok: true,
+      game: { ...game, data: { ...current, drawOfferBy: actor }, updatedAt: now },
+    };
+  }
+  if (moveData.action === "draw_decline") {
+    if (!current.drawOfferBy || current.drawOfferBy === actor) {
+      return { ok: false, reason: "There is no draw offer to decline." };
+    }
+    return {
+      ok: true,
+      game: { ...game, data: { ...current, drawOfferBy: null }, updatedAt: now },
+    };
+  }
+  if (moveData.action === "draw_accept") {
+    if (!current.drawOfferBy || current.drawOfferBy === actor) {
+      return { ok: false, reason: "There is no opponent draw offer to accept." };
+    }
+    return finish("draw", "agreement", { ...current, drawOfferBy: null });
+  }
+  if (moveData.action === "claim_draw") {
+    if (String(game.turn || "").trim().toLowerCase() !== actor) {
+      return { ok: false, reason: "It is not your turn." };
+    }
+    const position = chessRules.parseFen(current.fen || chessRules.START_FEN);
+    const history = Array.isArray(current.positionHistory) ? current.positionHistory : [];
+    const repetitions = history.filter((entry) => entry === chessRules.positionKey(position)).length;
+    if (position.halfmove < 100 && repetitions < 3) {
+      return { ok: false, reason: "A draw cannot be claimed yet." };
+    }
+    return finish("draw", position.halfmove >= 100 ? "fifty_move_rule" : "threefold_repetition");
+  }
+
+  if (moveData.action === "claim_timeout") {
+    const position = chessRules.parseFen(current.fen || chessRules.START_FEN);
+    const clockMs = Math.max(0, Number(current.clockMs) || 300000);
+    const whiteTimeMs = Math.max(0, Number(current.whiteTimeMs ?? clockMs) || 0);
+    const blackTimeMs = Math.max(0, Number(current.blackTimeMs ?? clockMs) || 0);
+    const elapsed = Math.max(0, now - Math.max(0, Number(current.lastMoveAt) || now));
+    const remaining = (position.turn === 1 ? whiteTimeMs : blackTimeMs) - elapsed;
+    if (remaining > 0) return { ok: false, reason: "The active player's clock has not expired." };
+    return finish(position.turn === 1 ? black : white, "timeout", {
+      ...current,
+      whiteTimeMs: position.turn === 1 ? 0 : whiteTimeMs,
+      blackTimeMs: position.turn === -1 ? 0 : blackTimeMs,
+    });
+  }
+
+  if (!game.turn || String(game.turn).trim().toLowerCase() !== actor) {
+    return { ok: false, reason: "It is not your turn." };
+  }
+
+  const fen = current.fen || chessRules.START_FEN;
+  let position;
+  try {
+    position = chessRules.parseFen(fen);
+  } catch (_) {
+    return { ok: false, reason: "The saved chess position is invalid. Reopen the match." };
+  }
+
+  const clockMs = Math.max(0, Number(current.clockMs) || 300000);
+  const whiteTimeMs = Math.max(0, Number(current.whiteTimeMs ?? clockMs) || 0);
+  const blackTimeMs = Math.max(0, Number(current.blackTimeMs ?? clockMs) || 0);
+  const elapsed = Math.max(0, now - Math.max(0, Number(current.lastMoveAt) || now));
+  const remaining = (position.turn === 1 ? whiteTimeMs : blackTimeMs) - elapsed;
+  if (remaining <= 0) {
+    return finish(position.turn === 1 ? black : white, "timeout", {
+      ...current,
+      whiteTimeMs: position.turn === 1 ? 0 : whiteTimeMs,
+      blackTimeMs: position.turn === -1 ? 0 : blackTimeMs,
+    });
+  }
+
+  const played = chessRules.playUci(fen, moveData.move);
+  if (!played.ok) return played;
+  const nextPosition = chessRules.parseFen(played.fen);
+  const history = Array.isArray(current.positionHistory) ? current.positionHistory.slice() : [];
+  if (!history.length) {
+    const start = chessRules.parseFen(fen);
+    history.push(chessRules.positionKey(start));
+  }
+  history.push(chessRules.positionKey(nextPosition));
+  const outcome = chessRules.evaluate(nextPosition, history);
+  const nextWhiteTime = position.turn === 1 ? remaining : whiteTimeMs;
+  const nextBlackTime = position.turn === -1 ? remaining : blackTimeMs;
+  const nextPositionKey = chessRules.positionKey(nextPosition);
+  const nextRepetitions = history.filter((entry) => entry === nextPositionKey).length;
+  const nextData = {
+    ...current,
+    white,
+    black,
+    player1: white,
+    player2: black,
+    fen: played.fen,
+    moves: [...(Array.isArray(current.moves) ? current.moves : []), played.move].slice(-500),
+    legalMoves: outcome.done ? [] : chessRules.legalMoves(nextPosition).map(chessRules.toUci),
+    canClaimDraw: !outcome.done && (nextPosition.halfmove >= 100 || nextRepetitions >= 3),
+    positionHistory: history.slice(-500),
+    whiteTimeMs: nextWhiteTime,
+    blackTimeMs: nextBlackTime,
+    lastMoveAt: now,
+    drawOfferBy: null,
+    lastMove: played.move,
+    lastMoveAtClient: now,
+    check: played.check,
+    endReason: outcome.done ? outcome.reason : null,
+  };
+  const winner = outcome.result === "white" ? white : outcome.result === "black" ? black : outcome.result === "draw" ? "draw" : undefined;
+  return {
+    ok: true,
+    game: {
+      ...game,
+      state: outcome.done ? "finished" : "in_progress",
+      winner,
+      turn: outcome.done ? "" : nextPosition.turn === 1 ? white : black,
+      data: nextData,
+      lastMoveBy: actor,
+      updatedAt: now,
+    },
+  };
+}
+
+function applyGameMove(game, userKey, moveData, { randomInt = crypto.randomInt } = {}) {
   if (!game || !GAME_TYPES.has(game.gameType)) return { ok: false, reason: "Unsupported game." };
   if (!moveData || typeof moveData !== "object" || Array.isArray(moveData)) {
     return { ok: false, reason: "Invalid move payload." };
@@ -452,8 +658,10 @@ function applyGameMove(game, userKey, moveData) {
     moveData.action === "rematch_cancel" ||
     moveData.action === "leave_room"
   ) {
-    return handleRematchAction(game, userKey, moveData);
+    return handleRematchAction(game, userKey, moveData, { randomInt });
   }
+
+  if (game.gameType === "chess") return applyChess(game, userKey, moveData);
 
   switch (game.gameType) {
     case "tictactoe":
@@ -478,18 +686,46 @@ function createGameChallenge(input = {}, { randomInt = crypto.randomInt } = {}) 
 
   const gameType = String(requested.gameType || "");
   if (!GAME_TYPES.has(gameType)) return { ok: false, reason: "Unsupported game." };
+  if (gameType === "chess" && toType !== "friend") {
+    return { ok: false, reason: "Chess is currently available for one-to-one matches only." };
+  }
 
-  const titles = { tictactoe: "Tic-Tac-Toe", rps: "Rock Paper Scissors", rajamantri: "Raja Mantri Chor Sipahi" };
+  const titles = { tictactoe: "Tic-Tac-Toe", rps: "Rock Paper Scissors", rajamantri: "Raja Mantri Chor Sipahi", chess: "Chess" };
   const board = gameType === "tictactoe" ? Array(9).fill(null) : undefined;
   const initialOpponent = toType === "friend" ? to : null;
   const randomizeTicTacToePlayers = gameType === "tictactoe" && Boolean(initialOpponent);
   const creatorIsX = !randomizeTicTacToePlayers || randomInt(2) === 0;
   const playerX = creatorIsX ? userName : initialOpponent;
   const playerO = creatorIsX ? initialOpponent : userName;
+  const chessCreatorIsWhite = gameType === "chess" &&
+    (!initialOpponent || randomInt(2) === 0);
+  const chessOpponent = String(initialOpponent || "").trim().toLowerCase();
+  const chessWhite = chessCreatorIsWhite ? userKey : chessOpponent;
+  const chessBlack = chessCreatorIsWhite ? chessOpponent : userKey;
+  const chessOpponentName = String(requested.opponentDisplayName || initialOpponent || to || "");
   const data = gameType === "tictactoe"
     ? { board, playerX, ...(playerO ? { playerO } : {}) }
     : gameType === "rps"
     ? { player1: userName, player2: initialOpponent, round: 1, p1Score: 0, p2Score: 0, target: 3 }
+    : gameType === "chess"
+    ? {
+        white: chessWhite,
+        black: chessBlack,
+        player1: chessWhite,
+        player2: chessBlack,
+        whiteName: chessCreatorIsWhite ? userName : chessOpponentName,
+        blackName: chessCreatorIsWhite ? chessOpponentName : userName,
+        fen: chessRules.START_FEN,
+        moves: [],
+        legalMoves: chessRules.legalMoves(chessRules.parseFen(chessRules.START_FEN)).map(chessRules.toUci),
+        canClaimDraw: false,
+        positionHistory: [chessRules.positionKey(chessRules.parseFen(chessRules.START_FEN))],
+        clockMs: 300000,
+        whiteTimeMs: 300000,
+        blackTimeMs: 300000,
+        lastMoveAt: 0,
+        drawOfferBy: null,
+      }
     : { host: userName, players: [userName], round: 1, target: 5 };
 
   return {
@@ -498,10 +734,10 @@ function createGameChallenge(input = {}, { randomInt = crypto.randomInt } = {}) 
       id: typeof requested.id === "string" && requested.id.length <= 128 ? requested.id : `game_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       gameType,
       title: titles[gameType],
-      createdBy: userName,
+      createdBy: gameType === "chess" ? userKey : userName,
       opponent: toType === "friend" ? to : undefined,
       state: "in_progress",
-      turn: gameType === "tictactoe" ? playerX : userName,
+      turn: gameType === "tictactoe" ? playerX : gameType === "chess" ? chessWhite : userName,
       data,
     },
   };
