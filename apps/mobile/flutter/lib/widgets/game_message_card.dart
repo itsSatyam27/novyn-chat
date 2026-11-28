@@ -818,30 +818,48 @@ class _GameOverModalContentState extends State<_GameOverModalContent> {
   }
 
   Future<void> _handleDecline() async {
-    _timer?.cancel();
-    if (widget.onRematchAction != null) {
-      try {
+    if (_loading) return;
+    setState(() => _loading = true);
+    try {
+      if (widget.onRematchAction != null) {
         await widget.onRematchAction!('rematch_decline');
-      } catch (_) {}
+      }
+      if (!mounted) return;
+      _timer?.cancel();
+      setState(() {
+        _opponentWantsRematch = false;
+        _rematchRequested = false;
+        _statusNote = 'Rematch declined';
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() => _statusNote = 'Could not decline rematch. Try again.');
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
-    setState(() {
-      _opponentWantsRematch = false;
-      _rematchRequested = false;
-      _statusNote = 'Rematch declined';
-    });
   }
 
-  void _handleCancelRequest() {
-    _timer?.cancel();
-    if (widget.onRematchAction != null) {
-      try {
-        widget.onRematchAction!('rematch_decline');
-      } catch (_) {}
+  Future<void> _handleCancelRequest() async {
+    if (_loading) return;
+    setState(() => _loading = true);
+    try {
+      if (widget.onRematchAction != null) {
+        await widget.onRematchAction!('rematch_cancel');
+      }
+      if (!mounted) return;
+      _timer?.cancel();
+      setState(() {
+        _rematchRequested = false;
+        _statusNote = 'Rematch request cancelled';
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() => _statusNote = 'Could not cancel rematch. Try again.');
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
-    setState(() {
-      _rematchRequested = false;
-      _statusNote = 'Rematch request cancelled';
-    });
   }
 
   @override
@@ -1000,7 +1018,7 @@ class _GameOverModalContentState extends State<_GameOverModalContent> {
             ),
           ] else if (_rematchRequested) ...[
             FilledButton(
-              onPressed: _handleCancelRequest,
+              onPressed: _loading ? null : _handleCancelRequest,
               style: FilledButton.styleFrom(
                 backgroundColor: isDark ? const Color(0xFF2C2649) : const Color(0xFFF3F0FA),
                 foregroundColor: isDark ? Colors.white70 : const Color(0xFF5A5579),
