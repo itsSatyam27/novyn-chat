@@ -145,7 +145,6 @@ class _ChatAudioMessageBubbleState extends State<ChatAudioMessageBubble> {
     final panelColor = outgoing
         ? Colors.white.withValues(alpha: .17)
         : scheme.surfaceContainerLow;
-    final mainColor = outgoing ? Colors.white : scheme.onSurface;
     final mutedColor = outgoing
         ? Colors.white.withValues(alpha: .72)
         : scheme.onSurfaceVariant;
