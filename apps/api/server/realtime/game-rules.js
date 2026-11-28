@@ -234,21 +234,21 @@ function handleRematchAction(game, userKey, moveData) {
   const current = cloneData(game.data);
   const player1 = current.player1 || current.playerX || game.createdBy;
   const player2 = current.player2 || current.playerO || game.opponent;
-
+  const isPlayer1 = sameUser(userKey, player1);
+  const isPlayer2 = Boolean(player2) && sameUser(userKey, player2);
   const now = Date.now();
+
+  // A group-chat member is not automatically a game participant. Rematch
+  // controls must be limited to the two players assigned to this game.
+  if (!isPlayer1 && !isPlayer2) {
+    return { ok: false, reason: "You are not a player in this game." };
+  }
 
   if (moveData.action === "leave_room") {
     if (game.state === "finished") {
       return { ok: true, game };
     }
-    const player1Key = String(player1 || "").trim().toLowerCase();
-    const player2Key = String(player2 || "").trim().toLowerCase();
-    const leavingPlayer1 = sameUser(userKey, player1Key);
-    const leavingPlayer2 = Boolean(player2Key) && sameUser(userKey, player2Key);
-    if (!leavingPlayer1 && !leavingPlayer2) {
-      return { ok: false, reason: "You are not a player in this match." };
-    }
-    const winner = leavingPlayer1 ? player2 : player1;
+    const winner = isPlayer1 ? player2 : player1;
     // A group Tic-Tac-Toe creator may leave before anyone has claimed O.
     // Close that empty room as cancelled instead of trapping the creator.
     const forfeitWinner = winner || "draw";
@@ -277,12 +277,23 @@ function handleRematchAction(game, userKey, moveData) {
   }
 
   if (moveData.action === "rematch_request") {
-    if (current.playerLeft) {
-      return {
-        ok: false,
-        reason: `${current.playerLeft} left the room.`,
-      };
+    if (game.state !== "finished") {
+      return { ok: false, reason: "Finish the current game before requesting a rematch." };
     }
+    if (!player1 || !player2 || sameUser(player1, player2) || current.playerLeft) {
+      return { ok: false, reason: "A rematch is unavailable for this game." };
+    }
+
+    const existing = current.rematch;
+    const existingExpiry = Number(existing?.expiresAt);
+    if (existing?.status === "pending" && Number.isFinite(existingExpiry) && existingExpiry > now) {
+      if (sameUser(existing.requestedBy, userKey)) {
+        // A retried request from the same player is idempotent.
+        return { ok: true, game };
+      }
+      return { ok: false, reason: "Your opponent has already requested a rematch." };
+    }
+
     return {
       ok: true,
       game: {
@@ -290,7 +301,7 @@ function handleRematchAction(game, userKey, moveData) {
         data: {
           ...current,
           rematch: {
-            requestedBy: userKey,
+            requestedBy: String(userKey || "").trim().toLowerCase(),
             requestedAt: now,
             expiresAt: now + 15000,
             status: "pending",
@@ -301,25 +312,48 @@ function handleRematchAction(game, userKey, moveData) {
     };
   }
 
-  if (moveData.action === "rematch_decline") {
-    return {
-      ok: true,
-      game: {
-        ...game,
-        data: {
-          ...current,
-          rematch: {
-            ...(current.rematch || {}),
-            status: "declined",
-            declinedBy: userKey,
+  if (moveData.action === "rematch_decline" || moveData.action === "rematch_accept") {
+    const pending = current.rematch;
+    const expiresAt = Number(pending?.expiresAt);
+    if (pending?.status !== "pending" || !Number.isFinite(expiresAt) || expiresAt <= now) {
+      return { ok: false, reason: "The rematch request has expired or is no longer available." };
+    }
+    if (sameUser(pending.requestedBy, userKey)) {
+      return { ok: false, reason: "You cannot respond to your own rematch request." };
+    }
+
+    if (moveData.action === "rematch_decline") {
+      return {
+        ok: true,
+        game: {
+          ...game,
+          data: {
+            ...current,
+            rematch: {
+              ...pending,
+              status: "declined",
+              declinedBy: String(userKey || "").trim().toLowerCase(),
+            },
           },
+          updatedAt: now,
         },
-        updatedAt: now,
-      },
-    };
+      };
+    }
   }
 
   if (moveData.action === "rematch_accept" || moveData.action === "rematch") {
+    if (game.state !== "finished" || current.playerLeft) {
+      return { ok: false, reason: "This game is not ready for a rematch." };
+    }
+    if (moveData.action === "rematch_accept") {
+      const pending = current.rematch;
+      const expiresAt = Number(pending?.expiresAt);
+      if (pending?.status !== "pending" || !Number.isFinite(expiresAt) || expiresAt <= now ||
+          sameUser(pending.requestedBy, userKey)) {
+        return { ok: false, reason: "The rematch request has expired or is no longer available." };
+      }
+    }
+
     if (game.gameType === "tictactoe") {
       return {
         ok: true,
