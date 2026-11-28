@@ -216,6 +216,60 @@ void main() {
     );
   });
 
+  test('player statistics separate practice and report each game streak', () async {
+    final base = DateTime(2026, 11, 23, 9);
+    Future<void> record(
+      String id,
+      String type,
+      String result,
+      int hour, {
+      bool bot = false,
+    }) {
+      return GameHistoryService.recordFinishedMatch(
+        username: 'alice',
+        matchId: id,
+        gameType: type,
+        opponent: bot ? 'AI Bot' : 'bob',
+        result: result,
+        playedAt: base.add(Duration(hours: hour)),
+        isBotMatch: bot,
+      );
+    }
+
+    await record('ttt-1', 'tictactoe', 'win', 0);
+    await record('ttt-2', 'tictactoe', 'win', 1);
+    await record('ttt-3', 'tictactoe', 'win', 2);
+    await record('ttt-4', 'tictactoe', 'loss', 3);
+    await record('ttt-5', 'tictactoe', 'win', 4);
+    await record('rps-1', 'rps', 'win', 5);
+    await record('rps-2', 'rps', 'win', 6);
+    await record('bot-1', 'tictactoe', 'win', 7, bot: true);
+
+    final stats = await GameHistoryService.load('alice');
+    final ttt = stats.gameBreakdown.firstWhere(
+      (game) => game.gameType == 'tictactoe',
+    );
+    final rps = stats.gameBreakdown.firstWhere(
+      (game) => game.gameType == 'rps',
+    );
+
+    expect(stats.total, 8);
+    expect(stats.practiceMatches, 1);
+    expect(stats.competitiveTotal, 7);
+    expect(stats.competitiveWins, 6);
+    expect(stats.competitiveLosses, 1);
+    expect(stats.competitiveDraws, 0);
+    expect(stats.competitiveWinRate, closeTo(85.714, 0.01));
+    expect(stats.gameBreakdown.map((game) => game.gameType),
+        ['tictactoe', 'rps']);
+    expect(ttt.total, 5);
+    expect(ttt.currentWinStreak, 1);
+    expect(ttt.longestWinStreak, 3);
+    expect(rps.total, 2);
+    expect(rps.currentWinStreak, 2);
+    expect(rps.longestWinStreak, 2);
+  });
+
   testWidgets('history screen filters draws and labels local bot matches',
       (tester) async {
     final now = DateTime.now();
