@@ -688,18 +688,24 @@ function createGameChallenge(input = {}, { randomInt = crypto.randomInt } = {}) 
   const creatorIsX = !randomizeTicTacToePlayers || randomInt(2) === 0;
   const playerX = creatorIsX ? userName : initialOpponent;
   const playerO = creatorIsX ? initialOpponent : userName;
+  const chessCreatorIsWhite = gameType === "chess" &&
+    (!initialOpponent || randomInt(2) === 0);
+  const chessOpponent = String(initialOpponent || "").trim().toLowerCase();
+  const chessWhite = chessCreatorIsWhite ? userKey : chessOpponent;
+  const chessBlack = chessCreatorIsWhite ? chessOpponent : userKey;
+  const chessOpponentName = String(requested.opponentDisplayName || initialOpponent || to || "");
   const data = gameType === "tictactoe"
     ? { board, playerX, ...(playerO ? { playerO } : {}) }
     : gameType === "rps"
     ? { player1: userName, player2: initialOpponent, round: 1, p1Score: 0, p2Score: 0, target: 3 }
     : gameType === "chess"
     ? {
-        white: userKey,
-        black: String(to || "").trim().toLowerCase(),
-        player1: userKey,
-        player2: String(to || "").trim().toLowerCase(),
-        whiteName: userName,
-        blackName: String(requested.opponentDisplayName || initialOpponent || to || ""),
+        white: chessWhite,
+        black: chessBlack,
+        player1: chessWhite,
+        player2: chessBlack,
+        whiteName: chessCreatorIsWhite ? userName : chessOpponentName,
+        blackName: chessCreatorIsWhite ? chessOpponentName : userName,
         fen: chessRules.START_FEN,
         moves: [],
         legalMoves: chessRules.legalMoves(chessRules.parseFen(chessRules.START_FEN)).map(chessRules.toUci),
@@ -722,7 +728,7 @@ function createGameChallenge(input = {}, { randomInt = crypto.randomInt } = {}) 
       createdBy: gameType === "chess" ? userKey : userName,
       opponent: toType === "friend" ? to : undefined,
       state: "in_progress",
-      turn: gameType === "tictactoe" ? playerX : gameType === "chess" ? userKey : userName,
+      turn: gameType === "tictactoe" ? playerX : gameType === "chess" ? chessWhite : userName,
       data,
     },
   };
