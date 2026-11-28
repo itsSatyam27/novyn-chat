@@ -78,6 +78,32 @@ test("game invite timeout deduplicates participant and accepted socket IDs", () 
   });
 });
 
+test("cancelling a pending game invitation notifies both players", () => {
+  const io = fakeIo();
+  const onlineUsers = new Map([
+    ["alice", "socket-alice"],
+    ["bob", "socket-bob"],
+  ]);
+
+  emitGameInvitationTimeoutToParticipants({
+    io,
+    onlineUsers,
+    invite: { fromKey: "alice", toKey: "bob", gameType: "rps" },
+    messageId: "invite-cancelled",
+    reason: "cancelled",
+  });
+
+  assert.deepEqual(io.events.map((entry) => entry.socketId), [
+    "socket-alice",
+    "socket-bob",
+  ]);
+  assert.ok(io.events.every((entry) =>
+    entry.event === "game_invite_timeout" &&
+    entry.payload.reason === "cancelled" &&
+    entry.payload.messageId === "invite-cancelled"
+  ));
+});
+
 test("game invite timeout ignores unavailable participant sockets safely", () => {
   const io = fakeIo();
   const targets = emitGameInvitationTimeoutToParticipants({
