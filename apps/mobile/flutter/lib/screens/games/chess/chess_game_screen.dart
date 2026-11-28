@@ -44,6 +44,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
   int _now = DateTime.now().millisecondsSinceEpoch;
   int? _selected;
   bool _busy = false;
+  bool _sendingChat = false;
   bool _movesTab = false;
   bool _voiceNoticeShown = false;
   bool _timeoutClaimSent = false;
@@ -256,12 +257,24 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
 
   Future<void> _sendChat() async {
     final text = _chatController.text.trim();
-    if (text.isEmpty || widget.randomSessionId != null || widget.peerUsername.trim().isEmpty) return;
+    if (text.isEmpty || _sendingChat) return;
+    setState(() => _sendingChat = true);
     try {
-      await (_socket ?? context.read<SocketService>()).sendMessage(text, widget.peerUsername);
+      final socket = _socket ?? context.read<SocketService>();
+      final sessionId = widget.randomSessionId;
+      if (sessionId != null && sessionId.isNotEmpty) {
+        await socket.sendRandomGameChat(sessionId, text);
+      } else if (widget.peerUsername.trim().isNotEmpty) {
+        await socket.sendMessage(text, widget.peerUsername);
+      } else {
+        return;
+      }
       _chatController.clear();
     } catch (error) {
-      if (mounted) setState(() => _message = error is StateError ? error.message.toString() : 'Message could not be sent.');
+      if (mounted) setState(() => _message =
+          error is StateError ? error.message.toString() : 'Message could not be sent.');
+    } finally {
+      if (mounted) setState(() => _sendingChat = false);
     }
   }
 
@@ -422,6 +435,12 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
     final messages = _socket?.messages ?? [];
     final directMessages = messages.where((message) =>
       message.chatId.toLowerCase() == widget.peerUsername.toLowerCase()).toList();
+    final randomMessages = widget.randomSessionId == null
+        ? const <Map<String, dynamic>>[]
+        : (_socket?.randomGameChatFor(widget.randomSessionId!) ?? const <Map<String, dynamic>>[]);
+    final hasMessages = widget.randomSessionId != null
+        ? randomMessages.isNotEmpty
+        : directMessages.isNotEmpty;
     return Container(
       padding: const EdgeInsets.all(7),
       decoration: BoxDecoration(color: panel, borderRadius: BorderRadius.circular(17),
@@ -437,33 +456,49 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
         const SizedBox(height: 6),
         Expanded(child: _movesTab
           ? _moveHistory(foreground, muted)
-          : directMessages.isEmpty
-            ? Center(child: Text(widget.randomSessionId == null ? 'Your match chat appears here.' : 'Public match chat is not available yet.',
+          : !hasMessages
+            ? Center(child: Text('Your match chat appears here.',
                 textAlign: TextAlign.center, style: TextStyle(color: muted, fontSize: 10)))
-            : ListView.builder(itemCount: directMessages.length, itemBuilder: (context, index) {
-                final message = directMessages[index];
-                final mine = message.isFromMe;
-                return Align(
-                  alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(vertical: 3),
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                    decoration: BoxDecoration(color: mine ? accent : Theme.of(context).colorScheme.surface,
-                      borderRadius: BorderRadius.circular(11)),
-                    child: Text(message.text, style: TextStyle(color: mine ? Colors.white : foreground, fontSize: 10)),
-                  ),
-                );
-              })),
+            : widget.randomSessionId != null
+              ? ListView.builder(itemCount: randomMessages.length, itemBuilder: (context, index) {
+                  final message = randomMessages[index];
+                  final mine = message['from']?.toString().toLowerCase() == _user;
+                  return Align(
+                    alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(vertical: 3),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      decoration: BoxDecoration(color: mine ? accent : Theme.of(context).colorScheme.surface,
+                        borderRadius: BorderRadius.circular(11)),
+                      child: Text(message['text']?.toString() ?? '',
+                        style: TextStyle(color: mine ? Colors.white : foreground, fontSize: 10)),
+                    ),
+                  );
+                })
+              : ListView.builder(itemCount: directMessages.length, itemBuilder: (context, index) {
+                  final message = directMessages[index];
+                  final mine = message.isFromMe;
+                  return Align(
+                    alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(vertical: 3),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      decoration: BoxDecoration(color: mine ? accent : Theme.of(context).colorScheme.surface,
+                        borderRadius: BorderRadius.circular(11)),
+                      child: Text(message.text, style: TextStyle(color: mine ? Colors.white : foreground, fontSize: 10)),
+                    ),
+                  );
+                })),
         if (!_movesTab) ...[
           const SizedBox(height: 5),
           Row(children: [
             Expanded(child: TextField(
               controller: _chatController,
-              enabled: widget.randomSessionId == null && widget.peerUsername.isNotEmpty,
+              enabled: widget.randomSessionId != null || widget.peerUsername.isNotEmpty,
               minLines: 1, maxLines: 2,
               style: TextStyle(color: foreground, fontSize: 10),
               decoration: InputDecoration(
-                hintText: widget.randomSessionId == null ? 'Message…' : 'Chat unavailable',
+                hintText: 'Message…',
                 hintStyle: TextStyle(color: muted, fontSize: 10),
                 isDense: true, filled: true,
                 fillColor: Theme.of(context).colorScheme.surface,
@@ -473,7 +508,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
               onSubmitted: (_) => _sendChat(),
             )),
             const SizedBox(width: 4),
-            IconButton.filled(onPressed: _sendChat, visualDensity: VisualDensity.compact,
+            IconButton.filled(onPressed: _sendingChat ? null : _sendChat, visualDensity: VisualDensity.compact,
               icon: const Icon(Icons.send_rounded, size: 15)),
           ]),
         ],
