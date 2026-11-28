@@ -183,6 +183,26 @@ test("game notifications include OS-visible alerts and retain game routing metad
   }
 });
 
+test("friend game invitation push expires with the server invitation window", () => {
+  const expiresAt = Date.now() + 20000;
+  const message = createFcmMessage("alice", { username: "alice" }, {
+    type: "game_invitation",
+    chat: "bob",
+    gameId: "game-7",
+    gameType: "tictactoe",
+    expiresAt,
+    eventId: "invite-7",
+    title: "Game invitation from bob",
+    body: "You have been invited to play",
+  });
+
+  assert.ok(message.android.ttl > 0);
+  assert.ok(message.android.ttl <= 20000);
+  assert.equal(message.data.expiresAt, String(expiresAt));
+  assert.equal(message.data.eventId, "invite-7");
+  assert.equal(message.data.type, "game_invitation");
+});
+
 test("notification presentation preferences are forwarded as FCM data", () => {
   const message = createFcmMessage("alice", { username: "alice" }, {
     type: "friend_request",
