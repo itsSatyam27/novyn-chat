@@ -99,6 +99,32 @@ test("cancelling an invite notifies a waiting recipient even before acceptance",
   }]);
 });
 
+test("accept and reject actions can close the active popup on the acting socket", () => {
+  const invite = {
+    fromKey: "alice",
+    toKey: "bob",
+    gameType: "tictactoe",
+  };
+  const onlineUsers = new Map([["bob", "socket-bob"]]);
+
+  for (const reason of ["accepted", "rejected"]) {
+    const io = fakeIo();
+    emitGameInviteClosed({
+      invite,
+      messageId: "invite-" + reason,
+      onlineUsers,
+      io,
+      reason,
+      extraSocketIds: ["socket-bob-current"],
+    });
+    assert.deepEqual(
+      io.events.map((event) => event.socketId).sort(),
+      ["socket-bob", "socket-bob-current"],
+    );
+    assert.ok(io.events.every((event) => event.payload.reason === reason));
+  }
+});
+
 test("accepted invite cancellation notifies a single live recipient socket", () => {
   const invite = {
     fromKey: "alice",
