@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../services/game_history_service.dart';
 
-enum _HistoryFilter { all, wins, losses }
+enum _HistoryFilter { all, wins, losses, draws }
 
 class GameHistoryScreen extends StatefulWidget {
   const GameHistoryScreen({super.key, required this.username});
@@ -98,6 +98,7 @@ class _GameHistoryScreenState extends State<GameHistoryScreen> {
             );
             final wins = monthMatches.where((m) => m.result == 'win').length;
             final losses = monthMatches.where((m) => m.result == 'loss').length;
+            final draws = monthMatches.where((m) => m.result == 'draw').length;
             final winRate = monthMatches.isEmpty
                 ? 0
                 : (wins / monthMatches.length * 100).round();
@@ -107,6 +108,8 @@ class _GameHistoryScreenState extends State<GameHistoryScreen> {
                   return match.result == 'win';
                 case _HistoryFilter.losses:
                   return match.result == 'loss';
+                case _HistoryFilter.draws:
+                  return match.result == 'draw';
                 case _HistoryFilter.all:
                   return true;
               }
@@ -237,11 +240,14 @@ class _GameHistoryScreenState extends State<GameHistoryScreen> {
                         children: [
                           _filterChip('All', monthMatches.length, _HistoryFilter.all,
                             dark, foreground),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 6),
                           _filterChip('Wins', wins, _HistoryFilter.wins,
                             dark, foreground),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 6),
                           _filterChip('Losses', losses, _HistoryFilter.losses,
+                            dark, foreground),
+                          const SizedBox(width: 6),
+                          _filterChip('Draws', draws, _HistoryFilter.draws,
                             dark, foreground),
                         ],
                       ),
@@ -258,9 +264,16 @@ class _GameHistoryScreenState extends State<GameHistoryScreen> {
                             children: [
                               Icon(Icons.sports_esports_rounded, size: 44, color: muted),
                               const SizedBox(height: 12),
-                              Text('No matches this month',
+                              Text(
+                                switch (_filter) {
+                                  _HistoryFilter.all => 'No matches this month',
+                                  _HistoryFilter.wins => 'No wins this month',
+                                  _HistoryFilter.losses => 'No losses this month',
+                                  _HistoryFilter.draws => 'No draws this month',
+                                },
                                 style: TextStyle(color: foreground,
-                                  fontSize: 17, fontWeight: FontWeight.w800)),
+                                  fontSize: 17, fontWeight: FontWeight.w800),
+                              ),
                               const SizedBox(height: 5),
                               Text('Completed games will appear here.',
                                 style: TextStyle(color: muted, fontSize: 13)),
@@ -327,10 +340,13 @@ class _GameHistoryScreenState extends State<GameHistoryScreen> {
           borderRadius: BorderRadius.circular(28),
           onTap: () => setState(() => _filter = filter),
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-            child: Text('$label  $count', textAlign: TextAlign.center,
-              style: TextStyle(color: selected ? Colors.white : foreground,
-                fontSize: 14, fontWeight: FontWeight.w800)),
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text('$label  $count', textAlign: TextAlign.center,
+                style: TextStyle(color: selected ? Colors.white : foreground,
+                  fontSize: 12, fontWeight: FontWeight.w800)),
+            ),
           ),
         ),
       ),
@@ -370,9 +386,11 @@ class _GameHistoryScreenState extends State<GameHistoryScreen> {
                   style: TextStyle(color: foreground, fontSize: 16,
                     fontWeight: FontWeight.w800)),
                 const SizedBox(height: 4),
-                Text('vs ${match.opponent} · ${_time(match.playedAt)}',
+                Text(
+                  'vs ${match.isBotMatch ? 'AI Bot' : match.opponent} · ${_time(match.playedAt)}',
                   maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: muted, fontSize: 13)),
+                  style: TextStyle(color: muted, fontSize: 13),
+                ),
               ],
             ),
           ),
