@@ -1755,6 +1755,7 @@ function scheduleRandomSessionExpiry(sessionId, entry) {
   clearTimeout(entry.expiryTimer);
   entry.expiryTimer = setTimeout(() => {
     if (randomGameSessions.get(sessionId) !== entry) return;
+    clearAllRandomGameDisconnectTimers(entry);
     randomGameSessions.delete(sessionId);
     void deletePersistedGameSession("random", sessionId);
   }, Math.max(0, entry.expiresAt - Date.now()));
@@ -8106,6 +8107,7 @@ io.on("connection", (socket) => {
     }
     if (session.expiresAt <= Date.now()) {
       clearTimeout(session.expiryTimer);
+      clearAllRandomGameDisconnectTimers(session);
       randomGameSessions.delete(sessionId);
       await deletePersistedGameSession("random", sessionId);
       return respond({ ok: false, message: "This random game has expired. Start a new match." });
@@ -11502,15 +11504,6 @@ io.on("connection", (socket) => {
 
     const existingSocketId = onlineUsers.get(userKey);
     if (existingSocketId === socket.id) {
-      // Public matches get a short reconnect grace period. If the online
-      // opponent remains connected, the server records a forfeit; otherwise
-      // the match stays recoverable until either player reconnects.
-      for (const [sessionId, entry] of randomGameSessions) {
-        if (entry.players?.includes(normalizeName(userKey))) {
-          scheduleRandomGameDisconnectTimeout(sessionId, entry, userKey);
-        }
-      }
-
       // Keep Raja Mantri rooms alive while disconnected players are auto-controlled.
       for (const [sessionId, entry] of rajaMantriSessions) {
         const connection = setRajaMantriPlayerConnected(entry.game, userKey, false);
@@ -11595,6 +11588,13 @@ io.on("connection", (socket) => {
       }
 
       onlineUsers.delete(userKey);
+      // Start the reconnect grace timer only after presence is removed, so the
+      // timer cannot mistake the disconnecting socket for a live participant.
+      for (const [sessionId, entry] of randomGameSessions) {
+        if (entry.players?.includes(normalizeName(userKey))) {
+          scheduleRandomGameDisconnectTimeout(sessionId, entry, userKey);
+        }
+      }
       emitStatusToFriends(userKey);
       emitGroupListUpdatesForUser(userKey);
       emitDiscoverOnlineToAll();
