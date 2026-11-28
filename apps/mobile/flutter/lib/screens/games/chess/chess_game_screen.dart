@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../services/chess_engine.dart';
 import '../../../../services/chess_voice_service.dart';
 import '../../../../services/socket_service.dart';
 
@@ -18,6 +19,7 @@ class ChessGameScreen extends StatefulWidget {
     this.randomSessionId,
     this.opponentDisplayName,
     this.isGroup = false,
+    this.isOfflineBot = false,
   });
 
   final String currentUsername;
@@ -27,6 +29,7 @@ class ChessGameScreen extends StatefulWidget {
   final String? randomSessionId;
   final String? opponentDisplayName;
   final bool isGroup;
+  final bool isOfflineBot;
 
   @override
   State<ChessGameScreen> createState() => _ChessGameScreenState();
@@ -73,6 +76,15 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
       ? (_data['legalMoves'] as List).map((e) => e.toString()).toList()
       : <String>[];
   bool get _finished => _game['state']?.toString() == 'finished';
+  bool get _offlineBot => widget.isOfflineBot || _game['isOfflineBot'] == true;
+  String get _botUser => 'novyn_chess_bot';
+  int get _botDepth {
+    switch (_game['botDifficulty']?.toString().toLowerCase()) {
+      case 'easy': return 1;
+      case 'hard': return 3;
+      default: return 2;
+    }
+  }
   bool get _isWhite =>
       (_data['white'] ?? _data['player1'])?.toString().trim().toLowerCase() == _user;
   bool get _isBlack =>
@@ -124,7 +136,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
   }
 
   void _syncFromSocket() {
-    if (!mounted || _socket == null) return;
+    if (!mounted || _socket == null || _offlineBot) return;
     Map<String, dynamic>? latest;
     final session = widget.randomSessionId;
     if (session != null && session.isNotEmpty) {
@@ -229,11 +241,179 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
     await _sendMove(move);
   }
 
-  Future<void> _sendMove(String move) => _sendActionData({'move': move});
+  Future<void> _sendMove(String move) async {
+    if (_offlineBot) {
+      await _applyOfflineMove(move);
+      return;
+    }
+    await _sendActionData({'move': move});
+  }
 
   Future<void> _sendAction(String action) => _sendActionData({'action': action});
 
+  Future<void> _applyOfflineMove(String uci, {bool byBot = false}) async {
+    if (!_offlineBot || _busy || _finished) return;
+    final fields = _fen.split(' ');
+    if (fields.length < 2) return;
+    final movingWhite = fields[1] != 'b';
+    final actor = (movingWhite ? _data['white'] : _data['black'])
+        ?.toString().toLowerCase() ?? '';
+    if (byBot != (actor == _botUser)) return;
+    if (!byBot && actor != _user) return;
+
+    setState(() {
+      _busy = true;
+      _message = '';
+      _selected = null;
+    });
+    try {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final startedAt = (_data['lastMoveAt'] as num?)?.toInt() ?? 0;
+      final elapsed = startedAt > 0 ? math.max(0, now - startedAt) : 0;
+      var whiteTime = (_data['whiteTimeMs'] as num?)?.toInt() ?? 300000;
+      var blackTime = (_data['blackTimeMs'] as num?)?.toInt() ?? 300000;
+      if (movingWhite) {
+        whiteTime = math.max(0, whiteTime - elapsed).toInt();
+      } else {
+        blackTime = math.max(0, blackTime - elapsed).toInt();
+      }
+      if ((movingWhite ? whiteTime : blackTime) <= 0) {
+        _finishOfflineBotGame(
+          winner: movingWhite ? 'black' : 'white',
+          reason: 'timeout',
+          whiteTime: whiteTime,
+          blackTime: blackTime,
+        );
+        return;
+      }
+
+      final nextFen = ChessEngine.applyMove(_fen, uci);
+      if (nextFen == null) {
+        setState(() => _message = 'That move is not legal.');
+        return;
+      }
+      final evaluation = ChessEngine.evaluate(nextFen);
+      final nextMoves = List<String>.from(_moves)..add(uci);
+      final nextTurnWhite = nextFen.split(' ')[1] != 'b';
+      final nextTurn = nextTurnWhite
+          ? _data['white']?.toString() ?? _user
+          : _data['black']?.toString() ?? _botUser;
+      final nextData = Map<String, dynamic>.from(_data)
+        ..['fen'] = nextFen
+        ..['legalMoves'] = evaluation.finished ? <String>[] : ChessEngine.legalMoves(nextFen)
+        ..['moves'] = nextMoves
+        ..['lastMove'] = uci
+        ..['lastMoveAt'] = evaluation.finished ? 0 : now
+        ..['whiteTimeMs'] = whiteTime
+        ..['blackTimeMs'] = blackTime
+        ..['check'] = evaluation.inCheck
+        ..['endReason'] = evaluation.reason;
+      final winner = evaluation.winner == 'white'
+          ? nextData['white']?.toString()
+          : evaluation.winner == 'black'
+              ? nextData['black']?.toString()
+              : evaluation.winner;
+      setState(() {
+        _game = <String, dynamic>{
+          ..._game,
+          'state': evaluation.finished ? 'finished' : 'in_progress',
+          'winner': winner,
+          'turn': evaluation.finished ? '' : nextTurn,
+          'data': nextData,
+        };
+        _timeoutClaimSent = false;
+        _message = evaluation.finished
+            ? (evaluation.winner == 'draw'
+                ? 'Draw · ' + evaluation.reason.replaceAll('_', ' ')
+                : (winner == _user ? 'You won' : 'Chess Bot won'))
+            : (evaluation.inCheck ? 'Check!' : '');
+      });
+      if (!evaluation.finished && nextTurn.toLowerCase() == _botUser) {
+        await Future<void>.delayed(const Duration(milliseconds: 350));
+        if (mounted && !_finished) await _playOfflineBotMove();
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() => _message = 'Chess practice could not continue. Start a new match.');
+        debugPrint('[NovynChessBot] Move failed: $error');
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _playOfflineBotMove() async {
+    if (!_offlineBot || !mounted || _finished || _busy) return;
+    final best = ChessEngine.bestMove(_fen, depth: _botDepth);
+    if (best == null) {
+      final evaluation = ChessEngine.evaluate(_fen);
+      _finishOfflineBotGame(winner: evaluation.winner ?? 'draw', reason: evaluation.reason);
+      return;
+    }
+    await _applyOfflineMove(best, byBot: true);
+  }
+
+  Future<void> _handleOfflineBotAction(Map<String, dynamic> payload) async {
+    if (_busy || _finished) return;
+    final action = payload['action']?.toString();
+    if (action == 'resign' || action == 'claim_timeout') {
+      final fields = _fen.split(' ');
+      final whiteTurn = fields.length > 1 && fields[1] != 'b';
+      final winner = action == 'resign'
+          ? (_isWhite ? 'black' : 'white')
+          : (whiteTurn ? 'black' : 'white');
+      _finishOfflineBotGame(
+        winner: winner,
+        reason: action == 'resign' ? 'resignation' : 'timeout',
+      );
+      return;
+    }
+    if (action == 'draw_offer' || action == 'claim_draw' ||
+        action == 'draw_accept' || action == 'draw_decline') {
+      setState(() => _message = 'Draw offers are available in player matches.');
+      return;
+    }
+    setState(() => _message = 'This action is not available in offline practice.');
+  }
+
+  void _finishOfflineBotGame({
+    required String winner,
+    required String reason,
+    int? whiteTime,
+    int? blackTime,
+  }) {
+    final resolvedWinner = winner == 'white'
+        ? _data['white']?.toString()
+        : winner == 'black'
+            ? _data['black']?.toString()
+            : winner;
+    final nextData = Map<String, dynamic>.from(_data)
+      ..['lastMoveAt'] = 0
+      ..['legalMoves'] = <String>[]
+      ..['endReason'] = reason
+      ..['whiteTimeMs'] = whiteTime ?? (_data['whiteTimeMs'] as num?)?.toInt() ?? 300000
+      ..['blackTimeMs'] = blackTime ?? (_data['blackTimeMs'] as num?)?.toInt() ?? 300000;
+    setState(() {
+      _game = <String, dynamic>{
+        ..._game,
+        'state': 'finished',
+        'winner': resolvedWinner,
+        'turn': '',
+        'data': nextData,
+      };
+      _selected = null;
+      _timeoutClaimSent = true;
+      _message = resolvedWinner == 'draw'
+          ? 'Draw · ' + reason.replaceAll('_', ' ')
+          : (resolvedWinner == _user ? 'You won' : 'Chess Bot won');
+    });
+  }
+
   Future<void> _sendActionData(Map<String, dynamic> payload) async {
+    if (_offlineBot) {
+      await _handleOfflineBotAction(payload);
+      return;
+    }
     if (_busy) return;
     setState(() { _busy = true; _message = ''; });
     try {
