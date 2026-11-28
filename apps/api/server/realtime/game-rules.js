@@ -712,7 +712,7 @@ function createGameChallenge(input = {}, { randomInt = crypto.randomInt } = {}) 
         player1: userKey,
         player2: String(to || "").trim().toLowerCase(),
         whiteName: userName,
-        blackName: initialOpponent || String(to || ""),
+        blackName: String(requested.opponentDisplayName || initialOpponent || to || ""),
         fen: chessRules.START_FEN,
         moves: [],
         legalMoves: chessRules.legalMoves(chessRules.parseFen(chessRules.START_FEN)).map(chessRules.toUci),
