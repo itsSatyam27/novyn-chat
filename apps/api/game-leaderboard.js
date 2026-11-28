@@ -107,6 +107,8 @@ function buildGameLeaderboard({
     addResult(aggregate.overall, match.result, timestamp);
     addResult(gameStats, match.result, timestamp);
 
+    // Overall streaks span all games; each game's competitive bonus
+    // streak remains isolated in aggregate.streaks below.
     aggregate.overallStreak = match.result === "win"
       ? aggregate.overallStreak + 1
       : 0;
