@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../models/chat_models.dart';
+import '../../../../services/chess_engine.dart';
 import '../../../../services/socket_service.dart';
 import '../../../../widgets/game_message_card.dart';
 import '../../chess/chess_game_screen.dart';
@@ -45,6 +46,7 @@ class GameRoomScreen extends StatefulWidget {
     required String currentUsername,
     required String gameType,
     required String title,
+    String botDifficulty = 'medium',
   }) {
     final account = currentUsername.trim();
     if (account.isEmpty) {
@@ -54,6 +56,7 @@ class GameRoomScreen extends StatefulWidget {
       return;
     }
 
+    final isChess = gameType == 'chess';
     final initialGame = <String, dynamic>{
       'gameType': gameType,
       'title': title,
@@ -61,7 +64,26 @@ class GameRoomScreen extends StatefulWidget {
       'createdBy': account,
       'turn': account,
       'isOfflineBot': true,
-      'data': gameType == 'tictactoe'
+      'botDifficulty': botDifficulty,
+      'data': isChess
+          ? <String, dynamic>{
+              'white': account,
+              'black': 'novyn_chess_bot',
+              'whiteName': account,
+              'blackName': 'Chess Bot',
+              'player1': account,
+              'player2': 'novyn_chess_bot',
+              'fen': ChessEngine.startFen,
+              'legalMoves': ChessEngine.legalMoves(ChessEngine.startFen),
+              'moves': <String>[],
+              'lastMove': '',
+              'lastMoveAt': 0,
+              'whiteTimeMs': 300000,
+              'blackTimeMs': 300000,
+              'check': false,
+              'canClaimDraw': false,
+            }
+          : gameType == 'tictactoe'
           ? <String, dynamic>{
               'playerX': account,
               'playerO': 'AI Bot',
@@ -88,6 +110,7 @@ class GameRoomScreen extends StatefulWidget {
           peerUsername: 'AI Bot',
           currentUsername: account,
           initialGame: initialGame,
+          opponentDisplayName: isChess ? 'Chess Bot' : null,
         ),
       ),
     );
@@ -290,6 +313,7 @@ class _GameRoomScreenState extends State<GameRoomScreen> {
         randomSessionId: widget.randomSessionId,
         opponentDisplayName: widget.opponentDisplayName,
         isGroup: widget.isGroup,
+        isOfflineBot: isOfflineBot,
       );
     }
 
