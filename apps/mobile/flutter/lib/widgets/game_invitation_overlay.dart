@@ -29,10 +29,12 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
   SocketService? _socket;
   StreamSubscription<Map<String, dynamic>>? _invitationSubscription;
   StreamSubscription<Map<String, dynamic>>? _timeoutSubscription;
+  StreamSubscription<String>? _resolvedSubscription;
   final Queue<Map<String, dynamic>> _queue =
       Queue<Map<String, dynamic>>();
   static const int _maxRememberedInvitationIds = 256;
   final LinkedHashSet<String> _seenIds = LinkedHashSet<String>();
+  final LinkedHashSet<String> _resolvedIds = LinkedHashSet<String>();
   Map<String, dynamic>? _activeInvitation;
   bool _working = false;
   bool _wasConnected = false;
@@ -54,6 +56,9 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
     _timeoutSubscription = socket.gameInvitationTimeoutStream.listen(
       _expireInvitation,
     );
+    _resolvedSubscription = socket.gameInvitationResolvedStream.listen(
+      _removeResolvedInvitation,
+    );
     _handleSocketChanged();
   }
 
@@ -67,8 +72,13 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
     if (timeoutSubscription != null) {
       unawaited(timeoutSubscription.cancel());
     }
+    final resolvedSubscription = _resolvedSubscription;
+    if (resolvedSubscription != null) {
+      unawaited(resolvedSubscription.cancel());
+    }
     _invitationSubscription = null;
     _timeoutSubscription = null;
+    _resolvedSubscription = null;
   }
 
   void _handleSocketChanged() {
@@ -125,7 +135,7 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
   }
 
   bool _rememberInvitationId(String id) {
-    if (id.isEmpty || !_seenIds.add(id)) return false;
+    if (id.isEmpty || _resolvedIds.contains(id) || !_seenIds.add(id)) return false;
     while (_seenIds.length > _maxRememberedInvitationIds) {
       _seenIds.remove(_seenIds.first);
     }
@@ -149,11 +159,22 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
   }
 
   void _expireInvitation(Map<String, dynamic> packet) {
-    final id = packet['messageId']?.toString() ?? '';
-    if (id.isEmpty || !mounted) return;
+    _removeResolvedInvitation(packet['messageId']?.toString() ?? '');
+  }
+
+  void _removeResolvedInvitation(String id) {
+    if (id.isEmpty) return;
+    _resolvedIds.add(id);
+    while (_resolvedIds.length > _maxRememberedInvitationIds) {
+      _resolvedIds.remove(_resolvedIds.first);
+    }
+    if (!mounted) return;
+    final isActive = _activeInvitation?['messageId']?.toString() == id;
+    final hasQueued = _queue.any((invite) => invite['messageId']?.toString() == id);
+    if (!isActive && !hasQueued) return;
     setState(() {
       _queue.removeWhere((invite) => invite['messageId']?.toString() == id);
-      if (_activeInvitation?['messageId']?.toString() == id) {
+      if (isActive) {
         _activeInvitation = null;
         _actionError = null;
         _working = false;
@@ -188,6 +209,7 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
     });
     try {
       await socket.rejectGameInvite(id);
+      socket.notifyGameInvitationResolved(id);
       if (mounted && _activeInvitation?['messageId']?.toString() == id) {
         _dismissActive();
       }
@@ -223,6 +245,7 @@ class _GameInvitationOverlayState extends State<GameInvitationOverlay> {
     });
     try {
       await socket.acceptGameInvite(id);
+      socket.notifyGameInvitationResolved(id);
       if (!mounted) return;
       _dismissActive();
       FocusManager.instance.primaryFocus?.unfocus();
