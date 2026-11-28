@@ -7704,25 +7704,29 @@ io.on("connection", (socket) => {
       return respond({ ok: false, message: "Invalid matchmaking request." });
     }
 
+    // A repeated search invalidates any older lookup/queue immediately.
+    // Otherwise an old lookup or its 60-second queue timeout could complete
+    // during the new request and incorrectly close or replace the new search.
+    publicGameMatchmaking.cancel(userKey);
+    const requestId = crypto.randomUUID();
+    pendingRandomMatchmakingLookups.set(userKey, { requestId, socketId: socket.id });
+
     // Random matchmaking must use verified competitive history. Do not fall
     // back to a fabricated Level 1 when storage is unavailable; doing so would
     // silently defeat skill-aware matching for every player during an outage.
     if (!mongoGameHistoryCollection) {
+      const pending = pendingRandomMatchmakingLookups.get(userKey);
+      if (pending?.requestId === requestId && pending?.socketId === socket.id) {
+        pendingRandomMatchmakingLookups.delete(userKey);
+      }
       return respond({
         ok: false,
         message: "Matchmaking is temporarily unavailable. Please try again.",
       });
     }
 
-    // A repeated search replaces any older queued entry immediately. Otherwise
-    // its old 60-second timeout could fire while this request is still reading
-    // verified history and incorrectly close the new search in the client.
-    publicGameMatchmaking.cancel(userKey);
-
     // The level sent by older clients is intentionally ignored. Derive the
     // competitive level only from verified, server-authored human results.
-    const requestId = crypto.randomUUID();
-    pendingRandomMatchmakingLookups.set(userKey, { requestId, socketId: socket.id });
     let matchmakingLevel;
     try {
       matchmakingLevel = (await loadMatchmakingSkill({
