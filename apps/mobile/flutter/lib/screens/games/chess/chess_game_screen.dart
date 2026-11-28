@@ -111,6 +111,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      if (_offlineBot) return;
       _socket = context.read<SocketService>();
       _socket!.onChessVoiceInviteCallback = _handleChessVoiceInvite;
       _socket!.onChessVoicePeerJoinedCallback = _handleChessVoicePeerJoined;
@@ -329,6 +330,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
             : (evaluation.inCheck ? 'Check!' : '');
       });
       if (!evaluation.finished && nextTurn.toLowerCase() == _botUser) {
+        if (mounted) setState(() => _busy = false);
         await Future<void>.delayed(const Duration(milliseconds: 350));
         if (mounted && !_finished) await _playOfflineBotMove();
       }
@@ -374,6 +376,33 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
       return;
     }
     setState(() => _message = 'This action is not available in offline practice.');
+  }
+
+  void _resetOfflineBotMatch() {
+    if (!_offlineBot) return;
+    final nextData = Map<String, dynamic>.from(_data)
+      ..['fen'] = ChessEngine.startFen
+      ..['legalMoves'] = ChessEngine.legalMoves(ChessEngine.startFen)
+      ..['moves'] = <String>[]
+      ..['lastMove'] = ''
+      ..['lastMoveAt'] = 0
+      ..['whiteTimeMs'] = 300000
+      ..['blackTimeMs'] = 300000
+      ..['check'] = false
+      ..['endReason'] = '';
+    setState(() {
+      _game = <String, dynamic>{
+        ..._game,
+        'state': 'in_progress',
+        'winner': null,
+        'turn': _user,
+        'data': nextData,
+      };
+      _selected = null;
+      _busy = false;
+      _timeoutClaimSent = false;
+      _message = '';
+    });
   }
 
   void _finishOfflineBotGame({
@@ -1282,19 +1311,20 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
                             ),
                           ),
                           Icon(
-                            _socket?.isConnected == true
+                            _offlineBot
                                 ? Icons.circle
-                                : Icons.circle_outlined,
-                            color: _socket?.isConnected == true ? Colors.green : Colors.orange,
+                                : (_socket?.isConnected == true ? Icons.circle : Icons.circle_outlined),
+                            color: _offlineBot ? accent : (_socket?.isConnected == true ? Colors.green : Colors.orange),
                             size: 10,
                           ),
                           const SizedBox(width: 7),
                           Text(
-                            _socket?.isConnected == true ? 'Live' : 'Reconnecting',
+                            _offlineBot ? 'Practice' : (_socket?.isConnected == true ? 'Live' : 'Reconnecting'),
                             style: TextStyle(color: muted, fontSize: 12, fontWeight: FontWeight.w700),
                           ),
-                          const SizedBox(width: 13),
-                          Material(
+                          if (!_offlineBot) ...[
+                            const SizedBox(width: 13),
+                            Material(
                             color: accent,
                             shape: const CircleBorder(),
                             child: InkWell(
@@ -1311,6 +1341,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
                               ),
                             ),
                           ),
+                          ],
                         ],
                       ),
                     ),
@@ -1326,7 +1357,24 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
                               children: [
                                 _playerCard(false, foreground, muted, panel, accent),
                                 const SizedBox(height: 24),
-                                Row(
+                                if (_offlineBot)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                    decoration: BoxDecoration(
+                                      color: accent.withValues(alpha: .10),
+                                      borderRadius: BorderRadius.circular(18),
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.smart_toy_rounded, color: accent, size: 18),
+                                        const SizedBox(width: 8),
+                                        Text('Offline practice', style: TextStyle(color: foreground, fontSize: 12, fontWeight: FontWeight.w800)),
+                                      ],
+                                    ),
+                                  )
+                                else
+                                  Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                                   children: [
                                     _voiceControl(
@@ -1407,7 +1455,15 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
                                   spacing: 8,
                                   runSpacing: 12,
                                   children: [
-                                    if (_finished)
+                                    if (_offlineBot)
+                                      _roundAction(
+                                        _finished ? 'Play again' : 'Resign',
+                                        _finished ? Icons.refresh_rounded : Icons.flag_rounded,
+                                        foreground,
+                                        accent,
+                                        _finished ? _resetOfflineBotMatch : () => _sendAction('resign'),
+                                      )
+                                    else if (_finished)
                                       _roundAction(
                                         'Rematch',
                                         Icons.refresh_rounded,
