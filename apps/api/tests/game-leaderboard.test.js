@@ -71,3 +71,43 @@ test("keeps the signed-in account visible without completed matches", () => {
   assert.equal(rows[0].score, 0);
   assert.equal(rows[0].matches, 0);
 });
+
+
+test("exposes current and best consecutive win streaks by selected game", () => {
+  const users = new Map([["alice", account("alice")]]);
+  const matches = [
+    { userKey: "alice", gameType: "tictactoe", result: "win", playedAt: "2026-01-01T10:00:00.000Z" },
+    { userKey: "alice", gameType: "tictactoe", result: "win", playedAt: "2026-01-01T10:01:00.000Z" },
+    { userKey: "alice", gameType: "tictactoe", result: "win", playedAt: "2026-01-01T10:02:00.000Z" },
+    { userKey: "alice", gameType: "rps", result: "loss", playedAt: "2026-01-01T10:03:00.000Z" },
+    { userKey: "alice", gameType: "rps", result: "win", playedAt: "2026-01-01T10:04:00.000Z" },
+    { userKey: "alice", gameType: "tictactoe", result: "loss", playedAt: "2026-01-01T10:05:00.000Z" },
+  ];
+
+  const overall = buildGameLeaderboard({
+    matches,
+    users,
+    viewerKey: "alice",
+    selectedGame: "overall",
+  });
+  assert.equal(overall[0].currentStreak, 1);
+  assert.equal(overall[0].bestStreak, 3);
+
+  const ticTacToe = buildGameLeaderboard({
+    matches,
+    users,
+    viewerKey: "alice",
+    selectedGame: "tictactoe",
+  });
+  assert.equal(ticTacToe[0].currentStreak, 0);
+  assert.equal(ticTacToe[0].bestStreak, 3);
+
+  const rps = buildGameLeaderboard({
+    matches,
+    users,
+    viewerKey: "alice",
+    selectedGame: "rps",
+  });
+  assert.equal(rps[0].currentStreak, 1);
+  assert.equal(rps[0].bestStreak, 1);
+});
