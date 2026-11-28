@@ -1558,6 +1558,7 @@ function scheduleRajaMantriPhaseTimer(entry) {
     entry.responseTimerDeadline = 0;
     if (!rajaMantriSessions.has(game.sessionId) || rajaMantriSessions.get(game.sessionId) !== entry) return;
 
+    const previousGame = cloneRajaMantriGame(game);
     if (game.phase === "picking") {
       for (const player of game.players) {
         if (!player.isBot && !player.picked) {
@@ -1576,9 +1577,17 @@ function scheduleRajaMantriPhaseTimer(entry) {
       }
     }
 
+    const persisted = await persistRajaMantriSession(game.sessionId, entry);
+    if (!persisted) {
+      entry.game = previousGame;
+      if (["picking", "guessing"].includes(entry.game.phase)) {
+        entry.game.responseDeadlineAt = Date.now() + RAJA_MANTRI_RESPONSE_TIMEOUT_MS;
+        scheduleRajaMantriPhaseTimer(entry);
+      }
+      return;
+    }
     scheduleRajaMantriPhaseTimer(entry);
-    await persistRajaMantriSession(game.sessionId, entry);
-    emitRajaMantriGameUpdate(game);
+    emitRajaMantriGameUpdate(entry.game);
   }, Math.max(0, deadline - Date.now()));
   if (typeof entry.responseTimer.unref === "function") entry.responseTimer.unref();
 }
@@ -1765,10 +1774,16 @@ function scheduleRandomGameDisconnectTimeout(sessionId, entry, disconnectedUserK
     );
     if (!onlineOpponent) return;
 
-    const result = applyGameMove(entry.game, userKey, { action: "leave_room" });
+    const previousGame = entry.game;
+    const result = applyGameMove(previousGame, userKey, { action: "leave_room" });
     if (!result.ok) return;
     entry.game = result.game;
-    await persistRandomGameSession(sessionId, entry);
+    const persisted = await persistRandomGameSession(sessionId, entry);
+    if (!persisted) {
+      entry.game = previousGame;
+      scheduleRandomGameDisconnectTimeout(sessionId, entry, userKey);
+      return;
+    }
     await persistAuthoritativeGameHistoryRecords(
       buildTwoPlayerGameHistoryRecords(entry.game, users),
     );
@@ -7833,10 +7848,16 @@ io.on("connection", (socket) => {
     if (!leavingPlayer) {
       return respond({ ok: false, message: "You are not a player in this match." });
     }
+    const previousGame = cloneRajaMantriGame(entry.game);
     const connection = setRajaMantriPlayerConnected(entry.game, userKey, false);
     if (!connection.ok) return respond({ ok: false, message: connection.reason });
+    const persisted = await persistRajaMantriSession(sessionId, entry);
+    if (!persisted) {
+      entry.game = previousGame;
+      scheduleRajaMantriPhaseTimer(entry);
+      return respond({ ok: false, message: "Could not save your reconnect state. Please retry." });
+    }
     scheduleRajaMantriPhaseTimer(entry);
-    await persistRajaMantriSession(sessionId, entry);
     emitRajaMantriGameUpdate(entry.game);
     for (const player of entry.game.players) {
       if (player.isBot || player.username === userKey) continue;
@@ -7878,10 +7899,16 @@ io.on("connection", (socket) => {
     if (!allowSocketAction(socket, "pick_rajamantri_chit", 8, 10_000)) {
       return respond({ ok: false, message: "Please wait before picking again." });
     }
+    const previousGame = cloneRajaMantriGame(entry.game);
     const result = pickRajaMantriChit(entry.game, userKey);
     if (!result.ok) return respond({ ok: false, message: result.reason });
+    const persisted = await persistRajaMantriSession(sessionId, entry);
+    if (!persisted) {
+      entry.game = previousGame;
+      scheduleRajaMantriPhaseTimer(entry);
+      return respond({ ok: false, message: "Could not save your pick. Please retry." });
+    }
     scheduleRajaMantriPhaseTimer(entry);
-    await persistRajaMantriSession(sessionId, entry);
     emitRajaMantriGameUpdate(entry.game);
     return respond({ ok: true, game: getRajaMantriGameView(entry.game, userKey) });
   });
@@ -7898,10 +7925,16 @@ io.on("connection", (socket) => {
     if (!allowSocketAction(socket, "guess_rajamantri_chor", 6, 10_000)) {
       return respond({ ok: false, message: "Please wait before guessing again." });
     }
+    const previousGame = cloneRajaMantriGame(entry.game);
     const result = guessRajaMantriChor(entry.game, userKey, suspectUsername);
     if (!result.ok) return respond({ ok: false, message: result.reason });
+    const persisted = await persistRajaMantriSession(sessionId, entry);
+    if (!persisted) {
+      entry.game = previousGame;
+      scheduleRajaMantriPhaseTimer(entry);
+      return respond({ ok: false, message: "Could not save your guess. Please retry." });
+    }
     scheduleRajaMantriPhaseTimer(entry);
-    await persistRajaMantriSession(sessionId, entry);
     emitRajaMantriGameUpdate(entry.game);
     return respond({ ok: true, game: getRajaMantriGameView(entry.game, userKey) });
   });
@@ -7917,10 +7950,16 @@ io.on("connection", (socket) => {
     if (!allowSocketAction(socket, "advance_rajamantri_round", 5, 30_000)) {
       return respond({ ok: false, message: "Please wait before continuing the round." });
     }
+    const previousGame = cloneRajaMantriGame(entry.game);
     const result = advanceRajaMantriRound(entry.game, userKey);
     if (!result.ok) return respond({ ok: false, message: result.reason });
+    const persisted = await persistRajaMantriSession(sessionId, entry);
+    if (!persisted) {
+      entry.game = previousGame;
+      scheduleRajaMantriPhaseTimer(entry);
+      return respond({ ok: false, message: "Could not save the next round. Please retry." });
+    }
     scheduleRajaMantriPhaseTimer(entry);
-    await persistRajaMantriSession(sessionId, entry);
     if (entry.game.phase === "finished") {
       await persistAuthoritativeGameHistoryRecords(
         buildRajaMantriHistoryRecords(entry.game, users),
