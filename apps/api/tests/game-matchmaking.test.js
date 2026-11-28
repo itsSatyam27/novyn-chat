@@ -119,3 +119,86 @@ test("invalid matchmaking level metadata is omitted instead of trusted", () => {
   assert.equal(match.matched, true);
   assert.deepEqual(match.players.map((player) => player.level), [null, null]);
 });
+
+
+test("public matchmaking chooses the closest available player level", () => {
+  const q = new PublicGameMatchmaking({ createSessionId: () => "closest-level-session" });
+  q.join({
+    userKey: "alice",
+    socketId: "alice_socket",
+    gameType: "tictactoe",
+    level: 2,
+  });
+  q.join({
+    userKey: "bob",
+    socketId: "bob_socket",
+    gameType: "tictactoe",
+    level: 8,
+  });
+
+  const match = q.join({
+    userKey: "charlie",
+    socketId: "charlie_socket",
+    gameType: "tictactoe",
+    level: 7,
+  });
+
+  assert.equal(match.matched, true);
+  assert.deepEqual(match.players.map((player) => player.userKey), ["bob", "charlie"]);
+  assert.equal(q.size, 1);
+  assert.equal(q.cancel("alice"), true);
+});
+
+test("equal level distance preserves FIFO order", () => {
+  const q = new PublicGameMatchmaking();
+  q.join({
+    userKey: "alice",
+    socketId: "alice_socket",
+    gameType: "rps",
+    level: 4,
+  });
+  q.join({
+    userKey: "bob",
+    socketId: "bob_socket",
+    gameType: "rps",
+    level: 8,
+  });
+
+  const match = q.join({
+    userKey: "charlie",
+    socketId: "charlie_socket",
+    gameType: "rps",
+    level: 6,
+  });
+
+  assert.equal(match.matched, true);
+  assert.deepEqual(match.players.map((player) => player.userKey), ["alice", "charlie"]);
+  assert.equal(q.size, 1);
+  q.cancel("bob");
+});
+
+test("unknown level metadata keeps the existing FIFO fallback", () => {
+  const q = new PublicGameMatchmaking();
+  q.join({
+    userKey: "alice",
+    socketId: "alice_socket",
+    gameType: "rps",
+  });
+  q.join({
+    userKey: "bob",
+    socketId: "bob_socket",
+    gameType: "rps",
+    level: 9,
+  });
+
+  const match = q.join({
+    userKey: "charlie",
+    socketId: "charlie_socket",
+    gameType: "rps",
+  });
+
+  assert.equal(match.matched, true);
+  assert.deepEqual(match.players.map((player) => player.userKey), ["alice", "charlie"]);
+  assert.equal(q.size, 1);
+  q.cancel("bob");
+});
