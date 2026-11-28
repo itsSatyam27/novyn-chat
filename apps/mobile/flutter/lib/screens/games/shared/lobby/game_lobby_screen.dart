@@ -1163,12 +1163,64 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
         ]),
       );
 
-  void _playWithAiBot() {
+  Future<void> _playWithAiBot() async {
+    var difficulty = 'medium';
+    if (widget.gameType == 'chess') {
+      final selected = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            final accent = Theme.of(dialogContext).colorScheme.primary;
+            Widget option(String value, String label, String description, IconData icon) {
+              final active = difficulty == value;
+              return ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                leading: Icon(
+                  active ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded,
+                  color: active ? accent : null,
+                ),
+                title: Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: Text(description),
+                selected: active,
+                onTap: () => setDialogState(() => difficulty = value),
+                trailing: Icon(icon, color: active ? accent : null),
+              );
+            }
+
+            return AlertDialog(
+              title: const Text('Choose Chess difficulty'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  option('easy', 'Easy', 'A relaxed game to learn the basics.', Icons.sentiment_satisfied_alt_rounded),
+                  option('medium', 'Medium', 'Balanced moves and tactical challenges.', Icons.psychology_alt_rounded),
+                  option('hard', 'Hard', 'Looks deeper ahead and punishes mistakes.', Icons.local_fire_department_rounded),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(difficulty),
+                  child: const Text('Start game'),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+      if (selected == null || !mounted) return;
+      difficulty = selected;
+    }
+
     GameRoomScreen.openOfflineBotMatch(
       context: context,
       currentUsername: _auth?.user?.username ?? _account ?? '',
       gameType: widget.gameType,
       title: widget.title,
+      botDifficulty: difficulty,
     );
   }
 }
