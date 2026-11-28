@@ -1620,7 +1620,7 @@ function enqueueGameSessionPersistence(queueKey, operation) {
 
 async function persistActiveGameSession(kind, sessionId, payload, expiresAt) {
   const collection = mongoGameSessionsCollection;
-  if (!collection) return false;
+  if (!collection) return process.env.NODE_ENV !== "production";
   const id = String(kind) + ":" + String(sessionId);
   let snapshot;
   try {
@@ -1720,10 +1720,16 @@ function persistRandomGameSession(sessionId, entry) {
 }
 
 function persistRajaMantriSession(sessionId, entry) {
-  if (!entry?.game) return Promise.resolve();
+  if (!entry?.game) return Promise.resolve(false);
   const game = { ...entry.game };
   delete game.random;
   return persistActiveGameSession("rajamantri", sessionId, game, entry.expiresAt);
+}
+
+function cloneRajaMantriGame(session) {
+  const snapshot = JSON.parse(JSON.stringify(session));
+  snapshot.random = typeof session.random === "function" ? session.random : Math.random;
+  return snapshot;
 }
 
 function clearRandomGameDisconnectTimer(entry, userKey) {
@@ -7684,7 +7690,15 @@ io.on("connection", (socket) => {
     };
     randomGameSessions.set(result.sessionId, randomEntry);
     scheduleRandomSessionExpiry(result.sessionId, randomEntry);
-    await persistRandomGameSession(result.sessionId, randomEntry);
+    const persisted = await persistRandomGameSession(result.sessionId, randomEntry);
+    if (!persisted) {
+      clearTimeout(randomEntry.expiryTimer);
+      randomGameSessions.delete(result.sessionId);
+      const message = "Could not save the match. Please start matchmaking again.";
+      io.to(first.socketId).emit("random_match_timeout", { gameType: result.gameType, message });
+      io.to(second.socketId).emit("random_match_timeout", { gameType: result.gameType, message });
+      return respond({ ok: false, message });
+    }
 
     const packet = (opponent) => ({
       sessionId: result.sessionId,
@@ -7768,7 +7782,20 @@ io.on("connection", (socket) => {
     rajaMantriSessions.set(result.matchId, sessionEntry);
     scheduleRajaMantriSessionExpiry(result.matchId, sessionEntry);
     scheduleRajaMantriPhaseTimer(sessionEntry);
-    await persistRajaMantriSession(result.matchId, sessionEntry);
+    const persisted = await persistRajaMantriSession(result.matchId, sessionEntry);
+    if (!persisted) {
+      clearTimeout(sessionEntry.expiryTimer);
+      clearTimeout(sessionEntry.responseTimer);
+      rajaMantriSessions.delete(result.matchId);
+      const message = "Could not save the match. Please search again.";
+      for (const player of result.players) {
+        io.to(player.socketId).emit("rajamantri_match_timeout", {
+          playerCount: result.playerCount,
+          message,
+        });
+      }
+      return respond({ ok: false, message });
+    }
     const packet = {
       matchId: result.matchId,
       sessionId: result.matchId,
@@ -8154,7 +8181,8 @@ io.on("connection", (socket) => {
       return respond({ ok: false, message: "You are not a player in this game." });
     }
 
-    const result = applyGameMove(session.game, userKey, payload?.moveData);
+    const previousGame = session.game;
+    const result = applyGameMove(previousGame, userKey, payload?.moveData);
     if (!result.ok) {
       return respond({ ok: false, message: result.reason || "Invalid game move." });
     }
@@ -8162,7 +8190,14 @@ io.on("connection", (socket) => {
     session.game = result.game;
     if (session.game.state === "finished") clearAllRandomGameDisconnectTimers(session);
     else clearRandomGameDisconnectTimer(session, userKey);
-    await persistRandomGameSession(sessionId, session);
+    const persisted = await persistRandomGameSession(sessionId, session);
+    if (!persisted) {
+      session.game = previousGame;
+      return respond({
+        ok: false,
+        message: "Could not save this move. Please retry when the connection is stable.",
+      });
+    }
     if (session.game.state === "finished") {
       await persistAuthoritativeGameHistoryRecords(
         buildTwoPlayerGameHistoryRecords(session.game, users),
