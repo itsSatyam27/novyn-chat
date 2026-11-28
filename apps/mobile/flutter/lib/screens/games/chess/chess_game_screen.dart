@@ -46,6 +46,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
   bool _busy = false;
   bool _movesTab = false;
   bool _voiceNoticeShown = false;
+  bool _timeoutClaimSent = false;
   String _message = '';
 
   String get _user => widget.currentUsername.trim().toLowerCase();
@@ -74,7 +75,13 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
       DeviceOrientation.landscapeRight,
     ]));
     _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() => _now = DateTime.now().millisecondsSinceEpoch);
+      if (!mounted) return;
+      setState(() => _now = DateTime.now().millisecondsSinceEpoch);
+      final whiteTurn = _fen.split(' ').length > 1 && _fen.split(' ')[1] != 'b';
+      if (!_finished && !_timeoutClaimSent && _time(whiteTurn) <= 0) {
+        _timeoutClaimSent = true;
+        unawaited(_sendAction('claim_timeout'));
+      }
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -214,11 +221,13 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
         setState(() {
           _game = Map<String, dynamic>.from(result['game'] as Map);
           _selected = null;
+          _timeoutClaimSent = false;
         });
       }
     } catch (error) {
       if (mounted) setState(() {
         _selected = null;
+        if (payload['action'] == 'claim_timeout') _timeoutClaimSent = false;
         _message = error is StateError ? error.message.toString() : 'Could not sync this move. Reconnect and retry.';
       });
     } finally {
@@ -575,7 +584,9 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
                   })),
                   SizedBox(height: 36, child: Row(children: [
                     _pillAction('Resign', Icons.flag_rounded, foreground, panel, _finished ? null : () => _sendAction('resign')),
-                    if (_drawOffer.isNotEmpty && _drawOffer != _user) ...[
+                    if (_data['canClaimDraw'] == true && !_finished)
+                      _pillAction('Claim Draw', Icons.handshake_rounded, foreground, panel, () => _sendAction('claim_draw'))
+                    else if (_drawOffer.isNotEmpty && _drawOffer != _user) ...[
                       _pillAction('Accept Draw', Icons.handshake_rounded, foreground, panel, () => _sendAction('draw_accept')),
                       _pillAction('Decline', Icons.close_rounded, foreground, panel, () => _sendAction('draw_decline')),
                     ] else
