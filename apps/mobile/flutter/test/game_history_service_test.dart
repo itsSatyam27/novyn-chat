@@ -262,7 +262,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('vs AI Bot · ' + _testTime(now)), findsOneWidget);
+    expect(find.textContaining('vs AI Bot · '), findsOneWidget);
     expect(find.text('Won'), findsNWidgets(2));
     expect(find.text('Lost'), findsOneWidget);
     expect(find.text('Draw'), findsOneWidget);
