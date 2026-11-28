@@ -47,6 +47,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
   int _now = DateTime.now().millisecondsSinceEpoch;
   int? _selected;
   bool _busy = false;
+  bool _botThinking = false;
   bool _sendingChat = false;
   bool _timeoutClaimSent = false;
   bool _voiceJoining = false;
@@ -82,6 +83,17 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
       case 'easy': return 1;
       case 'hard': return 3;
       default: return 2;
+    }
+  }
+
+  int get _botThinkDelayMs {
+    switch (_game['botDifficulty']?.toString().toLowerCase()) {
+      case 'easy':
+        return 1900;
+      case 'hard':
+        return 700;
+      default:
+        return 1250;
     }
   }
   bool get _isWhite =>
@@ -124,6 +136,9 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]));
+    // Chess is a full-screen landscape activity: reclaim system-bar space so
+    // the square board can use more of the device's actual display height.
+    unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky));
     _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       setState(() => _now = DateTime.now().millisecondsSinceEpoch);
@@ -164,6 +179,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
     _stopChessVoice(updateUi: false);
     _chatController.dispose();
     unawaited(SystemChrome.setPreferredOrientations(const [DeviceOrientation.portraitUp]));
+    unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge));
     super.dispose();
   }
 
@@ -376,14 +392,38 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
   }
 
   Future<void> _playOfflineBotMove() async {
-    if (!_offlineBot || !mounted || _finished || _busy) return;
-    final best = ChessEngine.bestMove(_fen, depth: _botDepth);
-    if (best == null) {
-      final evaluation = ChessEngine.evaluate(_fen);
-      _finishOfflineBotGame(winner: evaluation.winner ?? 'draw', reason: evaluation.reason);
-      return;
+    if (!_offlineBot || !mounted || _finished || _busy || _botThinking) return;
+    _botThinking = true;
+    try {
+      // A short, difficulty-aware pause makes the bot feel less instant while
+      // keeping Easy deliberately relaxed and Hard more responsive.
+      final jitterMs = math.Random.secure().nextInt(350);
+      await Future<void>.delayed(
+        Duration(milliseconds: _botThinkDelayMs + jitterMs),
+      );
+      if (!mounted || _finished || !_offlineBot) return;
+
+      final fields = _fen.split(' ');
+      if (fields.length < 2) return;
+      final movingWhite = fields[1] != 'b';
+      final actor = (movingWhite ? _data['white'] : _data['black'])
+          ?.toString()
+          .toLowerCase() ?? '';
+      if (actor != _botUser) return;
+
+      final best = ChessEngine.bestMove(_fen, depth: _botDepth);
+      if (best == null) {
+        final evaluation = ChessEngine.evaluate(_fen);
+        _finishOfflineBotGame(
+          winner: evaluation.winner ?? 'draw',
+          reason: evaluation.reason,
+        );
+        return;
+      }
+      await _applyOfflineMove(best, byBot: true);
+    } finally {
+      _botThinking = false;
     }
-    await _applyOfflineMove(best, byBot: true);
   }
 
   Future<void> _handleOfflineBotAction(Map<String, dynamic> payload) async {
@@ -1346,16 +1386,16 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
                 );
               }
 
-              final sideWidth = (constraints.maxWidth * .235)
-                  .clamp(150.0, 320.0)
+              final sideWidth = (constraints.maxWidth * .205)
+                  .clamp(132.0, 280.0)
                   .toDouble();
 
               return Padding(
-                padding: const EdgeInsets.fromLTRB(8, 2, 8, 4),
+                padding: const EdgeInsets.fromLTRB(5, 0, 5, 2),
                 child: Column(
                   children: [
                     SizedBox(
-                      height: 48,
+                      height: 38,
                       child: Row(
                         children: [
                           IconButton(
@@ -1410,7 +1450,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 3),
                     Expanded(
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
@@ -1494,7 +1534,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
                               ],
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 6),
                           Expanded(
                             child: Column(
                               children: [
@@ -1532,7 +1572,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
                               ],
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 6),
                           SizedBox(
                             width: sideWidth,
                             child: Column(
