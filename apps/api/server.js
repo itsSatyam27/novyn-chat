@@ -7786,10 +7786,16 @@ io.on("connection", (socket) => {
     const [first, second] = result.players;
     const challenge = createGameChallenge({
       userKey: first.userKey,
-      userDisplayName: first.userKey,
+      userDisplayName: first.displayName || first.userKey,
       to: second.userKey,
       toType: "friend",
-      game: { id: "random_" + result.sessionId, gameType: result.gameType },
+      game: {
+        id: "random_" + result.sessionId,
+        gameType: result.gameType,
+        ...(result.gameType === "chess"
+          ? { opponentDisplayName: second.displayName || second.userKey }
+          : {}),
+      },
     });
     if (!challenge.ok) {
       io.to(first.socketId).emit("random_match_timeout", { gameType: result.gameType, message: challenge.reason || "This game is unavailable right now." });
