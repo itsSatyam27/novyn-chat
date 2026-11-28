@@ -64,6 +64,10 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
       ? (_data['legalMoves'] as List).map((e) => e.toString()).toList()
       : <String>[];
   bool get _finished => _game['state']?.toString() == 'finished';
+  bool get _isWhite =>
+      (_data['white'] ?? _data['player1'])?.toString().trim().toLowerCase() == _user;
+  bool get _isBlack =>
+      (_data['black'] ?? _data['player2'])?.toString().trim().toLowerCase() == _user;
   bool get _myTurn => !_finished && _game['turn']?.toString().toLowerCase() == _user;
   String get _drawOffer => _data['drawOfferBy']?.toString().toLowerCase() ?? '';
 
