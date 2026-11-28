@@ -33,8 +33,8 @@ class ChessGameScreen extends StatefulWidget {
 }
 
 class _ChessGameScreenState extends State<ChessGameScreen> {
-  static const _lightSquare = Color(0xFFF0D9B5);
-  static const _darkSquare = Color(0xFFB58863);
+  static const _lightSquare = Color(0xFFE9E3CE);
+  static const _darkSquare = Color(0xFF4F817D);
   static const _whitePieces = 'KQRBNP';
   static const _blackPieces = 'kqrbnp';
 
@@ -46,7 +46,6 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
   int? _selected;
   bool _busy = false;
   bool _sendingChat = false;
-  bool _movesTab = false;
   bool _timeoutClaimSent = false;
   bool _voiceJoining = false;
   bool _voiceMediaStarting = false;
@@ -545,40 +544,125 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
   }
 
   Widget _playerCard(bool white, Color foreground, Color muted, Color panel, Color accent) {
-    final active = !_finished && ((_fen.split(' ').length > 1 && _fen.split(' ')[1] != 'b')) == white;
+    final whiteToMove = _fen.split(' ').length > 1 && _fen.split(' ')[1] != 'b';
+    final active = !_finished && whiteToMove == white;
     final mine = (white ? _data['white'] : _data['black'])?.toString().toLowerCase() == _user;
-    return Expanded(
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 3),
-        padding: const EdgeInsets.all(7),
-        decoration: BoxDecoration(
-          color: panel,
-          borderRadius: BorderRadius.circular(17),
-          border: Border.all(color: active ? accent : accent.withValues(alpha: .2), width: active ? 1.6 : 1),
+    final name = _playerName(white);
+    final timerColor = white ? accent : const Color(0xFF10131B);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: panel,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: active ? accent : muted.withValues(alpha: .18),
+          width: active ? 2 : 1,
         ),
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          CircleAvatar(
-            radius: 19,
-            backgroundColor: white ? const Color(0xFFE8D6BC) : const Color(0xFF35304F),
-            child: Text(_playerName(white).isEmpty ? '?' : _playerName(white)[0].toUpperCase(),
-              style: TextStyle(color: white ? const Color(0xFF332515) : Colors.white, fontWeight: FontWeight.w900)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: Theme.of(context).brightness == Brightness.dark ? .12 : .035),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
           ),
-          const SizedBox(height: 4),
-          Text(_playerName(white), maxLines: 1, overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: foreground, fontWeight: FontWeight.w800, fontSize: 11)),
-          if (mine) Text('YOU', style: TextStyle(color: accent, fontSize: 9, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 5),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: active ? accent : muted.withValues(alpha: .3),
+                    width: 3,
+                  ),
+                ),
+                child: CircleAvatar(
+                  radius: 23,
+                  backgroundColor: white ? const Color(0xFFE8D6BC) : const Color(0xFF171923),
+                  child: Text(
+                    name.isEmpty ? '?' : name[0].toUpperCase(),
+                    style: TextStyle(
+                      color: white ? const Color(0xFF332515) : Colors.white,
+                      fontSize: 19,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: foreground,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      mine ? 'You · ' + (white ? 'White' : 'Black') : (white ? 'White' : 'Black'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: muted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (active)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: .12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    'TURN',
+                    style: TextStyle(
+                      color: accent,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: .5,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 13),
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 5),
-            decoration: BoxDecoration(color: active ? accent.withValues(alpha: .14) : Theme.of(context).colorScheme.surface,
-              borderRadius: BorderRadius.circular(12)),
-            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Icon(Icons.timer_outlined, size: 14, color: active ? accent : muted),
-              const SizedBox(width: 4),
-              Text(_formatClock(white), style: TextStyle(color: foreground, fontWeight: FontWeight.w900, fontSize: 15)),
-            ]),
+            width: double.infinity,
+            height: 48,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: timerColor,
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: Text(
+              _formatClock(white),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+                letterSpacing: .5,
+                fontFeatures: [FontFeature.tabularFigures()],
+              ),
+            ),
           ),
-        ]),
+        ],
       ),
     );
   }
@@ -590,7 +674,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
     final lastFrom = last.length >= 4 ? _squareIndex(last.substring(0, 2)) : -1;
     final lastTo = last.length >= 4 ? _squareIndex(last.substring(2, 4)) : -1;
     return ClipRRect(
-      borderRadius: BorderRadius.circular(11),
+      borderRadius: BorderRadius.circular(17),
       child: GridView.builder(
         physics: const NeverScrollableScrollPhysics(),
         itemCount: 64,
@@ -611,7 +695,7 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
               child: Stack(fit: StackFit.expand, children: [
                 if (piece.isNotEmpty)
                   Center(child: FittedBox(child: Text(_glyph(piece),
-                    style: TextStyle(fontSize: 38, color: _whitePieces.contains(piece) ? const Color(0xFFFFFEF7) : const Color(0xFF171717),
+                    style: TextStyle(fontSize: 48, color: _whitePieces.contains(piece) ? const Color(0xFFFFFEF7) : const Color(0xFF171717),
                       shadows: const [Shadow(color: Colors.black54, blurRadius: 2, offset: Offset(1, 2))])))),
                 if (targets.contains(index))
                   Center(child: Container(
@@ -658,7 +742,81 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
       ),
     ));
 
-  Widget _rightPanel(Color foreground, Color muted, Color panel, Color accent) {
+  Future<void> _openMatchPanel() async {
+    final screenSize = MediaQuery.sizeOf(context);
+    final dialogWidth = math.min(screenSize.width * .76, 820.0);
+    final dialogHeight = math.min(screenSize.height * .84, 620.0);
+    var showMoves = false;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: .36),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          final theme = Theme.of(dialogContext);
+          final foreground = theme.colorScheme.onSurface;
+          final muted = theme.colorScheme.onSurfaceVariant;
+          final accent = theme.colorScheme.primary;
+          final dark = theme.brightness == Brightness.dark;
+          final panelColor = theme.colorScheme.surfaceContainerHighest
+              .withValues(alpha: dark ? .98 : 1);
+          Widget content = _rightPanel(
+            foreground,
+            muted,
+            panelColor,
+            accent,
+            showMoves,
+            (value) => setDialogState(() => showMoves = value),
+            () => Navigator.of(dialogContext).pop(),
+          );
+          final socket = _socket;
+          if (socket != null) {
+            content = AnimatedBuilder(
+              animation: socket,
+              builder: (context, _) => _rightPanel(
+                foreground,
+                muted,
+                panelColor,
+                accent,
+                showMoves,
+                (value) => setDialogState(() => showMoves = value),
+                () => Navigator.of(dialogContext).pop(),
+              ),
+            );
+          }
+          return Dialog(
+            backgroundColor: panelColor,
+            surfaceTintColor: Colors.transparent,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+            constraints: BoxConstraints(
+              maxWidth: dialogWidth,
+              maxHeight: dialogHeight,
+            ),
+            child: SizedBox(
+              width: dialogWidth,
+              height: dialogHeight,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(28),
+                child: content,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _rightPanel(
+    Color foreground,
+    Color muted,
+    Color panel,
+    Color accent,
+    bool showMoves,
+    ValueChanged<bool> onTabChanged,
+    VoidCallback onClose,
+  ) {
     final messages = _socket?.messages ?? [];
     final directMessages = messages.where((message) =>
       message.chatId.toLowerCase() == widget.peerUsername.toLowerCase()).toList();
@@ -668,78 +826,165 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
     final hasMessages = widget.randomSessionId != null
         ? randomMessages.isNotEmpty
         : directMessages.isNotEmpty;
-    return Container(
-      padding: const EdgeInsets.all(7),
-      decoration: BoxDecoration(color: panel, borderRadius: BorderRadius.circular(17),
-        border: Border.all(color: accent.withValues(alpha: .18))),
-      child: Column(children: [
-        Row(children: [
-          Expanded(child: _tab('Chat', Icons.chat_bubble_outline_rounded, !_movesTab, foreground, accent,
-            () => setState(() => _movesTab = false))),
-          const SizedBox(width: 5),
-          Expanded(child: _tab('Moves', Icons.history_rounded, _movesTab, foreground, accent,
-            () => setState(() => _movesTab = true))),
-        ]),
-        const SizedBox(height: 6),
-        Expanded(child: _movesTab
-          ? _moveHistory(foreground, muted)
-          : !hasMessages
-            ? Center(child: Text('Your match chat appears here.',
-                textAlign: TextAlign.center, style: TextStyle(color: muted, fontSize: 10)))
-            : widget.randomSessionId != null
-              ? ListView.builder(itemCount: randomMessages.length, itemBuilder: (context, index) {
-                  final message = randomMessages[index];
-                  final mine = message['from']?.toString().toLowerCase() == _user;
-                  return Align(
-                    alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(vertical: 3),
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                      decoration: BoxDecoration(color: mine ? accent : Theme.of(context).colorScheme.surface,
-                        borderRadius: BorderRadius.circular(11)),
-                      child: Text(message['text']?.toString() ?? '',
-                        style: TextStyle(color: mine ? Colors.white : foreground, fontSize: 10)),
-                    ),
-                  );
-                })
-              : ListView.builder(itemCount: directMessages.length, itemBuilder: (context, index) {
-                  final message = directMessages[index];
-                  final mine = message.isFromMe;
-                  return Align(
-                    alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(vertical: 3),
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                      decoration: BoxDecoration(color: mine ? accent : Theme.of(context).colorScheme.surface,
-                        borderRadius: BorderRadius.circular(11)),
-                      child: Text(message.text, style: TextStyle(color: mine ? Colors.white : foreground, fontSize: 10)),
-                    ),
-                  );
-                })),
-        if (!_movesTab) ...[
-          const SizedBox(height: 5),
-          Row(children: [
-            Expanded(child: TextField(
-              controller: _chatController,
-              enabled: widget.randomSessionId != null || widget.peerUsername.isNotEmpty,
-              minLines: 1, maxLines: 2,
-              style: TextStyle(color: foreground, fontSize: 10),
-              decoration: InputDecoration(
-                hintText: 'Message…',
-                hintStyle: TextStyle(color: muted, fontSize: 10),
-                isDense: true, filled: true,
-                fillColor: Theme.of(context).colorScheme.surface,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
+    final canChat = widget.randomSessionId != null || widget.peerUsername.isNotEmpty;
+
+    Widget chatContent;
+    if (!hasMessages) {
+      chatContent = Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.forum_outlined, size: 38, color: muted.withValues(alpha: .55)),
+            const SizedBox(height: 12),
+            Text(
+              'No messages yet',
+              style: TextStyle(color: foreground, fontSize: 16, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              canChat ? 'Send a message to your opponent.' : 'Match chat is unavailable for this game.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: muted, fontSize: 12),
+            ),
+          ],
+        ),
+      );
+    } else if (widget.randomSessionId != null) {
+      chatContent = ListView.builder(
+        padding: const EdgeInsets.fromLTRB(4, 12, 4, 12),
+        itemCount: randomMessages.length,
+        itemBuilder: (context, index) {
+          final message = randomMessages[index];
+          final mine = message['from']?.toString().toLowerCase() == _user;
+          return Align(
+            alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 420),
+              margin: const EdgeInsets.symmetric(vertical: 5),
+              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
+              decoration: BoxDecoration(
+                color: mine ? accent : Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(18),
               ),
-              onSubmitted: (_) => _sendChat(),
-            )),
-            const SizedBox(width: 4),
-            IconButton.filled(onPressed: _sendingChat ? null : _sendChat, visualDensity: VisualDensity.compact,
-              icon: const Icon(Icons.send_rounded, size: 15)),
-          ]),
+              child: Text(
+                message['text']?.toString() ?? '',
+                style: TextStyle(color: mine ? Colors.white : foreground, fontSize: 13),
+              ),
+            ),
+          );
+        },
+      );
+    } else {
+      chatContent = ListView.builder(
+        padding: const EdgeInsets.fromLTRB(4, 12, 4, 12),
+        itemCount: directMessages.length,
+        itemBuilder: (context, index) {
+          final message = directMessages[index];
+          final mine = message.isFromMe;
+          return Align(
+            alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 420),
+              margin: const EdgeInsets.symmetric(vertical: 5),
+              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
+              decoration: BoxDecoration(
+                color: mine ? accent : Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Text(
+                message.text,
+                style: TextStyle(color: mine ? Colors.white : foreground, fontSize: 13),
+              ),
+            ),
+          );
+        },
+      );
+    }
+
+    return Container(
+      color: panel,
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _tab(
+                  'Chat',
+                  Icons.chat_bubble_outline_rounded,
+                  !showMoves,
+                  foreground,
+                  accent,
+                  () => onTabChanged(false),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _tab(
+                  'Moves',
+                  Icons.history_rounded,
+                  showMoves,
+                  foreground,
+                  accent,
+                  () => onTabChanged(true),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: onClose,
+                tooltip: 'Close',
+                visualDensity: VisualDensity.compact,
+                icon: Icon(Icons.close_rounded, color: foreground, size: 26),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Divider(height: 1, color: muted.withValues(alpha: .16)),
+          const SizedBox(height: 8),
+          Expanded(
+            child: showMoves ? _moveHistory(foreground, muted) : chatContent,
+          ),
+          if (!showMoves) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _chatController,
+                    enabled: canChat,
+                    minLines: 1,
+                    maxLines: 2,
+                    style: TextStyle(color: foreground, fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: canChat ? 'Message...' : 'Chat unavailable',
+                      hintStyle: TextStyle(color: muted, fontSize: 13),
+                      isDense: true,
+                      filled: true,
+                      fillColor: Theme.of(context).colorScheme.surface,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(28),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                    onSubmitted: (_) => _sendChat(),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                SizedBox(
+                  width: 50,
+                  height: 50,
+                  child: IconButton.filled(
+                    onPressed: !canChat || _sendingChat ? null : _sendChat,
+                    tooltip: 'Send message',
+                    icon: const Icon(Icons.send_rounded, size: 21),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
-      ]),
+      ),
     );
   }
 
@@ -748,30 +993,60 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
       borderRadius: BorderRadius.circular(13),
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        decoration: BoxDecoration(color: active ? accent : Colors.transparent, borderRadius: BorderRadius.circular(13)),
+        padding: const EdgeInsets.symmetric(vertical: 13),
+        decoration: BoxDecoration(color: active ? accent : Colors.transparent, borderRadius: BorderRadius.circular(20)),
         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(icon, size: 13, color: active ? Colors.white : foreground),
-          const SizedBox(width: 4),
-          Text(label, style: TextStyle(color: active ? Colors.white : foreground, fontSize: 10, fontWeight: FontWeight.w800)),
+          Icon(icon, size: 16, color: active ? Colors.white : foreground),
+          const SizedBox(width: 7),
+          Text(label, style: TextStyle(color: active ? Colors.white : foreground, fontSize: 14, fontWeight: FontWeight.w800)),
         ]),
       ),
     );
 
   Widget _moveHistory(Color foreground, Color muted) {
-    if (_moves.isEmpty) return Center(child: Text('Moves will appear here', style: TextStyle(color: muted, fontSize: 10)));
-    return ListView.builder(
+    if (_moves.isEmpty) {
+      return Center(
+        child: Text(
+          'Moves will appear here',
+          style: TextStyle(color: muted, fontSize: 13),
+        ),
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 5),
       itemCount: (_moves.length / 2).ceil(),
+      separatorBuilder: (context, index) => Divider(
+        height: 1,
+        color: muted.withValues(alpha: .12),
+      ),
       itemBuilder: (context, index) {
         final white = _moves[index * 2];
         final black = index * 2 + 1 < _moves.length ? _moves[index * 2 + 1] : '';
         return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-          child: Row(children: [
-            SizedBox(width: 20, child: Text((index + 1).toString() + '.', style: TextStyle(color: muted, fontSize: 10))),
-            Expanded(child: Text(_prettyMove(white), style: TextStyle(color: foreground, fontSize: 10, fontWeight: FontWeight.w700))),
-            Expanded(child: Text(_prettyMove(black), style: TextStyle(color: foreground, fontSize: 10))),
-          ]),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 5),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 34,
+                child: Text(
+                  (index + 1).toString() + '.',
+                  style: TextStyle(color: muted, fontSize: 13, fontWeight: FontWeight.w700),
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  _prettyMove(white),
+                  style: TextStyle(color: foreground, fontSize: 14, fontWeight: FontWeight.w800),
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  _prettyMove(black),
+                  style: TextStyle(color: foreground, fontSize: 14),
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -787,114 +1062,170 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
     final muted = theme.colorScheme.onSurfaceVariant;
     final accent = theme.colorScheme.primary;
     final dark = theme.brightness == Brightness.dark;
-    final panel = theme.colorScheme.surfaceContainerHighest.withValues(alpha: dark ? .78 : .95);
+    final panel = theme.colorScheme.surfaceContainerHighest.withValues(alpha: dark ? .88 : .98);
 
     return PopScope<void>(
       canPop: false,
-      onPopInvokedWithResult: (didPop, _) { if (!didPop) _confirmLeave(); },
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _confirmLeave();
+      },
       child: Scaffold(
         backgroundColor: theme.scaffoldBackgroundColor,
-        body: SafeArea(child: LayoutBuilder(builder: (context, constraints) {
-          if (constraints.maxWidth < constraints.maxHeight) {
-            return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.screen_rotation_rounded, color: accent, size: 42),
-              const SizedBox(height: 10),
-              Text('Rotate your phone to play Chess',
-                style: TextStyle(color: foreground, fontWeight: FontWeight.w800, fontSize: 17)),
-            ]));
-          }
-          final leftWidth = (constraints.maxWidth * .21).clamp(128.0, 225.0).toDouble();
-          final rightWidth = (constraints.maxWidth * .245).clamp(150.0, 270.0).toDouble();
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(8, 3, 8, 7),
-            child: Column(children: [
-              Row(children: [
-                IconButton(onPressed: _confirmLeave, visualDensity: VisualDensity.compact,
-                  icon: Icon(Icons.arrow_back_rounded, color: foreground)),
-                Text('NOVYN  /  GAMES', style: TextStyle(color: muted, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .7)),
-                const Spacer(),
-                Icon(Icons.workspace_premium_rounded, color: accent, size: 17),
-                const SizedBox(width: 5),
-                Text('Chess · 1v1 Online', style: TextStyle(color: foreground, fontWeight: FontWeight.w900, fontSize: 13)),
-                const Spacer(),
-                Icon(_socket?.isConnected == true ? Icons.signal_cellular_alt_rounded : Icons.signal_wifi_off_rounded,
-                  color: _socket?.isConnected == true ? Colors.green : Colors.orange, size: 16),
-                const SizedBox(width: 5),
-                Text(_socket?.isConnected == true ? 'Live' : 'Reconnecting',
-                  style: TextStyle(color: muted, fontSize: 10)),
-                IconButton(onPressed: _confirmLeave, visualDensity: VisualDensity.compact,
-                  icon: Icon(Icons.more_horiz_rounded, color: foreground)),
-              ]),
-              Expanded(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                SizedBox(width: leftWidth, child: Column(children: [
-                  _playerCard(false, foreground, muted, panel, accent),
-                  Padding(padding: const EdgeInsets.symmetric(vertical: 1),
-                    child: Text('VS', style: TextStyle(color: accent, fontSize: 12, fontWeight: FontWeight.w900))),
-                  _playerCard(true, foreground, muted, panel, accent),
-                  Container(
-                    padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 5),
-                    decoration: BoxDecoration(color: panel, borderRadius: BorderRadius.circular(15)),
-                    child: Row(children: [
-                      Expanded(child: _voiceControl(
-                        _voice?.isMuted == true ? Icons.mic_off_rounded : Icons.mic_none_rounded,
-                        _voiceMicLabel, foreground, muted, _toggleChessVoice,
-                        hint: _voiceMicHint,
-                        active: _voice?.isConnected == true && _voice?.isMuted != true,
-                      )),
-                      Container(width: 1, height: 31, color: muted.withValues(alpha: .25)),
-                      Expanded(child: _voiceControl(
-                        _voiceSpeakerEnabled ? Icons.volume_up_rounded : Icons.hearing_rounded,
-                        _voiceSpeakerEnabled ? 'Speaker' : 'Earpiece', foreground, muted,
-                        _toggleChessVoiceSpeaker,
-                        hint: 'Audio output',
-                        active: _voiceSpeakerEnabled,
-                      )),
-                    ]),
+        body: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth < constraints.maxHeight) {
+                return Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.screen_rotation_rounded, color: accent, size: 42),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Rotate your phone to play Chess',
+                        style: TextStyle(color: foreground, fontWeight: FontWeight.w800, fontSize: 17),
+                      ),
+                    ],
                   ),
-                ])),
-                const SizedBox(width: 8),
-                Expanded(child: Column(children: [
-                  Expanded(child: LayoutBuilder(builder: (context, boardConstraints) {
-                    final size = math.min(boardConstraints.maxWidth, boardConstraints.maxHeight).toDouble();
-                    return Center(child: SizedBox(width: size, height: size, child: _board(accent)));
-                  })),
-                  SizedBox(height: 36, child: Row(children: [
-                    _pillAction('Resign', Icons.flag_rounded, foreground, panel, _finished ? null : () => _sendAction('resign')),
-                    if (_data['canClaimDraw'] == true && !_finished)
-                      _pillAction('Claim Draw', Icons.handshake_rounded, foreground, panel, () => _sendAction('claim_draw'))
-                    else if (_drawOffer.isNotEmpty && _drawOffer != _user) ...[
-                      _pillAction('Accept Draw', Icons.handshake_rounded, foreground, panel, () => _sendAction('draw_accept')),
-                      _pillAction('Decline', Icons.close_rounded, foreground, panel, () => _sendAction('draw_decline')),
-                    ] else
-                      _pillAction(_drawOffer == _user ? 'Draw Offered' : 'Offer Draw', Icons.handshake_rounded,
-                        foreground, panel, _finished || _drawOffer.isNotEmpty ? null : () => _sendAction('draw_offer')),
-                    if (_finished)
-                      _pillAction('Rematch', Icons.refresh_rounded, foreground, panel, () {
-                        final rematch = _data['rematch'];
-                        if (rematch is Map && rematch['status'] == 'pending') {
-                          _sendAction(rematch['requestedBy']?.toString().toLowerCase() == _user
-                              ? 'rematch_cancel' : 'rematch_accept');
-                        } else {
-                          _sendAction('rematch_request');
-                        }
-                      }),
-                  ])),
-                  Padding(padding: const EdgeInsets.only(top: 3),
-                    child: Text(_message.isNotEmpty ? _message : _status(),
-                      maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: _message.isNotEmpty ? theme.colorScheme.error : muted,
-                        fontSize: 10, fontWeight: FontWeight.w700))),
-                ])),
-                const SizedBox(width: 8),
-                SizedBox(width: rightWidth, child: _rightPanel(foreground, muted, panel, accent)),
-              ])),
-            ]),
-          );
-        })),
-      ),
-    );
-  }
+                );
+              }
 
+              final sideWidth = (constraints.maxWidth * .265)
+                  .clamp(168.0, 360.0)
+                  .toDouble();
+
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(16, 5, 16, 10),
+                child: Column(
+                  children: [
+                    SizedBox(
+                      height: 48,
+                      child: Row(
+                        children: [
+                          IconButton(
+                            onPressed: _confirmLeave,
+                            visualDensity: VisualDensity.compact,
+                            icon: Icon(Icons.arrow_back_rounded, color: foreground),
+                          ),
+                          Expanded(
+                            child: Text(
+                              'Chess · 1v1 Online',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: foreground,
+                                fontSize: 17,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                          Icon(
+                            _socket?.isConnected == true
+                                ? Icons.circle
+                                : Icons.circle_outlined,
+                            color: _socket?.isConnected == true ? Colors.green : Colors.orange,
+                            size: 10,
+                          ),
+                          const SizedBox(width: 7),
+                          Text(
+                            _socket?.isConnected == true ? 'Live' : 'Reconnecting',
+                            style: TextStyle(color: muted, fontSize: 12, fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(width: 13),
+                          Material(
+                            color: accent,
+                            shape: const CircleBorder(),
+                            child: InkWell(
+                              onTap: _openMatchPanel,
+                              customBorder: const CircleBorder(),
+                              child: const SizedBox(
+                                width: 46,
+                                height: 46,
+                                child: Icon(
+                                  Icons.chat_bubble_outline_rounded,
+                                  color: Colors.white,
+                                  size: 22,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: sideWidth,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                _playerCard(false, foreground, muted, panel, accent),
+                                const SizedBox(height: 24),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                  children: [
+                                    _voiceControl(
+                                      _voice?.isMuted == true
+                                          ? Icons.mic_off_rounded
+                                          : Icons.mic_none_rounded,
+                                      _voiceMicLabel,
+                                      foreground,
+                                      muted,
+                                      _toggleChessVoice,
+                                      hint: _voiceMicHint,
+                                      active: _voice?.isConnected == true && _voice?.isMuted != true,
+                                    ),
+                                    _voiceControl(
+                                      _voiceSpeakerEnabled
+                                          ? Icons.volume_up_rounded
+                                          : Icons.hearing_rounded,
+                                      _voiceSpeakerEnabled ? 'Speaker' : 'Earpiece',
+                                      foreground,
+                                      muted,
+                                      _toggleChessVoiceSpeaker,
+                                      hint: 'Audio output',
+                                      active: _voiceSpeakerEnabled,
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              children: [
+                                Expanded(
+                                  child: LayoutBuilder(
+                                    builder: (context, boardConstraints) {
+                                      final size = math.min(
+                                        boardConstraints.maxWidth,
+                                        boardConstraints.maxHeight,
+                                      ).toDouble();
+                                      return Center(
+                                        child: SizedBox(
+                                          width: size,
+                                          height: size,
+                                          child: _board(accent),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 7),
+                                  child: Text(
+                                    _message.isNotEmpty ? _message : _status(),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: _message.isNotEmpty ? theme.colorScheme.error : muted,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w80
   Widget _voiceControl(
     IconData icon,
     String label,
@@ -903,15 +1234,48 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
     VoidCallback onTap, {
     String hint = '',
     bool active = false,
-  }) =>
-    InkWell(onTap: onTap, borderRadius: BorderRadius.circular(12),
-      child: Padding(padding: const EdgeInsets.symmetric(vertical: 2),
-        child: Column(children: [
-          Icon(icon, color: active ? Theme.of(context).colorScheme.primary : muted, size: 19),
-          Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: foreground, fontSize: 10, fontWeight: FontWeight.w800)),
-          Text(hint, maxLines: 1, overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: muted, fontSize: 8)),
-        ]),
-      ));
+  }) {
+    final accent = Theme.of(context).colorScheme.primary;
+    final surface = Theme.of(context).colorScheme.surfaceContainerHighest;
+    return SizedBox(
+      width: 88,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Material(
+            color: surface,
+            shape: const CircleBorder(),
+            child: InkWell(
+              onTap: onTap,
+              customBorder: const CircleBorder(),
+              child: SizedBox(
+                width: 60,
+                height: 60,
+                child: Icon(
+                  icon,
+                  size: 26,
+                  color: active ? accent : foreground,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 7),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: foreground, fontSize: 11, fontWeight: FontWeight.w800),
+          ),
+          if (hint.isNotEmpty)
+            Text(
+              hint,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: muted, fontSize: 9),
+            ),
+        ],
+      ),
+    );
+  }
+
 }
