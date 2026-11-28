@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'game_invitation_utils.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart'
     hide Message;
@@ -702,6 +703,29 @@ class NotificationService {
       isGroup: data['group'] == true || data['kind']?.toString() == 'group',
       notificationType: 'game_turn',
       titleOverride: 'Your turn',
+    );
+  }
+
+  static Future<void> showInAppGameResult(
+    Map<String, dynamic> data,
+    BuildContext context,
+  ) async {
+    if (!context.mounted) return;
+    final chatId = data['chat']?.toString().trim() ?? '';
+    if (chatId.isEmpty) return;
+    final recipient = data['recipient']?.toString().trim().toLowerCase() ?? '';
+    final account = (_presenceAuth?.user?.username ?? _activeUsername ?? '')
+        .trim()
+        .toLowerCase();
+    if (account.isEmpty || (recipient.isNotEmpty && recipient != account)) return;
+    final body = data['body']?.toString().trim();
+    await showInAppMessage(
+      chatId,
+      body?.isNotEmpty == true ? body! : 'The game has finished',
+      context,
+      isGroup: data['group'] == true || data['kind']?.toString() == 'group',
+      notificationType: 'game_result',
+      titleOverride: data['title']?.toString() ?? 'Game finished',
     );
   }
 
@@ -2011,8 +2035,29 @@ class NotificationService {
       }
       return;
     }
-    if (type == 'game_invitation' || type == 'game_result') {
+    if (type == 'game_invitation') {
+      final appResumed =
+          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+      if (!shouldShowForegroundGameInvitationSystemNotification(
+        appResumed: appResumed,
+        socketConnected: _socket?.isConnected == true,
+        socketAuthenticated: _socket?.isAuthenticated == true,
+      )) {
+        // The global game-invitation overlay already shows the live invite.
+        // Do not stack a second system notification on top of that prompt.
+        return;
+      }
       unawaited(showGameNotification(message.data));
+      return;
+    }
+    if (type == 'game_result') {
+      if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed &&
+          _socket?.isConnected == true &&
+          _socket?.isAuthenticated == true) {
+        unawaited(showInAppGameResult(message.data, context));
+      } else {
+        unawaited(showGameNotification(message.data));
+      }
       return;
     }
     if (type == 'friend_request' ||
