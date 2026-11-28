@@ -169,10 +169,20 @@ test("Chess draw offer, resignation and rematch transitions are participant-only
   assert.equal(resigned.game.state, "finished");
   assert.equal(resigned.game.winner, "bob");
   const requested = applyGameMove(resigned.game, "alice", { action: "rematch_request" });
-  const rematch = applyGameMove(requested.game, "bob", { action: "rematch_accept" });
+  const rematch = applyGameMove(
+    requested.game,
+    "bob",
+    { action: "rematch_accept" },
+    { randomInt: () => 1 },
+  );
   assert.equal(rematch.ok, true);
   assert.equal(rematch.game.state, "in_progress");
-  assert.equal(rematch.game.turn, "alice");
+  assert.equal(rematch.game.turn, "bob");
+  assert.equal(rematch.game.data.white, "bob");
+  assert.equal(rematch.game.data.black, "alice");
+  assert.equal(rematch.game.data.whiteName, "bob");
+  assert.equal(rematch.game.data.blackName, "alice");
+  assert.equal(rematch.game.data.lastMoveAt, 0);
   assert.equal(rematch.game.data.moves.length, 0);
   assert.equal(rematch.game.data.legalMoves.length, 20);
 });
