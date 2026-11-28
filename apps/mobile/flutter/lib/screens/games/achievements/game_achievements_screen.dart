@@ -201,7 +201,7 @@ class _AchievementSummary extends StatelessWidget {
                 ),
               ),
               Text(
-                '\${(completion * 100).round()}%',
+                '${(completion * 100).round()}%',
                 style: TextStyle(
                   fontFamily: NovynTheme.fontFamily,
                   color: accent,
@@ -370,7 +370,7 @@ class _AchievementTile extends StatelessWidget {
                     Text(
                       unlocked
                           ? 'Unlocked'
-                          : '\${achievement.safeProgress}/\${achievement.target}',
+                          : '${achievement.safeProgress}/${achievement.target}',
                       style: TextStyle(
                         color: unlocked ? accent : colors.onSurfaceVariant,
                         fontSize: 10.5,
