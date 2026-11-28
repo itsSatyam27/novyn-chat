@@ -7,11 +7,13 @@ function emitGameInviteClosed({
   io,
   reason,
   includeSender = false,
+  extraSocketIds = [],
 }) {
   if (!invite || !messageId || !onlineUsers || !io) return 0;
   const socketIds = new Set([
     invite.acceptedSocketId,
     onlineUsers.get(invite.toKey),
+    ...extraSocketIds,
     ...(includeSender ? [onlineUsers.get(invite.fromKey)] : []),
   ].filter((value) => typeof value === "string" && value.length > 0));
   const packet = {
