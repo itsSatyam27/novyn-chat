@@ -1224,7 +1224,103 @@ class _ChessGameScreenState extends State<ChessGameScreen> {
                                     style: TextStyle(
                                       color: _message.isNotEmpty ? theme.colorScheme.error : muted,
                                       fontSize: 11,
-                                      fontWeight: FontWeight.w80
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          SizedBox(
+                            width: sideWidth,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                _playerCard(true, foreground, muted, panel, accent),
+                                const SizedBox(height: 24),
+                                Wrap(
+                                  alignment: WrapAlignment.center,
+                                  spacing: 8,
+                                  runSpacing: 12,
+                                  children: [
+                                    if (_finished)
+                                      _roundAction(
+                                        'Rematch',
+                                        Icons.refresh_rounded,
+                                        foreground,
+                                        accent,
+                                        () {
+                                          final rematch = _data['rematch'];
+                                          if (rematch is Map && rematch['status'] == 'pending') {
+                                            _sendAction(
+                                              rematch['requestedBy']?.toString().toLowerCase() == _user
+                                                  ? 'rematch_cancel'
+                                                  : 'rematch_accept',
+                                            );
+                                          } else {
+                                            _sendAction('rematch_request');
+                                          }
+                                        },
+                                      )
+                                    else ...[
+                                      if (_data['canClaimDraw'] == true)
+                                        _roundAction(
+                                          'Claim draw',
+                                          Icons.handshake_rounded,
+                                          foreground,
+                                          accent,
+                                          () => _sendAction('claim_draw'),
+                                        )
+                                      else if (_drawOffer.isNotEmpty && _drawOffer != _user) ...[
+                                        _roundAction(
+                                          'Accept draw',
+                                          Icons.handshake_rounded,
+                                          foreground,
+                                          accent,
+                                          () => _sendAction('draw_accept'),
+                                        ),
+                                        _roundAction(
+                                          'Decline',
+                                          Icons.close_rounded,
+                                          foreground,
+                                          accent,
+                                          () => _sendAction('draw_decline'),
+                                        ),
+                                      ] else
+                                        _roundAction(
+                                          _drawOffer == _user ? 'Draw sent' : 'Offer draw',
+                                          Icons.handshake_rounded,
+                                          foreground,
+                                          accent,
+                                          _drawOffer.isNotEmpty ? null : () => _sendAction('draw_offer'),
+                                        ),
+                                      _roundAction(
+                                        'Resign',
+                                        Icons.flag_rounded,
+                                        foreground,
+                                        accent,
+                                        () => _sendAction('resign'),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _voiceControl(
     IconData icon,
     String label,
